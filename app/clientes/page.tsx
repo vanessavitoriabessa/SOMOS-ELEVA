@@ -3,7 +3,7 @@ import ClientesManager from "@/components/ClientesManager";
 
 export default function Clientes() {
   return (
-    <AppShell titulo="Clientes" subtitulo="Cadastre e acompanhe a carteira de clientes.">
+    <AppShell title="Clientes" subtitle="Cadastre e acompanhe a carteira de clientes.">
       <main className="page">
         <ClientesManager />
       </main>
