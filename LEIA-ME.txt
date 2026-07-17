@@ -1,0 +1,30 @@
+SOMOS ELEVA — MÓDULO ESTEIRA — PARTE 1
+
+FUNCIONALIDADES:
+- Kanban com 6 colunas:
+  Solicitado, Em andamento, Aguardando boleto,
+  Enviado ao banco, Pago e Cancelado
+- Arrastar cards entre colunas
+- Alterar status pelo seletor
+- Ao mover para Pago:
+  solicita o percentual da tabela,
+  calcula a comissão,
+  registra a data do pagamento
+- Pesquisa por cliente, CPF, banco ou vendedora
+- Filtro por vendedora
+- Resumo de propostas, valor pago e comissão
+- Modal com detalhes da proposta
+- Excluir proposta
+- Lê as mesmas propostas do módulo Propostas
+
+COMO INSTALAR:
+1. Extraia este ZIP.
+2. Copie as pastas app e components.
+3. Cole dentro de SOMOS-ELEVA-V9-ESTEIRA-PROPOSTAS.
+4. Clique em "Substituir os arquivos no destino".
+5. Abra http://localhost:3001/esteira
+6. Aperte Ctrl + F5.
+
+IMPORTANTE:
+As propostas precisam estar cadastradas no módulo Propostas.
+Este módulo usa o mesmo localStorage: somos-eleva-propostas.

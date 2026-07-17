@@ -1,0 +1,13 @@
+SOMOS ELEVA — LOGIN CORRIGIDO
+
+1. Extraia este ZIP.
+2. Copie as pastas app e public.
+3. Cole dentro de SOMOS-ELEVA-V9-ESTEIRA-PROPOSTAS.
+4. Clique em "Substituir os arquivos no destino".
+5. Abra http://localhost:3001/login
+6. Aperte Ctrl + F5.
+
+LOGIN PROVISÓRIO:
+E-mail: admin@somosmaiseleva.com.br
+ou matrícula: 0001
+Senha: Eleva@2026
