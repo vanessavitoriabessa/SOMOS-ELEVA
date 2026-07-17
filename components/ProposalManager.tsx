@@ -1,6 +1,11 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import "./propostas.css";
 
 type StatusProposta =
@@ -11,19 +16,59 @@ type StatusProposta =
   | "Pago"
   | "Cancelado";
 
+type ClienteCadastrado = {
+  id: string;
+  nome: string;
+  cpf: string;
+  telefone: string;
+  banco?: string;
+  produto?: string;
+  status?: string;
+};
+
+type TabelaCompraDivida = {
+  nome: string;
+  percentual: number;
+};
+
 type Proposta = {
   id: string;
+  clienteId: string;
   cliente: string;
   cpf: string;
   telefone: string;
   vendedora: string;
   banco: string;
+
+  /*
+   * percentualTabela agora representa quanto o contrato
+   * vale para a meta, e não a premiação da consultora.
+   */
   tabela: string;
-  valorContrato: number;
   percentualTabela: number;
+  valorContrato: number;
+  valorMeta: number;
+
+  /*
+   * Mantidos apenas para compatibilidade com módulos antigos.
+   * O Ranking não deve usar estes campos para pagar a consultora.
+   */
   comissao: number;
+  premiacao: number;
+
   status: StatusProposta;
   dataCadastro: string;
+  dataPagamento: string;
+  observacao: string;
+};
+
+type FormularioProposta = {
+  clienteId: string;
+  vendedora: string;
+  banco: string;
+  tabela: string;
+  valorContrato: string;
+  status: StatusProposta;
   dataPagamento: string;
   observacao: string;
 };
@@ -37,122 +82,500 @@ const STATUS: StatusProposta[] = [
   "Cancelado",
 ];
 
-const PERCENTUAIS_RAPIDOS = [0, 1, 2, 3.25, 5, 7, 10, 16.5, 20.5, 24.5, 28.5];
+const TABELAS_COMPRA_DIVIDA: TabelaCompraDivida[] = [
+  { nome: "NEO NORMAL", percentual: 100 },
+  { nome: "NEO FLEX 1", percentual: 82 },
+  { nome: "NEO FLEX 2", percentual: 67 },
+  { nome: "NEO FLEX 4", percentual: 37 },
+  { nome: "NEO FLEX 5", percentual: 17 },
+];
+
+const formularioVazio: FormularioProposta = {
+  clienteId: "",
+  vendedora: "",
+  banco: "",
+  tabela: "",
+  valorContrato: "",
+  status: "Solicitado",
+  dataPagamento: "",
+  observacao: "",
+};
 
 function numero(valor: string) {
-  const limpo = valor.replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
+  const limpo = valor
+    .replace(/[^\d,.-]/g, "")
+    .replace(/\./g, "")
+    .replace(",", ".");
+
   const convertido = Number(limpo);
-  return Number.isFinite(convertido) ? convertido : 0;
+
+  return Number.isFinite(convertido)
+    ? convertido
+    : 0;
 }
 
 function moeda(valor: number) {
-  return Number(valor || 0).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  });
+  return Number(valor || 0).toLocaleString(
+    "pt-BR",
+    {
+      style: "currency",
+      currency: "BRL",
+    }
+  );
+}
+
+function formatarPercentual(valor: number) {
+  return `${Number(valor || 0).toLocaleString(
+    "pt-BR",
+    {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }
+  )}%`;
 }
 
 function apenasNumeros(valor: string) {
-  return valor.replace(/\D/g, "");
+  return String(valor || "").replace(/\D/g, "");
 }
 
 function formatarCpf(valor: string) {
-  const digitos = apenasNumeros(valor).slice(0, 11);
+  const digitos = apenasNumeros(valor).slice(
+    0,
+    11
+  );
+
   return digitos
     .replace(/^(\d{3})(\d)/, "$1.$2")
-    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(
+      /^(\d{3})\.(\d{3})(\d)/,
+      "$1.$2.$3"
+    )
     .replace(/\.(\d{3})(\d)/, ".$1-$2");
+}
+
+function formatarTelefone(valor: string) {
+  const digitos = apenasNumeros(valor).slice(
+    0,
+    11
+  );
+
+  if (digitos.length <= 10) {
+    return digitos
+      .replace(/^(\d{2})(\d)/, "($1) $2")
+      .replace(/(\d{4})(\d)/, "$1-$2");
+  }
+
+  return digitos
+    .replace(/^(\d{2})(\d)/, "($1) $2")
+    .replace(/(\d{5})(\d)/, "$1-$2");
 }
 
 function hojeIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-const vazio = {
-  cliente: "",
-  cpf: "",
-  telefone: "",
-  vendedora: "",
-  banco: "",
-  tabela: "",
-  valorContrato: "",
-  percentualTabela: "0",
-  status: "Solicitado" as StatusProposta,
-  dataPagamento: "",
-  observacao: "",
-};
+function normalizarTexto(valor: string) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function tabelaPeloNome(nome: string) {
+  const nomeNormalizado = normalizarTexto(nome);
+
+  return TABELAS_COMPRA_DIVIDA.find((item) => {
+    const tabelaNormalizada = normalizarTexto(item.nome);
+
+    return (
+      nomeNormalizado === tabelaNormalizada ||
+      nomeNormalizado.startsWith(tabelaNormalizada)
+    );
+  });
+}
+
+function percentualDaTabela(
+  tabela: string,
+  percentualSalvo: unknown
+) {
+  const tabelaEncontrada = tabelaPeloNome(tabela);
+
+  if (tabelaEncontrada) {
+    return tabelaEncontrada.percentual;
+  }
+
+  const percentualNoNome = String(tabela || "").match(
+    /(\d+(?:[.,]\d+)?)\s*%/
+  );
+
+  if (percentualNoNome) {
+    const percentual = Number(
+      percentualNoNome[1].replace(",", ".")
+    );
+
+    if (Number.isFinite(percentual)) {
+      return percentual;
+    }
+  }
+
+  const percentual = Number(percentualSalvo || 0);
+
+  const permitido = TABELAS_COMPRA_DIVIDA.some(
+    (item) =>
+      Math.abs(item.percentual - percentual) < 0.01
+  );
+
+  return permitido ? percentual : 0;
+}
+
+function nomeLimpoDaTabela(tabela: string) {
+  return (
+    tabelaPeloNome(tabela)?.nome ||
+    String(tabela || "")
+      .replace(/\s*[-–—]\s*\d+(?:[.,]\d+)?\s*%/g, "")
+      .trim()
+  );
+}
+
+function normalizarProposta(
+  item: Partial<Proposta> &
+    Record<string, unknown>
+): Proposta {
+  const valorContrato = Number(
+    item.valorContrato ??
+      item.valorOperacao ??
+      0
+  );
+
+  const tabela = nomeLimpoDaTabela(
+    String(item.tabela || "")
+  );
+
+  const percentualTabela =
+    percentualDaTabela(
+      String(item.tabela || ""),
+      item.percentualTabela
+    );
+
+  const valorMeta =
+    Number.isFinite(valorContrato) &&
+    percentualTabela > 0
+      ? valorContrato *
+        (percentualTabela / 100)
+      : 0;
+
+  return {
+    id: String(
+      item.id || crypto.randomUUID()
+    ),
+    clienteId: String(item.clienteId || ""),
+    cliente: String(item.cliente || ""),
+    cpf: apenasNumeros(
+      String(item.cpf || "")
+    ),
+    telefone: apenasNumeros(
+      String(item.telefone || "")
+    ),
+    vendedora: String(
+      item.vendedora ||
+        item.consultora ||
+        ""
+    ),
+    banco: String(item.banco || ""),
+    tabela,
+    percentualTabela,
+    valorContrato: Number.isFinite(
+      valorContrato
+    )
+      ? valorContrato
+      : 0,
+    valorMeta,
+
+    // Valores antigos são zerados para não serem confundidos com premiação.
+    comissao: 0,
+    premiacao: 0,
+
+    status: STATUS.includes(
+      item.status as StatusProposta
+    )
+      ? (item.status as StatusProposta)
+      : "Solicitado",
+    dataCadastro: String(
+      item.dataCadastro || ""
+    ),
+    dataPagamento: String(
+      item.dataPagamento || ""
+    ),
+    observacao: String(
+      item.observacao ||
+        item.observacoes ||
+        ""
+    ),
+  };
+}
 
 export default function ProposalManager() {
-  const [propostas, setPropostas] = useState<Proposta[]>([]);
-  const [form, setForm] = useState(vazio);
+  const [propostas, setPropostas] =
+    useState<Proposta[]>([]);
+
+  const [clientes, setClientes] =
+    useState<ClienteCadastrado[]>([]);
+
+  const [form, setForm] =
+    useState<FormularioProposta>(
+      formularioVazio
+    );
+
   const [busca, setBusca] = useState("");
-  const [filtroStatus, setFiltroStatus] = useState("Todos");
-  const [editandoId, setEditandoId] = useState<string | null>(null);
-  const [mensagem, setMensagem] = useState("");
+
+  const [filtroStatus, setFiltroStatus] =
+    useState("Todos");
+
+  const [editandoId, setEditandoId] =
+    useState<string | null>(null);
+
+  const [mensagem, setMensagem] =
+    useState("");
 
   useEffect(() => {
-    const salvo = localStorage.getItem("somos-eleva-propostas");
-    if (salvo) {
+    let listaClientes: ClienteCadastrado[] =
+      [];
+
+    const clientesSalvos =
+      localStorage.getItem(
+        "somos-eleva-clientes"
+      );
+
+    if (clientesSalvos) {
       try {
-        setPropostas(JSON.parse(salvo));
+        const lista = JSON.parse(
+          clientesSalvos
+        );
+
+        listaClientes = Array.isArray(lista)
+          ? lista.map(
+              (
+                cliente: Partial<ClienteCadastrado>
+              ) => ({
+                id: String(
+                  cliente.id ||
+                    crypto.randomUUID()
+                ),
+                nome: String(
+                  cliente.nome || ""
+                ),
+                cpf: apenasNumeros(
+                  String(cliente.cpf || "")
+                ),
+                telefone: apenasNumeros(
+                  String(
+                    cliente.telefone || ""
+                  )
+                ),
+                banco: String(
+                  cliente.banco || ""
+                ),
+                produto: String(
+                  cliente.produto || ""
+                ),
+                status: String(
+                  cliente.status || "Ativo"
+                ),
+              })
+            )
+          : [];
+
+        setClientes(listaClientes);
+      } catch {
+        setClientes([]);
+      }
+    }
+
+    const propostasSalvas =
+      localStorage.getItem(
+        "somos-eleva-propostas"
+      );
+
+    if (propostasSalvas) {
+      try {
+        const lista = JSON.parse(
+          propostasSalvas
+        );
+
+        const propostasNormalizadas =
+          Array.isArray(lista)
+            ? lista.map(normalizarProposta)
+            : [];
+
+        setPropostas(
+          propostasNormalizadas
+        );
+
+        localStorage.setItem(
+          "somos-eleva-propostas",
+          JSON.stringify(
+            propostasNormalizadas
+          )
+        );
       } catch {
         setPropostas([]);
       }
     }
 
-    const rascunho = localStorage.getItem("somos-eleva-rascunho-proposta");
+    const rascunho =
+      localStorage.getItem(
+        "somos-eleva-rascunho-proposta"
+      );
+
     if (rascunho) {
       try {
         const dados = JSON.parse(rascunho);
+
+        const clienteEncontrado =
+          listaClientes.find((cliente) => {
+            const mesmoCpf =
+              dados.cpf &&
+              cliente.cpf ===
+                apenasNumeros(dados.cpf);
+
+            const mesmoNome =
+              normalizarTexto(cliente.nome) ===
+              normalizarTexto(
+                dados.cliente || ""
+              );
+
+            return mesmoCpf || mesmoNome;
+          });
+
         setForm((atual) => ({
           ...atual,
-          cliente: dados.cliente || "",
+          clienteId:
+            clienteEncontrado?.id || "",
           banco: dados.banco || "",
-          tabela: dados.tabela || "",
-          valorContrato: dados.valorLiberado
-            ? String(dados.valorLiberado.toFixed(2)).replace(".", ",")
-            : "",
+          tabela:
+            nomeLimpoDaTabela(
+              dados.tabela || ""
+            ),
+          valorContrato:
+            dados.valorLiberado
+              ? String(
+                  Number(
+                    dados.valorLiberado
+                  ).toFixed(2)
+                ).replace(".", ",")
+              : "",
         }));
-        setMensagem("Rascunho da simulação carregado. Complete os dados da proposta.");
-        localStorage.removeItem("somos-eleva-rascunho-proposta");
+
+        setMensagem(
+          clienteEncontrado
+            ? "Rascunho carregado. Selecione a tabela e complete a proposta."
+            : "Rascunho carregado. Cadastre o cliente primeiro ou selecione um cliente existente."
+        );
+
+        localStorage.removeItem(
+          "somos-eleva-rascunho-proposta"
+        );
       } catch {
-        localStorage.removeItem("somos-eleva-rascunho-proposta");
+        localStorage.removeItem(
+          "somos-eleva-rascunho-proposta"
+        );
       }
     }
   }, []);
 
   function persistir(lista: Proposta[]) {
     setPropostas(lista);
-    localStorage.setItem("somos-eleva-propostas", JSON.stringify(lista));
+
+    localStorage.setItem(
+      "somos-eleva-propostas",
+      JSON.stringify(lista)
+    );
   }
 
-  const valorContrato = numero(form.valorContrato);
-  const percentual = numero(form.percentualTabela);
-  const comissaoCalculada =
-    form.status === "Pago" ? valorContrato * (percentual / 100) : 0;
+  const clienteSelecionado = useMemo(
+    () =>
+      clientes.find(
+        (cliente) =>
+          cliente.id === form.clienteId
+      ),
+    [clientes, form.clienteId]
+  );
+
+  const tabelaSelecionada = useMemo(
+    () =>
+      TABELAS_COMPRA_DIVIDA.find(
+        (item) =>
+          item.nome === form.tabela
+      ),
+    [form.tabela]
+  );
+
+  const valorContrato = numero(
+    form.valorContrato
+  );
+
+  const percentualTabela =
+    tabelaSelecionada?.percentual || 0;
+
+  const valorMeta =
+    valorContrato *
+    (percentualTabela / 100);
 
   const propostasFiltradas = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
+    const termo = busca
+      .trim()
+      .toLowerCase();
 
     return propostas.filter((proposta) => {
       const correspondeStatus =
-        filtroStatus === "Todos" || proposta.status === filtroStatus;
+        filtroStatus === "Todos" ||
+        proposta.status === filtroStatus;
 
       const correspondeBusca =
         !termo ||
-        proposta.cliente.toLowerCase().includes(termo) ||
-        proposta.cpf.includes(apenasNumeros(termo)) ||
-        proposta.vendedora.toLowerCase().includes(termo) ||
-        proposta.banco.toLowerCase().includes(termo);
+        proposta.cliente
+          .toLowerCase()
+          .includes(termo) ||
+        proposta.cpf.includes(
+          apenasNumeros(termo)
+        ) ||
+        proposta.vendedora
+          .toLowerCase()
+          .includes(termo) ||
+        proposta.banco
+          .toLowerCase()
+          .includes(termo) ||
+        proposta.tabela
+          .toLowerCase()
+          .includes(termo);
 
-      return correspondeStatus && correspondeBusca;
+      return (
+        correspondeStatus &&
+        correspondeBusca
+      );
     });
   }, [propostas, busca, filtroStatus]);
 
   const resumo = useMemo(() => {
-    const pagas = propostas.filter((item) => item.status === "Pago");
-    const valorPago = pagas.reduce((total, item) => total + item.valorContrato, 0);
-    const comissoes = pagas.reduce((total, item) => total + item.comissao, 0);
+    const pagas = propostas.filter(
+      (item) => item.status === "Pago"
+    );
+
+    const valorPago = pagas.reduce(
+      (total, item) =>
+        total +
+        Number(item.valorContrato || 0),
+      0
+    );
+
+    const producaoValida = pagas.reduce(
+      (total, item) =>
+        total +
+        Number(item.valorMeta || 0),
+      0
+    );
+
     const emAndamento = propostas.filter(
       (item) =>
         item.status !== "Pago" &&
@@ -164,100 +587,213 @@ export default function ProposalManager() {
       pagas: pagas.length,
       emAndamento,
       valorPago,
-      comissoes,
+      producaoValida,
     };
   }, [propostas]);
 
-  function enviar(event: FormEvent<HTMLFormElement>) {
+  function enviar(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
     setMensagem("");
 
-    if (!form.cliente.trim()) {
-      setMensagem("Informe o nome do cliente.");
+    if (!clienteSelecionado) {
+      setMensagem(
+        "Selecione um cliente já cadastrado."
+      );
+      return;
+    }
+
+    if (!form.vendedora.trim()) {
+      setMensagem(
+        "Informe a consultora."
+      );
+      return;
+    }
+
+    if (!form.banco.trim()) {
+      setMensagem(
+        "Informe o banco da operação."
+      );
+      return;
+    }
+
+    if (!tabelaSelecionada) {
+      setMensagem(
+        "Selecione a tabela utilizada."
+      );
       return;
     }
 
     if (valorContrato <= 0) {
-      setMensagem("Informe o valor total do contrato.");
+      setMensagem(
+        "Informe o valor total do contrato."
+      );
       return;
     }
 
-    if (form.status === "Pago" && percentual <= 0) {
-      setMensagem("Selecione ou informe a porcentagem da tabela para contrato pago.");
+    if (
+      form.status === "Pago" &&
+      !form.dataPagamento
+    ) {
+      setMensagem(
+        "Informe a data do pagamento."
+      );
       return;
     }
+
+    const antiga = propostas.find(
+      (item) => item.id === editandoId
+    );
 
     const proposta: Proposta = {
-      id: editandoId || crypto.randomUUID(),
-      cliente: form.cliente.trim(),
-      cpf: apenasNumeros(form.cpf),
-      telefone: form.telefone.trim(),
-      vendedora: form.vendedora.trim(),
+      id:
+        editandoId ||
+        crypto.randomUUID(),
+      clienteId:
+        clienteSelecionado.id,
+      cliente:
+        clienteSelecionado.nome,
+      cpf: clienteSelecionado.cpf,
+      telefone:
+        clienteSelecionado.telefone,
+      vendedora:
+        form.vendedora.trim(),
       banco: form.banco.trim(),
-      tabela: form.tabela.trim(),
+      tabela: tabelaSelecionada.nome,
+      percentualTabela:
+        tabelaSelecionada.percentual,
       valorContrato,
-      percentualTabela: percentual,
-      comissao: comissaoCalculada,
+      valorMeta,
+
+      // Não é premiação. O Ranking calculará a premiação pela faixa da meta.
+      comissao: 0,
+      premiacao: 0,
+
       status: form.status,
       dataCadastro:
-        editandoId
-          ? propostas.find((item) => item.id === editandoId)?.dataCadastro ||
-            new Date().toLocaleString("pt-BR")
-          : new Date().toLocaleString("pt-BR"),
+        antiga?.dataCadastro ||
+        new Date().toLocaleString(
+          "pt-BR"
+        ),
       dataPagamento:
         form.status === "Pago"
-          ? form.dataPagamento || hojeIso()
+          ? form.dataPagamento
           : "",
-      observacao: form.observacao.trim(),
+      observacao:
+        form.observacao.trim(),
     };
 
     const atualizadas = editandoId
-      ? propostas.map((item) => (item.id === editandoId ? proposta : item))
+      ? propostas.map((item) =>
+          item.id === editandoId
+            ? proposta
+            : item
+        )
       : [proposta, ...propostas];
 
+    const estavaEditando =
+      Boolean(editandoId);
+
     persistir(atualizadas);
-    setForm(vazio);
+    setForm(formularioVazio);
     setEditandoId(null);
+
     setMensagem(
-      editandoId
+      estavaEditando
         ? "Proposta atualizada com sucesso."
         : "Proposta cadastrada com sucesso."
     );
   }
 
-  function editar(proposta: Proposta) {
-    setEditandoId(proposta.id);
-    setForm({
-      cliente: proposta.cliente,
-      cpf: formatarCpf(proposta.cpf),
-      telefone: proposta.telefone,
-      vendedora: proposta.vendedora,
-      banco: proposta.banco,
-      tabela: proposta.tabela,
-      valorContrato: proposta.valorContrato.toFixed(2).replace(".", ","),
-      percentualTabela: String(proposta.percentualTabela).replace(".", ","),
-      status: proposta.status,
-      dataPagamento: proposta.dataPagamento,
-      observacao: proposta.observacao,
+  function localizarClienteDaProposta(
+    proposta: Proposta
+  ) {
+    return clientes.find((cliente) => {
+      if (
+        proposta.clienteId &&
+        cliente.id === proposta.clienteId
+      ) {
+        return true;
+      }
+
+      if (
+        proposta.cpf &&
+        cliente.cpf === proposta.cpf
+      ) {
+        return true;
+      }
+
+      return (
+        normalizarTexto(cliente.nome) ===
+        normalizarTexto(proposta.cliente)
+      );
     });
-    setMensagem("Editando proposta selecionada.");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function editar(proposta: Proposta) {
+    const cliente =
+      localizarClienteDaProposta(
+        proposta
+      );
+
+    const tabela =
+      tabelaPeloNome(proposta.tabela);
+
+    setEditandoId(proposta.id);
+
+    setForm({
+      clienteId: cliente?.id || "",
+      vendedora:
+        proposta.vendedora || "",
+      banco: proposta.banco || "",
+      tabela: tabela?.nome || "",
+      valorContrato: Number(
+        proposta.valorContrato || 0
+      )
+        .toFixed(2)
+        .replace(".", ","),
+      status: proposta.status,
+      dataPagamento:
+        proposta.dataPagamento || "",
+      observacao:
+        proposta.observacao || "",
+    });
+
+    setMensagem(
+      cliente
+        ? "Editando proposta selecionada."
+        : "O cliente desta proposta antiga não foi encontrado. Selecione o cliente correto."
+    );
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   }
 
   function excluir(id: string) {
-    const confirmar = window.confirm("Deseja realmente excluir esta proposta?");
+    const confirmar = window.confirm(
+      "Deseja realmente excluir esta proposta?"
+    );
+
     if (!confirmar) return;
 
-    persistir(propostas.filter((item) => item.id !== id));
+    persistir(
+      propostas.filter(
+        (item) => item.id !== id
+      )
+    );
+
     if (editandoId === id) {
       setEditandoId(null);
-      setForm(vazio);
+      setForm(formularioVazio);
     }
   }
 
   function cancelarEdicao() {
     setEditandoId(null);
-    setForm(vazio);
+    setForm(formularioVazio);
     setMensagem("");
   }
 
@@ -268,89 +804,160 @@ export default function ProposalManager() {
           <span>Total de propostas</span>
           <strong>{resumo.total}</strong>
         </article>
+
         <article>
           <span>Em andamento</span>
-          <strong>{resumo.emAndamento}</strong>
+          <strong>
+            {resumo.emAndamento}
+          </strong>
         </article>
+
         <article>
           <span>Contratos pagos</span>
           <strong>{resumo.pagas}</strong>
         </article>
+
         <article>
-          <span>Valor pago</span>
-          <strong>{moeda(resumo.valorPago)}</strong>
+          <span>Valor total pago</span>
+          <strong>
+            {moeda(resumo.valorPago)}
+          </strong>
         </article>
+
         <article className="commission-summary">
-          <span>Comissões calculadas</span>
-          <strong>{moeda(resumo.comissoes)}</strong>
+          <span>Produção válida paga</span>
+          <strong>
+            {moeda(
+              resumo.producaoValida
+            )}
+          </strong>
         </article>
       </section>
 
       <section className="proposal-layout">
-        <form className="proposal-form" onSubmit={enviar}>
+        <form
+          className="proposal-form"
+          onSubmit={enviar}
+        >
           <div className="proposal-form-heading">
             <div>
-              <span>{editandoId ? "EDITAR PROPOSTA" : "NOVA PROPOSTA"}</span>
-              <h2>{editandoId ? "Atualizar contrato" : "Cadastrar contrato"}</h2>
+              <span>
+                {editandoId
+                  ? "EDITAR PROPOSTA"
+                  : "NOVA PROPOSTA"}
+              </span>
+
+              <h2>
+                {editandoId
+                  ? "Atualizar contrato"
+                  : "Cadastrar contrato"}
+              </h2>
+
               <p>
-                A comissão é calculada automaticamente apenas quando o status for Pago.
+                Selecione o cliente e a tabela.
+                O sistema calcula automaticamente
+                quanto o contrato vale para a meta.
               </p>
             </div>
-            <div className="proposal-form-badge">%</div>
+
+            <div className="proposal-form-badge">
+              %
+            </div>
           </div>
 
           <div className="proposal-form-grid">
-            <label>
-              Nome do cliente
-              <input
-                value={form.cliente}
+            <label className="proposal-client-field">
+              Cliente cadastrado
+
+              <select
+                value={form.clienteId}
                 onChange={(event) =>
-                  setForm({ ...form, cliente: event.target.value })
+                  setForm({
+                    ...form,
+                    clienteId:
+                      event.target.value,
+                  })
                 }
-                placeholder="Digite o nome completo"
-              />
+              >
+                <option value="">
+                  Selecione o cliente
+                </option>
+
+                {clientes.map((cliente) => (
+                  <option
+                    key={cliente.id}
+                    value={cliente.id}
+                  >
+                    {cliente.nome}
+                    {cliente.cpf
+                      ? ` — ${formatarCpf(
+                          cliente.cpf
+                        )}`
+                      : ""}
+                  </option>
+                ))}
+              </select>
             </label>
 
             <label>
               CPF
+
               <input
-                value={form.cpf}
-                onChange={(event) =>
-                  setForm({ ...form, cpf: formatarCpf(event.target.value) })
+                value={
+                  clienteSelecionado?.cpf
+                    ? formatarCpf(
+                        clienteSelecionado.cpf
+                      )
+                    : ""
                 }
-                placeholder="000.000.000-00"
-                inputMode="numeric"
+                placeholder="Preenchido automaticamente"
+                readOnly
               />
             </label>
 
             <label>
               Telefone
+
               <input
-                value={form.telefone}
-                onChange={(event) =>
-                  setForm({ ...form, telefone: event.target.value })
+                value={
+                  clienteSelecionado?.telefone
+                    ? formatarTelefone(
+                        clienteSelecionado.telefone
+                      )
+                    : ""
                 }
-                placeholder="(62) 99999-9999"
+                placeholder="Preenchido automaticamente"
+                readOnly
               />
             </label>
 
             <label>
-              Vendedora
+              Consultora
+
               <input
                 value={form.vendedora}
                 onChange={(event) =>
-                  setForm({ ...form, vendedora: event.target.value })
+                  setForm({
+                    ...form,
+                    vendedora:
+                      event.target.value,
+                  })
                 }
                 placeholder="Nome da consultora"
               />
             </label>
 
             <label>
-              Banco
+              Banco da operação
+
               <input
                 value={form.banco}
                 onChange={(event) =>
-                  setForm({ ...form, banco: event.target.value })
+                  setForm({
+                    ...form,
+                    banco:
+                      event.target.value,
+                  })
                 }
                 placeholder="Ex.: NEO"
               />
@@ -358,21 +965,48 @@ export default function ProposalManager() {
 
             <label>
               Tabela utilizada
-              <input
+
+              <select
                 value={form.tabela}
                 onChange={(event) =>
-                  setForm({ ...form, tabela: event.target.value })
+                  setForm({
+                    ...form,
+                    tabela:
+                      event.target.value,
+                  })
                 }
-                placeholder="Ex.: NEO NORMAL"
-              />
+              >
+                <option value="">
+                  Selecione a tabela
+                </option>
+
+                {TABELAS_COMPRA_DIVIDA.map(
+                  (tabela) => (
+                    <option
+                      key={tabela.nome}
+                      value={tabela.nome}
+                    >
+                      {tabela.nome} —{" "}
+                      {formatarPercentual(
+                        tabela.percentual
+                      )}
+                    </option>
+                  )
+                )}
+              </select>
             </label>
 
             <label>
               Valor total do contrato
+
               <input
                 value={form.valorContrato}
                 onChange={(event) =>
-                  setForm({ ...form, valorContrato: event.target.value })
+                  setForm({
+                    ...form,
+                    valorContrato:
+                      event.target.value,
+                  })
                 }
                 placeholder="Ex.: 20.000,00"
                 inputMode="decimal"
@@ -381,126 +1015,168 @@ export default function ProposalManager() {
 
             <label>
               Status
+
               <select
                 value={form.status}
                 onChange={(event) =>
                   setForm({
                     ...form,
-                    status: event.target.value as StatusProposta,
+                    status:
+                      event.target
+                        .value as StatusProposta,
                     dataPagamento:
-                      event.target.value === "Pago"
-                        ? form.dataPagamento || hojeIso()
+                      event.target.value ===
+                      "Pago"
+                        ? form.dataPagamento ||
+                          hojeIso()
                         : "",
                   })
                 }
               >
                 {STATUS.map((status) => (
-                  <option key={status}>{status}</option>
+                  <option key={status}>
+                    {status}
+                  </option>
                 ))}
               </select>
             </label>
           </div>
+
+          <section className="paid-section">
+            <div className="paid-section-heading">
+              <div>
+                <span>PRODUÇÃO PARA A META</span>
+                <h3>
+                  Valor válido do contrato
+                </h3>
+              </div>
+
+              <strong>
+                {moeda(valorMeta)}
+              </strong>
+            </div>
+
+            <div className="commission-calculation">
+              <div>
+                <span>
+                  Valor do contrato
+                </span>
+
+                <strong>
+                  {moeda(valorContrato)}
+                </strong>
+              </div>
+
+              <div className="formula">
+                ×
+              </div>
+
+              <div>
+                <span>Percentual da tabela</span>
+
+                <strong>
+                  {formatarPercentual(
+                    percentualTabela
+                  )}
+                </strong>
+              </div>
+
+              <div className="formula">
+                =
+              </div>
+
+              <div className="commission-result">
+                <span>Valor para a meta</span>
+
+                <strong>
+                  {moeda(valorMeta)}
+                </strong>
+              </div>
+            </div>
+          </section>
 
           {form.status === "Pago" && (
             <section className="paid-section">
               <div className="paid-section-heading">
                 <div>
                   <span>CONTRATO PAGO</span>
-                  <h3>Tabela e comissão</h3>
+                  <h3>
+                    Data do pagamento
+                  </h3>
                 </div>
-                <strong>{moeda(comissaoCalculada)}</strong>
               </div>
 
               <div className="paid-grid">
                 <label>
-                  Porcentagem da tabela
-                  <select
-                    value={form.percentualTabela}
-                    onChange={(event) =>
-                      setForm({
-                        ...form,
-                        percentualTabela: event.target.value,
-                      })
-                    }
-                  >
-                    {PERCENTUAIS_RAPIDOS.map((item) => (
-                      <option key={item} value={item}>
-                        {String(item).replace(".", ",")}%
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  Digitar outra porcentagem
-                  <input
-                    value={form.percentualTabela}
-                    onChange={(event) =>
-                      setForm({
-                        ...form,
-                        percentualTabela: event.target.value,
-                      })
-                    }
-                    placeholder="Ex.: 3,25"
-                    inputMode="decimal"
-                  />
-                </label>
-
-                <label>
                   Data do pagamento
+
                   <input
                     type="date"
-                    value={form.dataPagamento}
+                    value={
+                      form.dataPagamento
+                    }
                     onChange={(event) =>
                       setForm({
                         ...form,
-                        dataPagamento: event.target.value,
+                        dataPagamento:
+                          event.target.value,
                       })
                     }
                   />
                 </label>
-              </div>
-
-              <div className="commission-calculation">
-                <div>
-                  <span>Valor do contrato</span>
-                  <strong>{moeda(valorContrato)}</strong>
-                </div>
-                <div className="formula">×</div>
-                <div>
-                  <span>Percentual</span>
-                  <strong>{percentual.toFixed(2).replace(".", ",")}%</strong>
-                </div>
-                <div className="formula">=</div>
-                <div className="commission-result">
-                  <span>Comissão</span>
-                  <strong>{moeda(comissaoCalculada)}</strong>
-                </div>
               </div>
             </section>
           )}
 
+          {!clientes.length && (
+            <div className="proposal-message">
+              Nenhum cliente cadastrado. Cadastre o
+              cliente na página Clientes antes de
+              criar uma proposta.
+            </div>
+          )}
+
           <label className="proposal-observation">
             Observações
+
             <textarea
               value={form.observacao}
               onChange={(event) =>
-                setForm({ ...form, observacao: event.target.value })
+                setForm({
+                  ...form,
+                  observacao:
+                    event.target.value,
+                })
               }
               placeholder="Informações importantes sobre o contrato"
             />
           </label>
 
-          {mensagem && <div className="proposal-message">{mensagem}</div>}
+          {mensagem && (
+            <div className="proposal-message">
+              {mensagem}
+            </div>
+          )}
 
           <div className="proposal-actions">
             {editandoId && (
-              <button type="button" className="cancel" onClick={cancelarEdicao}>
+              <button
+                type="button"
+                className="cancel"
+                onClick={cancelarEdicao}
+              >
                 Cancelar edição
               </button>
             )}
-            <button type="submit" className="save">
-              {editandoId ? "Atualizar proposta" : "Salvar proposta"}
+
+            <button
+              type="submit"
+              className="save"
+              disabled={!clientes.length}
+            >
+              {editandoId
+                ? "Atualizar proposta"
+                : "Salvar proposta"}
             </button>
           </div>
         </form>
@@ -509,24 +1185,40 @@ export default function ProposalManager() {
           <div className="proposal-list-heading">
             <div>
               <span>ACOMPANHAMENTO</span>
-              <h2>Propostas cadastradas</h2>
+
+              <h2>
+                Propostas cadastradas
+              </h2>
             </div>
-            <b>{propostasFiltradas.length}</b>
+
+            <b>
+              {propostasFiltradas.length}
+            </b>
           </div>
 
           <div className="proposal-filters">
             <input
               value={busca}
-              onChange={(event) => setBusca(event.target.value)}
-              placeholder="Pesquisar cliente, CPF, vendedora ou banco"
+              onChange={(event) =>
+                setBusca(event.target.value)
+              }
+              placeholder="Pesquisar cliente, CPF, consultora, banco ou tabela"
             />
+
             <select
               value={filtroStatus}
-              onChange={(event) => setFiltroStatus(event.target.value)}
+              onChange={(event) =>
+                setFiltroStatus(
+                  event.target.value
+                )
+              }
             >
               <option>Todos</option>
+
               {STATUS.map((status) => (
-                <option key={status}>{status}</option>
+                <option key={status}>
+                  {status}
+                </option>
               ))}
             </select>
           </div>
@@ -534,65 +1226,119 @@ export default function ProposalManager() {
           {propostasFiltradas.length === 0 ? (
             <div className="proposal-empty">
               <div>▤</div>
-              <strong>Nenhuma proposta encontrada</strong>
-              <p>Cadastre a primeira proposta ou altere os filtros.</p>
+
+              <strong>
+                Nenhuma proposta encontrada
+              </strong>
+
+              <p>
+                Cadastre a primeira proposta ou
+                altere os filtros.
+              </p>
             </div>
           ) : (
             <div className="proposal-list">
-              {propostasFiltradas.map((proposta) => (
-                <article key={proposta.id}>
-                  <div className="proposal-item-top">
-                    <div>
-                      <strong>{proposta.cliente}</strong>
-                      <span>
-                        {proposta.banco || "Banco não informado"}
-                        {proposta.tabela ? ` • ${proposta.tabela}` : ""}
+              {propostasFiltradas.map(
+                (proposta) => (
+                  <article key={proposta.id}>
+                    <div className="proposal-item-top">
+                      <div>
+                        <strong>
+                          {proposta.cliente}
+                        </strong>
+
+                        <span>
+                          {proposta.banco ||
+                            "Banco não informado"}
+
+                          {proposta.tabela
+                            ? ` • ${proposta.tabela} — ${formatarPercentual(
+                                proposta.percentualTabela
+                              )}`
+                            : ""}
+                        </span>
+                      </div>
+
+                      <span
+                        className={`status status-${proposta.status
+                          .toLowerCase()
+                          .replace(/\s/g, "-")
+                          .normalize("NFD")
+                          .replace(
+                            /[\u0300-\u036f]/g,
+                            ""
+                          )}`}
+                      >
+                        {proposta.status}
                       </span>
                     </div>
-                    <span
-                      className={`status status-${proposta.status
-                        .toLowerCase()
-                        .replace(/\s/g, "-")
-                        .normalize("NFD")
-                        .replace(/[\u0300-\u036f]/g, "")}`}
-                    >
-                      {proposta.status}
-                    </span>
-                  </div>
 
-                  <div className="proposal-item-values">
-                    <div>
-                      <small>Contrato</small>
-                      <b>{moeda(proposta.valorContrato)}</b>
-                    </div>
-                    <div>
-                      <small>Tabela</small>
-                      <b>
-                        {proposta.status === "Pago"
-                          ? `${String(proposta.percentualTabela).replace(".", ",")}%`
-                          : "—"}
-                      </b>
-                    </div>
-                    <div>
-                      <small>Comissão</small>
-                      <b>{moeda(proposta.comissao)}</b>
-                    </div>
-                  </div>
+                    <div className="proposal-item-values">
+                      <div>
+                        <small>Contrato</small>
 
-                  <div className="proposal-item-footer">
-                    <span>
-                      {proposta.vendedora || "Vendedora não informada"} •{" "}
-                      {proposta.dataCadastro}
-                    </span>
-                    <div>
-                      <button onClick={() => editar(proposta)}>Editar</button>
-                      <button className="delete" onClick={() => excluir(proposta.id)}>
-                        Excluir
-                      </button>
+                        <b>
+                          {moeda(
+                            proposta.valorContrato
+                          )}
+                        </b>
+                      </div>
+
+                      <div>
+                        <small>
+                          Percentual da tabela
+                        </small>
+
+                        <b>
+                          {formatarPercentual(
+                            proposta.percentualTabela
+                          )}
+                        </b>
+                      </div>
+
+                      <div>
+                        <small>
+                          Valor para a meta
+                        </small>
+
+                        <b>
+                          {moeda(
+                            proposta.valorMeta
+                          )}
+                        </b>
+                      </div>
                     </div>
-                  </div>
-                </article>
-              ))}
+
+                    <div className="proposal-item-footer">
+                      <span>
+                        {proposta.vendedora ||
+                          "Consultora não informada"}{" "}
+                        • Digitado em{" "}
+                        {proposta.dataCadastro}
+                      </span>
+
+                      <div>
+                        <button
+                          onClick={() =>
+                            editar(proposta)
+                          }
+                        >
+                          Editar
+                        </button>
+
+                        <button
+                          className="delete"
+                          onClick={() =>
+                            excluir(proposta.id)
+                          }
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                )
+              )}
             </div>
           )}
         </section>
@@ -600,9 +1346,15 @@ export default function ProposalManager() {
 
       <section className="proposal-note">
         <strong>Como funciona:</strong>
+
         <span>
-          quando o status for <b>Pago</b>, informe a porcentagem da tabela. O
-          sistema calcula: valor total do contrato × percentual.
+          o percentual da tabela define quanto o
+          contrato vale para a meta. Exemplo:
+          contrato de R$ 20.000,00 na tabela de 82%
+          vale R$ 16.400,00 na produção da
+          consultora. A premiação será calculada no
+          Ranking depois da soma da Compra de Dívida
+          com as parcelas do CLT.
         </span>
       </section>
     </div>

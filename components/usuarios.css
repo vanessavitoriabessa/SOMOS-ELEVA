@@ -10,3 +10,237 @@
 .users-warning{display:flex;gap:8px;margin-top:18px;padding:15px 18px;border-color:#ffe0bd;background:#fff8ef;color:#73513b;font-size:13px}.users-warning strong{color:#d85a00}
 @media(max-width:1200px){.users-layout{grid-template-columns:1fr}}
 @media(max-width:760px){.users-page{padding:15px}.users-summary,.users-form-grid,.users-filters{grid-template-columns:1fr}.users-summary{grid-template-columns:repeat(2,1fr)}.users-list article{grid-template-columns:48px 1fr}.user-status,.user-actions{grid-column:1/-1}.users-warning{flex-direction:column}}
+
+
+/* FOTO INDIVIDUAL DOS USUÁRIOS */
+
+.users-photo-area {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 20px 0 22px;
+  padding: 18px;
+  border: 1px solid #e4e8f1;
+  border-radius: 15px;
+  background: #f8f9fd;
+}
+
+.users-photo-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 92px;
+  height: 92px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 4px solid #ffffff;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #5966ec, #7768f2);
+  color: #ffffff;
+  font-size: 32px;
+  font-weight: 800;
+  box-shadow: 0 6px 18px rgba(45, 59, 130, 0.18);
+}
+
+.users-photo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.users-photo-information {
+  flex: 1;
+  min-width: 0;
+}
+
+.users-photo-information > strong {
+  display: block;
+  color: #202a43;
+  font-size: 14px;
+}
+
+.users-photo-information > p {
+  max-width: 430px;
+  margin: 6px 0 13px;
+  color: #7c8497;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.users-photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.users-photo-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 39px;
+  padding: 0 15px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #5365f6, #7165ef);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.users-photo-button input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.users-photo-remove {
+  min-height: 39px;
+  padding: 0 15px;
+  border: 1px solid #e2e6ef;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #d04b55;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.users-photo-remove:hover {
+  background: #fff5f6;
+}
+
+/* FOTO NA LISTA DE USUÁRIOS */
+
+.user-avatar {
+  overflow: hidden;
+}
+
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+/* RESPONSIVIDADE */
+
+@media (max-width: 650px) {
+  .users-photo-area {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .users-photo-preview {
+    width: 82px;
+    height: 82px;
+  }
+
+  .users-photo-actions {
+    width: 100%;
+  }
+
+  .users-photo-button,
+  .users-photo-remove {
+    flex: 1;
+  }
+}
+/* CORREÇÃO DOS CARTÕES DA EQUIPE CADASTRADA */
+
+.users-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.users-list article {
+  display: grid !important;
+  grid-template-columns: 54px minmax(0, 1fr) !important;
+  grid-template-areas:
+    "avatar main"
+    "avatar status"
+    "actions actions";
+  align-items: start !important;
+  gap: 8px 12px !important;
+  min-height: 140px;
+  padding: 14px !important;
+}
+
+.users-list .user-avatar {
+  grid-area: avatar;
+  width: 48px !important;
+  height: 48px !important;
+  min-width: 48px;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.users-list .user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.users-list .user-main {
+  grid-area: main;
+  min-width: 0;
+}
+
+.users-list .user-main > strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.users-list .user-main > span {
+  display: block;
+  margin-top: 4px;
+  font-size: 9px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.users-list .user-main > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.users-list .user-status {
+  grid-area: status;
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-width: 0;
+}
+
+.users-list .user-status small {
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.users-list .user-actions {
+  grid-area: actions;
+  display: flex !important;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding-top: 10px;
+  border-top: 1px solid #e8ecf3;
+}
+
+.users-list .user-actions button {
+  min-height: 32px;
+  padding: 0 10px;
+  white-space: nowrap;
+  font-size: 9px;
+}
