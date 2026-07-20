@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import PainelDoDia from "./PainelDoDia";
 import "./dashboard.css";
 
 type PropostaCompraDivida = {
@@ -242,6 +243,7 @@ export default function DashboardClient() {
   const [perfil, setPerfil] = useState("Consultora");
   const [propostas, setPropostas] = useState<PropostaCompraDivida[]>([]);
   const [registrosClt, setRegistrosClt] = useState<RegistroClt[]>([]);
+const [painelDiaAberto, setPainelDiaAberto] = useState(false);
 
   useEffect(() => {
     function carregar() {
@@ -429,9 +431,11 @@ export default function DashboardClient() {
     });
 
     return {
-      producaoCompraMes,
-      producaoCltMes,
-      producaoMes,
+  producaoCompraMes,
+  producaoCltMes,
+  producaoCompraHoje,
+  producaoCltHoje,
+  producaoMes,
       producaoHoje,
       vendasMes,
       vendasHoje,
@@ -467,7 +471,12 @@ export default function DashboardClient() {
           </p>
         </div>
 
-        <button>▦&nbsp;&nbsp; Painel do dia</button>
+        <button
+  type="button"
+  onClick={() => setPainelDiaAberto(true)}
+>
+  ▦&nbsp;&nbsp; Painel do dia
+</button>
       </section>
 
       <section className="dash-banner">
@@ -674,6 +683,35 @@ export default function DashboardClient() {
           )}
         </article>
       </section>
+            <PainelDoDia
+        aberto={painelDiaAberto}
+        aoFechar={() => setPainelDiaAberto(false)}
+        ehConsultora={ehConsultora}
+        dataHoje={hoje.toLocaleDateString("pt-BR", {
+          weekday: "long",
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        })}
+        vendasHoje={dados.vendasHoje}
+        producaoHoje={dados.producaoHoje}
+        producaoCompraHoje={dados.producaoCompraHoje}
+        producaoCltHoje={dados.producaoCltHoje}
+        producaoMes={dados.producaoMes}
+        metaDoMes={metaDoMes}
+        percentualMeta={percentualMeta}
+        percentualExibido={percentualExibido}
+        percentualBarra={percentualBarra}
+        faltaParaMeta={faltaParaMeta}
+        aoVerPropostas={() => {
+          setPainelDiaAberto(false);
+          router.push("/propostas");
+        }}
+        aoVerRanking={() => {
+          setPainelDiaAberto(false);
+          router.push("/ranking");
+        }}
+      />
     </div>
   );
 }

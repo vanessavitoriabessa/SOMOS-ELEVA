@@ -6,7 +6,9 @@ import {
   useMemo,
   useState,
 } from "react";
-import "./propostas.css";
+
+import { createClient } from "@/lib/supabase/client";
+import "./propostas.css";;
 
 type StatusProposta =
   | "Solicitado"
@@ -360,6 +362,12 @@ function normalizarProposta(
 }
 
 export default function ProposalManager() {
+    const supabase = useMemo(
+    () => createClient(),
+    []
+  );
+
+
   const [propostas, setPropostas] =
     useState<Proposta[]>([]);
 
@@ -616,7 +624,94 @@ if (usuariosSalvos) {
       }
     }
   }, []);
+  useEffect(() => {
+    let componenteAtivo = true;
 
+    async function carregarConsultoras() {
+      try {
+        const {
+          data: dadosSessao,
+          error: erroSessao,
+        } =
+          await supabase.auth.getSession();
+
+        const token =
+          dadosSessao.session?.access_token;
+
+        if (erroSessao || !token) {
+          if (componenteAtivo) {
+            setConsultoras([]);
+          }
+
+          return;
+        }
+
+        const resposta = await fetch(
+          "/api/consultoras",
+          {
+            method: "GET",
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+            },
+            cache: "no-store",
+          }
+        );
+
+        const conteudo =
+          (await resposta.json()) as {
+            consultoras?: Array<{
+              nome?: string;
+            }>;
+            erro?: string;
+          };
+
+        if (!resposta.ok) {
+          throw new Error(
+            conteudo.erro ||
+              "Não foi possível carregar as consultoras."
+          );
+        }
+
+        const nomes = (
+          conteudo.consultoras || []
+        )
+          .map((consultora) =>
+            String(
+              consultora.nome || ""
+            ).trim()
+          )
+          .filter(Boolean);
+
+        const nomesSemRepeticao =
+          Array.from(
+            new Set(nomes)
+          ).sort((a, b) =>
+            a.localeCompare(
+              b,
+              "pt-BR"
+            )
+          );
+
+        if (componenteAtivo) {
+          setConsultoras(
+            nomesSemRepeticao
+          );
+        }
+      } catch {
+        if (componenteAtivo) {
+          setConsultoras([]);
+        }
+      }
+    }
+
+    void carregarConsultoras();
+
+    return () => {
+      componenteAtivo = false;
+    };
+  }, [supabase]);
+  
   function persistir(lista: Proposta[]) {
     setPropostas(lista);
 

@@ -122,6 +122,7 @@ const itensGestao: ItemMenu[] = [
 const ROTAS_PERMITIDAS_CONSULTORA = [
   "/dashboard",
   "/clientes",
+  "/propostas",
   "/simulacao",
   "/clt",
   "/loja-premios",
@@ -290,12 +291,13 @@ export default function AppShell({
     if (ehAdministracao) return itensOperacao;
 
     if (ehConsultora) {
-      const permitidos = [
-        "/dashboard",
-        "/clientes",
-        "/simulacao",
-        "/clt",
-      ];
+  const permitidos = [
+    "/dashboard",
+    "/clientes",
+    "/propostas",
+    "/simulacao",
+    "/clt",
+  ];
 
       return itensOperacao.filter((item) =>
         permitidos.includes(item.href)
