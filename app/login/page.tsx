@@ -1,155 +1,182 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import {
+  FormEvent,
+  useMemo,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import "./login.css";
 
-const USUARIO_PADRAO = "admin@somosmaiseleva.com.br";
-const SENHA_PADRAO = "Eleva@2026";
-
-type UsuarioSalvo = {
-  id?: string;
-  nome?: string;
-  email?: string;
-  matricula?: string;
-  senha?: string;
-  perfil?: string;
-  cargo?: string;
-  equipe?: string;
-  foto?: string;
-  ativo?: boolean | string;
-  status?: string;
+type PerfilUsuario = {
+  nome: string;
+  email: string;
+  perfil: string;
+  equipe: string;
+  ativo: boolean;
+  foto_url: string;
 };
-
-function normalizar(valor: string) {
-  return String(valor || "")
-    .trim()
-    .toLowerCase();
-}
-
-function usuarioEstaAtivo(usuario: UsuarioSalvo) {
-  if (typeof usuario.ativo === "boolean") {
-    return usuario.ativo;
-  }
-
-  const ativoTexto = normalizar(String(usuario.ativo || ""));
-  const statusTexto = normalizar(usuario.status || "");
-
-  if (ativoTexto) {
-    return !["false", "nao", "não", "inativo", "desativado"].includes(
-      ativoTexto
-    );
-  }
-
-  if (statusTexto) {
-    return !["inativo", "desativado", "bloqueado"].includes(statusTexto);
-  }
-
-  return true;
-}
 
 export default function LoginPage() {
   const router = useRouter();
 
-  const [usuario, setUsuario] = useState("");
-  const [senha, setSenha] = useState("");
-  const [mostrarSenha, setMostrarSenha] = useState(false);
-  const [erro, setErro] = useState("");
+  const supabase = useMemo(
+    () => createClient(),
+    []
+  );
 
-  function salvarSessao(dados: {
-  login: string;
-  nome: string;
-  perfil: string;
-  equipe?: string;
-  foto?: string;
-}) {
-    localStorage.setItem("somos-eleva-logado", "sim");
-    localStorage.setItem("somos-eleva-usuario", dados.login);
-    localStorage.setItem("somos-eleva-nome", dados.nome);
-    localStorage.setItem("somos-eleva-matricula", "");
-    localStorage.setItem("somos-eleva-cargo", dados.perfil);
-    localStorage.setItem("somos-eleva-equipe", dados.equipe || "");
-    localStorage.setItem("somos-eleva-status", "Ativo");
-    localStorage.setItem("somos-eleva-foto", dados.foto || "");
-  }
+  const [usuario, setUsuario] =
+    useState("");
 
-  function entrar(event: FormEvent<HTMLFormElement>) {
+  const [senha, setSenha] =
+    useState("");
+
+  const [mostrarSenha, setMostrarSenha] =
+    useState(false);
+
+  const [erro, setErro] =
+    useState("");
+
+  const [entrando, setEntrando] =
+    useState(false);
+
+  async function entrar(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
+
     setErro("");
 
-    const loginDigitado = usuario.trim();
-    const loginNormalizado = normalizar(loginDigitado);
+    const email =
+      usuario.trim().toLowerCase();
 
-    if (!loginDigitado || !senha) {
-  setErro("Informe o e-mail e a senha.");
-  return;
-}
-
-    const ehAdministradorPadrao =
-  loginNormalizado === normalizar(USUARIO_PADRAO) &&
-  senha === SENHA_PADRAO;
-
-    if (ehAdministradorPadrao) {
-      salvarSessao({
-  login: USUARIO_PADRAO,
-  nome: "Vanessa",
-  perfil: "Administradora",
-  equipe: "Administração",
-});
-
-      router.replace("/dashboard");
+    if (!email || !senha) {
+      setErro(
+        "Informe o e-mail e a senha."
+      );
       return;
     }
 
-    let usuariosSalvos: UsuarioSalvo[] = [];
+    setEntrando(true);
 
     try {
-      const conteudo = localStorage.getItem("somos-eleva-usuarios");
-      const lista = conteudo ? JSON.parse(conteudo) : [];
+      const {
+        data: dadosLogin,
+        error: erroLogin,
+      } =
+        await supabase.auth.signInWithPassword(
+          {
+            email,
+            password: senha,
+          }
+        );
 
-      usuariosSalvos = Array.isArray(lista) ? lista : [];
-    } catch {
-      setErro("Não foi possível ler os usuários cadastrados.");
-      return;
-    }
+      if (
+        erroLogin ||
+        !dadosLogin.user
+      ) {
+        setErro(
+          "E-mail ou senha incorretos."
+        );
+        return;
+      }
 
-    const usuarioEncontrado = usuariosSalvos.find((item) => {
-  const email = normalizar(item.email || "");
+      const {
+        data: perfil,
+        error: erroPerfil,
+      } = await supabase
+        .from("profiles")
+        .select(
+          `
+            nome,
+            email,
+            perfil,
+            equipe,
+            ativo,
+            foto_url
+          `
+        )
+        .eq(
+          "id",
+          dadosLogin.user.id
+        )
+        .single<PerfilUsuario>();
 
-  return email === loginNormalizado;
-});
+      if (erroPerfil || !perfil) {
+        await supabase.auth.signOut();
 
-    if (!usuarioEncontrado) {
-      setErro("E-mail ou senha incorretos.");
-      return;
-    }
+        setErro(
+          "O perfil deste usuário não foi encontrado. Procure a Administração."
+        );
+        return;
+      }
 
-    if (!usuarioEstaAtivo(usuarioEncontrado)) {
-      setErro("Este usuário está desativado. Procure a Administração.");
-      return;
-    }
+      if (!perfil.ativo) {
+        await supabase.auth.signOut();
 
-    if (String(usuarioEncontrado.senha || "") !== senha) {
-      setErro("E-mail, matrícula ou senha incorretos.");
-      return;
-    }
+        setErro(
+          "Este usuário está desativado. Procure a Administração."
+        );
+        return;
+      }
 
-    const perfil =
-      String(
-        usuarioEncontrado.perfil ||
-          usuarioEncontrado.cargo ||
+      localStorage.setItem(
+        "somos-eleva-logado",
+        "sim"
+      );
+
+      localStorage.setItem(
+        "somos-eleva-usuario",
+        perfil.email || email
+      );
+
+      localStorage.setItem(
+        "somos-eleva-nome",
+        perfil.nome ||
+          "Colaboradora"
+      );
+
+      localStorage.setItem(
+        "somos-eleva-matricula",
+        ""
+      );
+
+      localStorage.setItem(
+        "somos-eleva-cargo",
+        perfil.perfil ||
           "Consultora"
-      ).trim();
+      );
 
-    salvarSessao({
-  login: String(usuarioEncontrado.email || "").trim().toLowerCase(),
-  nome: String(usuarioEncontrado.nome || "Colaboradora").trim(),
-  perfil,
-  equipe: String(usuarioEncontrado.equipe || "").trim(),
-  foto: String(usuarioEncontrado.foto || ""),
-});
+      localStorage.setItem(
+        "somos-eleva-equipe",
+        perfil.equipe || ""
+      );
 
-    router.replace("/dashboard");
+      localStorage.setItem(
+        "somos-eleva-status",
+        "Ativo"
+      );
+
+      localStorage.setItem(
+        "somos-eleva-foto",
+        perfil.foto_url || ""
+      );
+
+      localStorage.setItem(
+        "somos-eleva-supabase-user-id",
+        dadosLogin.user.id
+      );
+
+      router.replace("/dashboard");
+      router.refresh();
+    } catch {
+      setErro(
+        "Não foi possível entrar. Verifique sua conexão e tente novamente."
+      );
+    } finally {
+      setEntrando(false);
+    }
   }
 
   return (
@@ -163,7 +190,10 @@ export default function LoginPage() {
       </section>
 
       <section className="login-access">
-        <form className="login-card" onSubmit={entrar}>
+        <form
+          className="login-card"
+          onSubmit={entrar}
+        >
           <img
             src="/logo-eleva-oficial.png"
             alt="Eleva Promotora de Crédito"
@@ -176,20 +206,27 @@ export default function LoginPage() {
             <span />
           </div>
 
-          <h1>Entrar na plataforma</h1>
+          <h1>
+            Entrar na plataforma
+          </h1>
 
           <p className="login-subtitle">
-            Informe suas credenciais para acessar
+            Informe suas credenciais
+            para acessar
           </p>
 
-          <label htmlFor="usuario">E-mail</label>
+          <label htmlFor="usuario">
+            E-mail
+          </label>
 
           <input
             id="usuario"
             type="email"
             value={usuario}
             onChange={(event) => {
-              setUsuario(event.target.value);
+              setUsuario(
+                event.target.value
+              );
               setErro("");
             }}
             placeholder="Digite seu e-mail"
@@ -197,15 +234,23 @@ export default function LoginPage() {
             required
           />
 
-          <label htmlFor="senha">Senha</label>
+          <label htmlFor="senha">
+            Senha
+          </label>
 
           <div className="password-field">
             <input
               id="senha"
-              type={mostrarSenha ? "text" : "password"}
+              type={
+                mostrarSenha
+                  ? "text"
+                  : "password"
+              }
               value={senha}
               onChange={(event) => {
-                setSenha(event.target.value);
+                setSenha(
+                  event.target.value
+                );
                 setErro("");
               }}
               placeholder="Digite sua senha"
@@ -215,28 +260,49 @@ export default function LoginPage() {
 
             <button
               type="button"
-              onClick={() => setMostrarSenha((atual) => !atual)}
+              onClick={() =>
+                setMostrarSenha(
+                  (atual) => !atual
+                )
+              }
             >
-              {mostrarSenha ? "Ocultar" : "Mostrar"}
+              {mostrarSenha
+                ? "Ocultar"
+                : "Mostrar"}
             </button>
           </div>
 
-          <button type="button" className="forgot-password">
+          <button
+            type="button"
+            className="forgot-password"
+          >
             Esqueci minha senha
           </button>
 
-          {erro && <div className="login-error">{erro}</div>}
+          {erro && (
+            <div className="login-error">
+              {erro}
+            </div>
+          )}
 
-          <button type="submit" className="login-button">
-            Entrar
+          <button
+            type="submit"
+            className="login-button"
+            disabled={entrando}
+          >
+            {entrando
+              ? "Entrando..."
+              : "Entrar"}
           </button>
 
           <p className="login-security">
-            Acesso exclusivo para colaboradores autorizados.
+            Acesso exclusivo para
+            colaboradores autorizados.
           </p>
 
           <footer>
-            © 2026 SOMOS ELEVA. Todos os direitos reservados.
+            © 2026 SOMOS ELEVA. Todos
+            os direitos reservados.
           </footer>
         </form>
       </section>
