@@ -12,6 +12,9 @@ type StatusProposta =
   | "Solicitado"
   | "Em andamento"
   | "Aguardando boleto"
+  | "Nota promissória"
+  | "Ag. liberação de margem"
+  | "Ag. fazer anuência"
   | "Enviado ao banco"
   | "Pago"
   | "Cancelado";
@@ -39,6 +42,9 @@ const STATUS: StatusProposta[] = [
   "Solicitado",
   "Em andamento",
   "Aguardando boleto",
+  "Nota promissória",
+  "Ag. liberação de margem",
+  "Ag. fazer anuência",
   "Enviado ao banco",
   "Pago",
   "Cancelado",
@@ -606,9 +612,9 @@ export default function KanbanBoard() {
 
       <section className="pipeline-toolbar">
         <div>
-          <span>ESTEIRA OPERACIONAL</span>
+          <span>GESTÃO DE PROPOSTAS</span>
 
-          <h2>Lista de propostas</h2>
+          <h2>Acompanhamento das propostas</h2>
 
           <p>
             Filtre a etapa desejada e acompanhe as

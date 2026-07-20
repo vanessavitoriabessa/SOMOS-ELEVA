@@ -4,8 +4,8 @@ import KanbanBoard from "@/components/KanbanBoard";
 export default function EsteiraPage() {
   return (
     <AppShell
-      title="Esteira de propostas"
-      subtitle="Acompanhe cada contrato do solicitado ao pagamento."
+      title="Gestão de Propostas"
+      subtitle="Acompanhe o andamento e os status de todas as propostas."
     >
       <KanbanBoard />
     </AppShell>

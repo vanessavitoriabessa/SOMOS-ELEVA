@@ -3,6 +3,22 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect, useMemo, useState } from "react";
+import type { LucideIcon } from "lucide-react";
+import {
+  BadgeDollarSign,
+  BriefcaseBusiness,
+  Calculator,
+  CircleDollarSign,
+  Database,
+  FileText,
+  Gift,
+  LayoutDashboard,
+  Settings,
+  Trophy,
+  UserCog,
+  UsersRound,
+  Workflow,
+} from "lucide-react";
 import "./app-shell.css";
 
 type AppShellProps = {
@@ -24,27 +40,83 @@ type UsuarioSalvo = {
 type ItemMenu = {
   href: string;
   label: string;
-  icon: string;
+  icon: LucideIcon;
 };
 
 const itensOperacao: ItemMenu[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "▦" },
-  { href: "/clientes", label: "Clientes", icon: "♙" },
-  { href: "/propostas", label: "Propostas", icon: "▤" },
-  { href: "/simulacao", label: "Simulação", icon: "▧" },
-  { href: "/esteira", label: "Compra de Dívida", icon: "⇄" },
-  { href: "/clt", label: "CLT", icon: "▣" },
-  { href: "/baixas", label: "Baixa de pagamentos", icon: "◉" },
+  {
+    href: "/dashboard",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+  },
+  {
+    href: "/clientes",
+    label: "Clientes",
+    icon: UsersRound,
+  },
+  {
+    href: "/propostas",
+    label: "Propostas",
+    icon: FileText,
+  },
+  {
+    href: "/simulacao",
+    label: "Simulação",
+    icon: Calculator,
+  },
+  {
+    href: "/esteira",
+    label: "Gestão de Propostas",
+    icon: Workflow,
+  },
+  {
+    href: "/clt",
+    label: "CLT",
+    icon: BadgeDollarSign,
+  },
+  {
+    href: "/baixas",
+    label: "Baixa de pagamentos",
+    icon: CircleDollarSign,
+  },
 ];
 
 const itensGestao: ItemMenu[] = [
-  { href: "/ranking", label: "Ranking", icon: "♜" },
-  { href: "/loja-premios", label: "Loja de Prêmios", icon: "◆" },
-  { href: "/financeiro", label: "Financeiro", icon: "▥" },
-  { href: "/equipe", label: "Equipe", icon: "♧" },
-  { href: "/rh", label: "RH", icon: "♚" },
-  { href: "/dados-importados", label: "Dados importados", icon: "⇩" },
-  { href: "/configuracoes", label: "Configurações", icon: "⚙" },
+  {
+    href: "/ranking",
+    label: "Ranking",
+    icon: Trophy,
+  },
+  {
+    href: "/loja-premios",
+    label: "Loja de Prêmios",
+    icon: Gift,
+  },
+  {
+    href: "/financeiro",
+    label: "Financeiro",
+    icon: CircleDollarSign,
+  },
+  {
+    href: "/equipe",
+    label: "Equipe",
+    icon: UserCog,
+  },
+  {
+    href: "/rh",
+    label: "RH",
+    icon: BriefcaseBusiness,
+  },
+  {
+    href: "/dados-importados",
+    label: "Dados importados",
+    icon: Database,
+  },
+  {
+    href: "/configuracoes",
+    label: "Configurações",
+    icon: Settings,
+  },
 ];
 
 const ROTAS_PERMITIDAS_CONSULTORA = [
@@ -52,6 +124,17 @@ const ROTAS_PERMITIDAS_CONSULTORA = [
   "/clientes",
   "/simulacao",
   "/clt",
+  "/loja-premios",
+  "/perfil",
+];
+
+const ROTAS_PERMITIDAS_SUPERVISAO_OPERACIONAL = [
+  "/dashboard",
+  "/clientes",
+  "/propostas",
+  "/simulacao",
+  "/clt",
+  "/ranking",
   "/loja-premios",
   "/perfil",
 ];
@@ -85,14 +168,17 @@ function perfilEhConsultora(perfil: string) {
   );
 }
 
-function perfilEhSupervisaoOuOperacional(perfil: string) {
+function perfilEhSupervisao(perfil: string) {
   const texto = normalizarTexto(perfil);
 
   return (
     texto.includes("supervisor") ||
-    texto.includes("supervisora") ||
-    texto.includes("operacional")
+    texto.includes("supervisora")
   );
+}
+
+function perfilEhOperacional(perfil: string) {
+  return normalizarTexto(perfil).includes("operacional");
 }
 
 function nomeBonito(valor: string) {
@@ -107,6 +193,10 @@ function nomeBonito(valor: string) {
 
 function rotaComecaCom(pathname: string, rota: string) {
   return pathname === rota || pathname.startsWith(`${rota}/`);
+}
+
+function estaEmAlgumaRota(pathname: string, rotas: string[]) {
+  return rotas.some((rota) => rotaComecaCom(pathname, rota));
 }
 
 export default function AppShell({
@@ -124,8 +214,9 @@ export default function AppShell({
 
   const ehAdministracao = perfilEhAdministracao(cargo);
   const ehConsultora = perfilEhConsultora(cargo);
-  const ehSupervisaoOuOperacional =
-    perfilEhSupervisaoOuOperacional(cargo);
+  const ehSupervisao = perfilEhSupervisao(cargo);
+  const ehOperacional = perfilEhOperacional(cargo);
+  const ehSupervisaoOuOperacional = ehSupervisao || ehOperacional;
 
   useEffect(() => {
     const usuarioLogado =
@@ -195,19 +286,43 @@ export default function AppShell({
   }, []);
 
   const itensOperacaoVisiveis = useMemo(() => {
-    if (!ehConsultora) return itensOperacao;
+    if (ehAdministracao) return itensOperacao;
 
-    const permitidos = [
-      "/dashboard",
-      "/clientes",
-      "/simulacao",
-      "/clt",
-    ];
+    if (ehConsultora) {
+      const permitidos = [
+        "/dashboard",
+        "/clientes",
+        "/simulacao",
+        "/clt",
+      ];
 
-    return itensOperacao.filter((item) =>
-      permitidos.includes(item.href)
+      return itensOperacao.filter((item) =>
+        permitidos.includes(item.href)
+      );
+    }
+
+    if (ehSupervisaoOuOperacional) {
+      const permitidos = [
+        "/dashboard",
+        "/clientes",
+        "/propostas",
+        "/simulacao",
+        "/clt",
+      ];
+
+      return itensOperacao.filter((item) =>
+        permitidos.includes(item.href)
+      );
+    }
+
+    return itensOperacao.filter(
+      (item) => item.href === "/dashboard"
     );
-  }, [ehConsultora]);
+  }, [
+    ehAdministracao,
+    ehConsultora,
+    ehSupervisaoOuOperacional,
+  ]);
 
   const itensGestaoVisiveis = useMemo(() => {
     if (ehAdministracao) return itensGestao;
@@ -218,32 +333,43 @@ export default function AppShell({
       );
     }
 
-    return itensGestao.filter((item) => {
-      return (
-        item.href !== "/financeiro" &&
-        item.href !== "/loja-premios"
+    if (ehSupervisaoOuOperacional) {
+      const permitidos = [
+        "/ranking",
+        "/loja-premios",
+      ];
+
+      return itensGestao.filter((item) =>
+        permitidos.includes(item.href)
       );
-    });
-  }, [ehAdministracao, ehConsultora]);
+    }
+
+    return [];
+  }, [
+    ehAdministracao,
+    ehConsultora,
+    ehSupervisaoOuOperacional,
+  ]);
 
   const rotaNegada = useMemo(() => {
     if (!permissaoCarregada) return false;
     if (ehAdministracao) return false;
 
     if (ehConsultora) {
-      return !ROTAS_PERMITIDAS_CONSULTORA.some((rota) =>
-        rotaComecaCom(pathname, rota)
+      return !estaEmAlgumaRota(
+        pathname,
+        ROTAS_PERMITIDAS_CONSULTORA
       );
     }
 
     if (ehSupervisaoOuOperacional) {
-      return (
-        rotaComecaCom(pathname, "/financeiro") ||
-        rotaComecaCom(pathname, "/loja-premios")
+      return !estaEmAlgumaRota(
+        pathname,
+        ROTAS_PERMITIDAS_SUPERVISAO_OPERACIONAL
       );
     }
 
-    return rotaComecaCom(pathname, "/financeiro");
+    return !rotaComecaCom(pathname, "/dashboard");
   }, [
     pathname,
     permissaoCarregada,
@@ -295,36 +421,40 @@ export default function AppShell({
   }
 
   function renderItem(item: ItemMenu) {
-    const ativo = rotaComecaCom(pathname, item.href);
+  const ativo = rotaComecaCom(pathname, item.href);
+  const Icone = item.icon;
 
-    return (
-      <Link
-        key={item.href}
-        href={item.href}
-        className={`shell-link ${ativo ? "ativo" : ""}`}
-      >
-        <span className="shell-link-icon">{item.icon}</span>
-        <span>{item.label}</span>
-      </Link>
-    );
-  }
+  return (
+    <Link
+      key={item.href}
+      href={item.href}
+      className={`shell-link ${ativo ? "ativo" : ""}`}
+    >
+      <span className="shell-link-icon">
+        <Icone size={18} strokeWidth={2} />
+      </span>
 
-  const mostrarSecaoGestao = itensGestaoVisiveis.length > 0;
+      <span>{item.label}</span>
+    </Link>
+  );
+}
 
   return (
     <div className="shell-layout">
       <aside className="shell-sidebar">
         <div className="shell-brand">
-          <strong>SOMOS ELEVA</strong>
-          <span>Gestão inteligente • V8</span>
-        </div>
+  <i className="shell-brand-line" />
+
+  <strong>SOMOS ELEVA</strong>
+
+  <i className="shell-brand-line" />
+</div>
 
         <nav className="shell-nav">
           <p className="shell-section-title">OPERAÇÃO</p>
-
           {itensOperacaoVisiveis.map(renderItem)}
 
-          {mostrarSecaoGestao && (
+          {itensGestaoVisiveis.length > 0 && (
             <>
               <p className="shell-section-title gestao">GESTÃO</p>
               {itensGestaoVisiveis.map(renderItem)}

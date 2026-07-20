@@ -1,11 +1,51 @@
 .shell-layout{min-height:100vh;display:grid;grid-template-columns:250px minmax(0,1fr);background:#f5f7fb;color:#0d1b4f;font-family:Arial,Helvetica,sans-serif}
 .shell-sidebar{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:24px 18px 18px;background:linear-gradient(180deg,#0b2c98 0%,#0752d7 100%);color:#fff}
-.shell-brand{padding:0 6px 22px;border-bottom:1px solid rgba(255,255,255,.12)}
-.shell-brand strong{display:block;font-size:21px;letter-spacing:-.4px}.shell-brand span{display:block;margin-top:7px;font-size:11px;color:#d4e1ff}
+.shell-brand{
+  display:grid;
+  grid-template-columns:minmax(20px,1fr) auto minmax(20px,1fr);
+  align-items:center;
+  gap:12px;
+  padding:7px 0 24px;
+  border-bottom:1px solid rgba(255,255,255,.12);
+}
+
+.shell-brand strong{
+  display:block;
+  color:#ff7a00;
+  font-size:12px;
+  font-weight:900;
+  letter-spacing:3.5px;
+  white-space:nowrap;
+  text-align:center;
+}
+
+.shell-brand-line{
+  display:block;
+  width:100%;
+  height:2px;
+  border-radius:999px;
+  background:#ff7a00;
+}
 .shell-nav{flex:1;overflow:auto;padding-top:18px}.shell-section-title{margin:0 6px 10px;color:#a9c3ff;font-size:11px;font-weight:900;letter-spacing:1.3px}.shell-section-title.gestao{margin-top:24px}
 .shell-link{display:flex;align-items:center;gap:12px;min-height:44px;margin:4px 0;padding:0 13px;border-radius:11px;color:#fff;text-decoration:none;font-size:14px;font-weight:700;transition:.2s}
 .shell-link:hover{background:rgba(255,255,255,.09)}.shell-link.ativo{background:linear-gradient(90deg,#1761ff,#1e4be9);box-shadow:0 10px 24px rgba(0,26,113,.25)}
-.shell-link-icon{width:22px;text-align:center;font-size:18px}
+.shell-link-icon{
+  width:20px;
+  height:20px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 20px;
+  color:#dce7ff;
+}
+
+.shell-link-icon svg{
+  display:block;
+}
+
+.shell-link.ativo .shell-link-icon{
+  color:#fff;
+}
 .shell-user{display:flex;align-items:center;gap:12px;padding:15px 6px;border-top:1px solid rgba(255,255,255,.13)}
 .shell-avatar{width:42px;height:42px;display:grid;place-items:center;flex:0 0 42px;border-radius:50%;background:#ff7518;color:#fff;font-weight:900}.shell-avatar.small{width:38px;height:38px;flex-basis:38px}
 .shell-user strong,.shell-user span,.shell-top-user strong,.shell-top-user span{display:block}.shell-user span,.shell-top-user span{margin-top:3px;font-size:11px;color:#c7d7ff}
