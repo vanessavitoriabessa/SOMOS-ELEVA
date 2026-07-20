@@ -133,6 +133,7 @@ const ROTAS_PERMITIDAS_SUPERVISAO_OPERACIONAL = [
   "/clientes",
   "/propostas",
   "/simulacao",
+  "/esteira",
   "/clt",
   "/ranking",
   "/loja-premios",
@@ -303,12 +304,13 @@ export default function AppShell({
 
     if (ehSupervisaoOuOperacional) {
       const permitidos = [
-        "/dashboard",
-        "/clientes",
-        "/propostas",
-        "/simulacao",
-        "/clt",
-      ];
+  "/dashboard",
+  "/clientes",
+  "/propostas",
+  "/simulacao",
+  "/esteira",
+  "/clt",
+];
 
       return itensOperacao.filter((item) =>
         permitidos.includes(item.href)

@@ -5,6 +5,9 @@ import SeedInitializer from "@/components/SeedInitializer";
 export const metadata: Metadata = {
   title: "SOMOS ELEVA",
   description: "CRM da Eleva Promotora de Crédito",
+  icons: {
+    icon: "/icon-eleva.png",
+  },
 };
 
 export default function RootLayout({
@@ -12,7 +15,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR">
-      <body><SeedInitializer />{children}</body>
+      <body>
+        <SeedInitializer />
+        {children}
+      </body>
     </html>
   );
 }

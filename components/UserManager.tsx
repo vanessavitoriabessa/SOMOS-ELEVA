@@ -33,7 +33,6 @@ type Usuario = {
 type FormularioUsuario = {
   nome: string;
   email: string;
-  matricula: string;
   senha: string;
   perfil: Perfil;
   equipe: string;
@@ -53,7 +52,6 @@ const PERFIS: Perfil[] = [
 const formularioVazio: FormularioUsuario = {
   nome: "",
   email: "",
-  matricula: "",
   senha: "",
   perfil: "Consultora",
   equipe: "",
@@ -61,16 +59,12 @@ const formularioVazio: FormularioUsuario = {
   foto: "",
 };
 
-function somenteNumeros(valor: string) {
-  return valor.replace(/\D/g, "");
-}
-
 function criarAdminPadrao(): Usuario {
   return {
     id: "admin-padrao",
     nome: "Tay",
     email: "admin@somosmaiseleva.com.br",
-    matricula: "0001",
+    matricula: "",
     senha: "Eleva@2026",
     perfil: "Administradora",
     equipe: "Diretoria",
@@ -252,7 +246,6 @@ export default function UserManager() {
           !termo ||
           usuario.nome.toLowerCase().includes(termo) ||
           usuario.email.toLowerCase().includes(termo) ||
-          usuario.matricula.includes(termo) ||
           usuario.equipe.toLowerCase().includes(termo)
       );
   }, [usuarios, busca, filtroPerfil]);
@@ -317,147 +310,165 @@ export default function UserManager() {
   }
 
   function salvar(evento: FormEvent<HTMLFormElement>) {
-    evento.preventDefault();
-    setMensagem("");
+  evento.preventDefault();
+  setMensagem("");
 
-    if (!form.nome.trim()) {
-      setMensagem("Informe o nome do usuário.");
-      return;
-    }
+  if (!form.nome.trim()) {
+    setMensagem("Informe o nome da colaboradora.");
+    return;
+  }
 
-    if (!form.email.trim() && !form.matricula.trim()) {
-      setMensagem("Informe o e-mail ou a matrícula.");
-      return;
-    }
+  if (!form.email.trim()) {
+    setMensagem("Informe o e-mail da colaboradora.");
+    return;
+  }
 
-    if (form.senha.length < 6) {
-      setMensagem(
-        "A senha precisa ter pelo menos 6 caracteres."
-      );
-      return;
-    }
+  const email = form.email.trim().toLowerCase();
 
-    const email = form.email.trim().toLowerCase();
-    const matricula = somenteNumeros(form.matricula);
+  const emailValido =
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-    const duplicado = usuarios.some(
-      (item) =>
-        item.id !== editandoId &&
-        ((email && item.email.toLowerCase() === email) ||
-          (matricula && item.matricula === matricula))
-    );
+  if (!emailValido) {
+    setMensagem("Informe um endereço de e-mail válido.");
+    return;
+  }
 
-    if (duplicado) {
-      setMensagem(
-        "Já existe um usuário com esse e-mail ou matrícula."
-      );
-      return;
-    }
-
-    const antigo = usuarios.find(
-      (item) => item.id === editandoId
-    );
-
-    const usuario: Usuario = {
-      id: editandoId || crypto.randomUUID(),
-      nome: form.nome.trim(),
-      email,
-      matricula,
-      senha: form.senha,
-      perfil: form.perfil,
-      equipe: form.equipe.trim(),
-      ativo: form.ativo,
-      foto: form.foto,
-      criadoEm:
-        antigo?.criadoEm ||
-        new Date().toLocaleString("pt-BR"),
-    };
-
-    const atualizados = editandoId
-      ? usuarios.map((item) =>
-          item.id === editandoId ? usuario : item
-        )
-      : [usuario, ...usuarios];
-
-    persistir(atualizados);
-
-    setForm(formularioVazio);
-    setEditandoId(null);
-
+  if (form.senha.length < 6) {
     setMensagem(
-      editandoId
-        ? "Usuário atualizado com sucesso."
-        : "Usuário criado com sucesso."
+      "A senha precisa ter pelo menos 6 caracteres."
     );
+    return;
   }
 
-  function editar(usuario: Usuario) {
-    setEditandoId(usuario.id);
+  const duplicado = usuarios.some(
+    (item) =>
+      item.id !== editandoId &&
+      item.email.toLowerCase() === email
+  );
 
-    setForm({
-      nome: usuario.nome,
-      email: usuario.email,
-      matricula: usuario.matricula,
-      senha: usuario.senha,
-      perfil: usuario.perfil,
-      equipe: usuario.equipe,
-      ativo: usuario.ativo,
-      foto: usuario.foto || "",
-    });
-
-    setMensagem("Editando usuário selecionado.");
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
+  if (duplicado) {
+    setMensagem(
+      "Já existe um usuário com esse e-mail."
+    );
+    return;
   }
 
-  function cancelarEdicao() {
-    setEditandoId(null);
-    setForm(formularioVazio);
-    setMensagem("");
-  }
+  const antigo = usuarios.find(
+    (item) => item.id === editandoId
+  );
 
-  function alternarStatus(id: string) {
-    persistir(
-      usuarios.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              ativo: !item.ativo,
-            }
+  const estavaEditando = Boolean(editandoId);
+
+  const usuario: Usuario = {
+    id: editandoId || crypto.randomUUID(),
+    nome: form.nome.trim(),
+    email,
+    matricula: "",
+    senha: form.senha,
+    perfil: form.perfil,
+    equipe: form.equipe.trim(),
+    ativo: form.ativo,
+    foto: form.foto,
+    criadoEm:
+      antigo?.criadoEm ||
+      new Date().toLocaleString("pt-BR"),
+  };
+
+  const atualizados = editandoId
+    ? usuarios.map((item) =>
+        item.id === editandoId
+          ? usuario
           : item
       )
-    );
-  }
+    : [usuario, ...usuarios];
 
-  function excluir(id: string) {
-    const usuario = usuarios.find((item) => item.id === id);
+  persistir(atualizados);
 
-    const quantidadeAdministradoras = usuarios.filter(
-      (item) => item.perfil === "Administradora"
+  setForm(formularioVazio);
+  setEditandoId(null);
+
+  setMensagem(
+    estavaEditando
+      ? "Usuário atualizado com sucesso."
+      : "Usuário criado com sucesso."
+  );
+}
+
+function editar(usuario: Usuario) {
+  setEditandoId(usuario.id);
+
+  setForm({
+    nome: usuario.nome,
+    email: usuario.email,
+    senha: usuario.senha,
+    perfil: usuario.perfil,
+    equipe: usuario.equipe,
+    ativo: usuario.ativo,
+    foto: usuario.foto || "",
+  });
+
+  setMensagem("Editando usuário selecionado.");
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth",
+  });
+}
+
+function cancelarEdicao() {
+  setEditandoId(null);
+  setForm(formularioVazio);
+  setMensagem("");
+}
+
+function alternarStatus(id: string) {
+  persistir(
+    usuarios.map((item) =>
+      item.id === id
+        ? {
+            ...item,
+            ativo: !item.ativo,
+          }
+        : item
+    )
+  );
+}
+
+function excluir(id: string) {
+  const usuario = usuarios.find(
+    (item) => item.id === id
+  );
+
+  const quantidadeAdministradoras =
+    usuarios.filter(
+      (item) =>
+        item.perfil === "Administradora"
     ).length;
 
-    if (
-      usuario?.perfil === "Administradora" &&
-      quantidadeAdministradoras === 1
-    ) {
-      setMensagem(
-        "Não é possível excluir a única administradora."
-      );
-
-      return;
-    }
-
-    if (!window.confirm("Deseja excluir este usuário?")) {
-      return;
-    }
-
-    persistir(
-      usuarios.filter((item) => item.id !== id)
+  if (
+    usuario?.perfil === "Administradora" &&
+    quantidadeAdministradoras === 1
+  ) {
+    setMensagem(
+      "Não é possível excluir a única administradora."
     );
+    return;
   }
+
+  const confirmar = window.confirm(
+    "Deseja excluir este usuário?"
+  );
+
+  if (!confirmar) {
+    return;
+  }
+
+  persistir(
+    usuarios.filter(
+      (item) => item.id !== id
+    )
+  );
+}
 
   return (
     <div className="users-page">
@@ -594,24 +605,6 @@ export default function UserManager() {
             </label>
 
             <label>
-              Matrícula
-
-              <input
-                value={form.matricula}
-                onChange={(evento) =>
-                  setForm({
-                    ...form,
-                    matricula: somenteNumeros(
-                      evento.target.value
-                    ),
-                  })
-                }
-                placeholder="Ex.: 0012"
-                inputMode="numeric"
-              />
-            </label>
-
-            <label>
               Senha
 
               <input
@@ -646,19 +639,34 @@ export default function UserManager() {
             </label>
 
             <label>
-              Equipe
+  Equipe
 
-              <input
-                value={form.equipe}
-                onChange={(evento) =>
-                  setForm({
-                    ...form,
-                    equipe: evento.target.value,
-                  })
-                }
-                placeholder="Ex.: Compra de Dívida"
-              />
-            </label>
+  <select
+    value={form.equipe}
+    onChange={(evento) =>
+      setForm({
+        ...form,
+        equipe: evento.target.value,
+      })
+    }
+  >
+    <option value="">
+      Selecione a equipe
+    </option>
+
+    <option value="Compra de Dívida">
+      Compra de Dívida
+    </option>
+
+    <option value="CLT">
+      CLT
+    </option>
+
+    <option value="Compra de Dívida e CLT">
+      Compra de Dívida e CLT
+    </option>
+  </select>
+</label>
 
             <label className="users-switch">
               <input
@@ -721,7 +729,7 @@ export default function UserManager() {
               onChange={(evento) =>
                 setBusca(evento.target.value)
               }
-              placeholder="Pesquisar nome, e-mail, matrícula ou equipe"
+              placeholder="Pesquisar nome, e-mail ou equipe"
             />
 
             <select
@@ -755,10 +763,7 @@ export default function UserManager() {
                 <div className="user-main">
                   <strong>{usuario.nome}</strong>
 
-                  <span>
-                    {usuario.email ||
-                      `Matrícula ${usuario.matricula}`}
-                  </span>
+                  <span>{usuario.email}</span>
 
                   <div>
                     <b>{usuario.perfil}</b>
@@ -778,9 +783,6 @@ export default function UserManager() {
                     {usuario.ativo ? "Ativo" : "Inativo"}
                   </span>
 
-                  <small>
-                    Matrícula: {usuario.matricula || "—"}
-                  </small>
                 </div>
 
                 <div className="user-actions">

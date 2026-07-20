@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import "./login.css";
 
 const USUARIO_PADRAO = "admin@somosmaiseleva.com.br";
-const MATRICULA_PADRAO = "0001";
 const SENHA_PADRAO = "Eleva@2026";
 
 type UsuarioSalvo = {
@@ -58,17 +57,16 @@ export default function LoginPage() {
   const [erro, setErro] = useState("");
 
   function salvarSessao(dados: {
-    login: string;
-    nome: string;
-    matricula: string;
-    perfil: string;
-    equipe?: string;
-    foto?: string;
-  }) {
+  login: string;
+  nome: string;
+  perfil: string;
+  equipe?: string;
+  foto?: string;
+}) {
     localStorage.setItem("somos-eleva-logado", "sim");
     localStorage.setItem("somos-eleva-usuario", dados.login);
     localStorage.setItem("somos-eleva-nome", dados.nome);
-    localStorage.setItem("somos-eleva-matricula", dados.matricula);
+    localStorage.setItem("somos-eleva-matricula", "");
     localStorage.setItem("somos-eleva-cargo", dados.perfil);
     localStorage.setItem("somos-eleva-equipe", dados.equipe || "");
     localStorage.setItem("somos-eleva-status", "Ativo");
@@ -83,23 +81,21 @@ export default function LoginPage() {
     const loginNormalizado = normalizar(loginDigitado);
 
     if (!loginDigitado || !senha) {
-      setErro("Informe o e-mail ou matrícula e a senha.");
-      return;
-    }
+  setErro("Informe o e-mail e a senha.");
+  return;
+}
 
     const ehAdministradorPadrao =
-      (loginNormalizado === normalizar(USUARIO_PADRAO) ||
-        loginDigitado === MATRICULA_PADRAO) &&
-      senha === SENHA_PADRAO;
+  loginNormalizado === normalizar(USUARIO_PADRAO) &&
+  senha === SENHA_PADRAO;
 
     if (ehAdministradorPadrao) {
       salvarSessao({
-        login: MATRICULA_PADRAO,
-        nome: "Vanessa",
-        matricula: MATRICULA_PADRAO,
-        perfil: "Administradora",
-        equipe: "Administração",
-      });
+  login: USUARIO_PADRAO,
+  nome: "Vanessa",
+  perfil: "Administradora",
+  equipe: "Administração",
+});
 
       router.replace("/dashboard");
       return;
@@ -118,19 +114,13 @@ export default function LoginPage() {
     }
 
     const usuarioEncontrado = usuariosSalvos.find((item) => {
-      const email = normalizar(item.email || "");
-      const matricula = String(item.matricula || "").trim();
-      const id = String(item.id || "").trim();
+  const email = normalizar(item.email || "");
 
-      return (
-        email === loginNormalizado ||
-        matricula === loginDigitado ||
-        id === loginDigitado
-      );
-    });
+  return email === loginNormalizado;
+});
 
     if (!usuarioEncontrado) {
-      setErro("E-mail, matrícula ou senha incorretos.");
+      setErro("E-mail ou senha incorretos.");
       return;
     }
 
@@ -144,11 +134,6 @@ export default function LoginPage() {
       return;
     }
 
-    const matricula =
-      String(usuarioEncontrado.matricula || "").trim() ||
-      String(usuarioEncontrado.id || "").trim() ||
-      loginDigitado;
-
     const perfil =
       String(
         usuarioEncontrado.perfil ||
@@ -157,13 +142,12 @@ export default function LoginPage() {
       ).trim();
 
     salvarSessao({
-      login: matricula,
-      nome: String(usuarioEncontrado.nome || "Colaboradora").trim(),
-      matricula,
-      perfil,
-      equipe: String(usuarioEncontrado.equipe || "").trim(),
-      foto: String(usuarioEncontrado.foto || ""),
-    });
+  login: String(usuarioEncontrado.email || "").trim().toLowerCase(),
+  nome: String(usuarioEncontrado.nome || "Colaboradora").trim(),
+  perfil,
+  equipe: String(usuarioEncontrado.equipe || "").trim(),
+  foto: String(usuarioEncontrado.foto || ""),
+});
 
     router.replace("/dashboard");
   }
@@ -198,17 +182,17 @@ export default function LoginPage() {
             Informe suas credenciais para acessar
           </p>
 
-          <label htmlFor="usuario">E-mail ou matrícula</label>
+          <label htmlFor="usuario">E-mail</label>
 
           <input
             id="usuario"
-            type="text"
+            type="email"
             value={usuario}
             onChange={(event) => {
               setUsuario(event.target.value);
               setErro("");
             }}
-            placeholder="Digite seu e-mail ou matrícula"
+            placeholder="Digite seu e-mail"
             autoComplete="username"
             required
           />

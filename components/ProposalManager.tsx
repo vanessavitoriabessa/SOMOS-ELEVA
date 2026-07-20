@@ -12,6 +12,9 @@ type StatusProposta =
   | "Solicitado"
   | "Em andamento"
   | "Aguardando boleto"
+  | "Nota promissória"
+  | "Ag. liberação de margem"
+  | "Ag. fazer anuência"
   | "Enviado ao banco"
   | "Pago"
   | "Cancelado";
@@ -23,6 +26,13 @@ type ClienteCadastrado = {
   telefone: string;
   banco?: string;
   produto?: string;
+  status?: string;
+};
+type UsuarioCadastrado = {
+  nome?: string;
+  perfil?: string;
+  cargo?: string;
+  ativo?: boolean | string;
   status?: string;
 };
 
@@ -67,8 +77,9 @@ type FormularioProposta = {
   vendedora: string;
   banco: string;
   tabela: string;
-  valorContrato: string;
+    valorContrato: string;
   status: StatusProposta;
+  dataDigitacao: string;
   dataPagamento: string;
   observacao: string;
 };
@@ -77,6 +88,9 @@ const STATUS: StatusProposta[] = [
   "Solicitado",
   "Em andamento",
   "Aguardando boleto",
+  "Nota promissória",
+  "Ag. liberação de margem",
+  "Ag. fazer anuência",
   "Enviado ao banco",
   "Pago",
   "Cancelado",
@@ -97,6 +111,7 @@ const formularioVazio: FormularioProposta = {
   tabela: "",
   valorContrato: "",
   status: "Solicitado",
+  dataDigitacao: hojeIso(),
   dataPagamento: "",
   observacao: "",
 };
@@ -172,6 +187,35 @@ function formatarTelefone(valor: string) {
 
 function hojeIso() {
   return new Date().toISOString().slice(0, 10);
+}
+function dataParaInput(valor: string) {
+  if (!valor) return "";
+
+  const texto = String(valor).trim();
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(texto)) {
+    return texto.slice(0, 10);
+  }
+
+  const encontrada = texto.match(
+    /(\d{2})\/(\d{2})\/(\d{4})/
+  );
+
+  if (encontrada) {
+    return `${encontrada[3]}-${encontrada[2]}-${encontrada[1]}`;
+  }
+
+  return "";
+}
+
+function formatarData(valor: string) {
+  const data = dataParaInput(valor);
+
+  if (!data) return "Não informada";
+
+  const [ano, mes, dia] = data.split("-");
+
+  return `${dia}/${mes}/${ano}`;
 }
 
 function normalizarTexto(valor: string) {
@@ -322,6 +366,9 @@ export default function ProposalManager() {
   const [clientes, setClientes] =
     useState<ClienteCadastrado[]>([]);
 
+    const [consultoras, setConsultoras] =
+  useState<string[]>([]);
+
   const [form, setForm] =
     useState<FormularioProposta>(
       formularioVazio
@@ -341,6 +388,92 @@ export default function ProposalManager() {
   useEffect(() => {
     let listaClientes: ClienteCadastrado[] =
       [];
+
+      const usuariosSalvos =
+  localStorage.getItem(
+    "somos-eleva-usuarios"
+  );
+
+if (usuariosSalvos) {
+  try {
+    const listaUsuarios = JSON.parse(
+      usuariosSalvos
+    );
+
+    const nomesConsultoras = Array.isArray(
+      listaUsuarios
+    )
+      ? listaUsuarios
+          .filter(
+            (
+              usuario: UsuarioCadastrado
+            ) => {
+              const perfil = String(
+                usuario.perfil ||
+                  usuario.cargo ||
+                  ""
+              )
+                .normalize("NFD")
+                .replace(
+                  /[\u0300-\u036f]/g,
+                  ""
+                )
+                .trim()
+                .toLowerCase();
+
+              const status = String(
+                usuario.status || ""
+              )
+                .trim()
+                .toLowerCase();
+
+              const ativo =
+                usuario.ativo !== false &&
+                String(
+                  usuario.ativo ?? ""
+                ).toLowerCase() !==
+                  "false" &&
+                ![
+                  "inativo",
+                  "desativado",
+                  "bloqueado",
+                ].includes(status);
+
+              return (
+                perfil.includes(
+                  "consultor"
+                ) &&
+                ativo &&
+                String(
+                  usuario.nome || ""
+                ).trim()
+              );
+            }
+          )
+          .map(
+            (
+              usuario: UsuarioCadastrado
+            ) =>
+              String(
+                usuario.nome || ""
+              ).trim()
+          )
+      : [];
+
+    const nomesSemRepeticao =
+      Array.from(
+        new Set(nomesConsultoras)
+      ).sort((a, b) =>
+        a.localeCompare(b, "pt-BR")
+      );
+
+    setConsultoras(
+      nomesSemRepeticao
+    );
+  } catch {
+    setConsultoras([]);
+  }
+}
 
     const clientesSalvos =
       localStorage.getItem(
@@ -603,6 +736,12 @@ export default function ProposalManager() {
       );
       return;
     }
+if (!form.vendedora.trim()) {
+  setMensagem(
+    "Selecione a consultora responsável."
+  );
+  return;
+}
 
     if (!form.vendedora.trim()) {
       setMensagem(
@@ -631,6 +770,12 @@ export default function ProposalManager() {
       );
       return;
     }
+if (!form.dataDigitacao) {
+  setMensagem(
+    "Informe a data da digitação."
+  );
+  return;
+}
 
     if (
       form.status === "Pago" &&
@@ -671,11 +816,7 @@ export default function ProposalManager() {
       premiacao: 0,
 
       status: form.status,
-      dataCadastro:
-        antiga?.dataCadastro ||
-        new Date().toLocaleString(
-          "pt-BR"
-        ),
+      dataCadastro: form.dataDigitacao,
       dataPagamento:
         form.status === "Pago"
           ? form.dataPagamento
@@ -754,8 +895,11 @@ export default function ProposalManager() {
         .toFixed(2)
         .replace(".", ","),
       status: proposta.status,
-      dataPagamento:
-        proposta.dataPagamento || "",
+dataDigitacao:
+  dataParaInput(proposta.dataCadastro) ||
+  hojeIso(),
+dataPagamento:
+  dataParaInput(proposta.dataPagamento),
       observacao:
         proposta.observacao || "",
     });
@@ -932,20 +1076,46 @@ export default function ProposalManager() {
             </label>
 
             <label>
-              Consultora
+  Consultora
 
-              <input
-                value={form.vendedora}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    vendedora:
-                      event.target.value,
-                  })
-                }
-                placeholder="Nome da consultora"
-              />
-            </label>
+  <select
+    value={form.vendedora}
+    onChange={(event) =>
+      setForm({
+        ...form,
+        vendedora:
+          event.target.value,
+      })
+    }
+    required
+  >
+    <option value="">
+      Selecione a consultora
+    </option>
+
+    {form.vendedora &&
+      !consultoras.includes(
+        form.vendedora
+      ) && (
+        <option
+          value={form.vendedora}
+        >
+          {form.vendedora}
+        </option>
+      )}
+
+    {consultoras.map(
+      (consultora) => (
+        <option
+          key={consultora}
+          value={consultora}
+        >
+          {consultora}
+        </option>
+      )
+    )}
+  </select>
+</label>
 
             <label>
               Banco da operação
@@ -1012,7 +1182,22 @@ export default function ProposalManager() {
                 inputMode="decimal"
               />
             </label>
+<label>
+  Data da digitação
 
+  <input
+    type="date"
+    value={form.dataDigitacao}
+    onChange={(event) =>
+      setForm({
+        ...form,
+        dataDigitacao:
+          event.target.value,
+      })
+    }
+    required
+  />
+</label>
             <label>
               Status
 
@@ -1311,11 +1496,24 @@ export default function ProposalManager() {
 
                     <div className="proposal-item-footer">
                       <span>
-                        {proposta.vendedora ||
-                          "Consultora não informada"}{" "}
-                        • Digitado em{" "}
-                        {proposta.dataCadastro}
-                      </span>
+  {proposta.vendedora ||
+    "Consultora não informada"}{" "}
+  • Digitado em{" "}
+  {formatarData(
+    proposta.dataCadastro
+  )}
+
+  {proposta.status === "Pago" &&
+    proposta.dataPagamento && (
+      <>
+        {" "}
+        • Pago em{" "}
+        {formatarData(
+          proposta.dataPagamento
+        )}
+      </>
+    )}
+</span>
 
                       <div>
                         <button

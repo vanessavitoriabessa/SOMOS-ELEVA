@@ -453,108 +453,121 @@ export default function KanbanBoard() {
   }, [propostas]);
 
   function alterarStatus(
-    id: string,
-    novoStatus: StatusProposta
-  ) {
-    const proposta = propostas.find(
-      (item) => item.id === id
+  id: string,
+  novoStatus: StatusProposta
+) {
+  const proposta = propostas.find(
+    (item) => item.id === id
+  );
+
+  if (!proposta) {
+    return;
+  }
+
+  let dataPagamento =
+    proposta.dataPagamento || "";
+
+  if (novoStatus === "Pago") {
+    let dataAtualFormatada = "";
+
+    if (dataPagamento) {
+      const partes = dataPagamento
+        .slice(0, 10)
+        .split("-");
+
+      if (partes.length === 3) {
+        dataAtualFormatada =
+          `${partes[2]}/${partes[1]}/${partes[0]}`;
+      }
+    }
+
+    const resposta = window.prompt(
+      "Informe a data real do pagamento no formato DD/MM/AAAA.",
+      dataAtualFormatada
     );
 
-    if (!proposta) {
+    if (resposta === null) {
       return;
     }
 
-    let percentual = Number(
-      proposta.percentualTabela || 0
-    );
+    const encontrada = resposta
+      .trim()
+      .match(
+        /^(\d{2})\/(\d{2})\/(\d{4})$/
+      );
 
-    let premiacao = Number(
-      proposta.premiacao ??
-        proposta.comissao ??
-        0
-    );
-
-    let dataPagamento =
-      proposta.dataPagamento || "";
-
-    if (novoStatus === "Pago") {
-      if (
-        percentual <= 0 &&
-        podeVerPremiacao
-      ) {
-        const resposta = window.prompt(
-          "Informe a porcentagem da premiação.\nExemplo: 3,25"
-        );
-
-        if (resposta === null) {
-          return;
-        }
-
-        percentual = Number(
-          resposta
-            .replace(/[^\d,.-]/g, "")
-            .replace(",", ".")
-        );
-
-        if (
-          !Number.isFinite(percentual) ||
-          percentual <= 0
-        ) {
-          setMensagem(
-            "Percentual inválido. O status não foi alterado."
-          );
-          return;
-        }
-      }
-
-      premiacao =
-        percentual > 0
-          ? proposta.valorContrato *
-            (percentual / 100)
-          : 0;
-
-      dataPagamento =
-        proposta.dataPagamento ||
-        hojeIso();
+    if (!encontrada) {
+      setMensagem(
+        "Data inválida. Informe no formato DD/MM/AAAA."
+      );
+      return;
     }
 
-    if (
-      proposta.status === "Pago" &&
-      novoStatus !== "Pago"
-    ) {
-      premiacao = 0;
-      dataPagamento = "";
+    const dia = Number(encontrada[1]);
+    const mes = Number(encontrada[2]);
+    const ano = Number(encontrada[3]);
+
+    const dataTeste = new Date(
+      ano,
+      mes - 1,
+      dia
+    );
+
+    const dataValida =
+      dataTeste.getFullYear() === ano &&
+      dataTeste.getMonth() === mes - 1 &&
+      dataTeste.getDate() === dia;
+
+    if (!dataValida) {
+      setMensagem(
+        "A data informada não é válida."
+      );
+      return;
     }
 
-    const atualizadas = propostas.map(
-      (item) =>
-        item.id === id
-          ? {
-              ...item,
-              status: novoStatus,
-              percentualTabela:
-                percentual,
-              comissao: premiacao,
-              premiacao,
-              dataPagamento,
-            }
-          : item
-    );
-
-    persistir(atualizadas);
-
-    setMensagem(
-      novoStatus === "Pago"
-        ? podeVerPremiacao
-          ? `Contrato marcado como Pago. Premiação calculada: ${moeda(
-              premiacao
-            )}.`
-          : "Contrato marcado como Pago. A premiação deverá ser conferida pela administração."
-        : `Proposta alterada para ${novoStatus}.`
-    );
+    dataPagamento =
+      `${ano}-${String(mes).padStart(2, "0")}-${String(
+        dia
+      ).padStart(2, "0")}`;
   }
 
-  function excluir(id: string) {
+  if (
+    proposta.status === "Pago" &&
+    novoStatus !== "Pago"
+  ) {
+    dataPagamento = "";
+  }
+
+  const atualizadas = propostas.map(
+    (item) =>
+      item.id === id
+        ? {
+            ...item,
+            status: novoStatus,
+            dataPagamento,
+          }
+        : item
+  );
+
+  persistir(atualizadas);
+
+  const propostaAtualizada =
+    atualizadas.find(
+      (item) => item.id === id
+    ) || null;
+
+  if (detalhe?.id === id) {
+    setDetalhe(propostaAtualizada);
+  }
+
+  setMensagem(
+    novoStatus === "Pago"
+      ? "Contrato marcado como Pago e data do pagamento registrada."
+      : `Proposta alterada para ${novoStatus}.`
+  );
+}
+function excluir(id: string) {
+  
     const confirmar = window.confirm(
       "Deseja realmente excluir esta proposta?"
     );
