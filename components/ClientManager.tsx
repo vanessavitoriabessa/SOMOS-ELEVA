@@ -7,6 +7,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { createClient } from "@/lib/supabase/client";
 import "./clientes.css";
 import "./clientes-completo.css";
 
@@ -421,9 +422,51 @@ function formularioDoCliente(
   };
 }
 
+
+type PerfilAtual = {
+  id: string;
+  nome: string;
+  perfil: string;
+};
+
+type RespostaClientes = {
+  clientes?: Cliente[];
+  cliente?: Cliente;
+  perfil?: PerfilAtual;
+  mensagem?: string;
+  erro?: string;
+  importados?: number;
+  ignorados?: number;
+};
+
+type RespostaPropostas = {
+  propostas?: Proposta[];
+  erro?: string;
+};
+
+function normalizarTexto(valor: string) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function perfilEhConsultora(perfil: string) {
+  return normalizarTexto(perfil).includes("consultor");
+}
+
 export default function ClientManager() {
+  const supabase = useMemo(() => createClient(), []);
+
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [propostas, setPropostas] = useState<Proposta[]>([]);
+  const [consultoras, setConsultoras] = useState<string[]>([]);
+  const [perfilAtual, setPerfilAtual] =
+    useState<PerfilAtual | null>(null);
+  const [clientesSemConsultoraPendentes, setClientesSemConsultoraPendentes] =
+    useState<Cliente[]>([]);
+
   const [form, setForm] = useState<FormularioCliente>(
     criarFormularioVazio()
   );
@@ -443,59 +486,344 @@ export default function ClientManager() {
     useState(false);
   const [mostrarSenhaContrachequeDetalhe, setMostrarSenhaContrachequeDetalhe] =
     useState(false);
+  const [carregando, setCarregando] = useState(true);
+  const [processando, setProcessando] = useState(false);
 
-  useEffect(() => {
-    carregar();
-  }, []);
+  function formularioLimpo(perfil = perfilAtual): FormularioCliente {
+    return {
+      ...criarFormularioVazio(),
+      consultora:
+        perfil && perfilEhConsultora(perfil.perfil)
+          ? perfil.nome
+          : "",
+    };
+  }
 
-  function carregar() {
-    const clientesSalvos = localStorage.getItem(
-      "somos-eleva-clientes"
-    );
-    const propostasSalvas = localStorage.getItem(
-      "somos-eleva-propostas"
-    );
+  async function obterSessaoAtual() {
+    const { data, error } = await supabase.auth.getSession();
 
-    if (clientesSalvos) {
-      try {
-        const lista = JSON.parse(clientesSalvos);
-
-        setClientes(
-          Array.isArray(lista)
-            ? lista.map((item) =>
-                normalizarCliente(item)
-              )
-            : []
-        );
-      } catch {
-        setClientes([]);
-      }
+    if (error || !data.session?.access_token) {
+      throw new Error("Sua sessão expirou. Entre novamente no sistema.");
     }
 
-    if (propostasSalvas) {
-      try {
-        setPropostas(JSON.parse(propostasSalvas));
-      } catch {
-        setPropostas([]);
-      }
+    return data.session;
+  }
+
+  async function chamarApiClientes(
+    method: "GET" | "POST" | "PATCH" | "DELETE",
+    body?: unknown
+  ) {
+    const sessao = await obterSessaoAtual();
+
+    const resposta = await fetch("/api/clientes", {
+      method,
+      headers: {
+        Authorization: `Bearer ${sessao.access_token}`,
+        ...(body
+          ? {
+              "Content-Type": "application/json",
+            }
+          : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      cache: "no-store",
+    });
+
+    const conteudo = (await resposta.json()) as RespostaClientes;
+
+    if (!resposta.ok) {
+      throw new Error(
+        conteudo.erro || "Não foi possível concluir a operação."
+      );
+    }
+
+    return {
+      conteudo,
+      sessao,
+    };
+  }
+
+  function lerClientesLocais() {
+    const salvo = localStorage.getItem("somos-eleva-clientes");
+
+    if (!salvo) return [] as Cliente[];
+
+    try {
+      const lista = JSON.parse(salvo);
+
+      return Array.isArray(lista)
+        ? lista.map((item) => normalizarCliente(item))
+        : [];
+    } catch {
+      return [] as Cliente[];
     }
   }
 
-  function persistir(lista: Cliente[]) {
+  function mesclarDadosPrivados(
+    listaSupabase: Cliente[],
+    listaLocal: Cliente[]
+  ) {
+    return listaSupabase.map((cliente) => {
+      const local = listaLocal.find((item) => {
+        if (item.id === cliente.id) return true;
+
+        return Boolean(
+          cliente.cpf &&
+            item.cpf &&
+            apenasNumeros(item.cpf) === apenasNumeros(cliente.cpf)
+        );
+      });
+
+      return {
+        ...cliente,
+        senhaPortal: local?.senhaPortal || "",
+        senhaContracheque: local?.senhaContracheque || "",
+        documentos: Array.isArray(local?.documentos)
+          ? local.documentos
+          : [],
+      };
+    });
+  }
+
+  function salvarCopiaLocal(lista: Cliente[]) {
     try {
       localStorage.setItem(
         "somos-eleva-clientes",
         JSON.stringify(lista)
       );
-      setClientes(lista);
       return true;
     } catch {
       setMensagem(
-        "Não foi possível salvar. Remova documentos grandes e tente novamente."
+        "Os clientes foram salvos no Supabase, mas os documentos locais são grandes demais para este navegador."
       );
       return false;
     }
   }
+
+  async function carregarPropostas() {
+    try {
+      const sessao = await obterSessaoAtual();
+
+      const resposta = await fetch("/api/propostas", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${sessao.access_token}`,
+        },
+        cache: "no-store",
+      });
+
+      const conteudo = (await resposta.json()) as RespostaPropostas;
+
+      if (!resposta.ok) {
+        throw new Error(
+          conteudo.erro || "Não foi possível carregar as propostas."
+        );
+      }
+
+      const lista = Array.isArray(conteudo.propostas)
+        ? conteudo.propostas
+        : [];
+
+      setPropostas(lista);
+      localStorage.setItem(
+        "somos-eleva-propostas",
+        JSON.stringify(lista)
+      );
+    } catch {
+      setPropostas([]);
+    }
+  }
+
+  async function carregarConsultoras() {
+    try {
+      const sessao = await obterSessaoAtual();
+
+      const resposta = await fetch("/api/consultoras", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${sessao.access_token}`,
+        },
+        cache: "no-store",
+      });
+
+      const conteudo = (await resposta.json()) as {
+        consultoras?: Array<{
+          nome?: string;
+        }>;
+        erro?: string;
+      };
+
+      if (!resposta.ok) {
+        throw new Error(
+          conteudo.erro || "Não foi possível carregar as consultoras."
+        );
+      }
+
+      const nomes = (conteudo.consultoras || [])
+        .map((consultora) =>
+          String(consultora.nome || "").trim()
+        )
+        .filter(Boolean);
+
+      setConsultoras(
+        Array.from(new Set(nomes)).sort((a, b) =>
+          a.localeCompare(b, "pt-BR")
+        )
+      );
+    } catch {
+      setConsultoras([]);
+    }
+  }
+
+  async function carregarClientesDoSupabase(
+    importarDadosLocais = false
+  ) {
+    setCarregando(true);
+
+    try {
+      const listaLocal = lerClientesLocais();
+      const { conteudo: primeiraLeitura, sessao } =
+        await chamarApiClientes("GET");
+
+      const perfil = primeiraLeitura.perfil || null;
+      let importou = false;
+
+      if (perfil) {
+        setPerfilAtual(perfil);
+
+        if (perfilEhConsultora(perfil.perfil)) {
+          setForm((atual) => ({
+            ...atual,
+            consultora: perfil.nome,
+          }));
+        }
+      }
+
+      const chaveBackup = perfil
+        ? `somos-eleva-clientes-backup-migracao-v1-${sessao.user.id}`
+        : "";
+      const chaveImportacao = perfil
+        ? `somos-eleva-clientes-importados-supabase-v1-${sessao.user.id}`
+        : "";
+
+      let listaBackup: Cliente[] = [];
+
+      if (chaveBackup) {
+        const backupSalvo = localStorage.getItem(chaveBackup);
+
+        if (backupSalvo) {
+          try {
+            const dadosBackup = JSON.parse(backupSalvo);
+            listaBackup = Array.isArray(dadosBackup)
+              ? dadosBackup.map((item) =>
+                  normalizarCliente(item)
+                )
+              : [];
+          } catch {
+            listaBackup = [];
+          }
+        } else if (listaLocal.length) {
+          localStorage.setItem(
+            chaveBackup,
+            JSON.stringify(listaLocal)
+          );
+          listaBackup = listaLocal;
+        }
+      }
+
+      const listaParaImportar = listaBackup.length
+        ? listaBackup
+        : listaLocal;
+
+      if (importarDadosLocais && perfil && listaParaImportar.length) {
+        const importacaoConcluida =
+          localStorage.getItem(chaveImportacao) === "sim";
+
+        if (!importacaoConcluida) {
+          if (perfilEhConsultora(perfil.perfil)) {
+            const daConsultora = listaParaImportar.filter(
+              (cliente) =>
+                Boolean(cliente.consultora.trim()) &&
+                normalizarTexto(cliente.consultora) ===
+                  normalizarTexto(perfil.nome)
+            );
+
+            const semConsultora = listaParaImportar.filter(
+              (cliente) => !cliente.consultora.trim()
+            );
+
+            setClientesSemConsultoraPendentes(semConsultora);
+
+            if (daConsultora.length) {
+              const { conteudo: resultado } =
+                await chamarApiClientes("POST", {
+                  acao: "importar_local",
+                  clientes: daConsultora,
+                });
+
+              importou = Number(resultado.importados || 0) > 0;
+            }
+
+            if (!semConsultora.length) {
+              localStorage.setItem(chaveImportacao, "sim");
+            }
+          } else {
+            const { conteudo: resultado } =
+              await chamarApiClientes("POST", {
+                acao: "importar_local",
+                clientes: listaParaImportar,
+              });
+
+            importou = Number(resultado.importados || 0) > 0;
+            localStorage.setItem(chaveImportacao, "sim");
+          }
+        }
+      }
+
+      const leituraFinal = importou
+        ? (await chamarApiClientes("GET")).conteudo
+        : primeiraLeitura;
+
+      const listaSupabase = Array.isArray(leituraFinal.clientes)
+        ? leituraFinal.clientes.map((item) =>
+            normalizarCliente(item)
+          )
+        : [];
+
+      const listaPrivada = [
+        ...listaLocal,
+        ...listaBackup.filter(
+          (backup) =>
+            !listaLocal.some(
+              (local) => local.id === backup.id
+            )
+        ),
+      ];
+
+      const listaCompleta = mesclarDadosPrivados(
+        listaSupabase,
+        listaPrivada
+      );
+
+      setClientes(listaCompleta);
+      salvarCopiaLocal(listaCompleta);
+    } catch (erro) {
+      setClientes([]);
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível carregar os clientes."
+      );
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  useEffect(() => {
+    void carregarClientesDoSupabase(true);
+    void carregarPropostas();
+    void carregarConsultoras();
+  }, [supabase]);
 
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -544,7 +872,7 @@ export default function ClientManager() {
     };
   }, [clientes]);
 
-  function salvar(event: FormEvent<HTMLFormElement>) {
+  async function salvar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMensagem("");
 
@@ -560,27 +888,23 @@ export default function ClientManager() {
       return;
     }
 
-    const cpfDuplicado = clientes.some(
-      (item) =>
-        item.cpf === cpfLimpo &&
-        item.id !== editandoId
-    );
+    const consultoraResponsavel =
+      perfilAtual && perfilEhConsultora(perfilAtual.perfil)
+        ? perfilAtual.nome
+        : form.consultora.trim();
 
-    if (cpfLimpo && cpfDuplicado) {
-      setMensagem(
-        "Já existe um cliente cadastrado com esse CPF."
-      );
+    if (!consultoraResponsavel) {
+      setMensagem("Selecione a consultora responsável.");
       return;
     }
 
-    const agora = new Date().toLocaleString("pt-BR");
+    const agora = new Date().toISOString();
     const antigo = clientes.find(
       (item) => item.id === editandoId
     );
 
     const cliente: Cliente = {
       id: editandoId || crypto.randomUUID(),
-
       convenioEstado: form.convenioEstado,
       convenioOrgao: form.convenioOrgao.trim(),
       produto: form.produto,
@@ -589,7 +913,6 @@ export default function ClientManager() {
       salario: converterNumero(form.salario),
       senhaPortal: form.senhaPortal,
       senhaContracheque: form.senhaContracheque,
-
       nome: form.nome.trim(),
       cpf: cpfLimpo,
       nascimento: form.nascimento,
@@ -603,10 +926,8 @@ export default function ClientManager() {
       dataEmissaoRg: form.dataEmissaoRg,
       nomeMae: form.nomeMae.trim(),
       nomePai: form.nomePai.trim(),
-
       telefone: apenasNumeros(form.telefone),
       email: form.email.trim().toLowerCase(),
-
       cep: apenasNumeros(form.cep),
       logradouro: form.logradouro.trim(),
       numeroEndereco: form.numeroEndereco.trim(),
@@ -614,7 +935,6 @@ export default function ClientManager() {
       bairro: form.bairro.trim(),
       cidade: form.cidade.trim(),
       estado: form.estado,
-
       banco: form.banco.trim(),
       agencia: form.agencia.trim(),
       conta: form.conta.trim(),
@@ -622,38 +942,60 @@ export default function ClientManager() {
       tipoConta: form.tipoConta,
       titularConta:
         form.titularConta.trim() || form.nome.trim(),
-
-      consultora: form.consultora.trim(),
+      consultora: consultoraResponsavel,
       status: form.status,
       observacoes: form.observacoes.trim(),
       documentos: form.documentos,
-
       criadoEm: antigo?.criadoEm || agora,
       atualizadoEm: agora,
     };
 
-    const atualizados = editandoId
-      ? clientes.map((item) =>
-          item.id === editandoId ? cliente : item
-        )
-      : [cliente, ...clientes];
+    setProcessando(true);
 
-    if (!persistir(atualizados)) {
-      return;
+    try {
+      const listaLocalAtualizada = editandoId
+        ? clientes.map((item) =>
+            item.id === editandoId ? cliente : item
+          )
+        : [cliente, ...clientes];
+
+      salvarCopiaLocal(listaLocalAtualizada);
+
+      const { conteudo } = await chamarApiClientes(
+        editandoId ? "PATCH" : "POST",
+        {
+          cliente: {
+            ...cliente,
+            senhaPortal: undefined,
+            senhaContracheque: undefined,
+            documentos: undefined,
+          },
+        }
+      );
+
+      const estavaEditando = Boolean(editandoId);
+
+      await carregarClientesDoSupabase(false);
+      setForm(formularioLimpo(perfilAtual));
+      setEditandoId(null);
+      setMostrarSenha(false);
+      setMostrarSenhaContracheque(false);
+
+      setMensagem(
+        conteudo.mensagem ||
+          (estavaEditando
+            ? "Cliente atualizado com sucesso."
+            : "Cliente cadastrado com sucesso.")
+      );
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível salvar o cliente."
+      );
+    } finally {
+      setProcessando(false);
     }
-
-    const estavaEditando = Boolean(editandoId);
-
-    setForm(criarFormularioVazio());
-    setEditandoId(null);
-    setMostrarSenha(false);
-    setMostrarSenhaContracheque(false);
-
-    setMensagem(
-      estavaEditando
-        ? "Cliente atualizado com sucesso."
-        : "Cliente cadastrado com sucesso."
-    );
   }
 
   function editar(cliente: Cliente) {
@@ -670,31 +1012,96 @@ export default function ClientManager() {
     });
   }
 
-  function excluir(id: string) {
+  async function excluir(id: string) {
     const confirmar = window.confirm(
       "Deseja realmente excluir este cliente?"
     );
 
     if (!confirmar) return;
 
-    persistir(
-      clientes.filter((item) => item.id !== id)
-    );
+    setProcessando(true);
 
-    setDetalhe(null);
+    try {
+      const { conteudo } = await chamarApiClientes(
+        "DELETE",
+        { id }
+      );
 
-    if (editandoId === id) {
-      setEditandoId(null);
-      setForm(criarFormularioVazio());
+      const listaLocal = clientes.filter(
+        (item) => item.id !== id
+      );
+
+      salvarCopiaLocal(listaLocal);
+      await carregarClientesDoSupabase(false);
+      setDetalhe(null);
+
+      if (editandoId === id) {
+        setEditandoId(null);
+        setForm(formularioLimpo(perfilAtual));
+      }
+
+      setMensagem(
+        conteudo.mensagem || "Cliente excluído com sucesso."
+      );
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível excluir o cliente."
+      );
+    } finally {
+      setProcessando(false);
     }
   }
 
   function cancelarEdicao() {
     setEditandoId(null);
-    setForm(criarFormularioVazio());
+    setForm(formularioLimpo(perfilAtual));
     setMensagem("");
     setMostrarSenha(false);
     setMostrarSenhaContracheque(false);
+  }
+
+  async function sincronizarClientesSemConsultora() {
+    if (!clientesSemConsultoraPendentes.length) return;
+
+    const confirmar = window.confirm(
+      `Existem ${clientesSemConsultoraPendentes.length} cliente(s) antigo(s) sem consultora neste navegador. Confirme somente se todos pertencem a você.`
+    );
+
+    if (!confirmar) return;
+
+    setProcessando(true);
+
+    try {
+      const { conteudo, sessao } = await chamarApiClientes(
+        "POST",
+        {
+          acao: "importar_local",
+          clientes: clientesSemConsultoraPendentes,
+          atribuirSemConsultora: true,
+        }
+      );
+
+      localStorage.setItem(
+        `somos-eleva-clientes-importados-supabase-v1-${sessao.user.id}`,
+        "sim"
+      );
+
+      setClientesSemConsultoraPendentes([]);
+      await carregarClientesDoSupabase(false);
+      setMensagem(
+        `${Number(conteudo.importados || 0)} cliente(s) antigo(s) foram vinculados ao seu usuário.`
+      );
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível sincronizar os clientes antigos."
+      );
+    } finally {
+      setProcessando(false);
+    }
   }
 
   function propostasDoCliente(cliente: Cliente) {
@@ -1113,10 +1520,11 @@ export default function ClientManager() {
             </div>
 
             <div className="client-security-warning">
-              As senhas estão sendo salvas apenas
-              neste navegador. Não use o sistema com
-              dados reais antes da migração para o
-              banco seguro.
+              As senhas e os documentos continuam
+              protegidos apenas neste navegador. Os
+              demais dados do cliente são salvos no
+              Supabase e respeitam o acesso de cada
+              consultora.
             </div>
           </section>
 
@@ -1702,7 +2110,7 @@ export default function ClientManager() {
               <label>
                 Consultora responsável
 
-                <input
+                <select
                   value={form.consultora}
                   onChange={(event) =>
                     setForm({
@@ -1711,8 +2119,36 @@ export default function ClientManager() {
                         event.target.value,
                     })
                   }
-                  placeholder="Nome da consultora"
-                />
+                  disabled={Boolean(
+                    perfilAtual &&
+                      perfilEhConsultora(
+                        perfilAtual.perfil
+                      )
+                  )}
+                  required
+                >
+                  <option value="">
+                    Selecione a consultora
+                  </option>
+
+                  {form.consultora &&
+                    !consultoras.includes(
+                      form.consultora
+                    ) && (
+                      <option value={form.consultora}>
+                        {form.consultora}
+                      </option>
+                    )}
+
+                  {consultoras.map((consultora) => (
+                    <option
+                      key={consultora}
+                      value={consultora}
+                    >
+                      {consultora}
+                    </option>
+                  ))}
+                </select>
               </label>
 
               <label>
@@ -1857,10 +2293,13 @@ export default function ClientManager() {
             <button
               type="submit"
               className="save"
+              disabled={processando}
             >
-              {editandoId
-                ? "Atualizar cliente"
-                : "Salvar cliente"}
+              {processando
+                ? "Salvando..."
+                : editandoId
+                  ? "Atualizar cliente"
+                  : "Salvar cliente"}
             </button>
           </div>
         </form>
@@ -1902,7 +2341,13 @@ export default function ClientManager() {
             </select>
           </div>
 
-          {filtrados.length === 0 ? (
+          {carregando ? (
+            <div className="client-empty">
+              <div>◌</div>
+              <strong>Carregando clientes...</strong>
+              <p>Aguarde a consulta ao Supabase.</p>
+            </div>
+          ) : filtrados.length === 0 ? (
             <div className="client-empty">
               <div>♙</div>
 
@@ -2041,9 +2486,24 @@ export default function ClientManager() {
         <strong>Integração ativa:</strong>
 
         <span>
-          o sistema encontra automaticamente as
-          propostas vinculadas ao mesmo CPF.
+          os clientes são carregados do Supabase e o
+          sistema encontra automaticamente as propostas
+          vinculadas ao mesmo CPF.
         </span>
+
+        {Boolean(
+          perfilAtual &&
+            perfilEhConsultora(perfilAtual.perfil) &&
+            clientesSemConsultoraPendentes.length
+        ) && (
+          <button
+            type="button"
+            onClick={sincronizarClientesSemConsultora}
+            disabled={processando}
+          >
+            Sincronizar clientes antigos deste navegador
+          </button>
+        )}
       </section>
 
       {detalhe && (

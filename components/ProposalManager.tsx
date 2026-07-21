@@ -1,14 +1,9 @@
 "use client";
 
-import {
-  FormEvent,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
-import "./propostas.css";;
+import "./propostas.css";
 
 type StatusProposta =
   | "Solicitado"
@@ -30,14 +25,6 @@ type ClienteCadastrado = {
   produto?: string;
   status?: string;
 };
-type UsuarioCadastrado = {
-  nome?: string;
-  perfil?: string;
-  cargo?: string;
-  ativo?: boolean | string;
-  status?: string;
-};
-
 type TabelaCompraDivida = {
   nome: string;
   percentual: number;
@@ -74,12 +61,27 @@ type Proposta = {
   observacao: string;
 };
 
+type PerfilAtual = {
+  id: string;
+  nome: string;
+  perfil: string;
+};
+
+type RespostaPropostas = {
+  propostas?: Proposta[];
+  proposta?: Proposta;
+  perfil?: PerfilAtual;
+  mensagem?: string;
+  erro?: string;
+  importadas?: number;
+};
+
 type FormularioProposta = {
   clienteId: string;
   vendedora: string;
   banco: string;
   tabela: string;
-    valorContrato: string;
+  valorContrato: string;
   status: StatusProposta;
   dataDigitacao: string;
   dataPagamento: string;
@@ -126,29 +128,21 @@ function numero(valor: string) {
 
   const convertido = Number(limpo);
 
-  return Number.isFinite(convertido)
-    ? convertido
-    : 0;
+  return Number.isFinite(convertido) ? convertido : 0;
 }
 
 function moeda(valor: number) {
-  return Number(valor || 0).toLocaleString(
-    "pt-BR",
-    {
-      style: "currency",
-      currency: "BRL",
-    }
-  );
+  return Number(valor || 0).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
 }
 
 function formatarPercentual(valor: number) {
-  return `${Number(valor || 0).toLocaleString(
-    "pt-BR",
-    {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }
-  )}%`;
+  return `${Number(valor || 0).toLocaleString("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}%`;
 }
 
 function apenasNumeros(valor: string) {
@@ -156,25 +150,16 @@ function apenasNumeros(valor: string) {
 }
 
 function formatarCpf(valor: string) {
-  const digitos = apenasNumeros(valor).slice(
-    0,
-    11
-  );
+  const digitos = apenasNumeros(valor).slice(0, 11);
 
   return digitos
     .replace(/^(\d{3})(\d)/, "$1.$2")
-    .replace(
-      /^(\d{3})\.(\d{3})(\d)/,
-      "$1.$2.$3"
-    )
+    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
     .replace(/\.(\d{3})(\d)/, ".$1-$2");
 }
 
 function formatarTelefone(valor: string) {
-  const digitos = apenasNumeros(valor).slice(
-    0,
-    11
-  );
+  const digitos = apenasNumeros(valor).slice(0, 11);
 
   if (digitos.length <= 10) {
     return digitos
@@ -199,9 +184,7 @@ function dataParaInput(valor: string) {
     return texto.slice(0, 10);
   }
 
-  const encontrada = texto.match(
-    /(\d{2})\/(\d{2})\/(\d{4})/
-  );
+  const encontrada = texto.match(/(\d{2})\/(\d{2})\/(\d{4})/);
 
   if (encontrada) {
     return `${encontrada[3]}-${encontrada[2]}-${encontrada[1]}`;
@@ -241,24 +224,17 @@ function tabelaPeloNome(nome: string) {
   });
 }
 
-function percentualDaTabela(
-  tabela: string,
-  percentualSalvo: unknown
-) {
+function percentualDaTabela(tabela: string, percentualSalvo: unknown) {
   const tabelaEncontrada = tabelaPeloNome(tabela);
 
   if (tabelaEncontrada) {
     return tabelaEncontrada.percentual;
   }
 
-  const percentualNoNome = String(tabela || "").match(
-    /(\d+(?:[.,]\d+)?)\s*%/
-  );
+  const percentualNoNome = String(tabela || "").match(/(\d+(?:[.,]\d+)?)\s*%/);
 
   if (percentualNoNome) {
-    const percentual = Number(
-      percentualNoNome[1].replace(",", ".")
-    );
+    const percentual = Number(percentualNoNome[1].replace(",", "."));
 
     if (Number.isFinite(percentual)) {
       return percentual;
@@ -268,8 +244,7 @@ function percentualDaTabela(
   const percentual = Number(percentualSalvo || 0);
 
   const permitido = TABELAS_COMPRA_DIVIDA.some(
-    (item) =>
-      Math.abs(item.percentual - percentual) < 0.01
+    (item) => Math.abs(item.percentual - percentual) < 0.01,
   );
 
   return permitido ? percentual : 0;
@@ -285,246 +260,229 @@ function nomeLimpoDaTabela(tabela: string) {
 }
 
 function normalizarProposta(
-  item: Partial<Proposta> &
-    Record<string, unknown>
+  item: Partial<Proposta> & Record<string, unknown>,
 ): Proposta {
-  const valorContrato = Number(
-    item.valorContrato ??
-      item.valorOperacao ??
-      0
-  );
+  const valorContrato = Number(item.valorContrato ?? item.valorOperacao ?? 0);
 
-  const tabela = nomeLimpoDaTabela(
-    String(item.tabela || "")
-  );
+  const tabela = nomeLimpoDaTabela(String(item.tabela || ""));
 
-  const percentualTabela =
-    percentualDaTabela(
-      String(item.tabela || ""),
-      item.percentualTabela
-    );
+  const percentualTabela = percentualDaTabela(
+    String(item.tabela || ""),
+    item.percentualTabela,
+  );
 
   const valorMeta =
-    Number.isFinite(valorContrato) &&
-    percentualTabela > 0
-      ? valorContrato *
-        (percentualTabela / 100)
+    Number.isFinite(valorContrato) && percentualTabela > 0
+      ? valorContrato * (percentualTabela / 100)
       : 0;
 
   return {
-    id: String(
-      item.id || crypto.randomUUID()
-    ),
+    id: String(item.id || crypto.randomUUID()),
     clienteId: String(item.clienteId || ""),
     cliente: String(item.cliente || ""),
-    cpf: apenasNumeros(
-      String(item.cpf || "")
-    ),
-    telefone: apenasNumeros(
-      String(item.telefone || "")
-    ),
-    vendedora: String(
-      item.vendedora ||
-        item.consultora ||
-        ""
-    ),
+    cpf: apenasNumeros(String(item.cpf || "")),
+    telefone: apenasNumeros(String(item.telefone || "")),
+    vendedora: String(item.vendedora || item.consultora || ""),
     banco: String(item.banco || ""),
     tabela,
     percentualTabela,
-    valorContrato: Number.isFinite(
-      valorContrato
-    )
-      ? valorContrato
-      : 0,
+    valorContrato: Number.isFinite(valorContrato) ? valorContrato : 0,
     valorMeta,
 
     // Valores antigos são zerados para não serem confundidos com premiação.
     comissao: 0,
     premiacao: 0,
 
-    status: STATUS.includes(
-      item.status as StatusProposta
-    )
+    status: STATUS.includes(item.status as StatusProposta)
       ? (item.status as StatusProposta)
       : "Solicitado",
-    dataCadastro: String(
-      item.dataCadastro || ""
-    ),
-    dataPagamento: String(
-      item.dataPagamento || ""
-    ),
-    observacao: String(
-      item.observacao ||
-        item.observacoes ||
-        ""
-    ),
+    dataCadastro: String(item.dataCadastro || ""),
+    dataPagamento: String(item.dataPagamento || ""),
+    observacao: String(item.observacao || item.observacoes || ""),
   };
 }
 
+function perfilEhConsultora(perfil: string) {
+  return normalizarTexto(perfil).includes("consultor");
+}
+
 export default function ProposalManager() {
-    const supabase = useMemo(
-    () => createClient(),
-    []
-  );
+  const supabase = useMemo(() => createClient(), []);
 
+  const [propostas, setPropostas] = useState<Proposta[]>([]);
 
-  const [propostas, setPropostas] =
-    useState<Proposta[]>([]);
+  const [clientes, setClientes] = useState<ClienteCadastrado[]>([]);
 
-  const [clientes, setClientes] =
-    useState<ClienteCadastrado[]>([]);
+  const [consultoras, setConsultoras] = useState<string[]>([]);
 
-    const [consultoras, setConsultoras] =
-  useState<string[]>([]);
+  const [perfilAtual, setPerfilAtual] = useState<PerfilAtual | null>(null);
 
-  const [form, setForm] =
-    useState<FormularioProposta>(
-      formularioVazio
-    );
+  const [form, setForm] = useState<FormularioProposta>(formularioVazio);
 
   const [busca, setBusca] = useState("");
 
-  const [filtroStatus, setFiltroStatus] =
-    useState("Todos");
+  const [filtroStatus, setFiltroStatus] = useState("Todos");
 
-  const [editandoId, setEditandoId] =
-    useState<string | null>(null);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
 
-  const [mensagem, setMensagem] =
-    useState("");
+  const [mensagem, setMensagem] = useState("");
+
+  const [carregando, setCarregando] = useState(true);
+
+  const [processando, setProcessando] = useState(false);
+
+  function formularioLimpo(perfil = perfilAtual): FormularioProposta {
+    return {
+      ...formularioVazio,
+      dataDigitacao: hojeIso(),
+      vendedora: perfil && perfilEhConsultora(perfil.perfil) ? perfil.nome : "",
+    };
+  }
+
+  async function obterSessaoAtual() {
+    const { data, error } = await supabase.auth.getSession();
+
+    if (error || !data.session?.access_token) {
+      throw new Error("Sua sessão expirou. Entre novamente no sistema.");
+    }
+
+    return data.session;
+  }
+
+  async function chamarApiPropostas(
+    method: "GET" | "POST" | "PATCH" | "DELETE",
+    body?: unknown,
+  ) {
+    const sessao = await obterSessaoAtual();
+
+    const resposta = await fetch("/api/propostas", {
+      method,
+      headers: {
+        Authorization: `Bearer ${sessao.access_token}`,
+        ...(body
+          ? {
+              "Content-Type": "application/json",
+            }
+          : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      cache: "no-store",
+    });
+
+    const conteudo = (await resposta.json()) as RespostaPropostas;
+
+    if (!resposta.ok) {
+      throw new Error(conteudo.erro || "Não foi possível concluir a operação.");
+    }
+
+    return {
+      conteudo,
+      sessao,
+    };
+  }
+
+  async function carregarPropostasDoSupabase(importarDadosLocais = false) {
+    setCarregando(true);
+
+    try {
+      const sessao = await obterSessaoAtual();
+
+      if (importarDadosLocais) {
+        const chaveImportacao = `somos-eleva-propostas-importadas-supabase-v1-${sessao.user.id}`;
+
+        const importacaoConcluida =
+          localStorage.getItem(chaveImportacao) === "sim";
+
+        const propostasSalvas = localStorage.getItem("somos-eleva-propostas");
+
+        if (!importacaoConcluida && propostasSalvas) {
+          try {
+            const listaLocal = JSON.parse(propostasSalvas);
+
+            const propostasLocais = Array.isArray(listaLocal)
+              ? listaLocal.map(normalizarProposta)
+              : [];
+
+            if (propostasLocais.length) {
+              const { conteudo: resultadoImportacao } =
+                await chamarApiPropostas("POST", {
+                  acao: "importar_local",
+                  propostas: propostasLocais,
+                });
+
+              if (Number(resultadoImportacao.importadas || 0) > 0) {
+                setMensagem(
+                  `${resultadoImportacao.importadas} proposta(s) antiga(s) foram sincronizadas com o Supabase.`,
+                );
+              }
+            }
+
+            localStorage.setItem(chaveImportacao, "sim");
+          } catch (erroImportacao) {
+            console.error(
+              "Falha ao importar propostas locais:",
+              erroImportacao,
+            );
+          }
+        }
+      }
+
+      const { conteudo } = await chamarApiPropostas("GET");
+
+      const lista = Array.isArray(conteudo.propostas)
+        ? conteudo.propostas.map(normalizarProposta)
+        : [];
+
+      setPropostas(lista);
+
+      if (conteudo.perfil) {
+        setPerfilAtual(conteudo.perfil);
+
+        if (perfilEhConsultora(conteudo.perfil.perfil)) {
+          setForm((atual) => ({
+            ...atual,
+            vendedora: conteudo.perfil?.nome || "",
+          }));
+        }
+      }
+
+      /*
+       * Cópia temporária para os módulos antigos
+       * que ainda leem propostas do localStorage.
+       * A fonte oficial desta página já é o Supabase.
+       */
+      localStorage.setItem("somos-eleva-propostas", JSON.stringify(lista));
+    } catch (erro) {
+      setPropostas([]);
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível carregar as propostas.",
+      );
+    } finally {
+      setCarregando(false);
+    }
+  }
 
   useEffect(() => {
-    let listaClientes: ClienteCadastrado[] =
-      [];
+    let listaClientes: ClienteCadastrado[] = [];
 
-      const usuariosSalvos =
-  localStorage.getItem(
-    "somos-eleva-usuarios"
-  );
-
-if (usuariosSalvos) {
-  try {
-    const listaUsuarios = JSON.parse(
-      usuariosSalvos
-    );
-
-    const nomesConsultoras = Array.isArray(
-      listaUsuarios
-    )
-      ? listaUsuarios
-          .filter(
-            (
-              usuario: UsuarioCadastrado
-            ) => {
-              const perfil = String(
-                usuario.perfil ||
-                  usuario.cargo ||
-                  ""
-              )
-                .normalize("NFD")
-                .replace(
-                  /[\u0300-\u036f]/g,
-                  ""
-                )
-                .trim()
-                .toLowerCase();
-
-              const status = String(
-                usuario.status || ""
-              )
-                .trim()
-                .toLowerCase();
-
-              const ativo =
-                usuario.ativo !== false &&
-                String(
-                  usuario.ativo ?? ""
-                ).toLowerCase() !==
-                  "false" &&
-                ![
-                  "inativo",
-                  "desativado",
-                  "bloqueado",
-                ].includes(status);
-
-              return (
-                perfil.includes(
-                  "consultor"
-                ) &&
-                ativo &&
-                String(
-                  usuario.nome || ""
-                ).trim()
-              );
-            }
-          )
-          .map(
-            (
-              usuario: UsuarioCadastrado
-            ) =>
-              String(
-                usuario.nome || ""
-              ).trim()
-          )
-      : [];
-
-    const nomesSemRepeticao =
-      Array.from(
-        new Set(nomesConsultoras)
-      ).sort((a, b) =>
-        a.localeCompare(b, "pt-BR")
-      );
-
-    setConsultoras(
-      nomesSemRepeticao
-    );
-  } catch {
-    setConsultoras([]);
-  }
-}
-
-    const clientesSalvos =
-      localStorage.getItem(
-        "somos-eleva-clientes"
-      );
+    const clientesSalvos = localStorage.getItem("somos-eleva-clientes");
 
     if (clientesSalvos) {
       try {
-        const lista = JSON.parse(
-          clientesSalvos
-        );
+        const lista = JSON.parse(clientesSalvos);
 
         listaClientes = Array.isArray(lista)
-          ? lista.map(
-              (
-                cliente: Partial<ClienteCadastrado>
-              ) => ({
-                id: String(
-                  cliente.id ||
-                    crypto.randomUUID()
-                ),
-                nome: String(
-                  cliente.nome || ""
-                ),
-                cpf: apenasNumeros(
-                  String(cliente.cpf || "")
-                ),
-                telefone: apenasNumeros(
-                  String(
-                    cliente.telefone || ""
-                  )
-                ),
-                banco: String(
-                  cliente.banco || ""
-                ),
-                produto: String(
-                  cliente.produto || ""
-                ),
-                status: String(
-                  cliente.status || "Ativo"
-                ),
-              })
-            )
+          ? lista.map((cliente: Partial<ClienteCadastrado>) => ({
+              id: String(cliente.id || crypto.randomUUID()),
+              nome: String(cliente.nome || ""),
+              cpf: apenasNumeros(String(cliente.cpf || "")),
+              telefone: apenasNumeros(String(cliente.telefone || "")),
+              banco: String(cliente.banco || ""),
+              produto: String(cliente.produto || ""),
+              status: String(cliente.status || "Ativo"),
+            }))
           : [];
 
         setClientes(listaClientes);
@@ -533,170 +491,88 @@ if (usuariosSalvos) {
       }
     }
 
-    const propostasSalvas =
-      localStorage.getItem(
-        "somos-eleva-propostas"
-      );
-
-    if (propostasSalvas) {
-      try {
-        const lista = JSON.parse(
-          propostasSalvas
-        );
-
-        const propostasNormalizadas =
-          Array.isArray(lista)
-            ? lista.map(normalizarProposta)
-            : [];
-
-        setPropostas(
-          propostasNormalizadas
-        );
-
-        localStorage.setItem(
-          "somos-eleva-propostas",
-          JSON.stringify(
-            propostasNormalizadas
-          )
-        );
-      } catch {
-        setPropostas([]);
-      }
-    }
-
-    const rascunho =
-      localStorage.getItem(
-        "somos-eleva-rascunho-proposta"
-      );
+    const rascunho = localStorage.getItem("somos-eleva-rascunho-proposta");
 
     if (rascunho) {
       try {
         const dados = JSON.parse(rascunho);
 
-        const clienteEncontrado =
-          listaClientes.find((cliente) => {
-            const mesmoCpf =
-              dados.cpf &&
-              cliente.cpf ===
-                apenasNumeros(dados.cpf);
+        const clienteEncontrado = listaClientes.find((cliente) => {
+          const mesmoCpf =
+            dados.cpf && cliente.cpf === apenasNumeros(dados.cpf);
 
-            const mesmoNome =
-              normalizarTexto(cliente.nome) ===
-              normalizarTexto(
-                dados.cliente || ""
-              );
+          const mesmoNome =
+            normalizarTexto(cliente.nome) ===
+            normalizarTexto(dados.cliente || "");
 
-            return mesmoCpf || mesmoNome;
-          });
+          return mesmoCpf || mesmoNome;
+        });
 
         setForm((atual) => ({
           ...atual,
-          clienteId:
-            clienteEncontrado?.id || "",
+          clienteId: clienteEncontrado?.id || "",
           banco: dados.banco || "",
-          tabela:
-            nomeLimpoDaTabela(
-              dados.tabela || ""
-            ),
-          valorContrato:
-            dados.valorLiberado
-              ? String(
-                  Number(
-                    dados.valorLiberado
-                  ).toFixed(2)
-                ).replace(".", ",")
-              : "",
+          tabela: nomeLimpoDaTabela(dados.tabela || ""),
+          valorContrato: dados.valorLiberado
+            ? String(Number(dados.valorLiberado).toFixed(2)).replace(".", ",")
+            : "",
         }));
 
         setMensagem(
           clienteEncontrado
             ? "Rascunho carregado. Selecione a tabela e complete a proposta."
-            : "Rascunho carregado. Cadastre o cliente primeiro ou selecione um cliente existente."
+            : "Rascunho carregado. Cadastre o cliente primeiro ou selecione um cliente existente.",
         );
 
-        localStorage.removeItem(
-          "somos-eleva-rascunho-proposta"
-        );
+        localStorage.removeItem("somos-eleva-rascunho-proposta");
       } catch {
-        localStorage.removeItem(
-          "somos-eleva-rascunho-proposta"
-        );
+        localStorage.removeItem("somos-eleva-rascunho-proposta");
       }
     }
   }, []);
+
+  useEffect(() => {
+    void carregarPropostasDoSupabase(true);
+  }, [supabase]);
+
   useEffect(() => {
     let componenteAtivo = true;
 
     async function carregarConsultoras() {
       try {
-        const {
-          data: dadosSessao,
-          error: erroSessao,
-        } =
-          await supabase.auth.getSession();
+        const sessao = await obterSessaoAtual();
 
-        const token =
-          dadosSessao.session?.access_token;
+        const resposta = await fetch("/api/consultoras", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${sessao.access_token}`,
+          },
+          cache: "no-store",
+        });
 
-        if (erroSessao || !token) {
-          if (componenteAtivo) {
-            setConsultoras([]);
-          }
-
-          return;
-        }
-
-        const resposta = await fetch(
-          "/api/consultoras",
-          {
-            method: "GET",
-            headers: {
-              Authorization:
-                `Bearer ${token}`,
-            },
-            cache: "no-store",
-          }
-        );
-
-        const conteudo =
-          (await resposta.json()) as {
-            consultoras?: Array<{
-              nome?: string;
-            }>;
-            erro?: string;
-          };
+        const conteudo = (await resposta.json()) as {
+          consultoras?: Array<{
+            nome?: string;
+          }>;
+          erro?: string;
+        };
 
         if (!resposta.ok) {
           throw new Error(
-            conteudo.erro ||
-              "Não foi possível carregar as consultoras."
+            conteudo.erro || "Não foi possível carregar as consultoras.",
           );
         }
 
-        const nomes = (
-          conteudo.consultoras || []
-        )
-          .map((consultora) =>
-            String(
-              consultora.nome || ""
-            ).trim()
-          )
+        const nomes = (conteudo.consultoras || [])
+          .map((consultora) => String(consultora.nome || "").trim())
           .filter(Boolean);
 
-        const nomesSemRepeticao =
-          Array.from(
-            new Set(nomes)
-          ).sort((a, b) =>
-            a.localeCompare(
-              b,
-              "pt-BR"
-            )
-          );
+        const nomesSemRepeticao = Array.from(new Set(nomes)).sort((a, b) =>
+          a.localeCompare(b, "pt-BR"),
+        );
 
         if (componenteAtivo) {
-          setConsultoras(
-            nomesSemRepeticao
-          );
+          setConsultoras(nomesSemRepeticao);
         }
       } catch {
         if (componenteAtivo) {
@@ -711,103 +587,57 @@ if (usuariosSalvos) {
       componenteAtivo = false;
     };
   }, [supabase]);
-  
-  function persistir(lista: Proposta[]) {
-    setPropostas(lista);
-
-    localStorage.setItem(
-      "somos-eleva-propostas",
-      JSON.stringify(lista)
-    );
-  }
 
   const clienteSelecionado = useMemo(
-    () =>
-      clientes.find(
-        (cliente) =>
-          cliente.id === form.clienteId
-      ),
-    [clientes, form.clienteId]
+    () => clientes.find((cliente) => cliente.id === form.clienteId),
+    [clientes, form.clienteId],
   );
 
   const tabelaSelecionada = useMemo(
-    () =>
-      TABELAS_COMPRA_DIVIDA.find(
-        (item) =>
-          item.nome === form.tabela
-      ),
-    [form.tabela]
+    () => TABELAS_COMPRA_DIVIDA.find((item) => item.nome === form.tabela),
+    [form.tabela],
   );
 
-  const valorContrato = numero(
-    form.valorContrato
-  );
+  const valorContrato = numero(form.valorContrato);
 
-  const percentualTabela =
-    tabelaSelecionada?.percentual || 0;
+  const percentualTabela = tabelaSelecionada?.percentual || 0;
 
-  const valorMeta =
-    valorContrato *
-    (percentualTabela / 100);
+  const valorMeta = valorContrato * (percentualTabela / 100);
 
   const propostasFiltradas = useMemo(() => {
-    const termo = busca
-      .trim()
-      .toLowerCase();
+    const termo = busca.trim().toLowerCase();
 
     return propostas.filter((proposta) => {
       const correspondeStatus =
-        filtroStatus === "Todos" ||
-        proposta.status === filtroStatus;
+        filtroStatus === "Todos" || proposta.status === filtroStatus;
 
       const correspondeBusca =
         !termo ||
-        proposta.cliente
-          .toLowerCase()
-          .includes(termo) ||
-        proposta.cpf.includes(
-          apenasNumeros(termo)
-        ) ||
-        proposta.vendedora
-          .toLowerCase()
-          .includes(termo) ||
-        proposta.banco
-          .toLowerCase()
-          .includes(termo) ||
-        proposta.tabela
-          .toLowerCase()
-          .includes(termo);
+        proposta.cliente.toLowerCase().includes(termo) ||
+        proposta.cpf.includes(apenasNumeros(termo)) ||
+        proposta.vendedora.toLowerCase().includes(termo) ||
+        proposta.banco.toLowerCase().includes(termo) ||
+        proposta.tabela.toLowerCase().includes(termo);
 
-      return (
-        correspondeStatus &&
-        correspondeBusca
-      );
+      return correspondeStatus && correspondeBusca;
     });
   }, [propostas, busca, filtroStatus]);
 
   const resumo = useMemo(() => {
-    const pagas = propostas.filter(
-      (item) => item.status === "Pago"
-    );
+    const pagas = propostas.filter((item) => item.status === "Pago");
 
     const valorPago = pagas.reduce(
-      (total, item) =>
-        total +
-        Number(item.valorContrato || 0),
-      0
+      (total, item) => total + Number(item.valorContrato || 0),
+      0,
     );
 
     const producaoValida = pagas.reduce(
-      (total, item) =>
-        total +
-        Number(item.valorMeta || 0),
-      0
+      (total, item) => total + Number(item.valorMeta || 0),
+      0,
     );
 
     const emAndamento = propostas.filter(
-      (item) =>
-        item.status !== "Pago" &&
-        item.status !== "Cancelado"
+      (item) => item.status !== "Pago" && item.status !== "Cancelado",
     ).length;
 
     return {
@@ -819,190 +649,141 @@ if (usuariosSalvos) {
     };
   }, [propostas]);
 
-  function enviar(
-    event: FormEvent<HTMLFormElement>
-  ) {
+  async function enviar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMensagem("");
 
     if (!clienteSelecionado) {
-      setMensagem(
-        "Selecione um cliente já cadastrado."
-      );
+      setMensagem("Selecione um cliente já cadastrado.");
       return;
     }
-if (!form.vendedora.trim()) {
-  setMensagem(
-    "Selecione a consultora responsável."
-  );
-  return;
-}
 
-    if (!form.vendedora.trim()) {
-      setMensagem(
-        "Informe a consultora."
-      );
+    const consultoraResponsavel =
+      perfilAtual && perfilEhConsultora(perfilAtual.perfil)
+        ? perfilAtual.nome
+        : form.vendedora.trim();
+
+    if (!consultoraResponsavel) {
+      setMensagem("Selecione a consultora responsável.");
       return;
     }
 
     if (!form.banco.trim()) {
-      setMensagem(
-        "Informe o banco da operação."
-      );
+      setMensagem("Informe o banco da operação.");
       return;
     }
 
     if (!tabelaSelecionada) {
-      setMensagem(
-        "Selecione a tabela utilizada."
-      );
+      setMensagem("Selecione a tabela utilizada.");
       return;
     }
 
     if (valorContrato <= 0) {
-      setMensagem(
-        "Informe o valor total do contrato."
-      );
-      return;
-    }
-if (!form.dataDigitacao) {
-  setMensagem(
-    "Informe a data da digitação."
-  );
-  return;
-}
-
-    if (
-      form.status === "Pago" &&
-      !form.dataPagamento
-    ) {
-      setMensagem(
-        "Informe a data do pagamento."
-      );
+      setMensagem("Informe o valor total do contrato.");
       return;
     }
 
-    const antiga = propostas.find(
-      (item) => item.id === editandoId
-    );
+    if (!form.dataDigitacao) {
+      setMensagem("Informe a data da digitação.");
+      return;
+    }
+
+    if (form.status === "Pago" && !form.dataPagamento) {
+      setMensagem("Informe a data do pagamento.");
+      return;
+    }
 
     const proposta: Proposta = {
-      id:
-        editandoId ||
-        crypto.randomUUID(),
-      clienteId:
-        clienteSelecionado.id,
-      cliente:
-        clienteSelecionado.nome,
+      id: editandoId || crypto.randomUUID(),
+      clienteId: clienteSelecionado.id,
+      cliente: clienteSelecionado.nome,
       cpf: clienteSelecionado.cpf,
-      telefone:
-        clienteSelecionado.telefone,
-      vendedora:
-        form.vendedora.trim(),
+      telefone: clienteSelecionado.telefone,
+      vendedora: consultoraResponsavel,
       banco: form.banco.trim(),
       tabela: tabelaSelecionada.nome,
-      percentualTabela:
-        tabelaSelecionada.percentual,
+      percentualTabela: tabelaSelecionada.percentual,
       valorContrato,
       valorMeta,
-
-      // Não é premiação. O Ranking calculará a premiação pela faixa da meta.
       comissao: 0,
       premiacao: 0,
-
       status: form.status,
       dataCadastro: form.dataDigitacao,
-      dataPagamento:
-        form.status === "Pago"
-          ? form.dataPagamento
-          : "",
-      observacao:
-        form.observacao.trim(),
+      dataPagamento: form.status === "Pago" ? form.dataPagamento : "",
+      observacao: form.observacao.trim(),
     };
 
-    const atualizadas = editandoId
-      ? propostas.map((item) =>
-          item.id === editandoId
-            ? proposta
-            : item
-        )
-      : [proposta, ...propostas];
+    const estavaEditando = Boolean(editandoId);
 
-    const estavaEditando =
-      Boolean(editandoId);
+    setProcessando(true);
 
-    persistir(atualizadas);
-    setForm(formularioVazio);
-    setEditandoId(null);
+    try {
+      await chamarApiPropostas(estavaEditando ? "PATCH" : "POST", {
+        proposta,
+      });
 
-    setMensagem(
-      estavaEditando
-        ? "Proposta atualizada com sucesso."
-        : "Proposta cadastrada com sucesso."
-    );
+      await carregarPropostasDoSupabase(false);
+
+      setForm(formularioLimpo(perfilAtual));
+      setEditandoId(null);
+
+      setMensagem(
+        estavaEditando
+          ? "Proposta atualizada com sucesso."
+          : "Proposta cadastrada com sucesso.",
+      );
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível salvar a proposta.",
+      );
+    } finally {
+      setProcessando(false);
+    }
   }
 
-  function localizarClienteDaProposta(
-    proposta: Proposta
-  ) {
+  function localizarClienteDaProposta(proposta: Proposta) {
     return clientes.find((cliente) => {
-      if (
-        proposta.clienteId &&
-        cliente.id === proposta.clienteId
-      ) {
+      if (proposta.clienteId && cliente.id === proposta.clienteId) {
         return true;
       }
 
-      if (
-        proposta.cpf &&
-        cliente.cpf === proposta.cpf
-      ) {
+      if (proposta.cpf && cliente.cpf === proposta.cpf) {
         return true;
       }
 
       return (
-        normalizarTexto(cliente.nome) ===
-        normalizarTexto(proposta.cliente)
+        normalizarTexto(cliente.nome) === normalizarTexto(proposta.cliente)
       );
     });
   }
 
   function editar(proposta: Proposta) {
-    const cliente =
-      localizarClienteDaProposta(
-        proposta
-      );
+    const cliente = localizarClienteDaProposta(proposta);
 
-    const tabela =
-      tabelaPeloNome(proposta.tabela);
+    const tabela = tabelaPeloNome(proposta.tabela);
 
     setEditandoId(proposta.id);
 
     setForm({
       clienteId: cliente?.id || "",
-      vendedora:
-        proposta.vendedora || "",
+      vendedora: proposta.vendedora || "",
       banco: proposta.banco || "",
       tabela: tabela?.nome || "",
-      valorContrato: Number(
-        proposta.valorContrato || 0
-      )
+      valorContrato: Number(proposta.valorContrato || 0)
         .toFixed(2)
         .replace(".", ","),
       status: proposta.status,
-dataDigitacao:
-  dataParaInput(proposta.dataCadastro) ||
-  hojeIso(),
-dataPagamento:
-  dataParaInput(proposta.dataPagamento),
-      observacao:
-        proposta.observacao || "",
+      dataDigitacao: dataParaInput(proposta.dataCadastro) || hojeIso(),
+      dataPagamento: dataParaInput(proposta.dataPagamento),
+      observacao: proposta.observacao || "",
     });
 
     setMensagem(
       cliente
         ? "Editando proposta selecionada."
-        : "O cliente desta proposta antiga não foi encontrado. Selecione o cliente correto."
+        : "O cliente desta proposta antiga não foi encontrado. Selecione o cliente correto.",
     );
 
     window.scrollTo({
@@ -1011,28 +792,39 @@ dataPagamento:
     });
   }
 
-  function excluir(id: string) {
-    const confirmar = window.confirm(
-      "Deseja realmente excluir esta proposta?"
-    );
+  async function excluir(id: string) {
+    const confirmar = window.confirm("Deseja realmente excluir esta proposta?");
 
     if (!confirmar) return;
 
-    persistir(
-      propostas.filter(
-        (item) => item.id !== id
-      )
-    );
+    setProcessando(true);
+    setMensagem("");
 
-    if (editandoId === id) {
-      setEditandoId(null);
-      setForm(formularioVazio);
+    try {
+      await chamarApiPropostas("DELETE", { id });
+
+      await carregarPropostasDoSupabase(false);
+
+      if (editandoId === id) {
+        setEditandoId(null);
+        setForm(formularioLimpo(perfilAtual));
+      }
+
+      setMensagem("Proposta excluída com sucesso.");
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível excluir a proposta.",
+      );
+    } finally {
+      setProcessando(false);
     }
   }
 
   function cancelarEdicao() {
     setEditandoId(null);
-    setForm(formularioVazio);
+    setForm(formularioLimpo(perfilAtual));
     setMensagem("");
   }
 
@@ -1046,9 +838,7 @@ dataPagamento:
 
         <article>
           <span>Em andamento</span>
-          <strong>
-            {resumo.emAndamento}
-          </strong>
+          <strong>{resumo.emAndamento}</strong>
         </article>
 
         <article>
@@ -1058,81 +848,52 @@ dataPagamento:
 
         <article>
           <span>Valor total pago</span>
-          <strong>
-            {moeda(resumo.valorPago)}
-          </strong>
+          <strong>{moeda(resumo.valorPago)}</strong>
         </article>
 
         <article className="commission-summary">
           <span>Produção válida paga</span>
-          <strong>
-            {moeda(
-              resumo.producaoValida
-            )}
-          </strong>
+          <strong>{moeda(resumo.producaoValida)}</strong>
         </article>
       </section>
 
       <section className="proposal-layout">
-        <form
-          className="proposal-form"
-          onSubmit={enviar}
-        >
+        <form className="proposal-form" onSubmit={enviar}>
           <div className="proposal-form-heading">
             <div>
-              <span>
-                {editandoId
-                  ? "EDITAR PROPOSTA"
-                  : "NOVA PROPOSTA"}
-              </span>
+              <span>{editandoId ? "EDITAR PROPOSTA" : "NOVA PROPOSTA"}</span>
 
               <h2>
-                {editandoId
-                  ? "Atualizar contrato"
-                  : "Cadastrar contrato"}
+                {editandoId ? "Atualizar contrato" : "Cadastrar contrato"}
               </h2>
 
               <p>
-                Selecione o cliente e a tabela.
-                O sistema calcula automaticamente
-                quanto o contrato vale para a meta.
+                Selecione o cliente e a tabela. O sistema calcula
+                automaticamente quanto o contrato vale para a meta.
               </p>
             </div>
 
-            <div className="proposal-form-badge">
-              %
-            </div>
+            <div className="proposal-form-badge">%</div>
           </div>
 
           <div className="proposal-form-grid">
             <label className="proposal-client-field">
               Cliente cadastrado
-
               <select
                 value={form.clienteId}
                 onChange={(event) =>
                   setForm({
                     ...form,
-                    clienteId:
-                      event.target.value,
+                    clienteId: event.target.value,
                   })
                 }
               >
-                <option value="">
-                  Selecione o cliente
-                </option>
+                <option value="">Selecione o cliente</option>
 
                 {clientes.map((cliente) => (
-                  <option
-                    key={cliente.id}
-                    value={cliente.id}
-                  >
+                  <option key={cliente.id} value={cliente.id}>
                     {cliente.nome}
-                    {cliente.cpf
-                      ? ` — ${formatarCpf(
-                          cliente.cpf
-                        )}`
-                      : ""}
+                    {cliente.cpf ? ` — ${formatarCpf(cliente.cpf)}` : ""}
                   </option>
                 ))}
               </select>
@@ -1140,13 +901,10 @@ dataPagamento:
 
             <label>
               CPF
-
               <input
                 value={
                   clienteSelecionado?.cpf
-                    ? formatarCpf(
-                        clienteSelecionado.cpf
-                      )
+                    ? formatarCpf(clienteSelecionado.cpf)
                     : ""
                 }
                 placeholder="Preenchido automaticamente"
@@ -1156,13 +914,10 @@ dataPagamento:
 
             <label>
               Telefone
-
               <input
                 value={
                   clienteSelecionado?.telefone
-                    ? formatarTelefone(
-                        clienteSelecionado.telefone
-                      )
+                    ? formatarTelefone(clienteSelecionado.telefone)
                     : ""
                 }
                 placeholder="Preenchido automaticamente"
@@ -1171,57 +926,43 @@ dataPagamento:
             </label>
 
             <label>
-  Consultora
+              Consultora
+              <select
+                value={form.vendedora}
+                disabled={
+                  processando ||
+                  Boolean(perfilAtual && perfilEhConsultora(perfilAtual.perfil))
+                }
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    vendedora: event.target.value,
+                  })
+                }
+                required
+              >
+                <option value="">Selecione a consultora</option>
 
-  <select
-    value={form.vendedora}
-    onChange={(event) =>
-      setForm({
-        ...form,
-        vendedora:
-          event.target.value,
-      })
-    }
-    required
-  >
-    <option value="">
-      Selecione a consultora
-    </option>
+                {form.vendedora && !consultoras.includes(form.vendedora) && (
+                  <option value={form.vendedora}>{form.vendedora}</option>
+                )}
 
-    {form.vendedora &&
-      !consultoras.includes(
-        form.vendedora
-      ) && (
-        <option
-          value={form.vendedora}
-        >
-          {form.vendedora}
-        </option>
-      )}
-
-    {consultoras.map(
-      (consultora) => (
-        <option
-          key={consultora}
-          value={consultora}
-        >
-          {consultora}
-        </option>
-      )
-    )}
-  </select>
-</label>
+                {consultoras.map((consultora) => (
+                  <option key={consultora} value={consultora}>
+                    {consultora}
+                  </option>
+                ))}
+              </select>
+            </label>
 
             <label>
               Banco da operação
-
               <input
                 value={form.banco}
                 onChange={(event) =>
                   setForm({
                     ...form,
-                    banco:
-                      event.target.value,
+                    banco: event.target.value,
                   })
                 }
                 placeholder="Ex.: NEO"
@@ -1230,93 +971,70 @@ dataPagamento:
 
             <label>
               Tabela utilizada
-
               <select
                 value={form.tabela}
                 onChange={(event) =>
                   setForm({
                     ...form,
-                    tabela:
-                      event.target.value,
+                    tabela: event.target.value,
                   })
                 }
               >
-                <option value="">
-                  Selecione a tabela
-                </option>
+                <option value="">Selecione a tabela</option>
 
-                {TABELAS_COMPRA_DIVIDA.map(
-                  (tabela) => (
-                    <option
-                      key={tabela.nome}
-                      value={tabela.nome}
-                    >
-                      {tabela.nome} —{" "}
-                      {formatarPercentual(
-                        tabela.percentual
-                      )}
-                    </option>
-                  )
-                )}
+                {TABELAS_COMPRA_DIVIDA.map((tabela) => (
+                  <option key={tabela.nome} value={tabela.nome}>
+                    {tabela.nome} — {formatarPercentual(tabela.percentual)}
+                  </option>
+                ))}
               </select>
             </label>
 
             <label>
               Valor total do contrato
-
               <input
                 value={form.valorContrato}
                 onChange={(event) =>
                   setForm({
                     ...form,
-                    valorContrato:
-                      event.target.value,
+                    valorContrato: event.target.value,
                   })
                 }
                 placeholder="Ex.: 20.000,00"
                 inputMode="decimal"
               />
             </label>
-<label>
-  Data da digitação
-
-  <input
-    type="date"
-    value={form.dataDigitacao}
-    onChange={(event) =>
-      setForm({
-        ...form,
-        dataDigitacao:
-          event.target.value,
-      })
-    }
-    required
-  />
-</label>
+            <label>
+              Data da digitação
+              <input
+                type="date"
+                value={form.dataDigitacao}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    dataDigitacao: event.target.value,
+                  })
+                }
+                required
+              />
+            </label>
             <label>
               Status
-
               <select
                 value={form.status}
                 onChange={(event) =>
                   setForm({
                     ...form,
-                    status:
-                      event.target
-                        .value as StatusProposta,
+                    status: event.target.value as StatusProposta,
                     dataPagamento:
-                      event.target.value ===
-                      "Pago"
-                        ? form.dataPagamento ||
-                          hojeIso()
+                      event.target.value === "Pago"
+                        ? form.dataPagamento || hojeIso()
                         : "",
                   })
                 }
               >
                 {STATUS.map((status) => (
-                  <option key={status}>
-                    {status}
-                  </option>
+                  <option key={status}>{status}</option>
                 ))}
               </select>
             </label>
@@ -1326,51 +1044,33 @@ dataPagamento:
             <div className="paid-section-heading">
               <div>
                 <span>PRODUÇÃO PARA A META</span>
-                <h3>
-                  Valor válido do contrato
-                </h3>
+                <h3>Valor válido do contrato</h3>
               </div>
 
-              <strong>
-                {moeda(valorMeta)}
-              </strong>
+              <strong>{moeda(valorMeta)}</strong>
             </div>
 
             <div className="commission-calculation">
               <div>
-                <span>
-                  Valor do contrato
-                </span>
+                <span>Valor do contrato</span>
 
-                <strong>
-                  {moeda(valorContrato)}
-                </strong>
+                <strong>{moeda(valorContrato)}</strong>
               </div>
 
-              <div className="formula">
-                ×
-              </div>
+              <div className="formula">×</div>
 
               <div>
                 <span>Percentual da tabela</span>
 
-                <strong>
-                  {formatarPercentual(
-                    percentualTabela
-                  )}
-                </strong>
+                <strong>{formatarPercentual(percentualTabela)}</strong>
               </div>
 
-              <div className="formula">
-                =
-              </div>
+              <div className="formula">=</div>
 
               <div className="commission-result">
                 <span>Valor para a meta</span>
 
-                <strong>
-                  {moeda(valorMeta)}
-                </strong>
+                <strong>{moeda(valorMeta)}</strong>
               </div>
             </div>
           </section>
@@ -1380,26 +1080,20 @@ dataPagamento:
               <div className="paid-section-heading">
                 <div>
                   <span>CONTRATO PAGO</span>
-                  <h3>
-                    Data do pagamento
-                  </h3>
+                  <h3>Data do pagamento</h3>
                 </div>
               </div>
 
               <div className="paid-grid">
                 <label>
                   Data do pagamento
-
                   <input
                     type="date"
-                    value={
-                      form.dataPagamento
-                    }
+                    value={form.dataPagamento}
                     onChange={(event) =>
                       setForm({
                         ...form,
-                        dataPagamento:
-                          event.target.value,
+                        dataPagamento: event.target.value,
                       })
                     }
                   />
@@ -1410,41 +1104,30 @@ dataPagamento:
 
           {!clientes.length && (
             <div className="proposal-message">
-              Nenhum cliente cadastrado. Cadastre o
-              cliente na página Clientes antes de
-              criar uma proposta.
+              Nenhum cliente cadastrado. Cadastre o cliente na página Clientes
+              antes de criar uma proposta.
             </div>
           )}
 
           <label className="proposal-observation">
             Observações
-
             <textarea
               value={form.observacao}
               onChange={(event) =>
                 setForm({
                   ...form,
-                  observacao:
-                    event.target.value,
+                  observacao: event.target.value,
                 })
               }
               placeholder="Informações importantes sobre o contrato"
             />
           </label>
 
-          {mensagem && (
-            <div className="proposal-message">
-              {mensagem}
-            </div>
-          )}
+          {mensagem && <div className="proposal-message">{mensagem}</div>}
 
           <div className="proposal-actions">
             {editandoId && (
-              <button
-                type="button"
-                className="cancel"
-                onClick={cancelarEdicao}
-              >
+              <button type="button" className="cancel" onClick={cancelarEdicao}>
                 Cancelar edição
               </button>
             )}
@@ -1452,11 +1135,13 @@ dataPagamento:
             <button
               type="submit"
               className="save"
-              disabled={!clientes.length}
+              disabled={processando || carregando || !clientes.length}
             >
-              {editandoId
-                ? "Atualizar proposta"
-                : "Salvar proposta"}
+              {processando
+                ? "Salvando..."
+                : editandoId
+                  ? "Atualizar proposta"
+                  : "Salvar proposta"}
             </button>
           </div>
         </form>
@@ -1466,172 +1151,125 @@ dataPagamento:
             <div>
               <span>ACOMPANHAMENTO</span>
 
-              <h2>
-                Propostas cadastradas
-              </h2>
+              <h2>Propostas cadastradas</h2>
             </div>
 
-            <b>
-              {propostasFiltradas.length}
-            </b>
+            <b>{propostasFiltradas.length}</b>
           </div>
 
           <div className="proposal-filters">
             <input
               value={busca}
-              onChange={(event) =>
-                setBusca(event.target.value)
-              }
+              onChange={(event) => setBusca(event.target.value)}
               placeholder="Pesquisar cliente, CPF, consultora, banco ou tabela"
             />
 
             <select
               value={filtroStatus}
-              onChange={(event) =>
-                setFiltroStatus(
-                  event.target.value
-                )
-              }
+              onChange={(event) => setFiltroStatus(event.target.value)}
             >
               <option>Todos</option>
 
               {STATUS.map((status) => (
-                <option key={status}>
-                  {status}
-                </option>
+                <option key={status}>{status}</option>
               ))}
             </select>
           </div>
 
-          {propostasFiltradas.length === 0 ? (
+          {carregando ? (
+            <div className="proposal-empty">
+              <div>⌛</div>
+
+              <strong>Carregando propostas</strong>
+
+              <p>Aguarde enquanto os dados são buscados no Supabase.</p>
+            </div>
+          ) : propostasFiltradas.length === 0 ? (
             <div className="proposal-empty">
               <div>▤</div>
 
-              <strong>
-                Nenhuma proposta encontrada
-              </strong>
+              <strong>Nenhuma proposta encontrada</strong>
 
-              <p>
-                Cadastre a primeira proposta ou
-                altere os filtros.
-              </p>
+              <p>Cadastre a primeira proposta ou altere os filtros.</p>
             </div>
           ) : (
             <div className="proposal-list">
-              {propostasFiltradas.map(
-                (proposta) => (
-                  <article key={proposta.id}>
-                    <div className="proposal-item-top">
-                      <div>
-                        <strong>
-                          {proposta.cliente}
-                        </strong>
+              {propostasFiltradas.map((proposta) => (
+                <article key={proposta.id}>
+                  <div className="proposal-item-top">
+                    <div>
+                      <strong>{proposta.cliente}</strong>
 
-                        <span>
-                          {proposta.banco ||
-                            "Banco não informado"}
+                      <span>
+                        {proposta.banco || "Banco não informado"}
 
-                          {proposta.tabela
-                            ? ` • ${proposta.tabela} — ${formatarPercentual(
-                                proposta.percentualTabela
-                              )}`
-                            : ""}
-                        </span>
-                      </div>
-
-                      <span
-                        className={`status status-${proposta.status
-                          .toLowerCase()
-                          .replace(/\s/g, "-")
-                          .normalize("NFD")
-                          .replace(
-                            /[\u0300-\u036f]/g,
-                            ""
-                          )}`}
-                      >
-                        {proposta.status}
+                        {proposta.tabela
+                          ? ` • ${proposta.tabela} — ${formatarPercentual(
+                              proposta.percentualTabela,
+                            )}`
+                          : ""}
                       </span>
                     </div>
 
-                    <div className="proposal-item-values">
-                      <div>
-                        <small>Contrato</small>
+                    <span
+                      className={`status status-${proposta.status
+                        .toLowerCase()
+                        .replace(/\s/g, "-")
+                        .normalize("NFD")
+                        .replace(/[\u0300-\u036f]/g, "")}`}
+                    >
+                      {proposta.status}
+                    </span>
+                  </div>
 
-                        <b>
-                          {moeda(
-                            proposta.valorContrato
-                          )}
-                        </b>
-                      </div>
+                  <div className="proposal-item-values">
+                    <div>
+                      <small>Contrato</small>
 
-                      <div>
-                        <small>
-                          Percentual da tabela
-                        </small>
-
-                        <b>
-                          {formatarPercentual(
-                            proposta.percentualTabela
-                          )}
-                        </b>
-                      </div>
-
-                      <div>
-                        <small>
-                          Valor para a meta
-                        </small>
-
-                        <b>
-                          {moeda(
-                            proposta.valorMeta
-                          )}
-                        </b>
-                      </div>
+                      <b>{moeda(proposta.valorContrato)}</b>
                     </div>
 
-                    <div className="proposal-item-footer">
-                      <span>
-  {proposta.vendedora ||
-    "Consultora não informada"}{" "}
-  • Digitado em{" "}
-  {formatarData(
-    proposta.dataCadastro
-  )}
+                    <div>
+                      <small>Percentual da tabela</small>
 
-  {proposta.status === "Pago" &&
-    proposta.dataPagamento && (
-      <>
-        {" "}
-        • Pago em{" "}
-        {formatarData(
-          proposta.dataPagamento
-        )}
-      </>
-    )}
-</span>
-
-                      <div>
-                        <button
-                          onClick={() =>
-                            editar(proposta)
-                          }
-                        >
-                          Editar
-                        </button>
-
-                        <button
-                          className="delete"
-                          onClick={() =>
-                            excluir(proposta.id)
-                          }
-                        >
-                          Excluir
-                        </button>
-                      </div>
+                      <b>{formatarPercentual(proposta.percentualTabela)}</b>
                     </div>
-                  </article>
-                )
-              )}
+
+                    <div>
+                      <small>Valor para a meta</small>
+
+                      <b>{moeda(proposta.valorMeta)}</b>
+                    </div>
+                  </div>
+
+                  <div className="proposal-item-footer">
+                    <span>
+                      {proposta.vendedora || "Consultora não informada"} •
+                      Digitado em {formatarData(proposta.dataCadastro)}
+                      {proposta.status === "Pago" && proposta.dataPagamento && (
+                        <> • Pago em {formatarData(proposta.dataPagamento)}</>
+                      )}
+                    </span>
+
+                    <div>
+                      <button
+                        disabled={processando}
+                        onClick={() => editar(proposta)}
+                      >
+                        Editar
+                      </button>
+
+                      <button
+                        className="delete"
+                        disabled={processando}
+                        onClick={() => void excluir(proposta.id)}
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              ))}
             </div>
           )}
         </section>
@@ -1641,13 +1279,10 @@ dataPagamento:
         <strong>Como funciona:</strong>
 
         <span>
-          o percentual da tabela define quanto o
-          contrato vale para a meta. Exemplo:
-          contrato de R$ 20.000,00 na tabela de 82%
-          vale R$ 16.400,00 na produção da
-          consultora. A premiação será calculada no
-          Ranking depois da soma da Compra de Dívida
-          com as parcelas do CLT.
+          o percentual da tabela define quanto o contrato vale para a meta.
+          Exemplo: contrato de R$ 20.000,00 na tabela de 82% vale R$ 16.400,00
+          na produção da consultora. A premiação será calculada no Ranking
+          depois da soma da Compra de Dívida com as parcelas do CLT.
         </span>
       </section>
     </div>

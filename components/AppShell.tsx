@@ -213,7 +213,8 @@ export default function AppShell({
   const [cargo, setCargo] = useState("Consultora");
   const [foto, setFoto] = useState("");
   const [permissaoCarregada, setPermissaoCarregada] = useState(false);
-
+const [notificacoesAbertas, setNotificacoesAbertas] =
+  useState(false);
   const ehAdministracao = perfilEhAdministracao(cargo);
   const ehConsultora = perfilEhConsultora(cargo);
   const ehSupervisao = perfilEhSupervisao(cargo);
@@ -501,10 +502,207 @@ export default function AppShell({
               ⌕&nbsp;&nbsp;Pesquisar cliente, CPF ou proposta...
             </div>
 
-            <button className="shell-notification">
-              ♧
-              <b>3</b>
-            </button>
+            <div
+  style={{
+    position: "relative",
+  }}
+>
+  <button
+    type="button"
+    className="shell-notification"
+    aria-label="Abrir notificações"
+    onClick={() =>
+      setNotificacoesAbertas(
+        (valorAtual) => !valorAtual
+      )
+    }
+  >
+    🔔
+    <b>3</b>
+  </button>
+
+  {notificacoesAbertas && (
+    <section
+      style={{
+        position: "absolute",
+        top: 52,
+        right: 0,
+        zIndex: 9999,
+        width: 330,
+        padding: 14,
+        border: "1px solid #e0e5ee",
+        borderRadius: 16,
+        background: "#ffffff",
+        boxShadow:
+          "0 22px 55px rgba(12, 32, 86, 0.22)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 15,
+          padding: "4px 4px 13px",
+          borderBottom:
+            "1px solid #edf0f5",
+        }}
+      >
+        <div>
+          <span
+            style={{
+              display: "block",
+              marginBottom: 5,
+              color: "#ff6900",
+              fontSize: 9,
+              fontWeight: 900,
+              letterSpacing: 1.2,
+            }}
+          >
+            CENTRAL DE AVISOS
+          </span>
+
+          <strong
+            style={{
+              color: "#0d1b4f",
+              fontSize: 18,
+            }}
+          >
+            Acessos rápidos
+          </strong>
+        </div>
+
+        <button
+          type="button"
+          aria-label="Fechar"
+          onClick={() =>
+            setNotificacoesAbertas(false)
+          }
+          style={{
+            width: 30,
+            height: 30,
+            border: 0,
+            borderRadius: 9,
+            background: "#f1f4fa",
+            color: "#64708a",
+            fontSize: 18,
+            cursor: "pointer",
+          }}
+        >
+          ×
+        </button>
+      </div>
+
+      <Link
+        href="/propostas"
+        onClick={() =>
+          setNotificacoesAbertas(false)
+        }
+        style={{
+          display: "block",
+          padding: "14px 8px",
+          borderBottom:
+            "1px solid #edf0f5",
+          color: "#14255d",
+          textDecoration: "none",
+        }}
+      >
+        <strong
+          style={{
+            display: "block",
+            marginBottom: 5,
+            fontSize: 13,
+          }}
+        >
+          📄 Propostas
+        </strong>
+
+        <span
+          style={{
+            color: "#7b859b",
+            fontSize: 11,
+          }}
+        >
+          Acessar as propostas cadastradas.
+        </span>
+      </Link>
+
+      <Link
+        href={
+          ehConsultora
+            ? "/propostas"
+            : "/esteira"
+        }
+        onClick={() =>
+          setNotificacoesAbertas(false)
+        }
+        style={{
+          display: "block",
+          padding: "14px 8px",
+          borderBottom:
+            "1px solid #edf0f5",
+          color: "#14255d",
+          textDecoration: "none",
+        }}
+      >
+        <strong
+          style={{
+            display: "block",
+            marginBottom: 5,
+            fontSize: 13,
+          }}
+        >
+          🔄 Acompanhamento
+        </strong>
+
+        <span
+          style={{
+            color: "#7b859b",
+            fontSize: 11,
+          }}
+        >
+          Ver o andamento dos contratos.
+        </span>
+      </Link>
+
+      <Link
+        href={
+          ehAdministracao
+            ? "/baixas"
+            : "/propostas"
+        }
+        onClick={() =>
+          setNotificacoesAbertas(false)
+        }
+        style={{
+          display: "block",
+          padding: "14px 8px 7px",
+          color: "#14255d",
+          textDecoration: "none",
+        }}
+      >
+        <strong
+          style={{
+            display: "block",
+            marginBottom: 5,
+            fontSize: 13,
+          }}
+        >
+          💰 Pagamentos
+        </strong>
+
+        <span
+          style={{
+            color: "#7b859b",
+            fontSize: 11,
+          }}
+        >
+          Consultar pagamentos e baixas.
+        </span>
+      </Link>
+    </section>
+  )}
+</div>
 
             <Link
               href="/perfil"
