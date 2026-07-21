@@ -115,6 +115,19 @@ function perfilEhConsultora(perfil: string) {
   return normalizarTexto(perfil).includes("consultor");
 }
 
+function nomesCorrespondem(nomeA: unknown, nomeB: unknown) {
+  const a = normalizarTexto(nomeA);
+  const b = normalizarTexto(nomeB);
+
+  if (!a || !b) return false;
+  if (a === b) return true;
+
+  const menor = a.length <= b.length ? a : b;
+  const maior = a.length > b.length ? a : b;
+
+  return menor.length >= 5 && maior.includes(menor);
+}
+
 function perfilPodeAcessar(perfil: string) {
   return [
     "administradora",
@@ -236,10 +249,8 @@ async function listarConsultoras(
 }
 
 function encontrarConsultora(consultoras: Perfil[], nome: string) {
-  const nomeNormalizado = normalizarTexto(nome);
-
-  return consultoras.find(
-    (consultora) => normalizarTexto(consultora.nome) === nomeNormalizado,
+  return consultoras.find((consultora) =>
+    nomesCorrespondem(consultora.nome, nome),
   );
 }
 
@@ -250,8 +261,21 @@ function podeAlterarProposta(perfil: Perfil, linha: LinhaProposta) {
 
   return (
     linha.consultora_id === perfil.id ||
-    normalizarTexto(linha.vendedora) === normalizarTexto(perfil.nome)
+    nomesCorrespondem(linha.vendedora, perfil.nome)
   );
+}
+
+function chaveDuplicidadeProposta(linha: LinhaProposta) {
+  const responsavel = linha.consultora_id || normalizarTexto(linha.vendedora);
+  const identificadorCliente =
+    apenasNumeros(linha.cpf) || normalizarTexto(linha.cliente);
+  const valor = numeroSeguro(linha.valor_contrato).toFixed(2);
+  const data = String(linha.data_cadastro || "");
+  const tabela = normalizarTexto(linha.tabela);
+
+  if (!responsavel || !identificadorCliente || Number(valor) <= 0) return "";
+
+  return `${responsavel}|${identificadorCliente}|${valor}|${data}|${tabela}`;
 }
 
 async function montarLinha(
@@ -266,9 +290,22 @@ async function montarLinha(
   const consultoras =
     opcoes?.consultoras || (await listarConsultoras(supabase));
 
+  const nomeRecebido = String(
+    proposta.vendedora || proposta.consultora || "",
+  ).trim();
+
+  if (
+    opcoes?.importacao &&
+    perfilEhConsultora(perfil.perfil) &&
+    nomeRecebido &&
+    !nomesCorrespondem(nomeRecebido, perfil.nome)
+  ) {
+    throw new Error("A proposta pertence a outra consultora.");
+  }
+
   const nomeConsultora = perfilEhConsultora(perfil.perfil)
     ? perfil.nome
-    : String(proposta.vendedora || proposta.consultora || "").trim();
+    : nomeRecebido;
 
   if (!nomeConsultora) {
     throw new Error("Selecione a consultora responsável.");
@@ -284,11 +321,7 @@ async function montarLinha(
     throw new Error("A consultora selecionada está inativa.");
   }
 
-  const id = String(proposta.id || "").trim();
-
-  if (!id) {
-    throw new Error("A proposta não possui um identificador válido.");
-  }
+  const id = String(proposta.id || crypto.randomUUID()).trim();
 
   const cliente = String(proposta.cliente || "").trim();
 
@@ -297,6 +330,10 @@ async function montarLinha(
   }
 
   const valorContrato = numeroSeguro(proposta.valorContrato);
+
+  if (valorContrato <= 0) {
+    throw new Error("Informe o valor total do contrato.");
+  }
 
   const percentualTabela = numeroSeguro(proposta.percentualTabela);
 
@@ -435,62 +472,112 @@ export async function POST(request: NextRequest) {
 
       if (!propostasRecebidas.length) {
         return NextResponse.json({
+          encontradas: 0,
           importadas: 0,
+          atualizadas: 0,
+          ignoradas: 0,
+          falhas: 0,
+          detalhesFalhas: [],
           mensagem: "Nenhuma proposta local para importar.",
         });
       }
 
-      const linhas: LinhaProposta[] = [];
       const consultoras = await listarConsultoras(supabase);
+      const { data: existentesData, error: erroExistentes } = await supabase
+        .from("propostas")
+        .select("*");
+
+      if (erroExistentes) {
+        return respostaErro(
+          `Não foi possível conferir as propostas existentes: ${erroExistentes.message}`,
+          500,
+        );
+      }
+
+      const existentes = (existentesData || []) as LinhaProposta[];
+      const porId = new Map(existentes.map((linha) => [linha.id, linha]));
+      const chavesExistentes = new Set(
+        existentes.map(chaveDuplicidadeProposta).filter(Boolean),
+      );
+
+      let importadas = 0;
+      let atualizadas = 0;
+      let ignoradas = 0;
+      let falhas = 0;
+      const detalhesFalhas: Array<{
+        id?: string;
+        cliente?: string;
+        erro?: string;
+      }> = [];
 
       for (const proposta of propostasRecebidas.slice(0, 2000)) {
         try {
-          const nomeAntigo = String(
-            proposta.vendedora || proposta.consultora || "",
-          ).trim();
-
-          if (
-            perfilEhConsultora(perfil.perfil) &&
-            normalizarTexto(nomeAntigo) !== normalizarTexto(perfil.nome)
-          ) {
-            continue;
-          }
-
           const linha = await montarLinha(supabase, perfil, proposta, {
             consultoras,
             importacao: true,
           });
 
-          linhas.push(linha);
-        } catch {
-          /*
-           * Registros antigos incompletos são ignorados
-           * para não interromper toda a importação.
-           */
+          const existentePorId = porId.get(linha.id);
+
+          if (existentePorId && !podeAlterarProposta(perfil, existentePorId)) {
+            ignoradas += 1;
+            continue;
+          }
+
+          const chave = chaveDuplicidadeProposta(linha);
+
+          if (!existentePorId && chave && chavesExistentes.has(chave)) {
+            ignoradas += 1;
+            continue;
+          }
+
+          if (existentePorId) {
+            linha.criado_por = existentePorId.criado_por || linha.criado_por;
+          }
+
+          const { error } = await supabase.from("propostas").upsert(linha, {
+            onConflict: "id",
+          });
+
+          if (error) {
+            throw new Error(error.message);
+          }
+
+          if (existentePorId) {
+            atualizadas += 1;
+          } else {
+            importadas += 1;
+          }
+
+          porId.set(linha.id, linha);
+          if (chave) chavesExistentes.add(chave);
+        } catch (erro) {
+          falhas += 1;
+
+          if (detalhesFalhas.length < 20) {
+            detalhesFalhas.push({
+              id: String(proposta.id || ""),
+              cliente: String(proposta.cliente || ""),
+              erro:
+                erro instanceof Error
+                  ? erro.message
+                  : "Não foi possível importar esta proposta.",
+            });
+          }
         }
       }
 
-      if (!linhas.length) {
-        return NextResponse.json({
-          importadas: 0,
-          mensagem: "Nenhuma proposta válida foi encontrada para importar.",
-        });
-      }
-
-      const { error } = await supabase.from("propostas").upsert(linhas, {
-        onConflict: "id",
-      });
-
-      if (error) {
-        return respostaErro(
-          `Não foi possível importar as propostas: ${error.message}`,
-          500,
-        );
-      }
-
       return NextResponse.json({
-        importadas: linhas.length,
-        mensagem: "Propostas locais sincronizadas com o Supabase.",
+        encontradas: propostasRecebidas.length,
+        importadas,
+        atualizadas,
+        ignoradas,
+        falhas,
+        detalhesFalhas,
+        mensagem:
+          falhas > 0
+            ? "A sincronização terminou, mas algumas propostas não puderam ser enviadas."
+            : "Propostas locais sincronizadas com o Supabase.",
       });
     }
 

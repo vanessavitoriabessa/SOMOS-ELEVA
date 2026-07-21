@@ -73,7 +73,16 @@ type RespostaPropostas = {
   perfil?: PerfilAtual;
   mensagem?: string;
   erro?: string;
+  encontradas?: number;
   importadas?: number;
+  atualizadas?: number;
+  ignoradas?: number;
+  falhas?: number;
+  detalhesFalhas?: Array<{
+    id?: string;
+    cliente?: string;
+    erro?: string;
+  }>;
 };
 
 type FormularioProposta = {
@@ -306,10 +315,58 @@ function perfilEhConsultora(perfil: string) {
   return normalizarTexto(perfil).includes("consultor");
 }
 
+function nomesCorrespondem(nomeA: string, nomeB: string) {
+  const a = normalizarTexto(nomeA);
+  const b = normalizarTexto(nomeB);
+
+  if (!a || !b) return false;
+  if (a === b) return true;
+
+  const menor = a.length <= b.length ? a : b;
+  const maior = a.length > b.length ? a : b;
+
+  return menor.length >= 5 && maior.includes(menor);
+}
+
+function mesclarPorId(principais: Proposta[], adicionais: Proposta[]) {
+  const ids = new Set(principais.map((item) => item.id));
+
+  return [
+    ...principais,
+    ...adicionais.filter((item) => !ids.has(item.id)),
+  ];
+}
+
+function chaveDuplicidadeProposta(item: Proposta, nomePadrao = "") {
+  const responsavel = normalizarTexto(item.vendedora || nomePadrao);
+  const identificadorCliente =
+    apenasNumeros(item.cpf) || normalizarTexto(item.cliente);
+  const valor = Number(item.valorContrato || 0).toFixed(2);
+  const data = dataParaInput(item.dataCadastro);
+  const tabela = normalizarTexto(item.tabela);
+
+  if (!responsavel || !identificadorCliente || Number(valor) <= 0) return "";
+
+  return `${responsavel}|${identificadorCliente}|${valor}|${data}|${tabela}`;
+}
+
+function propostaTemDadosReais(item: Proposta) {
+  /*
+   * Registros totalmente vazios são ignorados. Se houver cliente preenchido
+   * mas faltar outro campo, a proposta permanece pendente para a API informar
+   * exatamente o que precisa ser corrigido.
+   */
+  return Boolean(String(item.cliente || "").trim());
+}
+
 export default function ProposalManager() {
   const supabase = useMemo(() => createClient(), []);
 
   const [propostas, setPropostas] = useState<Proposta[]>([]);
+
+  const [propostasAntigasPendentes, setPropostasAntigasPendentes] = useState<
+    Proposta[]
+  >([]);
 
   const [clientes, setClientes] = useState<ClienteCadastrado[]>([]);
 
@@ -381,79 +438,122 @@ export default function ProposalManager() {
     };
   }
 
-  async function carregarPropostasDoSupabase(importarDadosLocais = false) {
+  function lerListaLocal(chave: string) {
+    const salvo = localStorage.getItem(chave);
+
+    if (!salvo) return [] as Proposta[];
+
+    try {
+      const lista = JSON.parse(salvo);
+
+      return Array.isArray(lista)
+        ? lista.map((item) => normalizarProposta(item))
+        : [];
+    } catch {
+      return [] as Proposta[];
+    }
+  }
+
+  function localizarPendentes(
+    origem: Proposta[],
+    listaSupabase: Proposta[],
+    perfil: PerfilAtual,
+  ) {
+    if (!perfilEhConsultora(perfil.perfil)) return [] as Proposta[];
+
+    const candidatos = origem.filter(
+      (item) =>
+        propostaTemDadosReais(item) &&
+        (!item.vendedora.trim() || nomesCorrespondem(item.vendedora, perfil.nome)),
+    );
+
+    const idsSupabase = new Set(listaSupabase.map((item) => item.id));
+    const chavesSupabase = new Set(
+      listaSupabase
+        .map((item) => chaveDuplicidadeProposta(item, perfil.nome))
+        .filter(Boolean),
+    );
+    const idsIncluidos = new Set<string>();
+    const chavesIncluidas = new Set<string>();
+
+    return candidatos.filter((item) => {
+      const chave = chaveDuplicidadeProposta(item, perfil.nome);
+
+      if (idsSupabase.has(item.id) || idsIncluidos.has(item.id)) return false;
+      if (chave && (chavesSupabase.has(chave) || chavesIncluidas.has(chave))) {
+        return false;
+      }
+
+      idsIncluidos.add(item.id);
+      if (chave) chavesIncluidas.add(chave);
+      return true;
+    });
+  }
+
+  async function carregarPropostasDoSupabase() {
     setCarregando(true);
 
     try {
-      const sessao = await obterSessaoAtual();
+      /*
+       * Esta leitura acontece antes do GET para proteger os registros antigos.
+       * Assim, a lista do Supabase nunca sobrescreve o histórico local antes
+       * de criarmos o backup e identificarmos o que ainda precisa migrar.
+       */
+      const listaLocalAtual = lerListaLocal("somos-eleva-propostas");
+      const { conteudo, sessao } = await chamarApiPropostas("GET");
+      const perfil = conteudo.perfil || null;
+      const listaSupabase = Array.isArray(conteudo.propostas)
+        ? conteudo.propostas.map(normalizarProposta)
+        : [];
 
-      if (importarDadosLocais) {
-        const chaveImportacao = `somos-eleva-propostas-importadas-supabase-v1-${sessao.user.id}`;
+      setPerfilAtual(perfil);
+
+      if (perfil && perfilEhConsultora(perfil.perfil)) {
+        setForm((atual) => ({
+          ...atual,
+          vendedora: perfil.nome,
+        }));
+      }
+
+      let pendentes: Proposta[] = [];
+
+      if (perfil) {
+        const chaveBackup = `somos-eleva-propostas-backup-migracao-v2-${sessao.user.id}`;
+        const chaveImportacao = `somos-eleva-propostas-importadas-supabase-v2-${sessao.user.id}`;
+        const backupExistente = lerListaLocal(chaveBackup);
+        const origemCompleta = mesclarPorId(listaLocalAtual, backupExistente);
+        const registrosComDados = origemCompleta.filter(propostaTemDadosReais);
+
+        if (registrosComDados.length) {
+          localStorage.setItem(chaveBackup, JSON.stringify(registrosComDados));
+        }
 
         const importacaoConcluida =
           localStorage.getItem(chaveImportacao) === "sim";
 
-        const propostasSalvas = localStorage.getItem("somos-eleva-propostas");
-
-        if (!importacaoConcluida && propostasSalvas) {
-          try {
-            const listaLocal = JSON.parse(propostasSalvas);
-
-            const propostasLocais = Array.isArray(listaLocal)
-              ? listaLocal.map(normalizarProposta)
-              : [];
-
-            if (propostasLocais.length) {
-              const { conteudo: resultadoImportacao } =
-                await chamarApiPropostas("POST", {
-                  acao: "importar_local",
-                  propostas: propostasLocais,
-                });
-
-              if (Number(resultadoImportacao.importadas || 0) > 0) {
-                setMensagem(
-                  `${resultadoImportacao.importadas} proposta(s) antiga(s) foram sincronizadas com o Supabase.`,
-                );
-              }
-            }
-
-            localStorage.setItem(chaveImportacao, "sim");
-          } catch (erroImportacao) {
-            console.error(
-              "Falha ao importar propostas locais:",
-              erroImportacao,
-            );
-          }
+        if (!importacaoConcluida) {
+          pendentes = localizarPendentes(
+            registrosComDados,
+            listaSupabase,
+            perfil,
+          );
         }
       }
 
-      const { conteudo } = await chamarApiPropostas("GET");
-
-      const lista = Array.isArray(conteudo.propostas)
-        ? conteudo.propostas.map(normalizarProposta)
-        : [];
-
-      setPropostas(lista);
-
-      if (conteudo.perfil) {
-        setPerfilAtual(conteudo.perfil);
-
-        if (perfilEhConsultora(conteudo.perfil.perfil)) {
-          setForm((atual) => ({
-            ...atual,
-            vendedora: conteudo.perfil?.nome || "",
-          }));
-        }
-      }
+      setPropostasAntigasPendentes(pendentes);
+      setPropostas(mesclarPorId(listaSupabase, pendentes));
 
       /*
-       * Cópia temporária para os módulos antigos
-       * que ainda leem propostas do localStorage.
-       * A fonte oficial desta página já é o Supabase.
+       * Só atualizamos a cópia local quando não existem itens pendentes.
+       * Enquanto houver histórico a migrar, a chave original fica preservada.
        */
-      localStorage.setItem("somos-eleva-propostas", JSON.stringify(lista));
+      if (!pendentes.length) {
+        localStorage.setItem(
+          "somos-eleva-propostas",
+          JSON.stringify(listaSupabase),
+        );
+      }
     } catch (erro) {
-      setPropostas([]);
       setMensagem(
         erro instanceof Error
           ? erro.message
@@ -532,7 +632,7 @@ export default function ProposalManager() {
   }, []);
 
   useEffect(() => {
-    void carregarPropostasDoSupabase(true);
+    void carregarPropostasDoSupabase();
   }, [supabase]);
 
   useEffect(() => {
@@ -587,6 +687,65 @@ export default function ProposalManager() {
       componenteAtivo = false;
     };
   }, [supabase]);
+
+  const idsPendentes = useMemo(
+    () => new Set(propostasAntigasPendentes.map((item) => item.id)),
+    [propostasAntigasPendentes],
+  );
+
+  async function sincronizarPropostasAntigas() {
+    if (!propostasAntigasPendentes.length || !perfilAtual) return;
+
+    const confirmar = window.confirm(
+      `Encontramos ${propostasAntigasPendentes.length} proposta(s) antiga(s) neste navegador. Confirme somente se elas pertencem à usuária ${perfilAtual.nome}.`,
+    );
+
+    if (!confirmar) return;
+
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const { conteudo, sessao } = await chamarApiPropostas("POST", {
+        acao: "importar_local",
+        propostas: propostasAntigasPendentes,
+      });
+
+      const falhas = Number(conteudo.falhas || 0);
+
+      if (falhas === 0) {
+        const chaveImportacao = `somos-eleva-propostas-importadas-supabase-v2-${sessao.user.id}`;
+        localStorage.setItem(chaveImportacao, "sim");
+      }
+
+      await carregarPropostasDoSupabase();
+
+      const detalhes = Array.isArray(conteudo.detalhesFalhas)
+        ? conteudo.detalhesFalhas
+            .slice(0, 3)
+            .map((item) => `${item.cliente || item.id || "Registro"}: ${item.erro || "falha"}`)
+            .join(" | ")
+        : "";
+
+      setMensagem(
+        `${Number(conteudo.encontradas || 0)} encontrada(s) • ${Number(
+          conteudo.importadas || 0,
+        )} importada(s) • ${Number(
+          conteudo.atualizadas || 0,
+        )} atualizada(s) • ${Number(
+          conteudo.ignoradas || 0,
+        )} já existente(s)${falhas ? ` • ${falhas} com falha${detalhes ? ` — ${detalhes}` : ""}` : ""}.`,
+      );
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível sincronizar as propostas antigas.",
+      );
+    } finally {
+      setProcessando(false);
+    }
+  }
 
   const clienteSelecionado = useMemo(
     () => clientes.find((cliente) => cliente.id === form.clienteId),
@@ -722,7 +881,7 @@ export default function ProposalManager() {
         proposta,
       });
 
-      await carregarPropostasDoSupabase(false);
+      await carregarPropostasDoSupabase();
 
       setForm(formularioLimpo(perfilAtual));
       setEditandoId(null);
@@ -760,6 +919,11 @@ export default function ProposalManager() {
   }
 
   function editar(proposta: Proposta) {
+    if (idsPendentes.has(proposta.id)) {
+      setMensagem("Sincronize as propostas antigas antes de editar este contrato.");
+      return;
+    }
+
     const cliente = localizarClienteDaProposta(proposta);
 
     const tabela = tabelaPeloNome(proposta.tabela);
@@ -793,6 +957,11 @@ export default function ProposalManager() {
   }
 
   async function excluir(id: string) {
+    if (idsPendentes.has(id)) {
+      setMensagem("Sincronize as propostas antigas antes de excluir este contrato.");
+      return;
+    }
+
     const confirmar = window.confirm("Deseja realmente excluir esta proposta?");
 
     if (!confirmar) return;
@@ -803,7 +972,7 @@ export default function ProposalManager() {
     try {
       await chamarApiPropostas("DELETE", { id });
 
-      await carregarPropostasDoSupabase(false);
+      await carregarPropostasDoSupabase();
 
       if (editandoId === id) {
         setEditandoId(null);
@@ -828,8 +997,49 @@ export default function ProposalManager() {
     setMensagem("");
   }
 
+  const usuarioEhConsultora = Boolean(
+    perfilAtual && perfilEhConsultora(perfilAtual.perfil),
+  );
+
   return (
     <div className="proposal-page">
+      {usuarioEhConsultora && propostasAntigasPendentes.length > 0 && (
+        <section
+          className="proposal-note"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 16,
+            flexWrap: "wrap",
+            marginBottom: 20,
+          }}
+        >
+          <span>
+            <strong>
+              {propostasAntigasPendentes.length} proposta(s) antiga(s) encontrada(s).
+            </strong>{" "}
+            Um backup foi criado neste navegador. Clique para enviar tudo ao
+            Supabase sem recadastrar.
+          </span>
+
+          <button
+            type="button"
+            onClick={sincronizarPropostasAntigas}
+            disabled={processando}
+            style={{
+              border: 0,
+              borderRadius: 10,
+              padding: "12px 18px",
+              fontWeight: 800,
+              cursor: processando ? "wait" : "pointer",
+            }}
+          >
+            {processando ? "Sincronizando..." : "Sincronizar propostas antigas"}
+          </button>
+        </section>
+      )}
+
       <section className="proposal-summary">
         <article>
           <span>Total de propostas</span>
@@ -1194,7 +1404,10 @@ export default function ProposalManager() {
             </div>
           ) : (
             <div className="proposal-list">
-              {propostasFiltradas.map((proposta) => (
+              {propostasFiltradas.map((proposta) => {
+                const pendente = idsPendentes.has(proposta.id);
+
+                return (
                 <article key={proposta.id}>
                   <div className="proposal-item-top">
                     <div>
@@ -1208,6 +1421,7 @@ export default function ProposalManager() {
                               proposta.percentualTabela,
                             )}`
                           : ""}
+                        {pendente ? " • Aguardando sincronização" : ""}
                       </span>
                     </div>
 
@@ -1253,7 +1467,7 @@ export default function ProposalManager() {
 
                     <div>
                       <button
-                        disabled={processando}
+                        disabled={processando || pendente}
                         onClick={() => editar(proposta)}
                       >
                         Editar
@@ -1261,7 +1475,7 @@ export default function ProposalManager() {
 
                       <button
                         className="delete"
-                        disabled={processando}
+                        disabled={processando || pendente}
                         onClick={() => void excluir(proposta.id)}
                       >
                         Excluir
@@ -1269,7 +1483,8 @@ export default function ProposalManager() {
                     </div>
                   </div>
                 </article>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
