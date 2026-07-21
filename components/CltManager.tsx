@@ -205,6 +205,23 @@ function chaveCpf(item: RegistroClt, nomePadrao = "") {
   return `${normalizarTexto(item.consultora || nomePadrao)}|${cpf}`;
 }
 
+/*
+ * Alguns navegadores antigos possuem linhas de modelo como CLT-001, CLT-002,
+ * sem nenhum dado de cliente. Elas não devem aparecer como registros pendentes.
+ * Registros parcialmente preenchidos continuam sendo preservados para conferência.
+ */
+function registroPossuiAlgumDado(item: RegistroClt) {
+  return Boolean(
+    String(item.nome || "").trim() ||
+      apenasNumeros(String(item.cpf || "")) ||
+      String(item.dataNascimento || "").trim() ||
+      apenasNumeros(String(item.telefone || "")) ||
+      Number(item.valorAprovado || 0) > 0 ||
+      Number(item.parcela || 0) > 0 ||
+      String(item.banco || "").trim(),
+  );
+}
+
 export default function CltManager() {
   const supabase = useMemo(() => createClient(), []);
 
@@ -290,7 +307,9 @@ export default function CltManager() {
 
     const candidatos = origem.filter(
       (item) =>
-        !item.consultora.trim() || nomesCorrespondem(item.consultora, perfil.nome),
+        registroPossuiAlgumDado(item) &&
+        (!item.consultora.trim() ||
+          nomesCorrespondem(item.consultora, perfil.nome)),
     );
 
     const idsSupabase = new Set(listaSupabase.map((item) => item.id));
