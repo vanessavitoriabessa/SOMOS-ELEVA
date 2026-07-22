@@ -50,29 +50,14 @@ const itensOperacao: ItemMenu[] = [
     icon: LayoutDashboard,
   },
   {
-    href: "/clientes",
-    label: "Clientes",
-    icon: UsersRound,
-  },
-  {
-    href: "/propostas",
-    label: "Propostas",
-    icon: FileText,
+    href: "/operacoes",
+    label: "Operações",
+    icon: Workflow,
   },
   {
     href: "/simulacao",
     label: "Simulação",
     icon: Calculator,
-  },
-  {
-    href: "/esteira",
-    label: "Gestão de Propostas",
-    icon: Workflow,
-  },
-  {
-    href: "/clt",
-    label: "CLT",
-    icon: BadgeDollarSign,
   },
   {
     href: "/baixas",
@@ -121,21 +106,16 @@ const itensGestao: ItemMenu[] = [
 
 const ROTAS_PERMITIDAS_CONSULTORA = [
   "/dashboard",
-  "/clientes",
-  "/propostas",
+  "/operacoes",
   "/simulacao",
-  "/clt",
   "/loja-premios",
   "/perfil",
 ];
 
 const ROTAS_PERMITIDAS_SUPERVISAO_OPERACIONAL = [
   "/dashboard",
-  "/clientes",
-  "/propostas",
+  "/operacoes",
   "/simulacao",
-  "/esteira",
-  "/clt",
   "/ranking",
   "/loja-premios",
   "/perfil",
@@ -293,12 +273,10 @@ const [notificacoesAbertas, setNotificacoesAbertas] =
 
     if (ehConsultora) {
   const permitidos = [
-    "/dashboard",
-    "/clientes",
-    "/propostas",
-    "/simulacao",
-    "/clt",
-  ];
+  "/dashboard",
+  "/operacoes",
+  "/simulacao",
+];
 
       return itensOperacao.filter((item) =>
         permitidos.includes(item.href)
@@ -306,13 +284,10 @@ const [notificacoesAbertas, setNotificacoesAbertas] =
     }
 
     if (ehSupervisaoOuOperacional) {
-      const permitidos = [
+    const permitidos = [
   "/dashboard",
-  "/clientes",
-  "/propostas",
+  "/operacoes",
   "/simulacao",
-  "/esteira",
-  "/clt",
 ];
 
       return itensOperacao.filter((item) =>
