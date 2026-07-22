@@ -61,6 +61,7 @@ type Proposta = {
   tabela: string;
   percentualTabela: number;
   valorContrato: number;
+  parcela: number;
   valorMeta: number;
   comissao: number;
   premiacao: number;
@@ -1434,9 +1435,14 @@ tabela:
           percentualTabela:
             tabela.percentual,
 
-          valorContrato,
+         valorContrato,
 
-          valorMeta,
+parcela:
+  numero(
+    form.parcela,
+  ),
+
+valorMeta,
 
           comissao:
             0,
@@ -2104,7 +2110,22 @@ prazo:
                     }
                   />
                 </label>
+<label>
+  Valor da parcela
 
+  <input
+    value={form.parcela}
+    disabled={processando}
+    inputMode="decimal"
+    placeholder="Ex.: 450,00"
+    onChange={(event) =>
+      setForm({
+        ...form,
+        parcela: event.target.value,
+      })
+    }
+  />
+</label>
                 <label>
                   Data da digitação
 

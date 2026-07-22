@@ -39,6 +39,7 @@ type PropostaRecebida = {
   tabela?: string;
   percentualTabela?: number;
   valorContrato?: number;
+  parcela?: number;
   valorMeta?: number;
   comissao?: number;
   premiacao?: number;
@@ -61,6 +62,7 @@ type LinhaProposta = {
   tabela: string;
   percentual_tabela: number | string;
   valor_contrato: number | string;
+  parcela: number | string;
   valor_meta: number | string;
   comissao: number | string;
   premiacao: number | string;
@@ -151,6 +153,7 @@ function linhaParaProposta(linha: LinhaProposta) {
     tabela: String(linha.tabela || ""),
     percentualTabela: numeroSeguro(linha.percentual_tabela),
     valorContrato: numeroSeguro(linha.valor_contrato),
+    parcela: numeroSeguro(linha.parcela),
     valorMeta: numeroSeguro(linha.valor_meta),
     comissao: numeroSeguro(linha.comissao),
     premiacao: numeroSeguro(linha.premiacao),
@@ -331,11 +334,13 @@ async function montarLinha(
 
   const valorContrato = numeroSeguro(proposta.valorContrato);
 
-  if (valorContrato <= 0) {
-    throw new Error("Informe o valor total do contrato.");
-  }
+const parcela = numeroSeguro(proposta.parcela);
 
-  const percentualTabela = numeroSeguro(proposta.percentualTabela);
+const percentualTabela = numeroSeguro(proposta.percentualTabela);
+
+if (valorContrato <= 0) {
+  throw new Error("Informe o valor total do contrato.");
+}
 
   const valorMetaInformado = numeroSeguro(proposta.valorMeta);
 
@@ -355,8 +360,9 @@ async function montarLinha(
     banco: String(proposta.banco || "").trim(),
     tabela: String(proposta.tabela || "").trim(),
     percentual_tabela: percentualTabela,
-    valor_contrato: valorContrato,
-    valor_meta: valorMeta,
+valor_contrato: valorContrato,
+parcela,
+valor_meta: valorMeta,
     comissao: numeroSeguro(proposta.comissao),
     premiacao: numeroSeguro(proposta.premiacao),
     status: statusSeguro(proposta.status),
@@ -398,6 +404,7 @@ export async function GET(request: NextRequest) {
         tabela,
         percentual_tabela,
         valor_contrato,
+        parcela,
         valor_meta,
         comissao,
         premiacao,
