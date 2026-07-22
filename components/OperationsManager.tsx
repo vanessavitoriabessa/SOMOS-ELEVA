@@ -92,8 +92,10 @@ type FormularioOperacao = {
   cpf: string;
   dataNascimento: string;
   telefone: string;
-  banco: string;
-  consultora: string;
+bancoOrigem: string;
+bancoAtual: string;
+banco: string;
+consultora: string;
   observacao: string;
 
   tabela: string;
@@ -194,13 +196,15 @@ function formularioVazio(
   return {
     produto,
 
-    nome: "",
-    cpf: "",
-    dataNascimento: "",
-    telefone: "",
-    banco: "",
-    consultora: "",
-    observacao: "",
+nome: "",
+cpf: "",
+dataNascimento: "",
+telefone: "",
+bancoOrigem: "",
+bancoAtual: "NEO",
+banco: "",
+consultora: "",
+observacao: "",
 
     tabela: "",
     valorContrato: "",
@@ -669,8 +673,14 @@ export default function OperationsManager() {
       telefone:
         atual.telefone,
 
-      banco:
-        atual.banco,
+      bancoOrigem:
+  atual.bancoOrigem,
+
+bancoAtual:
+  atual.bancoAtual,
+
+banco:
+  atual.banco,
 
       observacao:
         atual.observacao,
@@ -1055,10 +1065,12 @@ export default function OperationsManager() {
         "",
 
       banco:
-        form.banco.trim(),
+  form.produto === "Compra de Dívida"
+    ? `${form.bancoOrigem.trim()} → ${form.bancoAtual.trim() || "NEO"}`
+    : form.banco.trim(),
 
-      agencia:
-        "",
+agencia:
+  "",
 
       conta:
         "",
@@ -1213,12 +1225,26 @@ export default function OperationsManager() {
       return;
     }
 
-    if (!form.banco.trim()) {
-      setMensagem(
-        "Informe o banco da operação.",
-      );
-      return;
-    }
+    if (
+  form.produto ===
+  "Compra de Dívida"
+) {
+  if (
+    !form.bancoOrigem.trim()
+  ) {
+    setMensagem(
+      "Selecione o banco de origem.",
+    );
+    return;
+  }
+} else {
+  if (!form.banco.trim()) {
+    setMensagem(
+      "Selecione o banco do CLT.",
+    );
+    return;
+  }
+}
 
     if (
       !consultoraResponsavel
@@ -1370,13 +1396,15 @@ export default function OperationsManager() {
           telefone,
 
           vendedora:
-            consultoraResponsavel,
+  consultoraResponsavel,
 
-          banco:
-            form.banco.trim(),
+banco:
+  form.bancoOrigem.trim() +
+  " → " +
+  (form.bancoAtual.trim() || "NEO"),
 
-          tabela:
-            tabela.nome,
+tabela:
+  tabela.nome,
 
           percentualTabela:
             tabela.percentual,
@@ -1834,22 +1862,102 @@ export default function OperationsManager() {
               />
             </label>
 
-            <label>
-              Banco
+            {form.produto === "Compra de Dívida" ? (
+  <>
+    <label>
+      Banco de origem
 
-              <input
-                value={form.banco}
-                disabled={processando}
-                placeholder="Informe o banco"
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    banco:
-                      event.target.value,
-                  })
-                }
-              />
-            </label>
+      <select
+        value={form.bancoOrigem}
+        disabled={processando}
+        onChange={(event) =>
+          setForm({
+            ...form,
+            bancoOrigem: event.target.value,
+          })
+        }
+      >
+        <option value="">
+          Selecione o banco de origem
+        </option>
+
+        <option value="BANCO MASTER">
+          BANCO MASTER
+        </option>
+
+        <option value="CREDCESTA">
+          CREDCESTA
+        </option>
+
+        <option value="BANCO PAN">
+          BANCO PAN
+        </option>
+
+        <option value="BANCO BMG">
+          BANCO BMG
+        </option>
+
+        <option value="BANCO DAYCOVAL">
+          BANCO DAYCOVAL
+        </option>
+
+        <option value="BANCO MERCANTIL">
+          BANCO MERCANTIL
+        </option>
+
+        <option value="BANCO C6">
+          BANCO C6
+        </option>
+      </select>
+    </label>
+
+    <label>
+      Banco atual
+
+      <select
+        value={form.bancoAtual}
+        disabled={processando}
+        onChange={(event) =>
+          setForm({
+            ...form,
+            bancoAtual: event.target.value,
+          })
+        }
+      >
+        <option value="NEO">
+          NEO
+        </option>
+      </select>
+    </label>
+  </>
+) : (
+  <label>
+    Banco / Parceiro
+
+    <select
+      value={form.banco}
+      disabled={processando}
+      onChange={(event) =>
+        setForm({
+          ...form,
+          banco: event.target.value,
+        })
+      }
+    >
+      <option value="">
+        Selecione o banco
+      </option>
+
+      <option value="3RN">
+        3RN
+      </option>
+
+      <option value="BANCO C6">
+        BANCO C6
+      </option>
+    </select>
+  </label>
+)}
 
             <label>
               Consultora
