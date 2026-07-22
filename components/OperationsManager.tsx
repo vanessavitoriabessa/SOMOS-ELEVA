@@ -77,8 +77,9 @@ type RegistroClt = {
   dataNascimento: string;
   telefone: string;
   valorAprovado: number;
-  parcela: number;
-  banco: string;
+parcela: number;
+prazo: number;
+banco: string;
   consultora: string;
   status: StatusClt;
   criadoEm: string;
@@ -106,6 +107,7 @@ consultora: string;
 
   valorAprovado: string;
   parcela: string;
+  prazo: string;
   statusClt: StatusClt;
 };
 
@@ -174,6 +176,10 @@ const TABELAS_COMPRA = [
     percentual: 67,
   },
   {
+    nome: "NEO FLEX 3",
+    percentual: 52,
+  },
+  {
     nome: "NEO FLEX 4",
     percentual: 37,
   },
@@ -214,6 +220,7 @@ observacao: "",
 
     valorAprovado: "",
     parcela: "",
+    prazo: "",
     statusClt: "Novo lead",
   };
 }
@@ -1325,7 +1332,25 @@ agencia:
         return;
       }
     }
+if (
+  numero(
+    form.parcela,
+  ) <= 0
+) {
+  setMensagem(
+    "Informe o valor da parcela.",
+  );
+  return;
+}
 
+if (
+  Number(form.prazo || 0) <= 0
+) {
+  setMensagem(
+    "Informe o prazo em meses.",
+  );
+  return;
+}
     setProcessando(true);
 
     let clienteCriadoId =
@@ -1478,6 +1503,8 @@ tabela:
             numero(
               form.parcela,
             ),
+prazo:
+  Number(form.prazo || 0),
 
           banco:
             form.banco.trim(),
@@ -2209,6 +2236,28 @@ tabela:
                     }
                   />
                 </label>
+                <label>
+  Prazo (meses)
+
+  <input
+    type="number"
+    min="1"
+    step="1"
+    value={form.prazo}
+    disabled={processando}
+    inputMode="numeric"
+    placeholder="Ex.: 12"
+    onChange={(event) =>
+      setForm({
+        ...form,
+        prazo: event.target.value.replace(
+          /\D/g,
+          "",
+        ),
+      })
+    }
+  />
+</label>
 
                 {!usuarioEhConsultora && (
                   <label>

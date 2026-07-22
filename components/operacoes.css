@@ -458,3 +458,24 @@
     width: 100%;
   }
 }
+
+@media (min-width: 1181px) {
+  .operations-layout {
+    grid-template-columns:
+      minmax(360px, 0.76fr)
+      minmax(600px, 1.24fr);
+  }
+}
+
+.operations-status-select {
+  width: 190px;
+  min-width: 190px;
+  max-width: 190px;
+  min-height: 38px;
+  padding: 0 34px 0 12px;
+  font-size: 10px;
+}
+
+.operations-item-top {
+  align-items: center;
+}

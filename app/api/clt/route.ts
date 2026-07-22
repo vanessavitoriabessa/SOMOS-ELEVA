@@ -34,6 +34,7 @@ type RegistroRecebido = {
   telefone?: string;
   valorAprovado?: number;
   parcela?: number;
+  prazo?: number;
   banco?: string;
   consultora?: string;
   status?: string;
@@ -48,6 +49,7 @@ type LinhaClt = {
   data_nascimento: string | null;
   telefone: string;
   valor_aprovado: number | string;
+  prazo: number | string;
   parcela: number | string;
   banco: string;
   consultora_id: string | null;
@@ -176,6 +178,7 @@ function linhaParaRegistro(linha: LinhaClt) {
     telefone: apenasNumeros(linha.telefone),
     valorAprovado: numeroSeguro(linha.valor_aprovado),
     parcela: numeroSeguro(linha.parcela),
+    prazo: numeroSeguro(linha.prazo),
     banco: String(linha.banco || ""),
     consultora: String(linha.consultora || ""),
     status: statusSeguro(linha.status),
@@ -344,6 +347,7 @@ async function montarLinha(
   );
   const valorAprovado = numeroSeguro(registro.valorAprovado);
   const parcela = numeroSeguro(registro.parcela);
+  const prazo = numeroSeguro(registro.prazo);
   const banco = String(registro.banco || "").trim();
 
   if (!nome) throw new Error("Informe o nome completo.");
@@ -354,18 +358,20 @@ async function montarLinha(
   }
   if (valorAprovado <= 0) throw new Error("Informe o valor aprovado.");
   if (parcela <= 0) throw new Error("Informe o valor da parcela.");
+  if (prazo <= 0) throw new Error("Informe o prazo em meses.");
   if (!banco) throw new Error("Informe o banco.");
 
   const agora = new Date().toISOString();
 
   return {
-    id,
-    nome,
-    cpf,
+  id,
+  nome,
+  cpf,
     data_nascimento: dataNascimento,
     telefone,
     valor_aprovado: valorAprovado,
     parcela,
+    prazo,
     banco,
     consultora_id: consultora?.id || null,
     consultora: consultora?.nome || nomeConsultora,
@@ -395,6 +401,7 @@ export async function GET(request: NextRequest) {
         telefone,
         valor_aprovado,
         parcela,
+        prazo,
         banco,
         consultora_id,
         consultora,
