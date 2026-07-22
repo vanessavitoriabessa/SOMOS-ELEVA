@@ -1345,7 +1345,8 @@ if (
 }
 
 if (
-  Number(form.prazo || 0) <= 0
+  form.produto === "CLT" &&
+  numero(form.prazo) <= 0
 ) {
   setMensagem(
     "Informe o prazo em meses.",
