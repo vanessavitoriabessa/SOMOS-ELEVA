@@ -907,51 +907,66 @@ banco:
       filtroConsultora,
     ]);
 
-  const resumo =
-    useMemo(() => {
-      const pagas =
-        operacoes.filter(
-          (item) =>
-            item.status ===
-            "Pago",
+  const resumo = useMemo(() => {
+  const contratosCompra =
+    propostas.length;
+
+  const propostasClt =
+  registrosClt.length;
+
+  const valorPagoCompra = propostas
+    .filter(
+      (item) =>
+        item.status === "Pago",
+    )
+    .reduce((total, item) => {
+      const valorMetaInformado =
+        Number(item.valorMeta || 0);
+
+      if (valorMetaInformado > 0) {
+        return (
+          total +
+          valorMetaInformado
+        );
+      }
+
+      const valorContrato =
+        Number(
+          item.valorContrato || 0,
         );
 
-      return {
-        total:
-          operacoes.length,
+      const percentualTabela =
+        Number(
+          item.percentualTabela || 0,
+        );
 
-        compra:
-          operacoes.filter(
-            (item) =>
-              item.produto ===
-              "Compra de Dívida",
-          ).length,
+      return (
+        total +
+        valorContrato *
+          (percentualTabela / 100)
+      );
+    }, 0);
 
-        clt:
-          operacoes.filter(
-            (item) =>
-              item.produto ===
-              "CLT",
-          ).length,
+  const valorPagoClt =
+    registrosClt
+      .filter(
+        (item) =>
+          item.status === "Pago",
+      )
+      .reduce(
+        (total, item) =>
+          total +
+          Number(item.parcela || 0),
+        0,
+      );
 
-        pagas:
-          pagas.length,
-
-        valorPago:
-          pagas.reduce(
-            (
-              total,
-              item,
-            ) =>
-              total +
-              Number(
-                item.valor ||
-                  0,
-              ),
-            0,
-          ),
-      };
-    }, [operacoes]);
+  return {
+    contratosCompra,
+    propostasClt,
+    valorPagoCompra,
+    valorPagoClt,
+  };
+}, [propostas, registrosClt]);
 
   async function obterOuCriarCliente(
     token: string,
@@ -1700,59 +1715,57 @@ prazo:
 
     return (
     <div className="operations-page">
-      <section className="operations-summary">
-        <article>
-          <span>
-            Total de operações
-          </span>
+      <section
+  className="operations-summary"
+  style={{
+    gridTemplateColumns:
+      "repeat(auto-fit, minmax(190px, 1fr))",
+  }}
+>
+  <article>
+    <span>
+      Contratos de Compra de Dívida
+    </span>
 
-          <strong>
-            {resumo.total}
-          </strong>
-        </article>
+    <strong>
+      {resumo.contratosCompra}
+    </strong>
+  </article>
 
-        <article>
-          <span>
-            Compra de Dívida
-          </span>
+  <article>
+    <span>
+  Propostas de CLT
+</span>
 
-          <strong>
-            {resumo.compra}
-          </strong>
-        </article>
+<strong>
+  {resumo.propostasClt}
+</strong>
+  </article>
 
-        <article>
-          <span>
-            CLT
-          </span>
+  <article className="operations-summary-highlight">
+    <span>
+      Valor pago CLT
+    </span>
 
-          <strong>
-            {resumo.clt}
-          </strong>
-        </article>
+    <strong>
+      {moeda(
+        resumo.valorPagoClt,
+      )}
+    </strong>
+  </article>
 
-        <article>
-          <span>
-            Operações pagas
-          </span>
+  <article className="operations-summary-highlight">
+    <span>
+      Valor pago Compra de Dívida
+    </span>
 
-          <strong>
-            {resumo.pagas}
-          </strong>
-        </article>
-
-        <article className="operations-summary-highlight">
-          <span>
-            Valor pago
-          </span>
-
-          <strong>
-            {moeda(
-              resumo.valorPago,
-            )}
-          </strong>
-        </article>
-      </section>
+    <strong>
+      {moeda(
+        resumo.valorPagoCompra,
+      )}
+    </strong>
+  </article>
+</section>
 
       <section className="operations-layout">
         <form
