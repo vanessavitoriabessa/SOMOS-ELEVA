@@ -7,8 +7,6 @@ import {
   useMemo,
   useState,
 } from "react";
-import "./usuarios.css";
-
 type Perfil =
   | "Administradora"
   | "Coordenadora"
