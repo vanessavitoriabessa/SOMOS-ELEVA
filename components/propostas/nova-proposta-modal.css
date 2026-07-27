@@ -1,0 +1,301 @@
+.nova-proposta-overlay {
+  position: fixed;
+  z-index: 500;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(8, 18, 52, 0.62);
+  backdrop-filter: blur(3px);
+}
+
+.nova-proposta-modal {
+  width: min(920px, calc(100vw - 32px));
+  max-height: calc(100vh - 36px);
+  overflow-y: auto;
+  padding: 24px;
+  border: 1px solid #e1e6f0;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 30px 90px rgba(7, 18, 55, 0.34);
+}
+
+.nova-proposta-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.nova-proposta-header span {
+  color: #2457ef;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+}
+
+.nova-proposta-header h2 {
+  margin: 7px 0 0;
+  color: #172554;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.nova-proposta-header button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  flex: 0 0 36px;
+  border: 0;
+  border-radius: 10px;
+  background: #eef1f6;
+  color: #172554;
+  font-size: 21px;
+  cursor: pointer;
+}
+
+.nova-proposta-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e9f2;
+}
+
+.nova-proposta-section-title {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 17px;
+}
+
+.nova-proposta-section-title > span {
+  display: flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+  border-radius: 10px;
+  background: #eef2ff;
+  color: #2457ef;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.nova-proposta-section-title strong {
+  display: block;
+  color: #17203a;
+  font-size: 14px;
+}
+
+.nova-proposta-section-title small {
+  display: block;
+  margin-top: 3px;
+  color: #7a8397;
+  font-size: 10px;
+}
+
+.nova-proposta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.nova-proposta-grid label,
+.nova-proposta-observacao {
+  display: grid;
+  gap: 8px;
+  color: #303b58;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.35px;
+  text-transform: uppercase;
+}
+
+.nova-proposta-grid input,
+.nova-proposta-grid select,
+.nova-proposta-observacao textarea {
+  width: 100%;
+  border: 1px solid #dce2ec;
+  border-radius: 11px;
+  outline: none;
+  background: #f8f9fc;
+  color: #162142;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.nova-proposta-grid input,
+.nova-proposta-grid select {
+  height: 46px;
+  padding: 0 14px;
+}
+
+.nova-proposta-grid input[readonly] {
+  color: #34405c;
+  background: #f4f6fa;
+}
+
+.nova-proposta-grid select:disabled {
+  color: #9aa2b2;
+  cursor: not-allowed;
+}
+
+.nova-proposta-grid input:focus,
+.nova-proposta-grid select:focus,
+.nova-proposta-observacao textarea:focus {
+  border-color: #2457ef;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(36, 87, 239, 0.1);
+}
+
+.nova-proposta-dinheiro,
+.nova-proposta-percentual {
+  display: grid;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #dce2ec;
+  border-radius: 11px;
+  background: #f8f9fc;
+}
+
+.nova-proposta-dinheiro {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.nova-proposta-percentual {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.nova-proposta-dinheiro:focus-within,
+.nova-proposta-percentual:focus-within {
+  border-color: #2457ef;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(36, 87, 239, 0.1);
+}
+
+.nova-proposta-dinheiro span,
+.nova-proposta-percentual span {
+  display: flex;
+  height: 46px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  color: #52607a;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.nova-proposta-dinheiro span {
+  border-right: 1px solid #dce2ec;
+}
+
+.nova-proposta-percentual span {
+  border-left: 1px solid #dce2ec;
+}
+
+.nova-proposta-dinheiro input,
+.nova-proposta-percentual input {
+  height: 46px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.nova-proposta-observacao textarea {
+  min-height: 130px;
+  padding: 13px 14px;
+  resize: vertical;
+}
+
+.nova-proposta-loading {
+  padding: 18px;
+  border: 1px dashed #cfd7e6;
+  border-radius: 12px;
+  background: #f8faff;
+  color: #5d6982;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.nova-proposta-mensagem {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid #cddaff;
+  border-radius: 10px;
+  background: #edf3ff;
+  color: #1550dc;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.nova-proposta-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #e5e9f2;
+}
+
+.nova-proposta-actions button {
+  min-width: 150px;
+  height: 44px;
+  padding: 0 20px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.nova-proposta-actions .cancelar {
+  border: 1px solid #d9e2f2;
+  background: #f4f7fb;
+  color: #172554;
+}
+
+.nova-proposta-actions .salvar {
+  border: 1px solid #2457f5;
+  background: linear-gradient(90deg, #174ee8, #345df1);
+  color: #ffffff;
+  box-shadow: 0 10px 23px rgba(22, 72, 226, 0.22);
+}
+
+.nova-proposta-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 720px) {
+  .nova-proposta-overlay {
+    align-items: start;
+    padding: 8px;
+  }
+
+  .nova-proposta-modal {
+    width: 100%;
+    max-height: calc(100vh - 16px);
+    padding: 18px;
+    border-radius: 16px;
+  }
+
+  .nova-proposta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nova-proposta-header h2 {
+    font-size: 20px;
+  }
+
+  .nova-proposta-actions {
+    flex-direction: column-reverse;
+  }
+
+  .nova-proposta-actions button {
+    width: 100%;
+  }
+}

@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import "./usuarios.css";
+import { createClient } from "@/lib/supabase/client";
 
 type Perfil =
   | "Administradora"
@@ -179,6 +180,11 @@ function compactarFoto(arquivo: File): Promise<string> {
 }
 
 export default function UserManager() {
+  const supabase = useMemo(
+  () => createClient(),
+  [],
+);
+
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [form, setForm] =
     useState<FormularioUsuario>(formularioVazio);
@@ -333,82 +339,227 @@ export default function UserManager() {
   }
 
   function removerFoto() {
-    setForm((dadosAtuais) => ({
-      ...dadosAtuais,
-      foto: "",
-    }));
+  setForm((dadosAtuais) => ({
+    ...dadosAtuais,
+    foto: "",
+  }));
 
-    setMensagem("Foto removida do cadastro.");
+  setMensagem(
+    "Foto removida do cadastro.",
+  );
+}
+
+async function salvar(
+  evento: FormEvent<HTMLFormElement>,
+) {
+  evento.preventDefault();
+  setMensagem("");
+
+  if (!form.nome.trim()) {
+    setMensagem(
+      "Informe o nome do usuário.",
+    );
+    return;
   }
 
-  function salvar(evento: FormEvent<HTMLFormElement>) {
-    evento.preventDefault();
-    setMensagem("");
-
-    if (!form.nome.trim()) {
-      setMensagem("Informe o nome do usuário.");
-      return;
-    }
-
-    if (!form.email.trim() && !form.matricula.trim()) {
-      setMensagem("Informe o e-mail ou a matrícula.");
-      return;
-    }
-
-    if (form.senha.length < 6) {
-      setMensagem(
-        "A senha precisa ter pelo menos 6 caracteres."
-      );
-      return;
-    }
-
-    const email = form.email.trim().toLowerCase();
-    const matricula = somenteNumeros(form.matricula);
-
-    const duplicado = usuarios.some(
-      (item) =>
-        item.id !== editandoId &&
-        ((email && item.email.toLowerCase() === email) ||
-          (matricula && item.matricula === matricula))
+  if (!form.email.trim()) {
+    setMensagem(
+      "Informe o e-mail do usuário.",
     );
+    return;
+  }
 
-    if (duplicado) {
-      setMensagem(
-        "Já existe um usuário com esse e-mail ou matrícula."
-      );
-      return;
-    }
-
-    const antigo = usuarios.find(
-      (item) => item.id === editandoId
+  if (form.senha.length < 6) {
+    setMensagem(
+      "A senha precisa ter pelo menos 6 caracteres.",
     );
+    return;
+  }
+
+  const email =
+    form.email.trim().toLowerCase();
+
+  const matricula =
+    somenteNumeros(form.matricula);
+
+  const duplicado = usuarios.some(
+    (item) =>
+      item.id !== editandoId &&
+      (
+        item.email.toLowerCase() === email ||
+        (
+          matricula &&
+          item.matricula === matricula
+        )
+      ),
+  );
+
+  if (duplicado) {
+    setMensagem(
+      "Já existe um usuário com esse e-mail ou matrícula.",
+    );
+    return;
+  }
+
+  const antigo = usuarios.find(
+    (item) =>
+      item.id === editandoId,
+  );
+
+  try {
+    let idUsuario =
+      editandoId || "";
+
+    if (!editandoId) {
+      const {
+        data: dadosSessao,
+        error: erroSessao,
+      } =
+        await supabase.auth.getSession();
+        console.log("Sessão:", dadosSessao.session?.user);
+
+      const token =
+        dadosSessao.session?.access_token;
+
+      if (erroSessao || !token) {
+        setMensagem(
+          "Sua sessão expirou. Entre novamente no sistema.",
+        );
+        return;
+      }
+
+      const resposta =
+        await fetch(
+          "/api/usuarios",
+          {
+            method: "POST",
+
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify({
+              nome:
+                form.nome.trim(),
+
+              email,
+
+              senha:
+                form.senha,
+
+              perfil:
+                form.perfil,
+
+              equipe:
+                form.equipe.trim(),
+
+              ativo:
+                form.ativo,
+
+              foto_url:
+                form.foto,
+            }),
+          },
+        );
+
+      const resultado =
+        await resposta.json();
+
+      if (!resposta.ok) {
+        throw new Error(
+          resultado.erro ||
+            "Não foi possível criar o acesso.",
+        );
+      }
+
+      idUsuario =
+        resultado.usuario?.id ||
+        crypto.randomUUID();
+    }
 
     const usuario: Usuario = {
-      id: editandoId || crypto.randomUUID(),
-      nome: form.nome.trim(),
+      id:
+        idUsuario,
+
+      nome:
+        form.nome.trim(),
+
       email,
+
       matricula,
-      senha: form.senha,
-      perfil: form.perfil,
-      equipe: form.equipe.trim(),
-      ativo: form.ativo,
-      foto: form.foto,
-      valorPorDigitacao: Number(form.valorPorDigitacao || 0),
-      bonusMeioMilhao: Number(form.bonusMeioMilhao || 0),
-      bonusUmMilhao: Number(form.bonusUmMilhao || 0),
-      metaCoordenacao: Number(form.metaCoordenacao || 300000),
-      percentualCoordenacaoAbaixo: Number(form.percentualCoordenacaoAbaixo || 0),
-      percentualCoordenacaoAcima: Number(form.percentualCoordenacaoAcima || 0),
+
+      senha:
+        form.senha,
+
+      perfil:
+        form.perfil,
+
+      equipe:
+        form.equipe.trim(),
+
+      ativo:
+        form.ativo,
+
+      foto:
+        form.foto,
+
+      valorPorDigitacao:
+        Number(
+          form.valorPorDigitacao || 0,
+        ),
+
+      bonusMeioMilhao:
+        Number(
+          form.bonusMeioMilhao || 0,
+        ),
+
+      bonusUmMilhao:
+        Number(
+          form.bonusUmMilhao || 0,
+        ),
+
+      metaCoordenacao:
+        Number(
+          form.metaCoordenacao ||
+            300000,
+        ),
+
+      percentualCoordenacaoAbaixo:
+        Number(
+          form.percentualCoordenacaoAbaixo ||
+            0,
+        ),
+
+      percentualCoordenacaoAcima:
+        Number(
+          form.percentualCoordenacaoAcima ||
+            0,
+        ),
+
       criadoEm:
         antigo?.criadoEm ||
-        new Date().toLocaleString("pt-BR"),
+        new Date()
+          .toLocaleString(
+            "pt-BR",
+          ),
     };
 
-    const atualizados = editandoId
-      ? usuarios.map((item) =>
-          item.id === editandoId ? usuario : item
-        )
-      : [usuario, ...usuarios];
+    const atualizados =
+      editandoId
+        ? usuarios.map(
+            (item) =>
+              item.id === editandoId
+                ? usuario
+                : item,
+          )
+        : [
+            usuario,
+            ...usuarios,
+          ];
 
     persistir(atualizados);
 
@@ -418,9 +569,16 @@ export default function UserManager() {
     setMensagem(
       editandoId
         ? "Usuário atualizado com sucesso."
-        : "Usuário criado com sucesso."
+        : "Usuário criado com acesso ao sistema.",
+    );
+  } catch (erro) {
+    setMensagem(
+      erro instanceof Error
+        ? erro.message
+        : "Não foi possível salvar o usuário.",
     );
   }
+}
 
   function editar(usuario: Usuario) {
     setEditandoId(usuario.id);
@@ -683,19 +841,42 @@ export default function UserManager() {
             </label>
 
             <label>
-              Equipe
+  Produtos / Equipe
 
-              <input
-                value={form.equipe}
-                onChange={(evento) =>
-                  setForm({
-                    ...form,
-                    equipe: evento.target.value,
-                  })
-                }
-                placeholder="Ex.: Compra de Dívida"
-              />
-            </label>
+  <select
+    value={form.equipe}
+    onChange={(evento) =>
+      setForm({
+        ...form,
+        equipe: evento.target.value,
+      })
+    }
+  >
+    <option value="">
+      Selecione os produtos
+    </option>
+
+    <option value="Compra de Dívida">
+      Compra de Dívida
+    </option>
+
+    <option value="CLT">
+      CLT
+    </option>
+
+    <option value="Compra de Dívida e CLT">
+      Compra de Dívida e CLT
+    </option>
+
+    <option value="Operacional">
+      Operacional
+    </option>
+
+    <option value="Administrativo / RH">
+      Administrativo / RH
+    </option>
+  </select>
+</label>
 
             {form.perfil === "Operacional" && (
               <>

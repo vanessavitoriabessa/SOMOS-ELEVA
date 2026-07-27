@@ -8,8 +8,10 @@ import {
   useState,
 } from "react";
 import { createClient } from "@/lib/supabase/client";
+import NovaPropostaModal from "./propostas/NovaPropostaModal";
 import "./clientes.css";
 import "./clientes-completo.css";
+
 
 type DocumentoCliente = {
   id: string;
@@ -122,15 +124,22 @@ type FormularioCliente = {
 
 type Proposta = {
   id: string;
+  clienteId: string;
   cliente: string;
   cpf: string;
   telefone: string;
   vendedora: string;
-  banco: string;
-  tabela: string;
+banco: string;
+bancoOrigemId: string;
+bancoAtualId: string;
+tabelaBancoId: string;
+tabela: string;
   valorContrato: number;
+  parcela: number;
   percentualTabela: number;
+  valorMeta: number;
   comissao: number;
+  premiacao: number;
   status: string;
   dataCadastro: string;
   dataPagamento: string;
@@ -462,8 +471,12 @@ export default function ClientManager() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [propostas, setPropostas] = useState<Proposta[]>([]);
   const [consultoras, setConsultoras] = useState<string[]>([]);
+
   const [perfilAtual, setPerfilAtual] =
     useState<PerfilAtual | null>(null);
+
+  const [accessToken, setAccessToken] = useState("");
+
   const [clientesSemConsultoraPendentes, setClientesSemConsultoraPendentes] =
     useState<Cliente[]>([]);
 
@@ -488,6 +501,8 @@ export default function ClientManager() {
     useState(false);
   const [carregando, setCarregando] = useState(true);
   const [processando, setProcessando] = useState(false);
+  const [clienteNovaProposta, setClienteNovaProposta] =
+    useState<Cliente | null>(null);
 
   function formularioLimpo(perfil = perfilAtual): FormularioCliente {
     return {
@@ -823,8 +838,19 @@ export default function ClientManager() {
     void carregarClientesDoSupabase(true);
     void carregarPropostas();
     void carregarConsultoras();
-  }, [supabase]);
 
+    void obterSessaoAtual()
+      .then((sessao) => {
+        setAccessToken(sessao.access_token);
+      })
+      .catch((erro) => {
+        setMensagem(
+          erro instanceof Error
+            ? erro.message
+            : "Não foi possível validar a sessão."
+        );
+      });
+  }, [supabase]);
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     const termoNumerico = apenasNumeros(busca);
@@ -1124,6 +1150,14 @@ export default function ClientManager() {
     setDetalhe(cliente);
     setMostrarSenhaDetalhe(false);
     setMostrarSenhaContrachequeDetalhe(false);
+  }
+  function abrirNovaProposta(cliente: Cliente) {
+    setClienteNovaProposta(cliente);
+    setMensagem("");
+  }
+
+  function fecharNovaProposta() {
+    setClienteNovaProposta(null);
   }
 
   async function anexarDocumentos(
@@ -2455,7 +2489,14 @@ export default function ClientManager() {
                         >
                           Abrir
                         </button>
-
+<button
+  type="button"
+  onClick={() =>
+    abrirNovaProposta(cliente)
+  }
+>
+  Nova proposta
+</button>
                         <button
                           onClick={() =>
                             editar(cliente)
@@ -2505,7 +2546,27 @@ export default function ClientManager() {
           </button>
         )}
       </section>
-
+      {clienteNovaProposta && accessToken && (
+        <NovaPropostaModal
+          cliente={{
+            id: clienteNovaProposta.id,
+            nome: clienteNovaProposta.nome,
+            cpf: clienteNovaProposta.cpf,
+            telefone: clienteNovaProposta.telefone,
+            consultora:
+              clienteNovaProposta.consultora ||
+              perfilAtual?.nome ||
+              "",
+            banco: clienteNovaProposta.banco,
+          }}
+          accessToken={accessToken}
+          onFechar={fecharNovaProposta}
+          onCadastrada={async () => {
+            await carregarPropostas();
+            setMensagem("Proposta cadastrada com sucesso.");
+          }}
+        />
+      )}
       {detalhe && (
         <div
           className="client-modal-overlay"

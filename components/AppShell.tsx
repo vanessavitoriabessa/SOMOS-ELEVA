@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
@@ -217,6 +218,7 @@ export default function AppShell({
 }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
 
   const [nome, setNome] = useState("Colaboradora");
   const [cargo, setCargo] = useState("Consultora");
@@ -231,71 +233,102 @@ export default function AppShell({
   const ehRh = perfilEhRh(cargo);
 
   useEffect(() => {
-    const usuarioLogado =
-      localStorage.getItem("somos-eleva-usuario") || "";
+    let componenteAtivo = true;
 
-    const matriculaSalva =
-      localStorage.getItem("somos-eleva-matricula") || usuarioLogado;
-
-    let usuarioEncontrado: UsuarioSalvo | undefined;
+    async function carregarUsuario() {
+    setPermissaoCarregada(false);
 
     try {
-      const usuariosSalvos = localStorage.getItem("somos-eleva-usuarios");
+      const {
+        data: { user },
+        error: erroUsuario,
+      } = await supabase.auth.getUser();
 
-      const usuarios: UsuarioSalvo[] = usuariosSalvos
-        ? JSON.parse(usuariosSalvos)
-        : [];
+      if (erroUsuario || !user) {
+        await supabase.auth.signOut();
+        router.replace("/login");
+        return;
+      }
 
-      const login = normalizarTexto(usuarioLogado);
+      const {
+        data: perfil,
+        error: erroPerfil,
+      } = await supabase
+        .from("profiles")
+        .select(`
+          nome,
+          email,
+          perfil,
+          equipe,
+          ativo,
+          foto_url
+        `)
+        .eq("id", user.id)
+        .single();
 
-      usuarioEncontrado = usuarios.find((usuario) => {
-        return (
-          String(usuario.id || "") === usuarioLogado ||
-          String(usuario.matricula || "") === usuarioLogado ||
-          String(usuario.matricula || "") === matriculaSalva ||
-          normalizarTexto(usuario.email || "") === login ||
-          normalizarTexto(usuario.nome || "") === login
-        );
-      });
-    } catch {
-      usuarioEncontrado = undefined;
-    }
+      if (erroPerfil || !perfil || !perfil.ativo) {
+        await supabase.auth.signOut();
 
-    const nomeSalvo = localStorage.getItem("somos-eleva-nome");
-    const cargoSalvo = localStorage.getItem("somos-eleva-cargo");
+        localStorage.removeItem("somos-eleva-logado");
+        localStorage.removeItem("somos-eleva-usuario");
+        localStorage.removeItem("somos-eleva-nome");
+        localStorage.removeItem("somos-eleva-cargo");
+        localStorage.removeItem("somos-eleva-equipe");
+        localStorage.removeItem("somos-eleva-status");
+        localStorage.removeItem("somos-eleva-foto");
+        localStorage.removeItem("somos-eleva-supabase-user-id");
 
-    const nomeResolvido =
-      usuarioEncontrado?.nome?.trim() ||
-      nomeSalvo?.trim() ||
-      nomeBonito(usuarioLogado);
+        router.replace("/login");
+        return;
+      }
 
-    const cargoResolvido =
-      usuarioEncontrado?.perfil?.trim() ||
-      usuarioEncontrado?.cargo?.trim() ||
-      cargoSalvo?.trim() ||
-      "Consultora";
+      if (!componenteAtivo) return;
 
-    setNome(nomeResolvido);
-    setCargo(cargoResolvido);
+      const nomeResolvido =
+        perfil.nome?.trim() ||
+        nomeBonito(perfil.email || user.email || "");
 
-    localStorage.setItem("somos-eleva-nome", nomeResolvido);
-    localStorage.setItem("somos-eleva-cargo", cargoResolvido);
+      const cargoResolvido =
+        perfil.perfil?.trim() || "Consultora";
 
-    if (usuarioEncontrado?.matricula) {
+      setNome(nomeResolvido);
+      setCargo(cargoResolvido);
+      setFoto(perfil.foto_url || "");
+
+      // Mantidos apenas para compatibilidade visual com páginas antigas.
+      // As permissões não dependem mais destes valores.
+      localStorage.setItem("somos-eleva-logado", "sim");
       localStorage.setItem(
-        "somos-eleva-matricula",
-        usuarioEncontrado.matricula
+        "somos-eleva-usuario",
+        perfil.email || user.email || ""
       );
+      localStorage.setItem("somos-eleva-nome", nomeResolvido);
+      localStorage.setItem("somos-eleva-cargo", cargoResolvido);
+      localStorage.setItem("somos-eleva-equipe", perfil.equipe || "");
+      localStorage.setItem("somos-eleva-status", "Ativo");
+      localStorage.setItem("somos-eleva-foto", perfil.foto_url || "");
+      localStorage.setItem(
+        "somos-eleva-supabase-user-id",
+        user.id
+      );
+    } catch (erro) {
+      console.error("Erro ao carregar usuário:", erro);
+
+      await supabase.auth.signOut();
+      router.replace("/login");
+    } finally {
+      if (componenteAtivo) {
+        setPermissaoCarregada(true);
+      }
     }
+  }
 
-    setFoto(
-      usuarioEncontrado?.foto ||
-        localStorage.getItem("somos-eleva-foto") ||
-        ""
-    );
+    carregarUsuario();
 
-    setPermissaoCarregada(true);
-  }, []);
+    return () => {
+      componenteAtivo = false;
+    };
+  }, [router, supabase]);
 
   const itensOperacaoVisiveis = useMemo(() => {
     if (ehAdministracao || ehCoordenacao) return itensOperacao;
@@ -323,7 +356,16 @@ export default function AppShell({
       return itensOperacao.filter((item) => permitidos.includes(item.href));
     }
 
-    if (ehRh) return itensOperacao.filter((item) => item.href === "/dashboard");
+    if (ehRh) {
+      const permitidos = [
+        "/dashboard",
+        "/esteira",
+      ];
+
+      return itensOperacao.filter((item) =>
+        permitidos.includes(item.href)
+      );
+    }
 
     return itensOperacao.filter(
       (item) => item.href === "/dashboard"
@@ -355,7 +397,14 @@ export default function AppShell({
     }
 
     if (ehRh) {
-      return itensGestao.filter((item) => item.href === "/rh");
+      const permitidos = [
+        "/ranking",
+        "/rh",
+      ];
+
+      return itensGestao.filter((item) =>
+        permitidos.includes(item.href)
+      );
     }
 
     return [];
@@ -392,7 +441,13 @@ export default function AppShell({
     }
 
     if (ehRh) {
-      return !estaEmAlgumaRota(pathname, ["/dashboard", "/rh", "/perfil"]);
+      return !estaEmAlgumaRota(pathname, [
+        "/dashboard",
+        "/esteira",
+        "/ranking",
+        "/rh",
+        "/perfil",
+      ]);
     }
 
     return !rotaComecaCom(pathname, "/dashboard");
@@ -412,17 +467,21 @@ export default function AppShell({
     router.replace("/dashboard");
   }, [permissaoCarregada, rotaNegada, router]);
 
-  function sair() {
-    localStorage.removeItem("somos-eleva-logado");
-    localStorage.removeItem("somos-eleva-usuario");
-    localStorage.removeItem("somos-eleva-nome");
-    localStorage.removeItem("somos-eleva-cargo");
-    localStorage.removeItem("somos-eleva-matricula");
-    localStorage.removeItem("somos-eleva-equipe");
-    localStorage.removeItem("somos-eleva-status");
-    localStorage.removeItem("somos-eleva-foto");
+  async function sair() {
+    await supabase.auth.signOut();
+
+  localStorage.removeItem("somos-eleva-logado");
+  localStorage.removeItem("somos-eleva-usuario");
+  localStorage.removeItem("somos-eleva-nome");
+  localStorage.removeItem("somos-eleva-cargo");
+  localStorage.removeItem("somos-eleva-matricula");
+  localStorage.removeItem("somos-eleva-equipe");
+  localStorage.removeItem("somos-eleva-status");
+  localStorage.removeItem("somos-eleva-foto");
+  localStorage.removeItem("somos-eleva-supabase-user-id");
 
     router.replace("/login");
+    router.refresh();
   }
 
   function renderAvatar(tamanhoPequeno = false) {

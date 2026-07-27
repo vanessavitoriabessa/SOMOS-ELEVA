@@ -36,6 +36,9 @@ type PropostaRecebida = {
   vendedora?: string;
   consultora?: string;
   banco?: string;
+    bancoOrigemId?: string;
+  bancoAtualId?: string;
+  tabelaBancoId?: string;
   tabela?: string;
   percentualTabela?: number;
   valorContrato?: number;
@@ -59,6 +62,9 @@ type LinhaProposta = {
   consultora_id: string | null;
   vendedora: string;
   banco: string;
+    banco_origem_id: string | null;
+  banco_atual_id: string | null;
+  tabela_banco_id: string | null;
   tabela: string;
   percentual_tabela: number | string;
   valor_contrato: number | string;
@@ -150,7 +156,10 @@ function linhaParaProposta(linha: LinhaProposta) {
     telefone: apenasNumeros(linha.telefone),
     vendedora: String(linha.vendedora || ""),
     banco: String(linha.banco || ""),
-    tabela: String(linha.tabela || ""),
+bancoOrigemId: String(linha.banco_origem_id || ""),
+bancoAtualId: String(linha.banco_atual_id || ""),
+tabelaBancoId: String(linha.tabela_banco_id || ""),
+tabela: String(linha.tabela || ""),
     percentualTabela: numeroSeguro(linha.percentual_tabela),
     valorContrato: numeroSeguro(linha.valor_contrato),
     parcela: numeroSeguro(linha.parcela),
@@ -358,8 +367,11 @@ if (valorContrato <= 0) {
     consultora_id: consultora?.id || null,
     vendedora: consultora?.nome || nomeConsultora,
     banco: String(proposta.banco || "").trim(),
-    tabela: String(proposta.tabela || "").trim(),
-    percentual_tabela: percentualTabela,
+banco_origem_id: String(proposta.bancoOrigemId || "").trim() || null,
+banco_atual_id: String(proposta.bancoAtualId || "").trim() || null,
+tabela_banco_id: String(proposta.tabelaBancoId || "").trim() || null,
+tabela: String(proposta.tabela || "").trim(),
+percentual_tabela: percentualTabela,
 valor_contrato: valorContrato,
 parcela,
 valor_meta: valorMeta,
@@ -401,8 +413,11 @@ export async function GET(request: NextRequest) {
         consultora_id,
         vendedora,
         banco,
-        tabela,
-        percentual_tabela,
+banco_origem_id,
+banco_atual_id,
+tabela_banco_id,
+tabela,
+percentual_tabela,
         valor_contrato,
         parcela,
         valor_meta,

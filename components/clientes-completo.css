@@ -281,3 +281,109 @@
     grid-template-columns: 1fr;
   }
 }
+.client-proposal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.client-proposal-actions button {
+  min-width: 150px;
+  height: 44px;
+  padding: 0 20px;
+  border-radius: 12px;
+  border: 1px solid #d9e2f2;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.client-proposal-actions button[type="button"] {
+  background: #f4f7fb;
+  color: #172554;
+}
+
+.client-proposal-actions button[type="submit"] {
+  background: #2457f5;
+  border-color: #2457f5;
+  color: #ffffff;
+}
+
+.client-proposal-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+/* Campos financeiros da nova proposta */
+.client-proposal-money,
+.client-proposal-percent {
+  display: grid;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #d9e2f2;
+  border-radius: 12px;
+  background: #f7f9fc;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.client-proposal-money {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.client-proposal-percent {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.client-proposal-money:focus-within,
+.client-proposal-percent:focus-within {
+  border-color: #2457f5;
+  box-shadow: 0 0 0 3px rgba(36, 87, 245, 0.12);
+}
+
+.client-proposal-money > span,
+.client-proposal-percent > span {
+  display: flex;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  color: #52607a;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.client-proposal-money > span {
+  border-right: 1px solid #d9e2f2;
+}
+
+.client-proposal-percent > span {
+  border-left: 1px solid #d9e2f2;
+}
+
+.client-proposal-money input,
+.client-proposal-percent input {
+  width: 100%;
+  height: 44px;
+  padding: 0 13px;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.client-proposal-observation {
+  min-height: 170px;
+  resize: vertical;
+}
+
+@media (max-width: 720px) {
+  .client-proposal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .client-proposal-actions button {
+    width: 100%;
+  }
+}

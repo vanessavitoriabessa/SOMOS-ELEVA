@@ -18,6 +18,7 @@ const PERFIS_PERMITIDOS = [
   "Consultora",
   "Operacional",
   "Financeiro",
+  "RH",
 ] as const;
 
 type PerfilPermitido =
@@ -112,6 +113,9 @@ async function autenticarAdministradora(
   } = await verificador.auth.getUser(
     token
   );
+console.log("===== AUTH =====");
+console.log("USER ID:", dadosAutenticacao.user?.id);
+console.log("EMAIL:", dadosAutenticacao.user?.email);
 
   if (
     erroAutenticacao ||
@@ -129,16 +133,17 @@ async function autenticarAdministradora(
     createAdminClient();
 
   const {
-    data: perfilAdministradora,
-    error: erroPerfil,
-  } = await supabase
-    .from("profiles")
-    .select("perfil, ativo")
-    .eq(
-      "id",
-      dadosAutenticacao.user.id
-    )
-    .single();
+  data: perfilAdministradora,
+  error: erroPerfil,
+} = await supabase
+  .from("profiles")
+  .select("perfil, ativo")
+  .eq("id", dadosAutenticacao.user.id)
+  .single();
+
+console.log("===== PROFILE =====");
+console.log(perfilAdministradora);
+console.log(erroPerfil);
 
   if (erroPerfil) {
     return {
@@ -355,47 +360,54 @@ export async function POST(
       dados.ativo !== false;
 
     const {
-      data: perfilCriado,
-      error: erroPerfil,
-    } = await supabase
-      .from("profiles")
-      .update({
-        nome,
-        email,
-        perfil,
-        equipe,
-        ativo,
-        foto_url: fotoUrl,
-      })
-      .eq(
-        "id",
-        usuarioCriado.user.id
-      )
-      .select(`
-        id,
-        nome,
-        email,
-        perfil,
-        equipe,
-        ativo,
-        foto_url,
-        criado_em
-      `)
-      .single();
+  data: perfilCriado,
+  error: erroPerfil,
+} = await supabase
+  .from("profiles")
+  .upsert(
+    {
+      id: usuarioCriado.user.id,
+      nome,
+      email,
+      perfil,
+      equipe,
+      ativo,
+      foto_url: fotoUrl,
+    },
+    {
+      onConflict: "id",
+    }
+  )
+  .select(`
+    id,
+    nome,
+    email,
+    perfil,
+    equipe,
+    ativo,
+    foto_url,
+    criado_em
+  `)
+  .single();
 
     if (erroPerfil) {
-      await supabase
-        .auth
-        .admin
-        .deleteUser(
-          usuarioCriado.user.id
-        );
+  console.error(
+    "ERRO AO SALVAR PERFIL:",
+    erroPerfil
+  );
 
-      return respostaErro(
-        "O acesso foi criado, mas não foi possível salvar o perfil. Tente novamente.",
-        500
-      );
-    }
+  await supabase
+    .auth
+    .admin
+    .deleteUser(
+      usuarioCriado.user.id
+    );
+
+  return respostaErro(
+    `Não foi possível salvar o perfil: ${erroPerfil.message}`,
+    500
+  );
+}
 
     return NextResponse.json(
       {
