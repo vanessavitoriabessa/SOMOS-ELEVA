@@ -286,8 +286,15 @@ function competenciaCompra(proposta: PropostaCompraDivida) {
   const digitacao = converterData(proposta.dataCadastro);
   const pagamento = converterData(proposta.dataPagamento);
 
-  if (!pagamento) return null;
-  if (!digitacao) return chaveMes(pagamento);
+  // Propostas antigas podem estar como pagas, mas sem data de pagamento.
+  // Nesse caso, usamos a data de cadastro para não perder a produção.
+  if (!pagamento) {
+    return digitacao ? chaveMes(digitacao) : null;
+  }
+
+  if (!digitacao) {
+    return chaveMes(pagamento);
+  }
 
   const limite = new Date(
     digitacao.getFullYear(),
@@ -295,10 +302,12 @@ function competenciaCompra(proposta: PropostaCompraDivida) {
     19,
     23,
     59,
-    59
+    59,
   );
 
-  return pagamento <= limite ? chaveMes(digitacao) : chaveMes(pagamento);
+  return pagamento <= limite
+    ? chaveMes(digitacao)
+    : chaveMes(pagamento);
 }
 
 function dataClt(registro: RegistroClt) {
@@ -557,7 +566,7 @@ export default function LojaPremiosManager() {
 
       const propostasDaConsultora = propostas.filter((proposta) => {
         return (
-          proposta.status === "Pago" &&
+          normalizarTexto(proposta.status) === "pago" &&
           normalizarTexto(proposta.vendedora) === chave &&
           competenciaCompra(proposta) === competencia
         );
@@ -813,8 +822,8 @@ const faixa = faixaCompra;
         "";
 
       return (
-        proposta.status === "Pago" &&
-        competenciaCompra(proposta) === competencia &&
+        normalizarTexto(proposta.status) === "pago" &&
+competenciaCompra(proposta) === competencia &&
         normalizarTexto(responsavel) === chaveNome
       );
     });
@@ -822,8 +831,8 @@ const faixa = faixaCompra;
     const producaoEmpresa = propostas
       .filter(
         (proposta) =>
-          proposta.status === "Pago" &&
-          competenciaCompra(proposta) === competencia
+          normalizarTexto(proposta.status) === "pago" &&
+competenciaCompra(proposta) === competencia
       )
       .reduce((total, proposta) => total + valorValidoCompra(proposta), 0);
 
@@ -899,13 +908,13 @@ const faixa = faixaCompra;
 
     const propostasConfirmadas = propostasDigitadas.filter(
       (proposta) =>
-        proposta.status === "Pago" &&
-        competenciaCompra(proposta) === competencia
+        normalizarTexto(proposta.status) === "pago" &&
+competenciaCompra(proposta) === competencia
     );
 
     const propostasEmFormacao = propostasDigitadas.filter(
       (proposta) =>
-        proposta.status !== "Pago" ||
+       normalizarTexto(proposta.status) !== "pago" ||
         competenciaCompra(proposta) !== competencia
     );
 
