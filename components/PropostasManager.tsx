@@ -1,80 +1,134 @@
 "use client";
 
-import {
-  FormEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+
 import { createClient } from "@/lib/supabase/client";
+import "./propostas.css";
 
 type StatusProposta =
-  | "Digitado"
-  | "Aguardando pagamento"
+  | "Solicitado"
+  | "Em andamento"
+  | "Aguardando boleto"
+  | "Nota promissória"
+  | "Ag. liberação de margem"
+  | "Ag. fazer anuência"
+  | "Enviado ao banco"
   | "Pago"
   | "Cancelado";
 
-type Produto = "Compra de Dívida" | "CLT";
-
-type PropostaBanco = {
+type ClienteCadastrado = {
   id: string;
-  numero: string;
-  cliente: string;
-  cpf: string | null;
-  banco: string | null;
-  produto: Produto;
-  valor_operacao: number | string | null;
-  valor_liquido: number | string | null;
-  consultora: string | null;
-  data_digitacao: string;
-  data_pagamento: string | null;
-  status: StatusProposta;
-  observacoes: string | null;
-  tabela: string | null;
-  comissao_prevista: number | string | null;
-  valor_recebido: number | string | null;
-  percentual_comissao: number | string | null;
-  diferenca: number | string | null;
-  status_financeiro: string | null;
-  origem: string | null;
-  criado_por: string | null;
-  created_at: string;
-  updated_at: string;
+  nome: string;
+  cpf: string;
+  telefone: string;
+  banco?: string;
+  produto?: string;
+  status?: string;
+};
+type TabelaCompraDivida = {
+  nome: string;
+  percentual: number;
 };
 
 type Proposta = {
   id: string;
-  numero: string;
+  clienteId: string;
   cliente: string;
   cpf: string;
+  telefone: string;
+  vendedora: string;
   banco: string;
-  produto: Produto;
-  valorOperacao: number;
-  valorLiquido: number;
-  consultora: string;
-  dataDigitacao: string;
-  dataPagamento: string;
+
+  /*
+   * percentualTabela agora representa quanto o contrato
+   * vale para a meta, e não a premiação da consultora.
+   */
+  tabela: string;
+  percentualTabela: number;
+  valorContrato: number;
+  valorMeta: number;
+
+  /*
+   * Mantidos apenas para compatibilidade com módulos antigos.
+   * O Ranking não deve usar estes campos para pagar a consultora.
+   */
+  comissao: number;
+  premiacao: number;
+
   status: StatusProposta;
-  observacoes: string;
+  dataCadastro: string;
+  dataPagamento: string;
+  observacao: string;
 };
 
-function converterProposta(item: PropostaBanco): Proposta {
-  return {
-    id: item.id,
-    numero: item.numero || "",
-    cliente: item.cliente || "",
-    cpf: item.cpf || "",
-    banco: item.banco || "",
-    produto: item.produto,
-    valorOperacao: Number(item.valor_operacao || 0),
-    valorLiquido: Number(item.valor_liquido || 0),
-    consultora: item.consultora || "",
-    dataDigitacao: item.data_digitacao || "",
-    dataPagamento: item.data_pagamento || "",
-    status: item.status,
-    observacoes: item.observacoes || "",
-  };
+type PerfilAtual = {
+  id: string;
+  nome: string;
+  perfil: string;
+};
+
+type RespostaPropostas = {
+  propostas?: Proposta[];
+  proposta?: Proposta;
+  perfil?: PerfilAtual;
+  mensagem?: string;
+  erro?: string;
+  importadas?: number;
+};
+
+type FormularioProposta = {
+  clienteId: string;
+  vendedora: string;
+  banco: string;
+  tabela: string;
+  valorContrato: string;
+  status: StatusProposta;
+  dataDigitacao: string;
+  dataPagamento: string;
+  observacao: string;
+};
+
+const STATUS: StatusProposta[] = [
+  "Solicitado",
+  "Em andamento",
+  "Aguardando boleto",
+  "Nota promissória",
+  "Ag. liberação de margem",
+  "Ag. fazer anuência",
+  "Enviado ao banco",
+  "Pago",
+  "Cancelado",
+];
+
+const TABELAS_COMPRA_DIVIDA: TabelaCompraDivida[] = [
+  { nome: "NEO NORMAL", percentual: 100 },
+  { nome: "NEO FLEX 1", percentual: 82 },
+  { nome: "NEO FLEX 2", percentual: 67 },
+  { nome: "NEO FLEX 4", percentual: 37 },
+  { nome: "NEO FLEX 5", percentual: 17 },
+];
+
+const formularioVazio: FormularioProposta = {
+  clienteId: "",
+  vendedora: "",
+  banco: "",
+  tabela: "",
+  valorContrato: "",
+  status: "Solicitado",
+  dataDigitacao: hojeIso(),
+  dataPagamento: "",
+  observacao: "",
+};
+
+function numero(valor: string) {
+  const limpo = valor
+    .replace(/[^\d,.-]/g, "")
+    .replace(/\./g, "")
+    .replace(",", ".");
+
+  const convertido = Number(limpo);
+
+  return Number.isFinite(convertido) ? convertido : 0;
 }
 
 function moeda(valor: number) {
@@ -84,757 +138,1153 @@ function moeda(valor: number) {
   });
 }
 
-function formatarData(data: string) {
-  if (!data) return "—";
-
-  const partes = data.split("-");
-
-  if (partes.length !== 3) return data;
-
-  return `${partes[2]}/${partes[1]}/${partes[0]}`;
+function formatarPercentual(valor: number) {
+  return `${Number(valor || 0).toLocaleString("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}%`;
 }
 
-function competencia(dataDigitacao: string) {
-  if (!dataDigitacao) return "—";
+function apenasNumeros(valor: string) {
+  return String(valor || "").replace(/\D/g, "");
+}
 
-  const [ano, mes] = dataDigitacao.split("-");
+function formatarCpf(valor: string) {
+  const digitos = apenasNumeros(valor).slice(0, 11);
 
-  if (!ano || !mes) return "—";
+  return digitos
+    .replace(/^(\d{3})(\d)/, "$1.$2")
+    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1-$2");
+}
 
-  return `${mes}/${ano}`;
+function formatarTelefone(valor: string) {
+  const digitos = apenasNumeros(valor).slice(0, 11);
+
+  if (digitos.length <= 10) {
+    return digitos
+      .replace(/^(\d{2})(\d)/, "($1) $2")
+      .replace(/(\d{4})(\d)/, "$1-$2");
+  }
+
+  return digitos
+    .replace(/^(\d{2})(\d)/, "($1) $2")
+    .replace(/(\d{5})(\d)/, "$1-$2");
+}
+
+function hojeIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+function dataParaInput(valor: string) {
+  if (!valor) return "";
+
+  const texto = String(valor).trim();
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(texto)) {
+    return texto.slice(0, 10);
+  }
+
+  const encontrada = texto.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+
+  if (encontrada) {
+    return `${encontrada[3]}-${encontrada[2]}-${encontrada[1]}`;
+  }
+
+  return "";
+}
+
+function formatarData(valor: string) {
+  const data = dataParaInput(valor);
+
+  if (!data) return "Não informada";
+
+  const [ano, mes, dia] = data.split("-");
+
+  return `${dia}/${mes}/${ano}`;
+}
+
+function normalizarTexto(valor: string) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function tabelaPeloNome(nome: string) {
+  const nomeNormalizado = normalizarTexto(nome);
+
+  return TABELAS_COMPRA_DIVIDA.find((item) => {
+    const tabelaNormalizada = normalizarTexto(item.nome);
+
+    return (
+      nomeNormalizado === tabelaNormalizada ||
+      nomeNormalizado.startsWith(tabelaNormalizada)
+    );
+  });
+}
+
+function percentualDaTabela(tabela: string, percentualSalvo: unknown) {
+  const tabelaEncontrada = tabelaPeloNome(tabela);
+
+  if (tabelaEncontrada) {
+    return tabelaEncontrada.percentual;
+  }
+
+  const percentualNoNome = String(tabela || "").match(/(\d+(?:[.,]\d+)?)\s*%/);
+
+  if (percentualNoNome) {
+    const percentual = Number(percentualNoNome[1].replace(",", "."));
+
+    if (Number.isFinite(percentual)) {
+      return percentual;
+    }
+  }
+
+  const percentual = Number(percentualSalvo || 0);
+
+  const permitido = TABELAS_COMPRA_DIVIDA.some(
+    (item) => Math.abs(item.percentual - percentual) < 0.01,
+  );
+
+  return permitido ? percentual : 0;
+}
+
+function nomeLimpoDaTabela(tabela: string) {
+  return (
+    tabelaPeloNome(tabela)?.nome ||
+    String(tabela || "")
+      .replace(/\s*[-–—]\s*\d+(?:[.,]\d+)?\s*%/g, "")
+      .trim()
+  );
+}
+
+function normalizarProposta(
+  item: Partial<Proposta> & Record<string, unknown>,
+): Proposta {
+  const valorContrato = Number(item.valorContrato ?? item.valorOperacao ?? 0);
+
+  const tabela = nomeLimpoDaTabela(String(item.tabela || ""));
+
+  const percentualTabela = percentualDaTabela(
+    String(item.tabela || ""),
+    item.percentualTabela,
+  );
+
+  const valorMeta =
+    Number.isFinite(valorContrato) && percentualTabela > 0
+      ? valorContrato * (percentualTabela / 100)
+      : 0;
+
+  return {
+    id: String(item.id || crypto.randomUUID()),
+    clienteId: String(item.clienteId || ""),
+    cliente: String(item.cliente || ""),
+    cpf: apenasNumeros(String(item.cpf || "")),
+    telefone: apenasNumeros(String(item.telefone || "")),
+    vendedora: String(item.vendedora || item.consultora || ""),
+    banco: String(item.banco || ""),
+    tabela,
+    percentualTabela,
+    valorContrato: Number.isFinite(valorContrato) ? valorContrato : 0,
+    valorMeta,
+
+    // Valores antigos são zerados para não serem confundidos com premiação.
+    comissao: 0,
+    premiacao: 0,
+
+    status: STATUS.includes(item.status as StatusProposta)
+      ? (item.status as StatusProposta)
+      : "Solicitado",
+    dataCadastro: String(item.dataCadastro || ""),
+    dataPagamento: String(item.dataPagamento || ""),
+    observacao: String(item.observacao || item.observacoes || ""),
+  };
+}
+
+function perfilEhConsultora(perfil: string) {
+  return normalizarTexto(perfil).includes("consultor");
 }
 
 export default function ProposalManager() {
   const supabase = useMemo(() => createClient(), []);
 
   const [propostas, setPropostas] = useState<Proposta[]>([]);
+
+  const [clientes, setClientes] = useState<ClienteCadastrado[]>([]);
+
+  const [consultoras, setConsultoras] = useState<string[]>([]);
+
+  const [perfilAtual, setPerfilAtual] = useState<PerfilAtual | null>(null);
+
+  const [form, setForm] = useState<FormularioProposta>(formularioVazio);
+
   const [busca, setBusca] = useState("");
+
   const [filtroStatus, setFiltroStatus] = useState("Todos");
-  const [filtroProduto, setFiltroProduto] = useState("Todos");
-  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+
   const [editandoId, setEditandoId] = useState<string | null>(null);
 
-  const [carregando, setCarregando] = useState(true);
-  const [salvando, setSalvando] = useState(false);
-  const [erro, setErro] = useState("");
   const [mensagem, setMensagem] = useState("");
 
-  const carregarPropostas = useCallback(async () => {
+  const [carregando, setCarregando] = useState(true);
+
+  const [processando, setProcessando] = useState(false);
+
+  function formularioLimpo(perfil = perfilAtual): FormularioProposta {
+    return {
+      ...formularioVazio,
+      dataDigitacao: hojeIso(),
+      vendedora: perfil && perfilEhConsultora(perfil.perfil) ? perfil.nome : "",
+    };
+  }
+
+  async function obterSessaoAtual() {
+    const { data, error } = await supabase.auth.getSession();
+
+    if (error || !data.session?.access_token) {
+      throw new Error("Sua sessão expirou. Entre novamente no sistema.");
+    }
+
+    return data.session;
+  }
+
+  async function chamarApiPropostas(
+    method: "GET" | "POST" | "PATCH" | "DELETE",
+    body?: unknown,
+  ) {
+    const sessao = await obterSessaoAtual();
+
+    const resposta = await fetch("/api/propostas", {
+      method,
+      headers: {
+        Authorization: `Bearer ${sessao.access_token}`,
+        ...(body
+          ? {
+              "Content-Type": "application/json",
+            }
+          : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      cache: "no-store",
+    });
+
+    const conteudo = (await resposta.json()) as RespostaPropostas;
+
+    if (!resposta.ok) {
+      throw new Error(conteudo.erro || "Não foi possível concluir a operação.");
+    }
+
+    return {
+      conteudo,
+      sessao,
+    };
+  }
+
+  async function carregarPropostasDoSupabase(importarDadosLocais = false) {
     setCarregando(true);
-    setErro("");
 
     try {
-      const { data, error } = await supabase
-        .from("propostas")
-        .select("*")
-        .order("created_at", {
-          ascending: false,
-        });
+      const sessao = await obterSessaoAtual();
 
-      if (error) {
-        throw error;
+      if (importarDadosLocais) {
+        const chaveImportacao = `somos-eleva-propostas-importadas-supabase-v1-${sessao.user.id}`;
+
+        const importacaoConcluida =
+          localStorage.getItem(chaveImportacao) === "sim";
+
+        const propostasSalvas = localStorage.getItem("somos-eleva-propostas");
+
+        if (!importacaoConcluida && propostasSalvas) {
+          try {
+            const listaLocal = JSON.parse(propostasSalvas);
+
+            const propostasLocais = Array.isArray(listaLocal)
+              ? listaLocal.map(normalizarProposta)
+              : [];
+
+            if (propostasLocais.length) {
+              const { conteudo: resultadoImportacao } =
+                await chamarApiPropostas("POST", {
+                  acao: "importar_local",
+                  propostas: propostasLocais,
+                });
+
+              if (Number(resultadoImportacao.importadas || 0) > 0) {
+                setMensagem(
+                  `${resultadoImportacao.importadas} proposta(s) antiga(s) foram sincronizadas com o Supabase.`,
+                );
+              }
+            }
+
+            localStorage.setItem(chaveImportacao, "sim");
+          } catch (erroImportacao) {
+            console.error(
+              "Falha ao importar propostas locais:",
+              erroImportacao,
+            );
+          }
+        }
       }
 
-      const lista = (data || []).map((item) =>
-        converterProposta(item as PropostaBanco)
-      );
+      const { conteudo } = await chamarApiPropostas("GET");
+
+      const lista = Array.isArray(conteudo.propostas)
+        ? conteudo.propostas.map(normalizarProposta)
+        : [];
 
       setPropostas(lista);
-    } catch (error) {
-      console.error("Erro ao carregar propostas:", error);
 
-      setErro(
-        "Não foi possível carregar as propostas. Atualize a página e tente novamente."
+      if (conteudo.perfil) {
+        setPerfilAtual(conteudo.perfil);
+
+        if (perfilEhConsultora(conteudo.perfil.perfil)) {
+          setForm((atual) => ({
+            ...atual,
+            vendedora: conteudo.perfil?.nome || "",
+          }));
+        }
+      }
+
+      /*
+       * Cópia temporária para os módulos antigos
+       * que ainda leem propostas do localStorage.
+       * A fonte oficial desta página já é o Supabase.
+       */
+      localStorage.setItem("somos-eleva-propostas", JSON.stringify(lista));
+    } catch (erro) {
+      setPropostas([]);
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível carregar as propostas.",
       );
     } finally {
       setCarregando(false);
     }
+  }
+
+  useEffect(() => {
+    let listaClientes: ClienteCadastrado[] = [];
+
+    const clientesSalvos = localStorage.getItem("somos-eleva-clientes");
+
+    if (clientesSalvos) {
+      try {
+        const lista = JSON.parse(clientesSalvos);
+
+        listaClientes = Array.isArray(lista)
+          ? lista.map((cliente: Partial<ClienteCadastrado>) => ({
+              id: String(cliente.id || crypto.randomUUID()),
+              nome: String(cliente.nome || ""),
+              cpf: apenasNumeros(String(cliente.cpf || "")),
+              telefone: apenasNumeros(String(cliente.telefone || "")),
+              banco: String(cliente.banco || ""),
+              produto: String(cliente.produto || ""),
+              status: String(cliente.status || "Ativo"),
+            }))
+          : [];
+
+        setClientes(listaClientes);
+      } catch {
+        setClientes([]);
+      }
+    }
+
+    const rascunho = localStorage.getItem("somos-eleva-rascunho-proposta");
+
+    if (rascunho) {
+      try {
+        const dados = JSON.parse(rascunho);
+
+        const clienteEncontrado = listaClientes.find((cliente) => {
+          const mesmoCpf =
+            dados.cpf && cliente.cpf === apenasNumeros(dados.cpf);
+
+          const mesmoNome =
+            normalizarTexto(cliente.nome) ===
+            normalizarTexto(dados.cliente || "");
+
+          return mesmoCpf || mesmoNome;
+        });
+
+        setForm((atual) => ({
+          ...atual,
+          clienteId: clienteEncontrado?.id || "",
+          banco: dados.banco || "",
+          tabela: nomeLimpoDaTabela(dados.tabela || ""),
+          valorContrato: dados.valorLiberado
+            ? String(Number(dados.valorLiberado).toFixed(2)).replace(".", ",")
+            : "",
+        }));
+
+        setMensagem(
+          clienteEncontrado
+            ? "Rascunho carregado. Selecione a tabela e complete a proposta."
+            : "Rascunho carregado. Cadastre o cliente primeiro ou selecione um cliente existente.",
+        );
+
+        localStorage.removeItem("somos-eleva-rascunho-proposta");
+      } catch {
+        localStorage.removeItem("somos-eleva-rascunho-proposta");
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    void carregarPropostasDoSupabase(true);
   }, [supabase]);
 
   useEffect(() => {
-    carregarPropostas();
-  }, [carregarPropostas]);
+    let componenteAtivo = true;
 
-  async function cadastrar(evento: FormEvent<HTMLFormElement>) {
-    evento.preventDefault();
+    async function carregarConsultoras() {
+      try {
+        const sessao = await obterSessaoAtual();
 
-    setErro("");
-    setMensagem("");
-    setSalvando(true);
+        const resposta = await fetch("/api/consultoras", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${sessao.access_token}`,
+          },
+          cache: "no-store",
+        });
 
-    const formulario = evento.currentTarget;
-    const dados = new FormData(formulario);
+        const conteudo = (await resposta.json()) as {
+          consultoras?: Array<{
+            nome?: string;
+          }>;
+          erro?: string;
+        };
 
-    const numero = String(dados.get("numero") || "").trim();
-    const cliente = String(dados.get("cliente") || "").trim();
-    const cpf = String(dados.get("cpf") || "").trim();
-    const banco = String(dados.get("banco") || "").trim();
-    const produto = String(dados.get("produto")) as Produto;
-    const valorOperacao = Number(dados.get("valorOperacao") || 0);
-    const valorLiquido = Number(dados.get("valorLiquido") || 0);
-    const consultora = String(dados.get("consultora") || "").trim();
-    const dataDigitacao = String(dados.get("dataDigitacao") || "");
-    const dataPagamentoInformada = String(
-      dados.get("dataPagamento") || ""
+        if (!resposta.ok) {
+          throw new Error(
+            conteudo.erro || "Não foi possível carregar as consultoras.",
+          );
+        }
+
+        const nomes = (conteudo.consultoras || [])
+          .map((consultora) => String(consultora.nome || "").trim())
+          .filter(Boolean);
+
+        const nomesSemRepeticao = Array.from(new Set(nomes)).sort((a, b) =>
+          a.localeCompare(b, "pt-BR"),
+        );
+
+        if (componenteAtivo) {
+          setConsultoras(nomesSemRepeticao);
+        }
+      } catch {
+        if (componenteAtivo) {
+          setConsultoras([]);
+        }
+      }
+    }
+
+    void carregarConsultoras();
+
+    return () => {
+      componenteAtivo = false;
+    };
+  }, [supabase]);
+
+  const clienteSelecionado = useMemo(
+    () => clientes.find((cliente) => cliente.id === form.clienteId),
+    [clientes, form.clienteId],
+  );
+
+  const tabelaSelecionada = useMemo(
+    () => TABELAS_COMPRA_DIVIDA.find((item) => item.nome === form.tabela),
+    [form.tabela],
+  );
+
+  const valorContrato = numero(form.valorContrato);
+
+  const percentualTabela = tabelaSelecionada?.percentual || 0;
+
+  const valorMeta = valorContrato * (percentualTabela / 100);
+
+  const propostasFiltradas = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+
+    return propostas.filter((proposta) => {
+      const correspondeStatus =
+        filtroStatus === "Todos" || proposta.status === filtroStatus;
+
+      const correspondeBusca =
+        !termo ||
+        proposta.cliente.toLowerCase().includes(termo) ||
+        proposta.cpf.includes(apenasNumeros(termo)) ||
+        proposta.vendedora.toLowerCase().includes(termo) ||
+        proposta.banco.toLowerCase().includes(termo) ||
+        proposta.tabela.toLowerCase().includes(termo);
+
+      return correspondeStatus && correspondeBusca;
+    });
+  }, [propostas, busca, filtroStatus]);
+
+  const resumo = useMemo(() => {
+    const pagas = propostas.filter((item) => item.status === "Pago");
+
+    const valorPago = pagas.reduce(
+      (total, item) => total + Number(item.valorContrato || 0),
+      0,
     );
-    const status = String(dados.get("status")) as StatusProposta;
-    const observacoes = String(
-      dados.get("observacoes") || ""
-    ).trim();
 
-    if (!numero || !cliente || !dataDigitacao) {
-      setErro(
-        "Preencha o número da proposta, o cliente e a data de digitação."
-      );
-      setSalvando(false);
+    const producaoValida = pagas.reduce(
+      (total, item) => total + Number(item.valorMeta || 0),
+      0,
+    );
+
+    const emAndamento = propostas.filter(
+      (item) => item.status !== "Pago" && item.status !== "Cancelado",
+    ).length;
+
+    return {
+      total: propostas.length,
+      pagas: pagas.length,
+      emAndamento,
+      valorPago,
+      producaoValida,
+    };
+  }, [propostas]);
+
+  async function enviar(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMensagem("");
+
+    if (!clienteSelecionado) {
+      setMensagem("Selecione um cliente já cadastrado.");
       return;
     }
 
-    let dataPagamento = dataPagamentoInformada || null;
+    const consultoraResponsavel =
+      perfilAtual && perfilEhConsultora(perfilAtual.perfil)
+        ? perfilAtual.nome
+        : form.vendedora.trim();
 
-    if (status === "Pago" && !dataPagamento) {
-      dataPagamento = new Date().toISOString().slice(0, 10);
+    if (!consultoraResponsavel) {
+      setMensagem("Selecione a consultora responsável.");
+      return;
     }
 
+    if (!form.banco.trim()) {
+      setMensagem("Informe o banco da operação.");
+      return;
+    }
+
+    if (!tabelaSelecionada) {
+      setMensagem("Selecione a tabela utilizada.");
+      return;
+    }
+
+    if (valorContrato <= 0) {
+      setMensagem("Informe o valor total do contrato.");
+      return;
+    }
+
+    if (!form.dataDigitacao) {
+      setMensagem("Informe a data da digitação.");
+      return;
+    }
+
+    if (form.status === "Pago" && !form.dataPagamento) {
+      setMensagem("Informe a data do pagamento.");
+      return;
+    }
+
+    const proposta: Proposta = {
+      id: editandoId || crypto.randomUUID(),
+      clienteId: clienteSelecionado.id,
+      cliente: clienteSelecionado.nome,
+      cpf: clienteSelecionado.cpf,
+      telefone: clienteSelecionado.telefone,
+      vendedora: consultoraResponsavel,
+      banco: form.banco.trim(),
+      tabela: tabelaSelecionada.nome,
+      percentualTabela: tabelaSelecionada.percentual,
+      valorContrato,
+      valorMeta,
+      comissao: 0,
+      premiacao: 0,
+      status: form.status,
+      dataCadastro: form.dataDigitacao,
+      dataPagamento: form.status === "Pago" ? form.dataPagamento : "",
+      observacao: form.observacao.trim(),
+    };
+
+    const estavaEditando = Boolean(editandoId);
+
+    setProcessando(true);
+
     try {
-      const {
-        data: dadosUsuario,
-        error: erroUsuario,
-      } = await supabase.auth.getUser();
+      await chamarApiPropostas(estavaEditando ? "PATCH" : "POST", {
+        proposta,
+      });
 
-      if (erroUsuario || !dadosUsuario.user) {
-        throw new Error("Usuário não autenticado.");
-      }
+      await carregarPropostasDoSupabase(false);
 
-      const registro = {
-        numero,
-        cliente,
-        cpf: cpf || null,
-        banco: banco || null,
-        produto,
-        valor_operacao: valorOperacao,
-        valor_liquido: valorLiquido,
-        consultora: consultora || null,
-        data_digitacao: dataDigitacao,
-        data_pagamento: dataPagamento,
-        status,
-        observacoes: observacoes || null,
-        origem: "Manual",
-        criado_por: dadosUsuario.user.id,
-      };
-
-      if (editandoId) {
-        const { error } = await supabase
-          .from("propostas")
-          .update({
-            numero: registro.numero,
-            cliente: registro.cliente,
-            cpf: registro.cpf,
-            banco: registro.banco,
-            produto: registro.produto,
-            valor_operacao: registro.valor_operacao,
-            valor_liquido: registro.valor_liquido,
-            consultora: registro.consultora,
-            data_digitacao: registro.data_digitacao,
-            data_pagamento: registro.data_pagamento,
-            status: registro.status,
-            observacoes: registro.observacoes,
-            origem: registro.origem,
-          })
-          .eq("id", editandoId);
-
-        if (error) {
-          if (error.code === "23505") {
-            throw new Error(
-              "Já existe uma proposta com este número."
-            );
-          }
-
-          throw error;
-        }
-
-        setMensagem("Proposta atualizada com sucesso.");
-      } else {
-        const { error } = await supabase
-          .from("propostas")
-          .insert(registro);
-
-        if (error) {
-          if (error.code === "23505") {
-            throw new Error(
-              "Já existe uma proposta com este número."
-            );
-          }
-
-          throw error;
-        }
-
-        setMensagem("Proposta cadastrada com sucesso.");
-      }
-
+      setForm(formularioLimpo(perfilAtual));
       setEditandoId(null);
-      setMostrarFormulario(false);
-      formulario.reset();
 
-      await carregarPropostas();
-    } catch (error) {
-      console.error("Erro ao salvar proposta:", error);
-
-      const mensagemErro =
-        error instanceof Error
-          ? error.message
-          : "Não foi possível salvar a proposta.";
-
-      setErro(mensagemErro);
+      setMensagem(
+        estavaEditando
+          ? "Proposta atualizada com sucesso."
+          : "Proposta cadastrada com sucesso.",
+      );
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível salvar a proposta.",
+      );
     } finally {
-      setSalvando(false);
+      setProcessando(false);
     }
   }
 
-  async function atualizarStatus(
-    id: string,
-    novoStatus: StatusProposta
-  ) {
-    setErro("");
-    setMensagem("");
-
-    const propostaAtual = propostas.find((item) => item.id === id);
-
-    if (!propostaAtual) return;
-
-    const hoje = new Date().toISOString().slice(0, 10);
-
-    const dataPagamento =
-      novoStatus === "Pago" && !propostaAtual.dataPagamento
-        ? hoje
-        : propostaAtual.dataPagamento || null;
-
-    const propostasAnteriores = propostas;
-
-    setPropostas((lista) =>
-      lista.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              status: novoStatus,
-              dataPagamento: dataPagamento || "",
-            }
-          : item
-      )
-    );
-
-    try {
-      const { error } = await supabase
-        .from("propostas")
-        .update({
-          status: novoStatus,
-          data_pagamento: dataPagamento,
-        })
-        .eq("id", id);
-
-      if (error) {
-        throw error;
+  function localizarClienteDaProposta(proposta: Proposta) {
+    return clientes.find((cliente) => {
+      if (proposta.clienteId && cliente.id === proposta.clienteId) {
+        return true;
       }
 
-      setMensagem("Status atualizado com sucesso.");
-    } catch (error) {
-      console.error("Erro ao atualizar status:", error);
-
-      setPropostas(propostasAnteriores);
-
-      setErro(
-        "Não foi possível atualizar o status da proposta."
-      );
-    }
-  }
-
-  async function excluir(id: string) {
-    const confirmar = window.confirm(
-      "Deseja realmente excluir esta proposta?"
-    );
-
-    if (!confirmar) return;
-
-    setErro("");
-    setMensagem("");
-
-    try {
-      const { error } = await supabase
-        .from("propostas")
-        .delete()
-        .eq("id", id);
-
-      if (error) {
-        throw error;
+      if (proposta.cpf && cliente.cpf === proposta.cpf) {
+        return true;
       }
 
-      setPropostas((lista) =>
-        lista.filter((item) => item.id !== id)
+      return (
+        normalizarTexto(cliente.nome) === normalizarTexto(proposta.cliente)
       );
-
-      setMensagem("Proposta excluída com sucesso.");
-    } catch (error) {
-      console.error("Erro ao excluir proposta:", error);
-
-      setErro(
-        "Não foi possível excluir a proposta. Tente novamente."
-      );
-    }
+    });
   }
 
   function editar(proposta: Proposta) {
-    setErro("");
-    setMensagem("");
+    const cliente = localizarClienteDaProposta(proposta);
+
+    const tabela = tabelaPeloNome(proposta.tabela);
+
     setEditandoId(proposta.id);
-    setMostrarFormulario(true);
 
-    setTimeout(() => {
-      const form =
-        document.querySelector<HTMLFormElement>("#form-proposta");
+    setForm({
+      clienteId: cliente?.id || "",
+      vendedora: proposta.vendedora || "",
+      banco: proposta.banco || "",
+      tabela: tabela?.nome || "",
+      valorContrato: Number(proposta.valorContrato || 0)
+        .toFixed(2)
+        .replace(".", ","),
+      status: proposta.status,
+      dataDigitacao: dataParaInput(proposta.dataCadastro) || hojeIso(),
+      dataPagamento: dataParaInput(proposta.dataPagamento),
+      observacao: proposta.observacao || "",
+    });
 
-      if (!form) return;
+    setMensagem(
+      cliente
+        ? "Editando proposta selecionada."
+        : "O cliente desta proposta antiga não foi encontrado. Selecione o cliente correto.",
+    );
 
-      const campos: Record<string, string> = {
-        numero: proposta.numero,
-        cliente: proposta.cliente,
-        cpf: proposta.cpf,
-        banco: proposta.banco,
-        produto: proposta.produto,
-        valorOperacao: String(proposta.valorOperacao),
-        valorLiquido: String(proposta.valorLiquido),
-        consultora: proposta.consultora,
-        dataDigitacao: proposta.dataDigitacao,
-        dataPagamento: proposta.dataPagamento,
-        status: proposta.status,
-        observacoes: proposta.observacoes,
-      };
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }
 
-      Object.entries(campos).forEach(([nome, valor]) => {
-        const campo = form.elements.namedItem(nome) as
-          | HTMLInputElement
-          | HTMLSelectElement
-          | HTMLTextAreaElement
-          | null;
+  async function excluir(id: string) {
+    const confirmar = window.confirm("Deseja realmente excluir esta proposta?");
 
-        if (campo) {
-          campo.value = valor;
-        }
-      });
+    if (!confirmar) return;
 
-      form.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 0);
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      await chamarApiPropostas("DELETE", { id });
+
+      await carregarPropostasDoSupabase(false);
+
+      if (editandoId === id) {
+        setEditandoId(null);
+        setForm(formularioLimpo(perfilAtual));
+      }
+
+      setMensagem("Proposta excluída com sucesso.");
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível excluir a proposta.",
+      );
+    } finally {
+      setProcessando(false);
+    }
   }
 
   function cancelarEdicao() {
     setEditandoId(null);
-    setMostrarFormulario(false);
-    setErro("");
+    setForm(formularioLimpo(perfilAtual));
     setMensagem("");
   }
 
-  const filtradas = useMemo(() => {
-    const texto = busca.toLowerCase().trim();
-
-    return propostas.filter((item) => {
-      const bateBusca =
-        !texto ||
-        [
-          item.numero,
-          item.cliente,
-          item.cpf,
-          item.banco,
-          item.consultora,
-          item.produto,
-          item.status,
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(texto);
-
-      const bateStatus =
-        filtroStatus === "Todos" || item.status === filtroStatus;
-
-      const bateProduto =
-        filtroProduto === "Todos" ||
-        item.produto === filtroProduto;
-
-      return bateBusca && bateStatus && bateProduto;
-    });
-  }, [propostas, busca, filtroStatus, filtroProduto]);
-
-  const totais = useMemo(() => {
-    const pagas = propostas.filter(
-      (item) => item.status === "Pago"
-    );
-
-    const aguardando = propostas.filter(
-      (item) => item.status === "Aguardando pagamento"
-    );
-
-    return {
-      quantidade: propostas.length,
-
-      pago: pagas.reduce(
-        (soma, item) => soma + Number(item.valorLiquido || 0),
-        0
-      ),
-
-      pendente: aguardando.reduce(
-        (soma, item) => soma + Number(item.valorLiquido || 0),
-        0
-      ),
-    };
-  }, [propostas]);
-
   return (
-    <>
-      <section className="mini-stats-grid">
-        <article className="mini-stat">
+    <div className="proposal-page">
+      <section className="proposal-summary">
+        <article>
           <span>Total de propostas</span>
-          <strong>{totais.quantidade}</strong>
+          <strong>{resumo.total}</strong>
         </article>
 
-        <article className="mini-stat">
-          <span>Total pago</span>
-          <strong>{moeda(totais.pago)}</strong>
+        <article>
+          <span>Em andamento</span>
+          <strong>{resumo.emAndamento}</strong>
         </article>
 
-        <article className="mini-stat">
-          <span>Aguardando pagamento</span>
-          <strong>{moeda(totais.pendente)}</strong>
+        <article>
+          <span>Contratos pagos</span>
+          <strong>{resumo.pagas}</strong>
+        </article>
+
+        <article>
+          <span>Valor total pago</span>
+          <strong>{moeda(resumo.valorPago)}</strong>
+        </article>
+
+        <article className="commission-summary">
+          <span>Produção válida paga</span>
+          <strong>{moeda(resumo.producaoValida)}</strong>
         </article>
       </section>
 
-      {erro && (
-        <div
-          style={{
-            marginBottom: 16,
-            padding: "12px 16px",
-            borderRadius: 10,
-            background: "#fff1f1",
-            color: "#b42318",
-            fontSize: 13,
-            fontWeight: 600,
-          }}
-        >
-          {erro}
-        </div>
-      )}
+      <section className="proposal-layout">
+        <form className="proposal-form" onSubmit={enviar}>
+          <div className="proposal-form-heading">
+            <div>
+              <span>{editandoId ? "EDITAR PROPOSTA" : "NOVA PROPOSTA"}</span>
 
-      {mensagem && (
-        <div
-          style={{
-            marginBottom: 16,
-            padding: "12px 16px",
-            borderRadius: 10,
-            background: "#ecfdf3",
-            color: "#067647",
-            fontSize: 13,
-            fontWeight: 600,
-          }}
-        >
-          {mensagem}
-        </div>
-      )}
+              <h2>
+                {editandoId ? "Atualizar contrato" : "Cadastrar contrato"}
+              </h2>
 
-      <div className="toolbar proposal-toolbar">
-        <div className="filters-group">
-          <input
-            className="search"
-            value={busca}
-            onChange={(evento) => setBusca(evento.target.value)}
-            placeholder="Pesquisar proposta, cliente, CPF, banco ou consultora..."
-          />
+              <p>
+                Selecione o cliente e a tabela. O sistema calcula
+                automaticamente quanto o contrato vale para a meta.
+              </p>
+            </div>
 
-          <select
-            className="filter-select"
-            value={filtroStatus}
-            onChange={(evento) =>
-              setFiltroStatus(evento.target.value)
-            }
-          >
-            <option>Todos</option>
-            <option>Digitado</option>
-            <option>Aguardando pagamento</option>
-            <option>Pago</option>
-            <option>Cancelado</option>
-          </select>
+            <div className="proposal-form-badge">%</div>
+          </div>
 
-          <select
-            className="filter-select"
-            value={filtroProduto}
-            onChange={(evento) =>
-              setFiltroProduto(evento.target.value)
-            }
-          >
-            <option>Todos</option>
-            <option>Compra de Dívida</option>
-            <option>CLT</option>
-          </select>
-        </div>
+          <div className="proposal-form-grid">
+            <label className="proposal-client-field">
+              Cliente cadastrado
+              <select
+                value={form.clienteId}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    clienteId: event.target.value,
+                  })
+                }
+              >
+                <option value="">Selecione o cliente</option>
 
-        <button
-          type="button"
-          className="button"
-          onClick={() => {
-            if (mostrarFormulario) {
-              cancelarEdicao();
-              return;
-            }
+                {clientes.map((cliente) => (
+                  <option key={cliente.id} value={cliente.id}>
+                    {cliente.nome}
+                    {cliente.cpf ? ` — ${formatarCpf(cliente.cpf)}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-            setEditandoId(null);
-            setMostrarFormulario(true);
-            setErro("");
-            setMensagem("");
-          }}
-        >
-          {mostrarFormulario ? "Fechar" : "+ Nova proposta"}
-        </button>
-      </div>
+            <label>
+              CPF
+              <input
+                value={
+                  clienteSelecionado?.cpf
+                    ? formatarCpf(clienteSelecionado.cpf)
+                    : ""
+                }
+                placeholder="Preenchido automaticamente"
+                readOnly
+              />
+            </label>
 
-      {mostrarFormulario && (
-        <form
-          id="form-proposta"
-          className="card form-grid"
-          onSubmit={cadastrar}
-        >
-          <label>
-            Nº da proposta
-            <input name="numero" required />
-          </label>
+            <label>
+              Telefone
+              <input
+                value={
+                  clienteSelecionado?.telefone
+                    ? formatarTelefone(clienteSelecionado.telefone)
+                    : ""
+                }
+                placeholder="Preenchido automaticamente"
+                readOnly
+              />
+            </label>
 
-          <label>
-            Cliente
-            <input name="cliente" required />
-          </label>
+            <label>
+              Consultora
+              <select
+                value={form.vendedora}
+                disabled={
+                  processando ||
+                  Boolean(perfilAtual && perfilEhConsultora(perfilAtual.perfil))
+                }
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    vendedora: event.target.value,
+                  })
+                }
+                required
+              >
+                <option value="">Selecione a consultora</option>
 
-          <label>
-            CPF
-            <input name="cpf" />
-          </label>
+                {form.vendedora && !consultoras.includes(form.vendedora) && (
+                  <option value={form.vendedora}>{form.vendedora}</option>
+                )}
 
-          <label>
-            Banco
-            <input
-              name="banco"
-              placeholder="Ex.: Master, Neo, C6..."
-            />
-          </label>
+                {consultoras.map((consultora) => (
+                  <option key={consultora} value={consultora}>
+                    {consultora}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <label>
-            Produto
-            <select
-              name="produto"
-              defaultValue="Compra de Dívida"
-            >
-              <option>Compra de Dívida</option>
-              <option>CLT</option>
-            </select>
-          </label>
+            <label>
+              Banco da operação
+              <input
+                value={form.banco}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    banco: event.target.value,
+                  })
+                }
+                placeholder="Ex.: NEO"
+              />
+            </label>
 
-          <label>
-            Consultora
-            <input
-              name="consultora"
-              placeholder="Nome da consultora"
-            />
-          </label>
+            <label>
+              Tabela utilizada
+              <select
+                value={form.tabela}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    tabela: event.target.value,
+                  })
+                }
+              >
+                <option value="">Selecione a tabela</option>
 
-          <label>
-            Valor da operação
-            <input
-              name="valorOperacao"
-              type="number"
-              min="0"
-              step="0.01"
-            />
-          </label>
+                {TABELAS_COMPRA_DIVIDA.map((tabela) => (
+                  <option key={tabela.nome} value={tabela.nome}>
+                    {tabela.nome} — {formatarPercentual(tabela.percentual)}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <label>
-            Valor líquido
-            <input
-              name="valorLiquido"
-              type="number"
-              min="0"
-              step="0.01"
-            />
-          </label>
+            <label>
+              Valor total do contrato
+              <input
+                value={form.valorContrato}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    valorContrato: event.target.value,
+                  })
+                }
+                placeholder="Ex.: 20.000,00"
+                inputMode="decimal"
+              />
+            </label>
+            <label>
+              Data da digitação
+              <input
+                type="date"
+                value={form.dataDigitacao}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    dataDigitacao: event.target.value,
+                  })
+                }
+                required
+              />
+            </label>
+            <label>
+              Status
+              <select
+                value={form.status}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    status: event.target.value as StatusProposta,
+                    dataPagamento:
+                      event.target.value === "Pago"
+                        ? form.dataPagamento || hojeIso()
+                        : "",
+                  })
+                }
+              >
+                {STATUS.map((status) => (
+                  <option key={status}>{status}</option>
+                ))}
+              </select>
+            </label>
+          </div>
 
-          <label>
-            Data de digitação
-            <input
-              name="dataDigitacao"
-              type="date"
-              required
-            />
-          </label>
+          <section className="paid-section">
+            <div className="paid-section-heading">
+              <div>
+                <span>PRODUÇÃO PARA A META</span>
+                <h3>Valor válido do contrato</h3>
+              </div>
 
-          <label>
-            Data de pagamento
-            <input
-              name="dataPagamento"
-              type="date"
-            />
-          </label>
+              <strong>{moeda(valorMeta)}</strong>
+            </div>
 
-          <label>
-            Status
-            <select
-              name="status"
-              defaultValue="Digitado"
-            >
-              <option>Digitado</option>
-              <option>Aguardando pagamento</option>
-              <option>Pago</option>
-              <option>Cancelado</option>
-            </select>
-          </label>
+            <div className="commission-calculation">
+              <div>
+                <span>Valor do contrato</span>
 
-          <label className="full-width">
+                <strong>{moeda(valorContrato)}</strong>
+              </div>
+
+              <div className="formula">×</div>
+
+              <div>
+                <span>Percentual da tabela</span>
+
+                <strong>{formatarPercentual(percentualTabela)}</strong>
+              </div>
+
+              <div className="formula">=</div>
+
+              <div className="commission-result">
+                <span>Valor para a meta</span>
+
+                <strong>{moeda(valorMeta)}</strong>
+              </div>
+            </div>
+          </section>
+
+          {form.status === "Pago" && (
+            <section className="paid-section">
+              <div className="paid-section-heading">
+                <div>
+                  <span>CONTRATO PAGO</span>
+                  <h3>Data do pagamento</h3>
+                </div>
+              </div>
+
+              <div className="paid-grid">
+                <label>
+                  Data do pagamento
+                  <input
+                    type="date"
+                    value={form.dataPagamento}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        dataPagamento: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+              </div>
+            </section>
+          )}
+
+          {!clientes.length && (
+            <div className="proposal-message">
+              Nenhum cliente cadastrado. Cadastre o cliente na página Clientes
+              antes de criar uma proposta.
+            </div>
+          )}
+
+          <label className="proposal-observation">
             Observações
             <textarea
-              name="observacoes"
-              rows={3}
-              placeholder="Informações importantes sobre a proposta..."
+              value={form.observacao}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  observacao: event.target.value,
+                })
+              }
+              placeholder="Informações importantes sobre o contrato"
             />
           </label>
 
-          <div className="form-actions full-width">
-            <button
-              className="button"
-              type="submit"
-              disabled={salvando}
-            >
-              {salvando
-                ? "Salvando..."
-                : editandoId
-                  ? "Salvar alterações"
-                  : "Salvar proposta"}
-            </button>
+          {mensagem && <div className="proposal-message">{mensagem}</div>}
 
+          <div className="proposal-actions">
             {editandoId && (
-              <button
-                type="button"
-                className="table-action"
-                onClick={cancelarEdicao}
-                disabled={salvando}
-              >
+              <button type="button" className="cancel" onClick={cancelarEdicao}>
                 Cancelar edição
               </button>
             )}
+
+            <button
+              type="submit"
+              className="save"
+              disabled={processando || carregando || !clientes.length}
+            >
+              {processando
+                ? "Salvando..."
+                : editandoId
+                  ? "Atualizar proposta"
+                  : "Salvar proposta"}
+            </button>
           </div>
         </form>
-      )}
 
-      <div className="summary-line">
-        <strong>{filtradas.length}</strong> proposta(s) encontrada(s)
-      </div>
+        <section className="proposal-list-card">
+          <div className="proposal-list-heading">
+            <div>
+              <span>ACOMPANHAMENTO</span>
 
-      <div className="table-wrap">
-        <table className="proposal-table">
-          <thead>
-            <tr>
-              <th>Nº proposta</th>
-              <th>Cliente</th>
-              <th>Produto</th>
-              <th>Banco</th>
-              <th>Valor líquido</th>
-              <th>Consultora</th>
-              <th>Digitação</th>
-              <th>Competência</th>
-              <th>Status</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
+              <h2>Propostas cadastradas</h2>
+            </div>
 
-          <tbody>
-            {carregando ? (
-              <tr>
-                <td colSpan={10}>
-                  Carregando propostas...
-                </td>
-              </tr>
-            ) : filtradas.length === 0 ? (
-              <tr>
-                <td colSpan={10}>
-                  Nenhuma proposta cadastrada.
-                </td>
-              </tr>
-            ) : (
-              filtradas.map((item) => (
-                <tr key={item.id}>
-                  <td>
-                    <strong>{item.numero}</strong>
-                  </td>
+            <b>{propostasFiltradas.length}</b>
+          </div>
 
-                  <td>
-                    <strong>{item.cliente}</strong>
+          <div className="proposal-filters">
+            <input
+              value={busca}
+              onChange={(event) => setBusca(event.target.value)}
+              placeholder="Pesquisar cliente, CPF, consultora, banco ou tabela"
+            />
 
-                    <small className="table-subtext">
-                      {item.cpf || "CPF não informado"}
-                    </small>
-                  </td>
+            <select
+              value={filtroStatus}
+              onChange={(event) => setFiltroStatus(event.target.value)}
+            >
+              <option>Todos</option>
 
-                  <td>{item.produto}</td>
+              {STATUS.map((status) => (
+                <option key={status}>{status}</option>
+              ))}
+            </select>
+          </div>
 
-                  <td>{item.banco || "—"}</td>
+          {carregando ? (
+            <div className="proposal-empty">
+              <div>⌛</div>
 
-                  <td>{moeda(item.valorLiquido)}</td>
+              <strong>Carregando propostas</strong>
 
-                  <td>{item.consultora || "—"}</td>
+              <p>Aguarde enquanto os dados são buscados no Supabase.</p>
+            </div>
+          ) : propostasFiltradas.length === 0 ? (
+            <div className="proposal-empty">
+              <div>▤</div>
 
-                  <td>{formatarData(item.dataDigitacao)}</td>
+              <strong>Nenhuma proposta encontrada</strong>
 
-                  <td>{competencia(item.dataDigitacao)}</td>
+              <p>Cadastre a primeira proposta ou altere os filtros.</p>
+            </div>
+          ) : (
+            <div className="proposal-list">
+              {propostasFiltradas.map((proposta) => (
+                <article key={proposta.id}>
+                  <div className="proposal-item-top">
+                    <div>
+                      <strong>{proposta.cliente}</strong>
 
-                  <td>
-                    <select
-                      className={`status-select status-${item.status
+                      <span>
+                        {proposta.banco || "Banco não informado"}
+
+                        {proposta.tabela
+                          ? ` • ${proposta.tabela} — ${formatarPercentual(
+                              proposta.percentualTabela,
+                            )}`
+                          : ""}
+                      </span>
+                    </div>
+
+                    <span
+                      className={`status status-${proposta.status
                         .toLowerCase()
-                        .replaceAll(" ", "-")}`}
-                      value={item.status}
-                      onChange={(evento) =>
-                        atualizarStatus(
-                          item.id,
-                          evento.target.value as StatusProposta
-                        )
-                      }
+                        .replace(/\s/g, "-")
+                        .normalize("NFD")
+                        .replace(/[\u0300-\u036f]/g, "")}`}
                     >
-                      <option>Digitado</option>
-                      <option>Aguardando pagamento</option>
-                      <option>Pago</option>
-                      <option>Cancelado</option>
-                    </select>
-                  </td>
+                      {proposta.status}
+                    </span>
+                  </div>
 
-                  <td>
-                    <div className="actions-cell">
+                  <div className="proposal-item-values">
+                    <div>
+                      <small>Contrato</small>
+
+                      <b>{moeda(proposta.valorContrato)}</b>
+                    </div>
+
+                    <div>
+                      <small>Percentual da tabela</small>
+
+                      <b>{formatarPercentual(proposta.percentualTabela)}</b>
+                    </div>
+
+                    <div>
+                      <small>Valor para a meta</small>
+
+                      <b>{moeda(proposta.valorMeta)}</b>
+                    </div>
+                  </div>
+
+                  <div className="proposal-item-footer">
+                    <span>
+                      {proposta.vendedora || "Consultora não informada"} •
+                      Digitado em {formatarData(proposta.dataCadastro)}
+                      {proposta.status === "Pago" && proposta.dataPagamento && (
+                        <> • Pago em {formatarData(proposta.dataPagamento)}</>
+                      )}
+                    </span>
+
+                    <div>
                       <button
-                        type="button"
-                        className="table-action"
-                        onClick={() => editar(item)}
+                        disabled={processando}
+                        onClick={() => editar(proposta)}
                       >
                         Editar
                       </button>
 
                       <button
-                        type="button"
-                        className="danger-link"
-                        onClick={() => excluir(item.id)}
+                        className="delete"
+                        disabled={processando}
+                        onClick={() => void excluir(proposta.id)}
                       >
                         Excluir
                       </button>
                     </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      </section>
+
+      <section className="proposal-note">
+        <strong>Como funciona:</strong>
+
+        <span>
+          o percentual da tabela define quanto o contrato vale para a meta.
+          Exemplo: contrato de R$ 20.000,00 na tabela de 82% vale R$ 16.400,00
+          na produção da consultora. A premiação será calculada no Ranking
+          depois da soma da Compra de Dívida com as parcelas do CLT.
+        </span>
+      </section>
+    </div>
   );
 }
