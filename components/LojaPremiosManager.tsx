@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import "./loja-premios.css";
 import { useLojaPremiosData } from "../hooks/useLojaPremiosData";
 import StatCard from "./loja-premios/StatCard";
@@ -347,6 +348,7 @@ function competenciaEstaFechada(competencia: string) {
 }
 
 export default function LojaPremiosManager() {
+  const supabase = useMemo(() => createClient(), []);
   const [propostas, setPropostas] = useState<PropostaCompraDivida[]>([]);
   const [registrosClt, setRegistrosClt] = useState<RegistroClt[]>([]);
   const [usuarios, setUsuarios] = useState<UsuarioSalvo[]>([]);
@@ -360,13 +362,44 @@ export default function LojaPremiosManager() {
   const [chavePix, setChavePix] = useState("");
   const [erroPix, setErroPix] = useState("");
 
-  function carregar() {
+  async function carregar() {
     try {
-      const propostasSalvas = JSON.parse(
-        localStorage.getItem("somos-eleva-propostas") || "[]"
-      );
+      const { data, error } = await supabase.auth.getSession();
 
-      setPropostas(Array.isArray(propostasSalvas) ? propostasSalvas : []);
+      if (error || !data.session?.access_token) {
+        throw new Error("Sua sessão expirou. Entre novamente no sistema.");
+      }
+
+      const resposta = await fetch("/api/propostas", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${data.session.access_token}`,
+        },
+        cache: "no-store",
+      });
+
+      const conteudo = (await resposta.json()) as {
+        propostas?: PropostaCompraDivida[];
+        erro?: string;
+      };
+
+      if (!resposta.ok) {
+        throw new Error(
+          conteudo.erro || "Não foi possível carregar as propostas."
+        );
+      }
+
+      const lista = Array.isArray(conteudo.propostas)
+        ? conteudo.propostas
+        : [];
+
+      setPropostas(lista);
+
+      // Mantém uma cópia apenas para compatibilidade com módulos antigos.
+      localStorage.setItem(
+        "somos-eleva-propostas",
+        JSON.stringify(lista)
+      );
     } catch {
       setPropostas([]);
     }
@@ -434,18 +467,22 @@ export default function LojaPremiosManager() {
   }
 
   useEffect(() => {
-    carregar();
+    const atualizar = () => {
+      void carregar();
+    };
 
-    const intervalo = window.setInterval(carregar, 3000);
-    window.addEventListener("storage", carregar);
-    window.addEventListener("focus", carregar);
+    atualizar();
+
+    const intervalo = window.setInterval(atualizar, 3000);
+    window.addEventListener("storage", atualizar);
+    window.addEventListener("focus", atualizar);
 
     return () => {
       window.clearInterval(intervalo);
-      window.removeEventListener("storage", carregar);
-      window.removeEventListener("focus", carregar);
+      window.removeEventListener("storage", atualizar);
+      window.removeEventListener("focus", atualizar);
     };
-  }, []);
+  }, [supabase]);
 
   const ehAdmin = perfilEhAdministracao(perfilLogado);
   const ehCoordenadora = perfilEhCoordenacao(perfilLogado);
@@ -765,19 +802,30 @@ const faixa = faixaCompra;
   }, [competencia, consultoraSelecionada, nomeLogado]);
 
   const resumoOperacional = useMemo(() => {
-    // Sthefane e Vinicius recebem por TODAS as propostas de Compra de Dívida
-    // pagas na competência, independentemente de quem cadastrou, digitou,
-    // alterou o status ou subiu a proposta no sistema.
-    const digitacoesPagas = propostas.filter(
-      (proposta) =>
-        proposta.status === "Pago" &&
-        competenciaCompra(proposta) === competencia
-    );
+    const chaveNome = normalizarTexto(nomeLogado);
 
-    const producaoEmpresa = digitacoesPagas.reduce(
-      (total, proposta) => total + valorValidoCompra(proposta),
-      0
-    );
+    const digitacoesPagas = propostas.filter((proposta) => {
+      const responsavel =
+        proposta.operacional ||
+        proposta.digitador ||
+        proposta.digitadora ||
+        proposta.responsavelDigitacao ||
+        "";
+
+      return (
+        proposta.status === "Pago" &&
+        competenciaCompra(proposta) === competencia &&
+        normalizarTexto(responsavel) === chaveNome
+      );
+    });
+
+    const producaoEmpresa = propostas
+      .filter(
+        (proposta) =>
+          proposta.status === "Pago" &&
+          competenciaCompra(proposta) === competencia
+      )
+      .reduce((total, proposta) => total + valorValidoCompra(proposta), 0);
 
     const nomeOperacional = normalizarTexto(nomeLogado);
     const ehSthefane = nomeOperacional.includes("sthefane");
@@ -823,20 +871,30 @@ const faixa = faixaCompra;
 
   const acompanhamentoCompetencia = useMemo(() => {
     const chaveConsultora = normalizarTexto(resumoExibido.nome);
-
     const propostasDigitadas = propostas.filter((proposta) => {
       const dataDigitacao = converterData(proposta.dataCadastro);
 
-      // Registros sem data válida não entram em nenhuma competência.
+      // Registros antigos sem data válida permanecem salvos, mas não entram
+      // em uma competência até que a data de digitação seja informada.
       if (!dataDigitacao || chaveMes(dataDigitacao) !== competencia) {
         return false;
       }
 
-      // Para os Operacionais, a tela acompanha toda a produção da empresa.
-      // Para os demais perfis, mantém o filtro pela vendedora responsável.
-      return ehOperacional
-        ? true
-        : normalizarTexto(proposta.vendedora) === chaveConsultora;
+      if (!ehOperacional) {
+        return normalizarTexto(proposta.vendedora) === chaveConsultora;
+      }
+
+      const responsavelOperacional =
+        proposta.operacional ||
+        proposta.digitador ||
+        proposta.digitadora ||
+        proposta.responsavelDigitacao ||
+        "";
+
+      return (
+        normalizarTexto(responsavelOperacional) ===
+        normalizarTexto(nomeLogado)
+      );
     });
 
     const propostasConfirmadas = propostasDigitadas.filter(
@@ -874,7 +932,7 @@ const faixa = faixaCompra;
       fechado: competenciaEstaFechada(competencia),
       prazo: textoPrazoCompetencia(competencia),
     };
-  }, [propostas, competencia, resumoExibido.nome, ehOperacional]);
+  }, [propostas, competencia, resumoExibido.nome, ehOperacional, nomeLogado]);
 
   const faltaParaMeta = Math.max(META_MINIMA - resumoExibido.pontosTotal, 0);
 
