@@ -246,47 +246,190 @@ export default function DashboardClient() {
 const [painelDiaAberto, setPainelDiaAberto] = useState(false);
 
   useEffect(() => {
-    function carregar() {
-      const nomeSalvo = localStorage.getItem("somos-eleva-nome");
-      const usuario =
-        localStorage.getItem("somos-eleva-usuario") || "0001";
-      const perfilSalvo =
-        localStorage.getItem("somos-eleva-cargo") || "Consultora";
+  let componenteAtivo = true;
 
-      setNome(nomeSalvo?.trim() || nomeBonito(usuario));
-      setPerfil(perfilSalvo);
+  function carregarCltLocal() {
+    try {
+      const listaClt = JSON.parse(
+        localStorage.getItem("somos-eleva-clt") || "[]"
+      );
 
-      try {
-        const lista = JSON.parse(
-          localStorage.getItem("somos-eleva-propostas") || "[]"
-        );
-
-        setPropostas(Array.isArray(lista) ? lista : []);
-      } catch {
-        setPropostas([]);
+      if (componenteAtivo) {
+        setRegistrosClt(Array.isArray(listaClt) ? listaClt : []);
       }
-
-      try {
-        const lista = JSON.parse(
-          localStorage.getItem("somos-eleva-clt") || "[]"
-        );
-
-        setRegistrosClt(Array.isArray(lista) ? lista : []);
-      } catch {
+    } catch {
+      if (componenteAtivo) {
         setRegistrosClt([]);
       }
     }
+  }
 
-    carregar();
+  function normalizarProposta(item: any): PropostaCompraDivida {
+    return {
+      id: String(item?.id || ""),
 
-    window.addEventListener("storage", carregar);
-    window.addEventListener("focus", carregar);
+      cliente: String(
+        item?.cliente ||
+          item?.clienteNome ||
+          item?.cliente_nome ||
+          ""
+      ),
 
-    return () => {
-      window.removeEventListener("storage", carregar);
-      window.removeEventListener("focus", carregar);
+      vendedora: String(
+        item?.vendedora ||
+          item?.consultora ||
+          item?.consultoraNome ||
+          item?.consultora_nome ||
+          ""
+      ),
+
+      tabela: String(
+        item?.tabela ||
+          item?.tabelaNome ||
+          item?.tabela_nome ||
+          item?.tabelaBanco ||
+          item?.tabela_banco ||
+          ""
+      ),
+
+      valorContrato: Number(
+        item?.valorContrato ??
+          item?.valor_contrato ??
+          item?.valorOperacao ??
+          item?.valor_operacao ??
+          item?.valorLiquido ??
+          item?.valor_liquido ??
+          0
+      ),
+
+      valorMeta: Number(
+        item?.valorMeta ??
+          item?.valor_meta ??
+          item?.producaoMeta ??
+          item?.producao_meta ??
+          0
+      ),
+
+      percentualTabela: Number(
+        item?.percentualTabela ??
+          item?.percentual_tabela ??
+          item?.percentual ??
+          0
+      ),
+
+      status: String(item?.status || ""),
+
+      dataCadastro: String(
+        item?.dataCadastro ||
+          item?.data_cadastro ||
+          item?.dataDigitacao ||
+          item?.data_digitacao ||
+          item?.created_at ||
+          ""
+      ),
+
+      dataPagamento: String(
+        item?.dataPagamento ||
+          item?.data_pagamento ||
+          item?.pagoEm ||
+          item?.pago_em ||
+          ""
+      ),
     };
-  }, []);
+  }
+
+  async function carregar() {
+    const nomeSalvo = localStorage.getItem("somos-eleva-nome");
+
+    const usuario =
+      localStorage.getItem("somos-eleva-usuario") || "0001";
+
+    const perfilSalvo =
+      localStorage.getItem("somos-eleva-cargo") || "Consultora";
+
+    if (componenteAtivo) {
+      setNome(nomeSalvo?.trim() || nomeBonito(usuario));
+      setPerfil(perfilSalvo);
+    }
+
+    try {
+      const resposta = await fetch("/api/propostas", {
+        method: "GET",
+        cache: "no-store",
+        credentials: "include",
+      });
+
+      if (!resposta.ok) {
+        const respostaErro = await resposta.text();
+
+        throw new Error(
+          respostaErro ||
+            `Erro ${resposta.status} ao carregar as propostas.`
+        );
+      }
+
+      const resultado = await resposta.json();
+
+      const lista = Array.isArray(resultado)
+        ? resultado
+        : Array.isArray(resultado?.propostas)
+          ? resultado.propostas
+          : Array.isArray(resultado?.data)
+            ? resultado.data
+            : [];
+
+      const propostasNormalizadas = lista.map(normalizarProposta);
+
+      if (componenteAtivo) {
+        setPropostas(propostasNormalizadas);
+      }
+
+      localStorage.setItem(
+        "somos-eleva-propostas",
+        JSON.stringify(propostasNormalizadas)
+      );
+    } catch (error) {
+      console.error(
+        "Erro ao carregar propostas no Dashboard:",
+        error
+      );
+
+      try {
+        const listaLocal = JSON.parse(
+          localStorage.getItem("somos-eleva-propostas") || "[]"
+        );
+
+        if (componenteAtivo) {
+          setPropostas(
+            Array.isArray(listaLocal) ? listaLocal : []
+          );
+        }
+      } catch {
+        if (componenteAtivo) {
+          setPropostas([]);
+        }
+      }
+    }
+
+    carregarCltLocal();
+  }
+
+  carregar();
+
+  function atualizarDashboard() {
+    carregar();
+  }
+
+  window.addEventListener("focus", atualizarDashboard);
+  window.addEventListener("storage", atualizarDashboard);
+
+  return () => {
+    componenteAtivo = false;
+
+    window.removeEventListener("focus", atualizarDashboard);
+    window.removeEventListener("storage", atualizarDashboard);
+  };
+}, []);
 
   const ehConsultora = perfilEhConsultora(perfil);
   const hoje = useMemo(() => new Date(), []);
@@ -398,9 +541,7 @@ const [painelDiaAberto, setPainelDiaAberto] = useState(false);
     const diarioClt = Array.from({ length: quantidadeDias }, () => 0);
 
     comprasMes.forEach((proposta) => {
-      const data =
-        converterData(proposta.dataCadastro) ||
-        converterData(proposta.dataPagamento);
+  const data = competenciaCompra(proposta);
 
       if (data && mesmoMes(data, hoje)) {
         diarioCompra[data.getDate() - 1] += valorValidoCompra(proposta);
