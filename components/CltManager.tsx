@@ -22,6 +22,7 @@ type RegistroClt = {
   telefone: string;
   valorAprovado: number;
   parcela: number;
+  prazo: number;
   banco: string;
   consultora: string;
   status: StatusClt;
@@ -36,6 +37,7 @@ type FormularioClt = {
   telefone: string;
   valorAprovado: string;
   parcela: string;
+  prazo: string;
   banco: string;
   consultora: string;
   status: StatusClt;
@@ -77,8 +79,9 @@ function formularioVazio(): FormularioClt {
     dataNascimento: "",
     telefone: "",
     valorAprovado: "",
-    parcela: "",
-    banco: "",
+parcela: "",
+prazo: "",
+banco: "",
     consultora: "",
     status: "Novo lead",
   };
@@ -177,8 +180,9 @@ function normalizarRegistro(
     ),
     telefone: apenasNumeros(String(item.telefone || "")),
     valorAprovado: Number(item.valorAprovado || 0),
-    parcela: Number(item.parcela || 0),
-    banco: String(item.banco || ""),
+parcela: Number(item.parcela || 0),
+prazo: Number(item.prazo || 0),
+banco: String(item.banco || ""),
     consultora: String(item.consultora || ""),
     status: STATUS.includes(item.status as StatusClt)
       ? (item.status as StatusClt)
@@ -218,7 +222,8 @@ function registroPossuiAlgumDado(item: RegistroClt) {
       apenasNumeros(String(item.telefone || "")) ||
       Number(item.valorAprovado || 0) > 0 ||
       Number(item.parcela || 0) > 0 ||
-      String(item.banco || "").trim(),
+Number(item.prazo || 0) > 0 ||
+String(item.banco || "").trim(),
   );
 }
 
@@ -564,6 +569,12 @@ export default function CltManager() {
       setMensagem("Informe o valor da parcela.");
       return;
     }
+    const prazo = Number(form.prazo);
+
+if (!Number.isInteger(prazo) || prazo <= 0) {
+  setMensagem("Informe o prazo em meses.");
+  return;
+}
 
     if (!form.banco.trim()) {
       setMensagem("Informe o banco.");
@@ -601,8 +612,9 @@ export default function CltManager() {
       dataNascimento: form.dataNascimento,
       telefone,
       valorAprovado,
-      parcela,
-      banco: form.banco.trim(),
+parcela,
+prazo,
+banco: form.banco.trim(),
       consultora: consultoraResponsavel,
       status: form.status,
       criadoEm: antigo?.criadoEm || agora,
@@ -649,9 +661,10 @@ export default function CltManager() {
         ? item.valorAprovado.toFixed(2).replace(".", ",")
         : "",
       parcela: item.parcela
-        ? item.parcela.toFixed(2).replace(".", ",")
-        : "",
-      banco: item.banco,
+  ? item.parcela.toFixed(2).replace(".", ",")
+  : "",
+prazo: item.prazo ? String(item.prazo) : "",
+banco: item.banco,
       consultora: item.consultora,
       status: item.status,
     });
@@ -851,18 +864,41 @@ export default function CltManager() {
                 inputMode="decimal"
               />
             </label>
-
+<label>
+  Prazo em meses
+  <input
+    type="number"
+    min="1"
+    step="1"
+    value={form.prazo}
+    disabled={processando}
+    onChange={(event) =>
+      setForm({
+        ...form,
+        prazo: event.target.value,
+      })
+    }
+    placeholder="Ex.: 12"
+    inputMode="numeric"
+  />
+</label>
             <label>
-              Banco
-              <input
-                value={form.banco}
-                disabled={processando}
-                onChange={(event) =>
-                  setForm({ ...form, banco: event.target.value })
-                }
-                placeholder="Ex.: C6"
-              />
-            </label>
+  Banco
+  <select
+    value={form.banco}
+    disabled={processando}
+    onChange={(event) =>
+      setForm({
+        ...form,
+        banco: event.target.value,
+      })
+    }
+  >
+    <option value="">Selecione o banco</option>
+    <option value="3RN">3RN</option>
+    <option value="C6">C6</option>
+  </select>
+</label>
 
             <label>
               Consultora
@@ -1012,6 +1048,14 @@ export default function CltManager() {
                         <small>Banco</small>
                         <b>{item.banco || "Não informado"}</b>
                       </div>
+                      <div>
+  <small>Prazo</small>
+  <b>
+    {item.prazo
+      ? `${item.prazo} meses`
+      : "Não informado"}
+  </b>
+</div>
                     </div>
 
                     <footer>
