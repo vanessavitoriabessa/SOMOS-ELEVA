@@ -308,6 +308,16 @@ function moeda(
     });
 }
 
+function valorParaCampo(
+  valor: number,
+) {
+  return Number(valor || 0)
+    .toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+}
+
 function normalizarTexto(
   valor: unknown,
 ) {
@@ -430,6 +440,10 @@ export default function OperationsManager() {
     atualizandoId,
     setAtualizandoId,
   ] = useState("");
+const [
+  operacaoEditando,
+  setOperacaoEditando,
+] = useState<OperacaoUnificada | null>(null);
 
   const usuarioEhConsultora =
     Boolean(
@@ -1194,13 +1208,225 @@ agencia:
       throw erro;
     }
   }
+async function atualizarOperacao(
+  operacao: OperacaoUnificada,
+) {
+  setProcessando(true);
+  setMensagem("");
 
+  try {
+    const sessao =
+      await obterSessaoAtual();
+
+    const token =
+      sessao.access_token;
+
+    if (
+      operacao.produto ===
+        "Compra de Dívida" &&
+      operacao.proposta
+    ) {
+      const tabela =
+        TABELAS_COMPRA.find(
+          (item) =>
+            item.nome === form.tabela,
+        );
+
+      if (!tabela) {
+        throw new Error(
+          "Selecione uma tabela válida.",
+        );
+      }
+
+      const proposta: Proposta = {
+        ...operacao.proposta,
+
+        cliente:
+          form.nome.trim(),
+
+        cpf:
+          apenasNumeros(form.cpf),
+
+        telefone:
+          apenasNumeros(
+            form.telefone,
+          ),
+
+        vendedora:
+          form.consultora,
+
+        banco:
+          form.bancoOrigem.trim() +
+          " → " +
+          (form.bancoAtual.trim() ||
+            "NEO"),
+
+        tabela:
+          tabela.nome,
+
+        percentualTabela:
+          tabela.percentual,
+
+        valorContrato:
+          numero(
+            form.valorContrato,
+          ),
+
+        parcela:
+          numero(
+            form.parcela,
+          ),
+
+        valorMeta:
+          numero(
+            form.valorContrato,
+          ) *
+          (tabela.percentual / 100),
+
+        status:
+          form.statusCompra,
+
+        dataCadastro:
+          form.dataDigitacao,
+
+        dataPagamento:
+          form.statusCompra === "Pago"
+            ? form.dataPagamento
+            : "",
+
+        observacao:
+          form.observacao.trim(),
+      };
+
+      await chamarApi<RespostaApi>(
+        "/api/propostas",
+        "PATCH",
+        { proposta },
+        token,
+      );
+    }
+
+    if (
+      operacao.produto === "CLT" &&
+      operacao.clt
+    ) {
+      const registro: RegistroClt = {
+        ...operacao.clt,
+
+        nome:
+          form.nome.trim(),
+
+        cpf:
+          apenasNumeros(
+            form.cpf,
+          ),
+
+        dataNascimento:
+          form.dataNascimento,
+
+        telefone:
+          apenasNumeros(
+            form.telefone,
+          ),
+
+        valorAprovado:
+          numero(
+            form.valorAprovado,
+          ),
+
+        parcela:
+          numero(
+            form.parcela,
+          ),
+
+        prazo:
+          Number(
+            form.prazo || 0,
+          ),
+
+        banco:
+          form.banco.trim(),
+
+        consultora:
+          form.consultora,
+
+        status:
+          form.statusClt,
+
+        atualizadoEm:
+          new Date()
+            .toLocaleString(
+              "pt-BR",
+            ),
+      };
+
+      await chamarApi<RespostaApi>(
+        "/api/clt",
+        "PATCH",
+        { registro },
+        token,
+      );
+    }
+
+    await carregarTudo();
+
+    setOperacaoEditando(null);
+
+    setForm({
+      ...formularioVazio(
+        form.produto,
+      ),
+
+      consultora:
+        usuarioEhConsultora
+          ? perfilAtual?.nome || ""
+          : "",
+    });
+
+    setMensagem(
+      "Operação atualizada com sucesso.",
+    );
+  } catch (erro) {
+    setMensagem(
+      erro instanceof Error
+        ? erro.message
+        : "Erro ao atualizar.",
+    );
+  } finally {
+    setProcessando(false);
+  }
+}
     async function salvar(
     event:
       FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
-    setMensagem("");
+setMensagem("");
+
+if (operacaoEditando) {
+  await atualizarOperacao(
+    operacaoEditando,
+  );
+  function cancelarEdicao() {
+  setOperacaoEditando(null);
+
+  setForm({
+    ...formularioVazio(
+      form.produto,
+    ),
+
+    consultora:
+      usuarioEhConsultora
+        ? perfilAtual?.nome || ""
+        : "",
+  });
+
+  setMensagem(
+    "Edição cancelada.",
+  );
+}
+  return;
+}
 
     const cpf =
       apenasNumeros(
@@ -1612,107 +1838,254 @@ prazo:
   }
 
   async function alterarStatus(
-    operacao:
-      OperacaoUnificada,
-
-    novoStatus:
-      string,
-  ) {
-    if (!podeGerenciarStatus) {
-      return;
-    }
-
-    setAtualizandoId(
-      operacao.chave,
-    );
-
-    setMensagem("");
-
-    try {
-      const sessao =
-        await obterSessaoAtual();
-
-      const token =
-        sessao.access_token;
-
-      if (
-        operacao.produto ===
-          "Compra de Dívida" &&
-        operacao.proposta
-      ) {
-        const proposta: Proposta = {
-          ...operacao.proposta,
-
-          status:
-            novoStatus as StatusCompra,
-
-          dataPagamento:
-            novoStatus ===
-            "Pago"
-              ? operacao.proposta
-                  .dataPagamento ||
-                hojeIso()
-              : "",
-        };
-
-        await chamarApi<
-          RespostaApi
-        >(
-          "/api/propostas",
-          "PATCH",
-          {
-            proposta,
-          },
-          token,
-        );
-      }
-
-      if (
-        operacao.produto ===
-          "CLT" &&
-        operacao.clt
-      ) {
-        const registro: RegistroClt = {
-          ...operacao.clt,
-
-          status:
-            novoStatus as StatusClt,
-
-          atualizadoEm:
-            new Date()
-              .toLocaleString(
-                "pt-BR",
-              ),
-        };
-
-        await chamarApi<
-          RespostaApi
-        >(
-          "/api/clt",
-          "PATCH",
-          {
-            registro,
-          },
-          token,
-        );
-      }
-
-      await carregarTudo();
-
-      setMensagem(
-        "Status atualizado com sucesso.",
-      );
-    } catch (erro) {
-      setMensagem(
-        erro instanceof Error
-          ? erro.message
-          : "Não foi possível atualizar o status.",
-      );
-    } finally {
-      setAtualizandoId("");
-    }
+  operacao: OperacaoUnificada,
+  novoStatus: string,
+) {
+  if (!podeGerenciarStatus) {
+    return;
   }
 
+  setAtualizandoId(
+    operacao.chave,
+  );
+
+  setMensagem("");
+
+  try {
+    const sessao =
+      await obterSessaoAtual();
+
+    const token =
+      sessao.access_token;
+
+    if (
+      operacao.produto ===
+        "Compra de Dívida" &&
+      operacao.proposta
+    ) {
+      const proposta: Proposta = {
+        ...operacao.proposta,
+
+        status:
+          novoStatus as StatusCompra,
+
+        dataPagamento:
+          novoStatus === "Pago"
+            ? operacao.proposta
+                .dataPagamento ||
+              hojeIso()
+            : "",
+      };
+
+      await chamarApi<RespostaApi>(
+        "/api/propostas",
+        "PATCH",
+        { proposta },
+        token,
+      );
+    }
+
+    if (
+      operacao.produto === "CLT" &&
+      operacao.clt
+    ) {
+      const registro: RegistroClt = {
+        ...operacao.clt,
+
+        status:
+          novoStatus as StatusClt,
+
+        atualizadoEm:
+          new Date()
+            .toLocaleString(
+              "pt-BR",
+            ),
+      };
+
+      await chamarApi<RespostaApi>(
+        "/api/clt",
+        "PATCH",
+        { registro },
+        token,
+      );
+    }
+
+    await carregarTudo();
+
+    setMensagem(
+      "Status atualizado com sucesso.",
+    );
+  } catch (erro) {
+    setMensagem(
+      erro instanceof Error
+        ? erro.message
+        : "Não foi possível atualizar o status.",
+    );
+  } finally {
+    setAtualizandoId("");
+  }
+}
+  function editarOperacao(
+  operacao: OperacaoUnificada,
+) {
+  setOperacaoEditando(operacao);
+
+  if (
+    operacao.produto ===
+      "Compra de Dívida" &&
+    operacao.proposta
+  ) {
+    const proposta =
+      operacao.proposta;
+
+    const bancos =
+      proposta.banco
+        .split("→")
+        .map((item) =>
+          item.trim(),
+        );
+
+    setForm({
+      ...formularioVazio(
+        "Compra de Dívida",
+      ),
+
+      produto:
+        "Compra de Dívida",
+
+      nome:
+        proposta.cliente,
+
+      cpf:
+        formatarCpf(
+          proposta.cpf,
+        ),
+
+      dataNascimento:
+        "",
+
+      telefone:
+        formatarTelefone(
+          proposta.telefone,
+        ),
+
+      bancoOrigem:
+        bancos[0] || "",
+
+      bancoAtual:
+        bancos[1] || "NEO",
+
+      consultora:
+        proposta.vendedora,
+
+      observacao:
+        proposta.observacao || "",
+
+      tabela:
+        proposta.tabela,
+
+      valorContrato:
+        valorParaCampo(
+          proposta.valorContrato,
+        ),
+
+      parcela:
+        valorParaCampo(
+          proposta.parcela,
+        ),
+
+      statusCompra:
+        proposta.status,
+
+      dataDigitacao:
+        proposta.dataCadastro,
+
+      dataPagamento:
+        proposta.dataPagamento || "",
+    });
+  }
+
+  if (
+    operacao.produto === "CLT" &&
+    operacao.clt
+  ) {
+    const registro =
+      operacao.clt;
+
+    setForm({
+      ...formularioVazio("CLT"),
+
+      produto: "CLT",
+
+      nome:
+        registro.nome,
+
+      cpf:
+        formatarCpf(
+          registro.cpf,
+        ),
+
+      dataNascimento:
+        registro.dataNascimento || "",
+
+      telefone:
+        formatarTelefone(
+          registro.telefone,
+        ),
+
+      banco:
+        registro.banco,
+
+      consultora:
+        registro.consultora,
+
+      valorAprovado:
+        valorParaCampo(
+          registro.valorAprovado,
+        ),
+
+      parcela:
+        valorParaCampo(
+          registro.parcela,
+        ),
+
+      prazo:
+        String(
+          registro.prazo || "",
+        ),
+
+      statusClt:
+        registro.status,
+    });
+  }
+
+  setMensagem(
+    "Modo de edição ativado.",
+  );
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth",
+  });
+}
+function cancelarEdicao() {
+  setOperacaoEditando(null);
+
+  setForm({
+    ...formularioVazio(
+      form.produto,
+    ),
+
+    consultora:
+      usuarioEhConsultora
+        ? perfilAtual?.nome || ""
+        : "",
+  });
+
+  setMensagem(
+    "Edição cancelada.",
+  );
+}
     return (
     <div className="operations-page">
       <section
@@ -2357,14 +2730,39 @@ prazo:
           )}
 
           <button
-            type="submit"
-            className="operations-save"
-            disabled={processando}
-          >
-            {processando
-              ? "Salvando cliente e operação..."
-              : "Salvar operação completa"}
-          </button>
+  type="submit"
+  disabled={processando}
+>
+  {processando
+    ? operacaoEditando
+      ? "Atualizando operação..."
+      : "Salvando cliente e operação..."
+    : operacaoEditando
+      ? "Atualizar operação"
+      : "Salvar operação completa"}
+</button>
+<button
+  type="submit"
+  disabled={processando}
+>
+  {processando
+    ? operacaoEditando
+      ? "Atualizando operação..."
+      : "Salvando cliente e operação..."
+    : operacaoEditando
+      ? "Atualizar operação"
+      : "Salvar operação completa"}
+</button>
+
+{operacaoEditando && (
+  <button
+    type="button"
+    disabled={processando}
+    onClick={cancelarEdicao}
+  >
+    Cancelar edição
+  </button>
+)}
         </form>
 
         <section className="operations-card operations-list-card">
@@ -2551,38 +2949,41 @@ prazo:
                         </div>
 
                         {podeGerenciarStatus ? (
-                          <select
-                            className="operations-status-select"
-                            value={
-                              operacao.status
-                            }
-                            disabled={
-                              atualizandoId ===
-                              operacao.chave
-                            }
-                            onChange={(event) =>
-                              void alterarStatus(
-                                operacao,
-                                event.target
-                                  .value,
-                              )
-                            }
-                          >
-                            {statusDaOperacao.map(
-                              (status) => (
-                                <option
-                                  key={
-                                    status
-                                  }
-                                  value={
-                                    status
-                                  }
-                                >
-                                  {status}
-                                </option>
-                              ),
-                            )}
-                          </select>
+                          <div
+  style={{
+    display: "flex",
+    gap: "8px",
+    alignItems: "center",
+  }}
+>
+  <button
+    type="button"
+    onClick={() => editarOperacao(operacao)}
+  >
+    Editar
+  </button>
+
+  <select
+    className="operations-status-select"
+    value={operacao.status}
+    disabled={atualizandoId === operacao.chave}
+    onChange={(event) =>
+      void alterarStatus(
+        operacao,
+        event.target.value,
+      )
+    }
+  >
+    {statusDaOperacao.map((status) => (
+      <option
+        key={status}
+        value={status}
+      >
+        {status}
+      </option>
+    ))}
+  </select>
+</div>
                         ) : (
                           <span className="operations-status-badge">
                             {

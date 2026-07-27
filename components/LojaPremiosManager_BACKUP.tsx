@@ -2,10 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import "./loja-premios.css";
-import { useLojaPremiosData } from "../hooks/useLojaPremiosData";
-import StatCard from "./loja-premios/StatCard";
-import ProducaoCards from "./loja-premios/ProducaoCards";
-import ExtratoPontos from "./loja-premios/ExtratoPontos";
 
 type PropostaCompraDivida = {
   id: string;
@@ -1175,279 +1171,319 @@ const faixa = faixaCompra;
       </section>
 
       <section className="lp-resumo-grid">
-  <StatCard
-    icone="⇄"
-    titulo="Pontos — Compra de Dívida"
-    valor={pontos(resumoExibido.pontosCompra)}
-  />
-
-  <StatCard
-    icone="▣"
-    titulo="Pontos — CLT"
-    valor={pontos(resumoExibido.pontosClt)}
-  />
-
-  <StatCard
-    icone="◆"
-    titulo="Prêmio da Compra"
-    valor={moeda(resumoExibido.premioCompra)}
-  />
-
-  <StatCard
-    icone="★"
-    titulo="Prêmio do CLT"
-    valor={moeda(resumoExibido.premioClt)}
-  />
-</section>
-<ProducaoCards
-  digitados={acompanhamentoCompetencia.digitados}
-  pagosConfirmados={acompanhamentoCompetencia.pagosConfirmados}
-  aguardando={acompanhamentoCompetencia.aguardando}
-  valorProduzido={moeda(acompanhamentoCompetencia.valorProduzido)}
-  valorConfirmado={moeda(acompanhamentoCompetencia.valorConfirmado)}
-  valorEmFormacao={moeda(acompanhamentoCompetencia.valorEmFormacao)}
-  fechado={acompanhamentoCompetencia.fechado}
-  prazo={acompanhamentoCompetencia.prazo}
-/>
-<section className="lp-saque-card" style={{ flexWrap: "wrap" }}>
-  <div>
-    <span>VALOR TOTAL DISPONÍVEL</span>
-    <strong>{moeda(resumoExibido.premioTotal)}</strong>
-    <p>
-      O saque é sempre solicitado pelo valor total disponível. Os pontos só
-      saem do saldo quando a gestão marcar que o pagamento PIX foi realizado.
-    </p>
-  </div>
-
-  {!ehAdmin && (
-    <button
-      type="button"
-      className="lp-botao-saque"
-      onClick={abrirFormularioSaque}
-      disabled={!podeSolicitar}
-    >
-      {solicitacaoPendente
-        ? "Aguardando pagamento"
-        : !resumoExibido.faixa
-          ? ultimoSaquePago && resumoExibido.pontosTotal === 0
-            ? "Saque pago"
-            : "Meta ainda não ativada"
-          : "Sacar premiação"}
-    </button>
-  )}
-
-  {!ehAdmin && mostrarFormularioPix && podeSolicitar && (
-    <div
-      style={{
-        width: "100%",
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) auto auto",
-        gap: 10,
-        alignItems: "end",
-        paddingTop: 16,
-        borderTop: "1px solid #e7eaf0",
-      }}
-    >
-      <label
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 6,
-          color: "#626c82",
-          fontSize: 10,
-          fontWeight: 800,
-        }}
-      >
-        CHAVE PIX PARA RECEBER
-
-        <input
-          value={chavePix}
-          onChange={(event) => {
-            setChavePix(event.target.value);
-            setErroPix("");
-          }}
-          placeholder="CPF, telefone, e-mail ou chave aleatória"
-          autoComplete="off"
-          style={{
-            width: "100%",
-            minHeight: 42,
-            padding: "0 13px",
-            border: erroPix
-              ? "1px solid #d94f4b"
-              : "1px solid #dfe4ec",
-            borderRadius: 10,
-            outline: "none",
-            color: "#243354",
-            background: "#ffffff",
-          }}
-        />
-
-        {erroPix && (
-          <small style={{ color: "#b73c38" }}>{erroPix}</small>
-        )}
-      </label>
-
-      <button
-        type="button"
-        className="lp-botao-saque"
-        onClick={solicitarSaque}
-        style={{ minWidth: 170 }}
-      >
-        Confirmar saque
-      </button>
-
-      <button
-        type="button"
-        onClick={cancelarFormularioSaque}
-        style={{
-          minHeight: 42,
-          padding: "0 15px",
-          border: "1px solid #dfe4ec",
-          borderRadius: 10,
-          background: "#ffffff",
-          color: "#626c82",
-          cursor: "pointer",
-          fontWeight: 800,
-        }}
-      >
-        Cancelar
-      </button>
-    </div>
-  )}
-</section>
-
-<section className="lp-conteudo-grid">
-  <ExtratoPontos
-    movimentos={resumoExibido.movimentos}
-    formatarPontos={pontos}
-  />
-
-  <article className="lp-painel">
-  <div className="lp-painel-titulo">
-    <div>
-      <span>HISTÓRICO DE SAQUES</span>
-      <h3>Solicitações</h3>
-    </div>
-  </div>
-
-  {podeGerenciarLoja ? (
-    solicitacoesDaCompetencia.length === 0 ? (
-      <div className="lp-vazio">
-        Nenhuma solicitação de saque nesta competência.
-      </div>
-    ) : (
-      <div className="lp-solicitacoes">
-        {solicitacoesDaCompetencia.map((saque) => (
-          <div className="lp-solicitacao" key={saque.id}>
-            <div>
-              <strong>{saque.consultora}</strong>
-
-              <span>
-                {saque.solicitadoEm} • {pontos(saque.pontos)} pontos
-              </span>
-
-              <span>
-                Chave PIX: <b>{saque.chavePix || "Não informada"}</b>
-              </span>
-
-              {saque.pagoEm && (
-                <span>Pagamento confirmado em {saque.pagoEm}</span>
-              )}
-            </div>
-
-            <div className="lp-solicitacao-valor">
-              <b>{moeda(saque.valorTotal)}</b>
-
-              <span
-                className={`lp-mini-status ${classeVisualStatus(
-                  saque.status
-                )}`}
-              >
-                {saque.status}
-              </span>
-            </div>
-
-            {(saque.status === "Solicitado" ||
-              saque.status === "Aprovado") && (
-              <div className="lp-acoes-admin">
-                <button
-                  type="button"
-                  className="aprovar"
-                  onClick={() =>
-                    atualizarSolicitacao(saque.id, "Pago")
-                  }
-                >
-                  Marcar como pago
-                </button>
-
-                <button
-                  type="button"
-                  className="recusar"
-                  onClick={() =>
-                    atualizarSolicitacao(saque.id, "Recusado")
-                  }
-                >
-                  Recusar
-                </button>
-              </div>
-            )}
+        <article>
+          <div className="lp-icone compra">⇄</div>
+          <div>
+            <span>Pontos — Compra de Dívida</span>
+            <strong>{pontos(resumoExibido.pontosCompra)}</strong>
           </div>
-        ))}
-      </div>
-    )
-  ) : !solicitacaoAtual ? (
-    <div className="lp-vazio">
-      Você ainda não realizou nenhuma solicitação nesta competência.
-    </div>
-  ) : (
-    <div className="lp-solicitacao destaque">
-      <div>
-        <strong>Saque da competência</strong>
+        </article>
 
-        <span>
-          Solicitado em {solicitacaoAtual.solicitadoEm}
-        </span>
+        <article>
+          <div className="lp-icone clt">▣</div>
+          <div>
+            <span>Pontos — CLT</span>
+            <strong>{pontos(resumoExibido.pontosClt)}</strong>
+          </div>
+        </article>
 
-        <span>
-          Chave PIX:{" "}
-          <b>{solicitacaoAtual.chavePix || "Não informada"}</b>
-        </span>
+        <article>
+          <div className="lp-icone premio">◆</div>
+          <div>
+            <span>Prêmio da Compra</span>
+            <strong>{moeda(resumoExibido.premioCompra)}</strong>
+          </div>
+        </article>
 
-        {solicitacaoAtual.pagoEm && (
-          <span>
-            Pagamento confirmado em {solicitacaoAtual.pagoEm}
-          </span>
+        <article>
+          <div className="lp-icone premio">★</div>
+          <div>
+            <span>Prêmio do CLT</span>
+            <strong>{moeda(resumoExibido.premioClt)}</strong>
+          </div>
+        </article>
+      </section>
+
+      <section className="lp-resumo-grid">
+        <article>
+          <div><span>PRODUÇÃO DO MÊS</span><strong>{acompanhamentoCompetencia.digitados} contratos</strong><small>{moeda(acompanhamentoCompetencia.valorProduzido)}</small></div>
+        </article>
+        <article>
+          <div><span>CONFIRMADO / A RECEBER</span><strong>{acompanhamentoCompetencia.pagosConfirmados} contratos</strong><small>{moeda(acompanhamentoCompetencia.valorConfirmado)}</small></div>
+        </article>
+        <article>
+          <div><span>EM FORMAÇÃO</span><strong>{acompanhamentoCompetencia.aguardando} contratos</strong><small>{moeda(acompanhamentoCompetencia.valorEmFormacao)}</small></div>
+        </article>
+        <article>
+          <div><span>FECHAMENTO</span><strong>{acompanhamentoCompetencia.fechado ? "Competência fechada" : "Competência aberta"}</strong><small>{acompanhamentoCompetencia.prazo}</small></div>
+        </article>
+      </section>
+
+      <section
+        className="lp-saque-card"
+        style={{ flexWrap: "wrap" }}
+      >
+        <div>
+          <span>VALOR TOTAL DISPONÍVEL</span>
+          <strong>{moeda(resumoExibido.premioTotal)}</strong>
+          <p>
+            O saque é sempre solicitado pelo valor total disponível. Os
+            pontos só saem do saldo quando a gestão marcar que o
+            pagamento PIX foi realizado.
+          </p>
+        </div>
+
+        {!ehAdmin && (
+          <button
+            type="button"
+            className="lp-botao-saque"
+            onClick={abrirFormularioSaque}
+            disabled={!podeSolicitar}
+          >
+            {solicitacaoPendente
+              ? "Aguardando pagamento"
+              : !resumoExibido.faixa
+                ? ultimoSaquePago && resumoExibido.pontosTotal === 0
+                  ? "Saque pago"
+                  : "Meta ainda não ativada"
+                : "Sacar premiação"}
+          </button>
         )}
-      </div>
 
-      <div className="lp-solicitacao-valor">
-        <b>{moeda(solicitacaoAtual.valorTotal)}</b>
+        {!ehAdmin && mostrarFormularioPix && podeSolicitar && (
+          <div
+            style={{
+              width: "100%",
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) auto auto",
+              gap: 10,
+              alignItems: "end",
+              paddingTop: 16,
+              borderTop: "1px solid #e7eaf0",
+            }}
+          >
+            <label
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+                color: "#626c82",
+                fontSize: 10,
+                fontWeight: 800,
+              }}
+            >
+              CHAVE PIX PARA RECEBER
+              <input
+                value={chavePix}
+                onChange={(event) => {
+                  setChavePix(event.target.value);
+                  setErroPix("");
+                }}
+                placeholder="CPF, telefone, e-mail ou chave aleatória"
+                autoComplete="off"
+                style={{
+                  width: "100%",
+                  minHeight: 42,
+                  padding: "0 13px",
+                  border: erroPix
+                    ? "1px solid #d94f4b"
+                    : "1px solid #dfe4ec",
+                  borderRadius: 10,
+                  outline: "none",
+                  color: "#243354",
+                  background: "#ffffff",
+                }}
+              />
 
-        <span
-          className={`lp-mini-status ${classeVisualStatus(
-            solicitacaoAtual.status
-          )}`}
-        >
-          {solicitacaoAtual.status}
+              {erroPix && (
+                <small style={{ color: "#b73c38" }}>{erroPix}</small>
+              )}
+            </label>
+
+            <button
+              type="button"
+              className="lp-botao-saque"
+              onClick={solicitarSaque}
+              style={{ minWidth: 170 }}
+            >
+              Confirmar saque
+            </button>
+
+            <button
+              type="button"
+              onClick={cancelarFormularioSaque}
+              style={{
+                minHeight: 42,
+                padding: "0 15px",
+                border: "1px solid #dfe4ec",
+                borderRadius: 10,
+                background: "#ffffff",
+                color: "#626c82",
+                cursor: "pointer",
+                fontWeight: 800,
+              }}
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
+      </section>
+
+      <section className="lp-conteudo-grid">
+        <article className="lp-painel">
+          <div className="lp-painel-titulo">
+            <div>
+              <span>EXTRATO DE PONTOS</span>
+              <h3>Movimentações da competência</h3>
+            </div>
+            <b>{resumoExibido.movimentos.length} lançamentos</b>
+          </div>
+
+          {resumoExibido.movimentos.length === 0 ? (
+            <div className="lp-vazio">
+              Nenhum contrato pago gerou pontos nesta competência.
+            </div>
+          ) : (
+            <div className="lp-movimentos">
+              {resumoExibido.movimentos.map((movimento) => (
+                <div className="lp-movimento" key={movimento.id}>
+                  <div
+                    className={`lp-produto ${
+                      movimento.produto === "CLT" ? "clt" : "compra"
+                    }`}
+                  >
+                    {movimento.produto === "CLT" ? "CLT" : "CD"}
+                  </div>
+
+                  <div className="lp-movimento-info">
+                    <strong>{movimento.descricao}</strong>
+                    <span>
+                      {movimento.produto} • {movimento.data || "Data não informada"}
+                    </span>
+                  </div>
+
+                  <b>+ {pontos(movimento.pontos)} pts</b>
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
+
+        <article className="lp-painel">
+          <div className="lp-painel-titulo">
+            <div>
+              <span>HISTÓRICO DE SAQUES</span>
+              <h3>Solicitações</h3>
+            </div>
+          </div>
+
+          {podeGerenciarLoja ? (
+            solicitacoesDaCompetencia.length === 0 ? (
+              <div className="lp-vazio">
+                Nenhuma solicitação de saque nesta competência.
+              </div>
+            ) : (
+              <div className="lp-solicitacoes">
+                {solicitacoesDaCompetencia.map((saque) => (
+                  <div className="lp-solicitacao" key={saque.id}>
+                    <div>
+                      <strong>{saque.consultora}</strong>
+                      <span>
+                        {saque.solicitadoEm} • {pontos(saque.pontos)} pontos
+                      </span>
+                      <span>
+                        Chave PIX: <b>{saque.chavePix || "Não informada"}</b>
+                      </span>
+                      {saque.pagoEm && (
+                        <span>Pagamento confirmado em {saque.pagoEm}</span>
+                      )}
+                    </div>
+
+                    <div className="lp-solicitacao-valor">
+                      <b>{moeda(saque.valorTotal)}</b>
+                      <span
+                        className={`lp-mini-status ${classeVisualStatus(
+                          saque.status
+                        )}`}
+                      >
+                        {saque.status}
+                      </span>
+                    </div>
+
+                    {(saque.status === "Solicitado" ||
+                      saque.status === "Aprovado") && (
+                      <div className="lp-acoes-admin">
+                        <button
+                          type="button"
+                          className="aprovar"
+                          onClick={() =>
+                            atualizarSolicitacao(saque.id, "Pago")
+                          }
+                        >
+                          Marcar como pago
+                        </button>
+                        <button
+                          type="button"
+                          className="recusar"
+                          onClick={() =>
+                            atualizarSolicitacao(saque.id, "Recusado")
+                          }
+                        >
+                          Recusar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )
+          ) : !solicitacaoAtual ? (
+            <div className="lp-vazio">
+              Você ainda não realizou nenhuma solicitação nesta competência.
+            </div>
+          ) : (
+            <div className="lp-solicitacao destaque">
+              <div>
+                <strong>Saque da competência</strong>
+                <span>
+                  Solicitado em {solicitacaoAtual.solicitadoEm}
+                </span>
+                <span>
+                  Chave PIX:{" "}
+                  <b>{solicitacaoAtual.chavePix || "Não informada"}</b>
+                </span>
+                {solicitacaoAtual.pagoEm && (
+                  <span>
+                    Pagamento confirmado em {solicitacaoAtual.pagoEm}
+                  </span>
+                )}
+              </div>
+
+              <div className="lp-solicitacao-valor">
+                <b>{moeda(solicitacaoAtual.valorTotal)}</b>
+                <span
+                  className={`lp-mini-status ${classeVisualStatus(
+                    solicitacaoAtual.status
+                  )}`}
+                >
+                  {solicitacaoAtual.status}
+                </span>
+              </div>
+            </div>
+          )}
+        </article>
+      </section>
+
+      <section className="lp-regra">
+        <strong>Como funciona:</strong>
+        <span>
+          a produção válida da Compra de Dívida e as parcelas CLT são
+          somadas para ativar a faixa. A consultora informa a chave PIX e
+          solicita o saque total. Os pontos permanecem no saldo enquanto a
+          solicitação estiver aguardando. Eles são retirados somente depois
+          que a gestão confirmar que o pagamento foi realizado.
         </span>
-      </div>
+      </section>
     </div>
-  )}
-</article>
-</section>
-
-<section className="lp-regra">
-  <strong>Como funciona:</strong>
-
-  <span>
-    a produção válida da Compra de Dívida e as parcelas CLT são
-    somadas para ativar a faixa. A consultora informa a chave PIX e
-    solicita o saque total. Os pontos permanecem no saldo enquanto a
-    solicitação estiver aguardando. Eles são retirados somente depois
-    que a gestão confirmar que o pagamento foi realizado.
-  </span>
-</section>
-
-</div>
-);
+  );
 }

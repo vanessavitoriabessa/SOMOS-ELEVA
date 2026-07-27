@@ -620,9 +620,10 @@
   }
 
   .eleva-chart-area {
-    grid-template-columns: repeat(
-      auto-fit,
-      minmax(95px, 1fr)
-    );
-    gap: 10px;
-  }
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(95px, 1fr)
+  );
+  gap: 10px;
+}
+}

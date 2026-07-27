@@ -50,14 +50,29 @@ const itensOperacao: ItemMenu[] = [
     icon: LayoutDashboard,
   },
   {
-    href: "/operacoes",
-    label: "Operações",
-    icon: Workflow,
+    href: "/clientes",
+    label: "Clientes",
+    icon: UsersRound,
+  },
+  {
+    href: "/propostas",
+    label: "Propostas",
+    icon: FileText,
   },
   {
     href: "/simulacao",
     label: "Simulação",
     icon: Calculator,
+  },
+  {
+    href: "/esteira",
+    label: "Gestão de Propostas",
+    icon: Workflow,
+  },
+  {
+    href: "/clt",
+    label: "CLT",
+    icon: BadgeDollarSign,
   },
   {
     href: "/baixas",
@@ -106,16 +121,20 @@ const itensGestao: ItemMenu[] = [
 
 const ROTAS_PERMITIDAS_CONSULTORA = [
   "/dashboard",
-  "/operacoes",
+  "/clientes",
   "/simulacao",
+  "/clt",
   "/loja-premios",
   "/perfil",
 ];
 
-const ROTAS_PERMITIDAS_SUPERVISAO_OPERACIONAL = [
+const ROTAS_PERMITIDAS_COORDENACAO = [
   "/dashboard",
-  "/operacoes",
+  "/clientes",
+  "/propostas",
   "/simulacao",
+  "/esteira",
+  "/clt",
   "/ranking",
   "/loja-premios",
   "/perfil",
@@ -163,6 +182,16 @@ function perfilEhOperacional(perfil: string) {
   return normalizarTexto(perfil).includes("operacional");
 }
 
+function perfilEhRh(perfil: string) {
+  const texto = normalizarTexto(perfil);
+  return texto === "rh" || texto.includes("recursos humanos");
+}
+
+function perfilEhCoordenacao(perfil: string) {
+  const texto = normalizarTexto(perfil);
+  return texto.includes("coordenador") || texto.includes("coordenadora");
+}
+
 function nomeBonito(valor: string) {
   if (!valor) return "Colaboradora";
   if (valor === "0001") return "Vanessa";
@@ -193,13 +222,13 @@ export default function AppShell({
   const [cargo, setCargo] = useState("Consultora");
   const [foto, setFoto] = useState("");
   const [permissaoCarregada, setPermissaoCarregada] = useState(false);
-const [notificacoesAbertas, setNotificacoesAbertas] =
-  useState(false);
+
   const ehAdministracao = perfilEhAdministracao(cargo);
   const ehConsultora = perfilEhConsultora(cargo);
   const ehSupervisao = perfilEhSupervisao(cargo);
   const ehOperacional = perfilEhOperacional(cargo);
-  const ehSupervisaoOuOperacional = ehSupervisao || ehOperacional;
+  const ehCoordenacao = perfilEhCoordenacao(cargo);
+  const ehRh = perfilEhRh(cargo);
 
   useEffect(() => {
     const usuarioLogado =
@@ -269,31 +298,32 @@ const [notificacoesAbertas, setNotificacoesAbertas] =
   }, []);
 
   const itensOperacaoVisiveis = useMemo(() => {
-    if (ehAdministracao) return itensOperacao;
+    if (ehAdministracao || ehCoordenacao) return itensOperacao;
 
     if (ehConsultora) {
-  const permitidos = [
-  "/dashboard",
-  "/operacoes",
-  "/simulacao",
-];
+      const permitidos = [
+        "/dashboard",
+        "/clientes",
+        "/simulacao",
+        "/clt",
+      ];
 
       return itensOperacao.filter((item) =>
         permitidos.includes(item.href)
       );
     }
 
-    if (ehSupervisaoOuOperacional) {
-    const permitidos = [
-  "/dashboard",
-  "/operacoes",
-  "/simulacao",
-];
-
-      return itensOperacao.filter((item) =>
-        permitidos.includes(item.href)
-      );
+    if (ehOperacional) {
+      const permitidos = ["/dashboard", "/clientes", "/propostas", "/simulacao", "/esteira", "/clt"];
+      return itensOperacao.filter((item) => permitidos.includes(item.href));
     }
+
+    if (ehSupervisao) {
+      const permitidos = ["/dashboard", "/clientes", "/propostas", "/simulacao", "/esteira", "/clt"];
+      return itensOperacao.filter((item) => permitidos.includes(item.href));
+    }
+
+    if (ehRh) return itensOperacao.filter((item) => item.href === "/dashboard");
 
     return itensOperacao.filter(
       (item) => item.href === "/dashboard"
@@ -301,11 +331,14 @@ const [notificacoesAbertas, setNotificacoesAbertas] =
   }, [
     ehAdministracao,
     ehConsultora,
-    ehSupervisaoOuOperacional,
+    ehSupervisao,
+    ehOperacional,
+    ehCoordenacao,
+    ehRh,
   ]);
 
   const itensGestaoVisiveis = useMemo(() => {
-    if (ehAdministracao) return itensGestao;
+    if (ehAdministracao || ehCoordenacao) return itensGestao;
 
     if (ehConsultora) {
       return itensGestao.filter(
@@ -313,27 +346,31 @@ const [notificacoesAbertas, setNotificacoesAbertas] =
       );
     }
 
-    if (ehSupervisaoOuOperacional) {
-      const permitidos = [
-        "/ranking",
-        "/loja-premios",
-      ];
+    if (ehOperacional) {
+      return itensGestao.filter((item) => item.href === "/loja-premios");
+    }
 
-      return itensGestao.filter((item) =>
-        permitidos.includes(item.href)
-      );
+    if (ehSupervisao) {
+      return itensGestao.filter((item) => item.href === "/ranking");
+    }
+
+    if (ehRh) {
+      return itensGestao.filter((item) => item.href === "/rh");
     }
 
     return [];
   }, [
     ehAdministracao,
     ehConsultora,
-    ehSupervisaoOuOperacional,
+    ehSupervisao,
+    ehOperacional,
+    ehCoordenacao,
+    ehRh,
   ]);
 
   const rotaNegada = useMemo(() => {
     if (!permissaoCarregada) return false;
-    if (ehAdministracao) return false;
+    if (ehAdministracao || ehCoordenacao) return false;
 
     if (ehConsultora) {
       return !estaEmAlgumaRota(
@@ -342,11 +379,20 @@ const [notificacoesAbertas, setNotificacoesAbertas] =
       );
     }
 
-    if (ehSupervisaoOuOperacional) {
-      return !estaEmAlgumaRota(
-        pathname,
-        ROTAS_PERMITIDAS_SUPERVISAO_OPERACIONAL
-      );
+    if (ehOperacional) {
+      return !estaEmAlgumaRota(pathname, [
+        "/dashboard", "/clientes", "/propostas", "/simulacao", "/esteira", "/clt", "/loja-premios", "/perfil"
+      ]);
+    }
+
+    if (ehSupervisao) {
+      return !estaEmAlgumaRota(pathname, [
+        "/dashboard", "/clientes", "/propostas", "/simulacao", "/esteira", "/clt", "/ranking", "/perfil"
+      ]);
+    }
+
+    if (ehRh) {
+      return !estaEmAlgumaRota(pathname, ["/dashboard", "/rh", "/perfil"]);
     }
 
     return !rotaComecaCom(pathname, "/dashboard");
@@ -355,7 +401,10 @@ const [notificacoesAbertas, setNotificacoesAbertas] =
     permissaoCarregada,
     ehAdministracao,
     ehConsultora,
-    ehSupervisaoOuOperacional,
+    ehSupervisao,
+    ehOperacional,
+    ehCoordenacao,
+    ehRh,
   ]);
 
   useEffect(() => {
@@ -477,207 +526,10 @@ const [notificacoesAbertas, setNotificacoesAbertas] =
               ⌕&nbsp;&nbsp;Pesquisar cliente, CPF ou proposta...
             </div>
 
-            <div
-  style={{
-    position: "relative",
-  }}
->
-  <button
-    type="button"
-    className="shell-notification"
-    aria-label="Abrir notificações"
-    onClick={() =>
-      setNotificacoesAbertas(
-        (valorAtual) => !valorAtual
-      )
-    }
-  >
-    🔔
-    <b>3</b>
-  </button>
-
-  {notificacoesAbertas && (
-    <section
-      style={{
-        position: "absolute",
-        top: 52,
-        right: 0,
-        zIndex: 9999,
-        width: 330,
-        padding: 14,
-        border: "1px solid #e0e5ee",
-        borderRadius: 16,
-        background: "#ffffff",
-        boxShadow:
-          "0 22px 55px rgba(12, 32, 86, 0.22)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: 15,
-          padding: "4px 4px 13px",
-          borderBottom:
-            "1px solid #edf0f5",
-        }}
-      >
-        <div>
-          <span
-            style={{
-              display: "block",
-              marginBottom: 5,
-              color: "#ff6900",
-              fontSize: 9,
-              fontWeight: 900,
-              letterSpacing: 1.2,
-            }}
-          >
-            CENTRAL DE AVISOS
-          </span>
-
-          <strong
-            style={{
-              color: "#0d1b4f",
-              fontSize: 18,
-            }}
-          >
-            Acessos rápidos
-          </strong>
-        </div>
-
-        <button
-          type="button"
-          aria-label="Fechar"
-          onClick={() =>
-            setNotificacoesAbertas(false)
-          }
-          style={{
-            width: 30,
-            height: 30,
-            border: 0,
-            borderRadius: 9,
-            background: "#f1f4fa",
-            color: "#64708a",
-            fontSize: 18,
-            cursor: "pointer",
-          }}
-        >
-          ×
-        </button>
-      </div>
-
-      <Link
-        href="/propostas"
-        onClick={() =>
-          setNotificacoesAbertas(false)
-        }
-        style={{
-          display: "block",
-          padding: "14px 8px",
-          borderBottom:
-            "1px solid #edf0f5",
-          color: "#14255d",
-          textDecoration: "none",
-        }}
-      >
-        <strong
-          style={{
-            display: "block",
-            marginBottom: 5,
-            fontSize: 13,
-          }}
-        >
-          📄 Propostas
-        </strong>
-
-        <span
-          style={{
-            color: "#7b859b",
-            fontSize: 11,
-          }}
-        >
-          Acessar as propostas cadastradas.
-        </span>
-      </Link>
-
-      <Link
-        href={
-          ehConsultora
-            ? "/propostas"
-            : "/esteira"
-        }
-        onClick={() =>
-          setNotificacoesAbertas(false)
-        }
-        style={{
-          display: "block",
-          padding: "14px 8px",
-          borderBottom:
-            "1px solid #edf0f5",
-          color: "#14255d",
-          textDecoration: "none",
-        }}
-      >
-        <strong
-          style={{
-            display: "block",
-            marginBottom: 5,
-            fontSize: 13,
-          }}
-        >
-          🔄 Acompanhamento
-        </strong>
-
-        <span
-          style={{
-            color: "#7b859b",
-            fontSize: 11,
-          }}
-        >
-          Ver o andamento dos contratos.
-        </span>
-      </Link>
-
-      <Link
-        href={
-          ehAdministracao
-            ? "/baixas"
-            : "/propostas"
-        }
-        onClick={() =>
-          setNotificacoesAbertas(false)
-        }
-        style={{
-          display: "block",
-          padding: "14px 8px 7px",
-          color: "#14255d",
-          textDecoration: "none",
-        }}
-      >
-        <strong
-          style={{
-            display: "block",
-            marginBottom: 5,
-            fontSize: 13,
-          }}
-        >
-          💰 Pagamentos
-        </strong>
-
-        <span
-          style={{
-            color: "#7b859b",
-            fontSize: 11,
-          }}
-        >
-          Consultar pagamentos e baixas.
-        </span>
-      </Link>
-    </section>
-  )}
-</div>
+            <button className="shell-notification">
+              ♧
+              <b>3</b>
+            </button>
 
             <Link
               href="/perfil"
