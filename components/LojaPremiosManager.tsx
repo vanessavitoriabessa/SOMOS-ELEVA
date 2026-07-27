@@ -765,30 +765,19 @@ const faixa = faixaCompra;
   }, [competencia, consultoraSelecionada, nomeLogado]);
 
   const resumoOperacional = useMemo(() => {
-    const chaveNome = normalizarTexto(nomeLogado);
-
-    const digitacoesPagas = propostas.filter((proposta) => {
-      const responsavel =
-        proposta.operacional ||
-        proposta.digitador ||
-        proposta.digitadora ||
-        proposta.responsavelDigitacao ||
-        "";
-
-      return (
+    // Sthefane e Vinicius recebem por TODAS as propostas de Compra de Dívida
+    // pagas na competência, independentemente de quem cadastrou, digitou,
+    // alterou o status ou subiu a proposta no sistema.
+    const digitacoesPagas = propostas.filter(
+      (proposta) =>
         proposta.status === "Pago" &&
-        competenciaCompra(proposta) === competencia &&
-        normalizarTexto(responsavel) === chaveNome
-      );
-    });
+        competenciaCompra(proposta) === competencia
+    );
 
-    const producaoEmpresa = propostas
-      .filter(
-        (proposta) =>
-          proposta.status === "Pago" &&
-          competenciaCompra(proposta) === competencia
-      )
-      .reduce((total, proposta) => total + valorValidoCompra(proposta), 0);
+    const producaoEmpresa = digitacoesPagas.reduce(
+      (total, proposta) => total + valorValidoCompra(proposta),
+      0
+    );
 
     const nomeOperacional = normalizarTexto(nomeLogado);
     const ehSthefane = nomeOperacional.includes("sthefane");
@@ -834,30 +823,20 @@ const faixa = faixaCompra;
 
   const acompanhamentoCompetencia = useMemo(() => {
     const chaveConsultora = normalizarTexto(resumoExibido.nome);
+
     const propostasDigitadas = propostas.filter((proposta) => {
       const dataDigitacao = converterData(proposta.dataCadastro);
 
-      // Registros antigos sem data válida permanecem salvos, mas não entram
-      // em uma competência até que a data de digitação seja informada.
+      // Registros sem data válida não entram em nenhuma competência.
       if (!dataDigitacao || chaveMes(dataDigitacao) !== competencia) {
         return false;
       }
 
-      if (!ehOperacional) {
-        return normalizarTexto(proposta.vendedora) === chaveConsultora;
-      }
-
-      const responsavelOperacional =
-        proposta.operacional ||
-        proposta.digitador ||
-        proposta.digitadora ||
-        proposta.responsavelDigitacao ||
-        "";
-
-      return (
-        normalizarTexto(responsavelOperacional) ===
-        normalizarTexto(nomeLogado)
-      );
+      // Para os Operacionais, a tela acompanha toda a produção da empresa.
+      // Para os demais perfis, mantém o filtro pela vendedora responsável.
+      return ehOperacional
+        ? true
+        : normalizarTexto(proposta.vendedora) === chaveConsultora;
     });
 
     const propostasConfirmadas = propostasDigitadas.filter(
@@ -895,7 +874,7 @@ const faixa = faixaCompra;
       fechado: competenciaEstaFechada(competencia),
       prazo: textoPrazoCompetencia(competencia),
     };
-  }, [propostas, competencia, resumoExibido.nome, ehOperacional, nomeLogado]);
+  }, [propostas, competencia, resumoExibido.nome, ehOperacional]);
 
   const faltaParaMeta = Math.max(META_MINIMA - resumoExibido.pontosTotal, 0);
 
