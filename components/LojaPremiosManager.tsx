@@ -1,6 +1,7 @@
 "use client";
 
 import LojaPremiosV2 from "./loja-premios/v2/LojaPremiosV2";
+import MinhaPremiacaoV2 from "./minha-premiacao/MinhaPremiacaoV2";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import "./loja-premios.css";
@@ -1120,6 +1121,27 @@ competenciaCompra(proposta) === competencia
     Math.max(0, (resumoExibido.pontosTotal / META_MINIMA) * 100)
   );
 
+  const valorSaquesPagos = useMemo(() => {
+    return solicitacoesDaConsultora
+      .filter((saque) => saque.status === "Pago")
+      .reduce((total, saque) => total + Number(saque.valorTotal || 0), 0);
+  }, [solicitacoesDaConsultora]);
+
+  const rankingCompetencia = useMemo(() => {
+    return [...resumos].sort(
+      (a, b) => Number(b.pontosTotal || 0) - Number(a.pontosTotal || 0)
+    );
+  }, [resumos]);
+
+  const posicaoRanking = useMemo(() => {
+    const chave = normalizarTexto(resumoExibido.nome);
+    const indice = rankingCompetencia.findIndex(
+      (item) => normalizarTexto(item.nome) === chave
+    );
+
+    return indice >= 0 ? indice + 1 : 0;
+  }, [rankingCompetencia, resumoExibido.nome]);
+
   const selecionouProprioResultado = normalizarTexto(resumoExibido.nome) === normalizarTexto(nomeLogado);
 
   const podeSolicitar =
@@ -1181,6 +1203,32 @@ competenciaCompra(proposta) === competencia
     setMostrarFormularioPix(false);
     setChavePix("");
     setErroPix("");
+  }
+
+  function solicitarSaqueComPix(chaveInformada: string) {
+    if (!podeSolicitar) return;
+
+    const pixLimpo = chaveInformada.trim();
+
+    if (pixLimpo.length < 3) return;
+
+    const novaSolicitacao: SolicitacaoSaque = {
+      id: crypto.randomUUID(),
+      consultora: resumoExibido.nome,
+      competencia,
+      pontos: resumoExibido.pontosTotal,
+      pontosCompra: resumoExibido.pontosCompra,
+      pontosClt: resumoExibido.pontosClt,
+      premioCompra: resumoExibido.premioCompra,
+      premioClt: resumoExibido.premioClt,
+      valorTotal: resumoExibido.premioTotal,
+      chavePix: pixLimpo,
+      status: "Solicitado",
+      solicitadoEm: dataAgora(),
+      atualizadoEm: dataAgora(),
+    };
+
+    salvarSaques([...saques, novaSolicitacao]);
   }
 
   function atualizarSolicitacao(
@@ -1300,6 +1348,45 @@ competenciaCompra(proposta) === competencia
   onPontosAtualizados={carregar}
 />
       </div>
+    );
+  }
+
+  if (area === "premiacao" && !ehOperacional) {
+    return (
+      <MinhaPremiacaoV2
+        nomeUsuario={nomeLogado}
+        nomeExibido={resumoExibido.nome}
+        perfilUsuario={perfilLogado}
+        podeGerenciar={podeGerenciarLoja}
+        nomesConsultoras={nomesConsultoras}
+        consultoraSelecionada={consultoraSelecionada}
+        competencia={competencia}
+        pontosCompra={resumoExibido.pontosCompra}
+        pontosClt={resumoExibido.pontosClt}
+        pontosTotal={resumoExibido.pontosTotal}
+        premioCompra={resumoExibido.premioCompra}
+        premioClt={resumoExibido.premioClt}
+        premioTotal={resumoExibido.premioTotal}
+        producaoDigitada={acompanhamentoCompetencia.valorProduzido}
+        producaoConfirmada={acompanhamentoCompetencia.valorConfirmado}
+        producaoEmFormacao={acompanhamentoCompetencia.valorEmFormacao}
+        contratosDigitados={acompanhamentoCompetencia.digitados}
+        contratosConfirmados={acompanhamentoCompetencia.pagosConfirmados}
+        contratosEmFormacao={acompanhamentoCompetencia.aguardando}
+        saquesPagos={valorSaquesPagos}
+        progresso={progresso}
+        faltaParaMeta={faltaParaMeta}
+        meta={META_MINIMA}
+        movimentos={resumoExibido.movimentos}
+        posicaoRanking={posicaoRanking}
+        totalRanking={rankingCompetencia.length}
+        podeSolicitar={podeSolicitar}
+        solicitacaoPendente={Boolean(solicitacaoPendente)}
+        onConsultoraChange={setConsultoraSelecionada}
+        onCompetenciaChange={setCompetencia}
+        onAtualizar={carregar}
+        onSolicitarSaque={solicitarSaqueComPix}
+      />
     );
   }
 

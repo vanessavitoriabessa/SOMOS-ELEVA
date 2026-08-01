@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowDownLeft,
@@ -12,55 +12,231 @@ import {
   History,
   Landmark,
   Medal,
+  Pencil,
   PiggyBank,
   Sparkles,
   Target,
   TrendingUp,
   WalletCards,
 } from "lucide-react";
+import AjustePontosModal from "../loja-premios/AjustePontosModal";
 import "./minha-premiacao-v2.css";
 
-const dadosGrafico = [
-  { dia: "01", valor: 28 },
-  { dia: "05", valor: 42 },
-  { dia: "10", valor: 35 },
-  { dia: "15", valor: 61 },
-  { dia: "20", valor: 53 },
-  { dia: "25", valor: 78 },
-  { dia: "30", valor: 72 },
-];
+export type MovimentoPremiacao = {
+  id: string;
+  produto: "Compra de Dívida" | "CLT";
+  descricao: string;
+  pontos: number;
+  data: string;
+};
 
-export default function MinhaPremiacaoV2() {
+type MinhaPremiacaoV2Props = {
+  nomeUsuario: string;
+  nomeExibido: string;
+  perfilUsuario: string;
+  podeGerenciar: boolean;
+
+  nomesConsultoras: string[];
+  consultoraSelecionada: string;
+  competencia: string;
+
+  pontosCompra: number;
+  pontosClt: number;
+  pontosTotal: number;
+  premioCompra: number;
+  premioClt: number;
+  premioTotal: number;
+
+  producaoDigitada: number;
+  producaoConfirmada: number;
+  producaoEmFormacao: number;
+  contratosDigitados: number;
+  contratosConfirmados: number;
+  contratosEmFormacao: number;
+
+  saquesPagos: number;
+  progresso: number;
+  faltaParaMeta: number;
+  meta: number;
+  movimentos: MovimentoPremiacao[];
+  posicaoRanking: number;
+  totalRanking: number;
+
+  podeSolicitar: boolean;
+  solicitacaoPendente: boolean;
+
+  onConsultoraChange: (nome: string) => void;
+  onCompetenciaChange: (competencia: string) => void;
+  onAtualizar: () => void | Promise<void>;
+  onSolicitarSaque: (chavePix: string) => void;
+};
+
+function moeda(valor: number) {
+  return Number(valor || 0).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
+
+function pontos(valor: number) {
+  return Number(valor || 0).toLocaleString("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}
+
+function competenciaFormatada(valor: string) {
+  const [ano, mes] = valor.split("-").map(Number);
+
+  if (!ano || !mes) return valor;
+
+  return new Date(ano, mes - 1, 1).toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function competenciaCurta(valor: string) {
+  const [ano, mes] = valor.split("-");
+  return mes && ano ? `${mes}/${ano}` : valor;
+}
+
+function dataMovimento(valor: string) {
+  if (!valor) return "Data não informada";
+
+  const data = new Date(valor);
+
+  if (Number.isNaN(data.getTime())) return valor;
+
+  return data.toLocaleDateString("pt-BR");
+}
+
+export default function MinhaPremiacaoV2({
+  nomeUsuario,
+  nomeExibido,
+  perfilUsuario,
+  podeGerenciar,
+  nomesConsultoras,
+  consultoraSelecionada,
+  competencia,
+  pontosCompra,
+  pontosClt,
+  pontosTotal,
+  premioCompra,
+  premioClt,
+  premioTotal,
+  producaoDigitada,
+  producaoConfirmada,
+  producaoEmFormacao,
+  contratosDigitados,
+  contratosConfirmados,
+  contratosEmFormacao,
+  saquesPagos,
+  progresso,
+  faltaParaMeta,
+  meta,
+  movimentos,
+  posicaoRanking,
+  totalRanking,
+  podeSolicitar,
+  solicitacaoPendente,
+  onConsultoraChange,
+  onCompetenciaChange,
+  onAtualizar,
+  onSolicitarSaque,
+}: MinhaPremiacaoV2Props) {
   const router = useRouter();
+
   const [modalSaqueAberto, setModalSaqueAberto] = useState(false);
-  const [competencia, setCompetencia] = useState("2026-07");
+  const [modalAjusteAberto, setModalAjusteAberto] = useState(false);
+  const [chavePix, setChavePix] = useState("");
+  const [erroPix, setErroPix] = useState("");
+
+  const barras = useMemo(() => {
+    const grupos = [0, 0, 0, 0, 0, 0, 0];
+
+    movimentos.forEach((movimento) => {
+      const data = new Date(movimento.data);
+      const dia = Number.isNaN(data.getTime()) ? 1 : data.getDate();
+      const indice = Math.min(6, Math.floor((Math.max(dia, 1) - 1) / 5));
+      grupos[indice] += Number(movimento.pontos || 0);
+    });
+
+    const maior = Math.max(...grupos, 1);
+
+    return grupos.map((valor, indice) => ({
+      dia: ["01", "05", "10", "15", "20", "25", "30"][indice],
+      altura: valor > 0 ? Math.max(12, (valor / maior) * 100) : 0,
+    }));
+  }, [movimentos]);
+
+  function enviarSaque(evento: FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+
+    const pix = chavePix.trim();
+
+    if (pix.length < 3) {
+      setErroPix("Informe uma chave PIX válida.");
+      return;
+    }
+
+    onSolicitarSaque(pix);
+    setChavePix("");
+    setErroPix("");
+    setModalSaqueAberto(false);
+  }
 
   return (
     <div className="mpv3-page">
       <section className="mpv3-cabecalho">
         <div>
           <span className="mpv3-etiqueta">CARTEIRA ELEVA</span>
-          <h2>Olá, Tay!</h2>
-          <p>Acompanhe seus ganhos, pontos e evolução mensal.</p>
+
+          <h2>Olá, {nomeExibido || nomeUsuario || "Consultora"}!</h2>
+
+          <p>
+            Acompanhe seus ganhos, pontos e evolução mensal com dados reais.
+          </p>
         </div>
 
-        <label className="mpv3-competencia">
-  <CalendarDays size={18} />
+        <div className="mpv3-admin-filtros">
+          {podeGerenciar && (
+            <label className="mpv3-seletor-admin">
+              <span>Consultora</span>
 
-  <div>
-    <span>Competência atual</span>
+              <select
+                value={consultoraSelecionada}
+                onChange={(evento) =>
+                  onConsultoraChange(evento.target.value)
+                }
+              >
+                {nomesConsultoras.map((nome) => (
+                  <option key={nome} value={nome}>
+                    {nome}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
-    <input
-      type="month"
-      value={competencia}
-      onChange={(evento) =>
-        setCompetencia(evento.target.value)
-      }
-    />
-  </div>
+          <label className="mpv3-competencia">
+            <CalendarDays size={18} />
 
-  <ChevronRight size={17} />
-</label>
+            <div>
+              <span>Competência atual</span>
+
+              <input
+                type="month"
+                value={competencia}
+                onChange={(evento) =>
+                  onCompetenciaChange(evento.target.value)
+                }
+              />
+            </div>
+
+            <ChevronRight size={17} />
+          </label>
+        </div>
       </section>
 
       <section className="mpv3-principal">
@@ -72,35 +248,56 @@ export default function MinhaPremiacaoV2() {
               <div className="mpv3-marca-icone">
                 <WalletCards size={22} />
               </div>
+
               <div>
                 <span>CARTEIRA ELEVA</span>
                 <strong>Conta de premiação</strong>
               </div>
             </div>
-            <span className="mpv3-status">Conta ativa</span>
+
+            <div className="mpv3-cartao-status-acoes">
+              <span className="mpv3-status">
+                {pontosTotal >= meta ? "Meta ativada" : "Conta ativa"}
+              </span>
+
+              {podeGerenciar && (
+                <button
+                  type="button"
+                  className="mpv3-editar-pontos"
+                  onClick={() => setModalAjusteAberto(true)}
+                  aria-label="Ajustar pontos"
+                  title="Ajustar pontos"
+                >
+                  <Pencil size={17} />
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="mpv3-saldo">
-            <span>Saldo disponível</span>
-            <h3>R$ 3.580,00</h3>
+            <span>Premiação disponível</span>
+            <h3>{moeda(premioTotal)}</h3>
+
             <p>
               <Sparkles size={15} />
-              35.800 pontos acumulados
+              {pontos(pontosTotal)} pontos acumulados
             </p>
           </div>
 
           <div className="mpv3-cartao-rodape">
             <div>
               <span>Titular</span>
-              <strong>Tay</strong>
+              <strong>{nomeExibido}</strong>
             </div>
+
             <div>
-              <span>Conta</span>
-              <strong>Premium</strong>
+              <span>Perfil</span>
+              <strong>{perfilUsuario || "Consultora"}</strong>
             </div>
+
             <div>
               <span>Competência</span>
-              <strong>07/2026</strong>
+              <strong>{competenciaCurta(competencia)}</strong>
             </div>
           </div>
         </div>
@@ -108,15 +305,31 @@ export default function MinhaPremiacaoV2() {
         <aside className="mpv3-acoes">
           <button
             type="button"
-            onClick={() => setModalSaqueAberto(true)}
+            disabled={!podeSolicitar}
+            onClick={() => {
+              if (podeSolicitar) setModalSaqueAberto(true);
+            }}
           >
             <div className="mpv3-acao-icone saque">
               <PiggyBank size={21} />
             </div>
+
             <div>
-              <strong>Solicitar saque</strong>
-              <span>Receba por PIX</span>
+              <strong>
+                {solicitacaoPendente
+                  ? "Saque solicitado"
+                  : "Solicitar saque"}
+              </strong>
+
+              <span>
+                {solicitacaoPendente
+                  ? "Aguardando pagamento"
+                  : podeSolicitar
+                    ? "Receba por PIX"
+                    : "Meta ainda não ativada"}
+              </span>
             </div>
+
             <ChevronRight size={18} />
           </button>
 
@@ -125,16 +338,21 @@ export default function MinhaPremiacaoV2() {
             onClick={() => {
               document
                 .getElementById("extrato-premiacao")
-                ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                ?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "start",
+                });
             }}
           >
             <div className="mpv3-acao-icone extrato">
               <History size={21} />
             </div>
+
             <div>
               <strong>Ver extrato</strong>
-              <span>Movimentações completas</span>
+              <span>Movimentações da competência</span>
             </div>
+
             <ChevronRight size={18} />
           </button>
 
@@ -145,10 +363,12 @@ export default function MinhaPremiacaoV2() {
             <div className="mpv3-acao-icone loja">
               <Gift size={21} />
             </div>
+
             <div>
               <strong>Loja de Prêmios</strong>
               <span>Troque seus pontos</span>
             </div>
+
             <ChevronRight size={18} />
           </button>
         </aside>
@@ -160,11 +380,11 @@ export default function MinhaPremiacaoV2() {
             <div className="mpv3-resumo-icone entrada">
               <ArrowDownLeft size={18} />
             </div>
-            <span className="mpv3-variacao positiva">+18%</span>
           </div>
-          <span>Entradas no mês</span>
-          <strong>R$ 4.820,00</strong>
-          <small>Valores confirmados</small>
+
+          <span>Produção confirmada</span>
+          <strong>{moeda(producaoConfirmada)}</strong>
+          <small>{contratosConfirmados} contrato(s) pago(s)</small>
         </article>
 
         <article>
@@ -173,9 +393,10 @@ export default function MinhaPremiacaoV2() {
               <ArrowUpRight size={18} />
             </div>
           </div>
-          <span>Saídas</span>
-          <strong>R$ 1.240,00</strong>
-          <small>Saques e resgates</small>
+
+          <span>Saques pagos</span>
+          <strong>{moeda(saquesPagos)}</strong>
+          <small>Pagamentos concluídos</small>
         </article>
 
         <article>
@@ -184,9 +405,10 @@ export default function MinhaPremiacaoV2() {
               <Landmark size={18} />
             </div>
           </div>
+
           <span>Em formação</span>
-          <strong>R$ 2.150,00</strong>
-          <small>Aguardando confirmação</small>
+          <strong>{moeda(producaoEmFormacao)}</strong>
+          <small>{contratosEmFormacao} contrato(s)</small>
         </article>
 
         <article>
@@ -195,9 +417,12 @@ export default function MinhaPremiacaoV2() {
               <Award size={18} />
             </div>
           </div>
+
           <span>Pontos disponíveis</span>
-          <strong>35.800</strong>
-          <small>Prontos para resgate</small>
+          <strong>{pontos(pontosTotal)}</strong>
+          <small>
+            Compra {pontos(pontosCompra)} · CLT {pontos(pontosClt)}
+          </small>
         </article>
       </section>
 
@@ -209,9 +434,10 @@ export default function MinhaPremiacaoV2() {
                 <span>EVOLUÇÃO MENSAL</span>
                 <h3>Produção da competência</h3>
               </div>
+
               <div className="mpv3-grafico-total">
-                <span>Produção atual</span>
-                <strong>R$ 72.000,00</strong>
+                <span>Produção digitada</span>
+                <strong>{moeda(producaoDigitada)}</strong>
               </div>
             </div>
 
@@ -222,15 +448,17 @@ export default function MinhaPremiacaoV2() {
                 <span />
                 <span />
               </div>
+
               <div className="mpv3-barras">
-                {dadosGrafico.map((item) => (
+                {barras.map((item) => (
                   <div className="mpv3-barra-item" key={item.dia}>
                     <div className="mpv3-barra-area">
                       <div
                         className="mpv3-barra"
-                        style={{ height: `${item.valor}%` }}
+                        style={{ height: `${item.altura}%` }}
                       />
                     </div>
+
                     <span>{item.dia}</span>
                   </div>
                 ))}
@@ -238,74 +466,54 @@ export default function MinhaPremiacaoV2() {
             </div>
 
             <div className="mpv3-grafico-rodape">
-              <span>Início da competência</span>
-              <strong>72% da meta concluída</strong>
+              <span>{contratosDigitados} contrato(s) digitado(s)</span>
+              <strong>
+                {Math.round(progresso)}% da meta concluída
+              </strong>
             </div>
           </section>
 
-          <section id="extrato-premiacao" className="mpv3-extrato">
+          <section
+            id="extrato-premiacao"
+            className="mpv3-extrato"
+          >
             <div className="mpv3-secao-topo">
               <div>
                 <span>MOVIMENTAÇÕES</span>
-                <h3>Extrato recente</h3>
+                <h3>Extrato da competência</h3>
               </div>
-              <button
-  type="button"
-  onClick={() => {
-    alert("Em breve vamos abrir o extrato completo.");
-  }}
->
-  Ver extrato completo
-  <ChevronRight size={16} />
-</button>
+
+              <strong>{movimentos.length} lançamento(s)</strong>
             </div>
 
-            <div className="mpv3-extrato-lista">
-              <article>
-                <div className="mpv3-movimento-icone entrada">
-                  <ArrowDownLeft size={18} />
-                </div>
-                <div className="mpv3-movimento-info">
-                  <strong>Produção paga</strong>
-                  <span>Compra de Dívida</span>
-                  <small>30 de julho · 14:32</small>
-                </div>
-                <div className="mpv3-movimento-valor positivo">
-                  <strong>+ R$ 820,00</strong>
-                  <span>Confirmado</span>
-                </div>
-              </article>
+            {movimentos.length === 0 ? (
+              <div className="mpv3-extrato-vazio">
+                Nenhum contrato pago gerou pontos nesta competência.
+              </div>
+            ) : (
+              <div className="mpv3-extrato-lista">
+                {movimentos.slice(0, 8).map((movimento) => (
+                  <article key={movimento.id}>
+                    <div className="mpv3-movimento-icone entrada">
+                      <ArrowDownLeft size={18} />
+                    </div>
 
-              <article>
-                <div className="mpv3-movimento-icone saida">
-                  <ArrowUpRight size={18} />
-                </div>
-                <div className="mpv3-movimento-info">
-                  <strong>Saque PIX</strong>
-                  <span>Transferência realizada</span>
-                  <small>28 de julho · 09:10</small>
-                </div>
-                <div className="mpv3-movimento-valor negativo">
-                  <strong>- R$ 500,00</strong>
-                  <span>Concluído</span>
-                </div>
-              </article>
+                    <div className="mpv3-movimento-info">
+                      <strong>{movimento.descricao}</strong>
+                      <span>{movimento.produto}</span>
+                      <small>{dataMovimento(movimento.data)}</small>
+                    </div>
 
-              <article>
-                <div className="mpv3-movimento-icone bonus">
-                  <Sparkles size={18} />
-                </div>
-                <div className="mpv3-movimento-info">
-                  <strong>Bônus de meta</strong>
-                  <span>Campanha mensal</span>
-                  <small>25 de julho · 18:20</small>
-                </div>
-                <div className="mpv3-movimento-valor positivo">
-                  <strong>+ R$ 250,00</strong>
-                  <span>Confirmado</span>
-                </div>
-              </article>
-            </div>
+                    <div className="mpv3-movimento-valor positivo">
+                      <strong>
+                        + {pontos(movimento.pontos)} pts
+                      </strong>
+                      <span>Confirmado</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </section>
         </div>
 
@@ -316,32 +524,43 @@ export default function MinhaPremiacaoV2() {
                 <span>MINHA META</span>
                 <h3>Progresso mensal</h3>
               </div>
+
               <Target size={21} />
             </div>
 
-            <div className="mpv3-meta-circulo">
+            <div
+              className="mpv3-meta-circulo"
+              style={{
+                background: `conic-gradient(#244dcc ${Math.min(
+                  100,
+                  progresso
+                )}%, #e8edf7 0)`,
+              }}
+            >
               <div>
-                <strong>72%</strong>
+                <strong>{Math.round(progresso)}%</strong>
                 <span>concluído</span>
               </div>
             </div>
 
             <div className="mpv3-meta-valores">
               <div>
-                <span>Produção atual</span>
-                <strong>R$ 72.000</strong>
+                <span>Pontos atuais</span>
+                <strong>{pontos(pontosTotal)}</strong>
               </div>
+
               <div>
-                <span>Meta individual</span>
-                <strong>R$ 100.000</strong>
+                <span>Meta mínima</span>
+                <strong>{pontos(meta)}</strong>
               </div>
             </div>
 
             <div className="mpv3-falta-meta">
               <TrendingUp size={18} />
+
               <div>
-                <span>Faltam para sua meta</span>
-                <strong>R$ 28.000,00</strong>
+                <span>Faltam para ativar a meta</span>
+                <strong>{pontos(faltaParaMeta)} pontos</strong>
               </div>
             </div>
           </section>
@@ -350,28 +569,42 @@ export default function MinhaPremiacaoV2() {
             <div className="mpv3-ranking-icone">
               <Medal size={28} />
             </div>
+
             <span>POSIÇÃO NO RANKING</span>
-            <strong>8º lugar</strong>
+            <strong>
+              {posicaoRanking > 0
+                ? `${posicaoRanking}º lugar`
+                : "Sem posição"}
+            </strong>
+
             <p>
-              Você está entre as melhores consultoras da competência.
+              {totalRanking > 0
+                ? `Entre ${totalRanking} consultora(s) nesta competência.`
+                : "Ainda não há dados suficientes para o ranking."}
             </p>
+
             <button
-  type="button"
-  onClick={() => router.push("/ranking")}
->
-  Ver ranking completo
-  <ChevronRight size={16} />
-</button>
+              type="button"
+              onClick={() => router.push("/ranking")}
+            >
+              Ver ranking completo
+              <ChevronRight size={16} />
+            </button>
           </section>
 
           <section className="mpv3-conquista">
             <div className="mpv3-conquista-icone">
               <Award size={23} />
             </div>
+
             <div>
               <span>PRÓXIMA CONQUISTA</span>
-              <strong>Meta de R$ 100 mil</strong>
-              <p>Faltam apenas 28% para desbloquear.</p>
+              <strong>Meta de {pontos(meta)} pontos</strong>
+              <p>
+                {faltaParaMeta > 0
+                  ? `Faltam ${pontos(faltaParaMeta)} pontos.`
+                  : "Meta ativada nesta competência."}
+              </p>
             </div>
           </section>
         </aside>
@@ -385,18 +618,15 @@ export default function MinhaPremiacaoV2() {
           <form
             className="mpv3-modal-saque"
             onClick={(evento) => evento.stopPropagation()}
-            onSubmit={(evento) => {
-              evento.preventDefault();
-              alert("Solicitação de saque enviada.");
-              setModalSaqueAberto(false);
-            }}
+            onSubmit={enviarSaque}
           >
             <div className="mpv3-modal-topo">
               <div>
                 <span>CARTEIRA ELEVA</span>
                 <h3>Solicitar saque</h3>
-                <p>Informe o valor que deseja receber por PIX.</p>
+                <p>Informe a chave PIX para receber sua premiação.</p>
               </div>
+
               <button
                 type="button"
                 onClick={() => setModalSaqueAberto(false)}
@@ -407,38 +637,25 @@ export default function MinhaPremiacaoV2() {
             </div>
 
             <div className="mpv3-modal-saldo">
-              <span>Saldo disponível</span>
-              <strong>R$ 3.580,00</strong>
+              <span>Valor disponível</span>
+              <strong>{moeda(premioTotal)}</strong>
             </div>
 
             <label className="mpv3-modal-campo">
-              Valor do saque
-              <input
-                type="number"
-                min="1"
-                step="0.01"
-                placeholder="R$ 0,00"
-                required
-              />
-            </label>
-
-            <label className="mpv3-modal-campo">
               Chave PIX
+
               <input
                 type="text"
+                value={chavePix}
+                onChange={(evento) => {
+                  setChavePix(evento.target.value);
+                  setErroPix("");
+                }}
                 placeholder="CPF, celular, e-mail ou chave aleatória"
                 required
               />
-            </label>
 
-            <label className="mpv3-modal-campo">
-              Tipo da chave
-              <select defaultValue="CPF">
-                <option value="CPF">CPF</option>
-                <option value="CELULAR">Celular</option>
-                <option value="EMAIL">E-mail</option>
-                <option value="ALEATORIA">Chave aleatória</option>
-              </select>
+              {erroPix && <small>{erroPix}</small>}
             </label>
 
             <div className="mpv3-modal-aviso">
@@ -453,6 +670,7 @@ export default function MinhaPremiacaoV2() {
               >
                 Cancelar
               </button>
+
               <button type="submit" className="confirmar">
                 Solicitar saque
               </button>
@@ -460,6 +678,18 @@ export default function MinhaPremiacaoV2() {
           </form>
         </div>
       )}
+
+      <AjustePontosModal
+        aberto={modalAjusteAberto}
+        consultora={nomeExibido}
+        competencia={competencia}
+        saldoAtual={pontosTotal}
+        criadoPor={nomeUsuario}
+        onFechar={() => setModalAjusteAberto(false)}
+        onAtualizado={async () => {
+          await onAtualizar();
+        }}
+      />
     </div>
   );
 }

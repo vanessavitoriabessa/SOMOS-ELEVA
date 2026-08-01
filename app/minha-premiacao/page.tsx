@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
-import MinhaPremiacaoV2 from "@/components/minha-premiacao/MinhaPremiacaoV2";
+import LojaPremiosManager from "@/components/LojaPremiosManager";
 
 export default function MinhaPremiacaoPage() {
   const router = useRouter();
@@ -19,7 +19,7 @@ export default function MinhaPremiacaoPage() {
       title="Minha Premiação"
       subtitle="Acompanhe sua carteira, produção, pontos e saques."
     >
-      <MinhaPremiacaoV2 />
+      <LojaPremiosManager area="premiacao" />
     </AppShell>
   );
 }

@@ -959,3 +959,82 @@
 .mpv3-competencia input[type="month"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
 }
+/* Carteira Eleva — controles administrativos e ajustes */
+.mpv3-admin-filtros {
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.mpv3-seletor-admin {
+  min-width: 220px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.mpv3-seletor-admin > span {
+  color: #6b7892;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.mpv3-seletor-admin select {
+  border: 0;
+  background: transparent;
+  color: #142c55;
+  font-weight: 900;
+  outline: none;
+  cursor: pointer;
+}
+
+.mpv3-cartao-status-acoes {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.mpv3-editar-pontos {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.mpv3-editar-pontos:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.mpv3-acoes button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.mpv3-extrato-vazio {
+  padding: 38px 20px;
+  border: 1px dashed #ccd6e5;
+  border-radius: 14px;
+  color: #6b7892;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .mpv3-admin-filtros,
+  .mpv3-seletor-admin {
+    width: 100%;
+  }
+}
