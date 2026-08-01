@@ -1,13 +1,13 @@
 import AppShell from "@/components/AppShell";
-import PaymentSettlementManager from "@/components/PaymentSettlementManager";
+import BaixasManager from "@/components/BaixasManager";
 
 export default function BaixasPage() {
   return (
     <AppShell
       title="Baixa de pagamentos"
-      subtitle="Localize contratos, marque como pagos e calcule a comissão automaticamente."
+      subtitle="Localize a proposta pelo número e confira o recebimento da comissão."
     >
-      <PaymentSettlementManager />
+      <BaixasManager />
     </AppShell>
   );
 }

@@ -1,5 +1,5 @@
 import AppShell from "@/components/AppShell";
-import RankingManager from "@/components/RankingManager";
+import RankingManager from "@/components/ranking/RankingManager";
 
 export default function RankingPage() {
   return (

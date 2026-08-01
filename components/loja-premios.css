@@ -1425,3 +1425,310 @@
     flex-direction: column;
   }
 }
+
+
+/* =========================================================
+   LOJA DE PRÊMIOS — AJUSTE VISUAL PROFISSIONAL E COMPACTO
+   Mantém toda a lógica atual e reorganiza o espaço visual.
+   ========================================================= */
+
+.lp-page {
+  gap: 14px;
+  max-width: 100%;
+}
+
+.lp-topo {
+  align-items: center;
+  gap: 16px;
+  padding: 0;
+}
+
+.lp-topo h2 {
+  margin: 4px 0 3px;
+  font-size: 24px;
+}
+
+.lp-topo p {
+  max-width: 650px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.lp-filtros {
+  gap: 8px;
+}
+
+.lp-filtros label {
+  gap: 5px;
+  font-size: 9px;
+}
+
+.lp-filtros input,
+.lp-filtros select {
+  min-width: 150px;
+  height: 38px;
+  padding: 0 11px;
+  border-radius: 10px;
+  font-size: 11px;
+}
+
+.lp-filtros button {
+  height: 38px;
+  padding: 0 15px;
+  border-radius: 10px;
+  font-size: 10px;
+}
+
+/* Carteira principal mais baixa e elegante */
+.lp-carteira {
+  border-radius: 18px;
+  box-shadow: 0 12px 30px rgba(31, 54, 145, 0.17);
+}
+
+.lp-carteira-principal {
+  grid-template-columns: minmax(210px, 1fr) auto auto;
+  gap: 20px;
+  padding: 18px 22px 14px;
+}
+
+.lp-identificacao h3 {
+  margin: 4px 0 3px;
+  font-size: 21px;
+}
+
+.lp-identificacao small {
+  font-size: 10px;
+}
+
+.lp-pontos-total span {
+  font-size: 10px;
+}
+
+.lp-pontos-total strong {
+  margin-top: 2px;
+  font-size: 28px;
+}
+
+.lp-pontos-total small {
+  margin-left: 5px;
+  font-size: 9px;
+}
+
+.lp-status {
+  padding: 8px 12px;
+  font-size: 9px;
+}
+
+.lp-progresso-area {
+  padding: 12px 22px 14px;
+}
+
+.lp-progresso-texto {
+  margin-bottom: 7px;
+  font-size: 10px;
+}
+
+.lp-progresso-barra {
+  height: 8px;
+}
+
+.lp-progresso-rodape {
+  margin-top: 6px;
+  font-size: 8px;
+}
+
+.lp-falta,
+.lp-meta-ativa {
+  margin-top: 8px;
+  font-size: 10px;
+}
+
+/* Cards compactos */
+.lp-resumo-grid {
+  gap: 10px;
+}
+
+.lp-resumo-grid article {
+  gap: 10px;
+  min-height: 84px;
+  padding: 14px;
+  border-radius: 15px;
+}
+
+.lp-resumo-grid strong {
+  margin-top: 4px;
+  font-size: 16px;
+}
+
+.lp-resumo-grid span {
+  font-size: 8px;
+}
+
+.lp-icone {
+  flex-basis: 38px;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  font-size: 14px;
+}
+
+/* Área de saque mais enxuta */
+.lp-saque-card {
+  gap: 16px;
+  padding: 16px 18px;
+  border-radius: 16px;
+}
+
+.lp-saque-card > div > strong {
+  display: inline-block;
+  margin-left: 4px;
+  color: #1e2f52;
+  font-size: 18px;
+}
+
+.lp-saque-card p {
+  margin-top: 4px;
+  max-width: 760px;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.lp-saque-card button {
+  min-width: 145px;
+  height: 38px;
+  border-radius: 10px;
+  font-size: 10px;
+}
+
+/* Extrato e histórico alinhados */
+.lp-conteudo-grid {
+  gap: 12px;
+}
+
+.lp-painel {
+  padding: 17px;
+  border-radius: 17px;
+}
+
+.lp-painel-titulo {
+  margin-bottom: 14px;
+}
+
+.lp-painel-titulo h3 {
+  margin-top: 4px;
+  font-size: 16px;
+}
+
+.lp-vazio {
+  padding: 22px 14px;
+}
+
+.lp-movimento {
+  padding: 11px 0;
+}
+
+.lp-produto {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+}
+
+.lp-solicitacao {
+  padding: 12px;
+  border-radius: 12px;
+}
+
+/* Regra final mais discreta */
+.lp-regra {
+  padding: 12px 15px;
+  border-radius: 13px;
+  font-size: 9px;
+}
+
+/* Melhor encaixe quando usada dentro do AppShell */
+.app-shell-main .lp-page,
+.app-content .lp-page,
+main .lp-page {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Responsividade */
+@media (max-width: 1100px) {
+  .lp-carteira-principal {
+    grid-template-columns: minmax(180px, 1fr) auto;
+  }
+
+  .lp-status {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 850px) {
+  .lp-topo {
+    align-items: stretch;
+  }
+
+  .lp-conteudo-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .lp-topo h2 {
+    font-size: 21px;
+  }
+
+  .lp-carteira-principal {
+    grid-template-columns: 1fr;
+    gap: 13px;
+    padding: 17px;
+  }
+
+  .lp-progresso-area {
+    padding: 11px 17px 14px;
+  }
+
+  .lp-pontos-total {
+    text-align: left;
+  }
+
+  .lp-pontos-total strong {
+    font-size: 25px;
+  }
+
+  .lp-resumo-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.lp-abas-principais {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+
+.lp-abas-principais button {
+  border: 1px solid #dfe4ec;
+  background: #ffffff;
+  color: #243354;
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.lp-abas-principais button:hover {
+  border-color: #3154c8;
+  color: #3154c8;
+}
+
+.lp-abas-principais button.ativa {
+  background: linear-gradient(135deg, #173bba, #3154c8);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 8px 18px rgba(49, 84, 200, 0.22);
+}

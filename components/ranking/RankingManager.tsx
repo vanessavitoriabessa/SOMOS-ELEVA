@@ -1,8 +1,17 @@
 "use client";
 
+import { createClient } from "@/lib/supabase/client";
 import { useEffect, useMemo, useState } from "react";
 import "./ranking.css";
 
+import {
+  compraValidaNaCompetencia,
+} from "@/lib/premiacao/competenciaCompra";
+
+import {
+  calcularPremiacaoCompra,
+  calcularPremiacaoClt,
+} from "@/lib/premiacao/premiacaoService";
 type Periodo = "Hoje" | "Semana" | "Mês" | "Todos";
 
 type PropostaCompraDivida = {
@@ -57,6 +66,7 @@ const TABELAS_COMPRA_DIVIDA = [
   { nome: "NEO NORMAL", percentual: 100 },
   { nome: "NEO FLEX 1", percentual: 82 },
   { nome: "NEO FLEX 2", percentual: 67 },
+  { nome: "NEO FLEX 3", percentual: 52 },
   { nome: "NEO FLEX 4", percentual: 37 },
   { nome: "NEO FLEX 5", percentual: 17 },
 ];
@@ -462,6 +472,8 @@ function faixaDaProducao(producaoTotal: number) {
 }
 
 export default function RankingManager() {
+  const supabase = useMemo(() => createClient(), []);
+
   const [propostas, setPropostas] =
     useState<PropostaCompraDivida[]>([]);
 
@@ -475,10 +487,30 @@ export default function RankingManager() {
 
   const [podeVerPremiacao, setPodeVerPremiacao] =
     useState(false);
+    const [atualizando, setAtualizando] =
+  useState(false);
 
   useEffect(() => {
     identificarPermissao();
-    carregar();
+    void carregar();
+
+    const atualizarAoVoltar = () => {
+      if (document.visibilityState === "visible") {
+        void carregar();
+      }
+    };
+
+    const atualizarAoFocar = () => {
+      void carregar();
+    };
+
+    document.addEventListener("visibilitychange", atualizarAoVoltar);
+    window.addEventListener("focus", atualizarAoFocar);
+
+    return () => {
+      document.removeEventListener("visibilitychange", atualizarAoVoltar);
+      window.removeEventListener("focus", atualizarAoFocar);
+    };
   }, []);
 
   function identificarPermissao() {
@@ -523,51 +555,119 @@ export default function RankingManager() {
     }
   }
 
-  function carregar() {
-    try {
-      const propostasSalvas = JSON.parse(
-        localStorage.getItem("somos-eleva-propostas") || "[]"
-      );
+  async function carregar() {
+    setAtualizando(true);
+  try {
+    const { data, error } =
+      await supabase.auth.getSession();
 
-      setPropostas(
-        Array.isArray(propostasSalvas)
-          ? propostasSalvas
-          : []
+    if (error || !data.session?.access_token) {
+      throw new Error(
+        "Sua sessão expirou. Entre novamente no sistema."
       );
-    } catch {
-      setPropostas([]);
     }
 
-    try {
-      const cltSalvos = JSON.parse(
-        localStorage.getItem("somos-eleva-clt") || "[]"
-      );
+    const resposta = await fetch("/api/propostas", {
+      method: "GET",
+      headers: {
+        Authorization:
+          `Bearer ${data.session.access_token}`,
+      },
+      cache: "no-store",
+    });
 
-      setRegistrosClt(
-        Array.isArray(cltSalvos)
-          ? cltSalvos
-          : []
+    const conteudo = (await resposta.json()) as {
+      propostas?: PropostaCompraDivida[];
+      erro?: string;
+    };
+
+    if (!resposta.ok) {
+      throw new Error(
+        conteudo.erro ||
+          "Não foi possível carregar as propostas."
       );
-    } catch {
-      setRegistrosClt([]);
     }
+
+    const listaPropostas =
+      Array.isArray(conteudo.propostas)
+        ? conteudo.propostas
+        : [];
+
+    setPropostas(listaPropostas);
+  } catch (erro) {
+    console.error(
+      "Erro ao carregar propostas no Ranking:",
+      erro
+    );
+
+    setPropostas([]);
   }
 
+    try {
+    const cltSalvos = JSON.parse(
+      localStorage.getItem("somos-eleva-clt") || "[]"
+    );
+
+    setRegistrosClt(
+      Array.isArray(cltSalvos)
+        ? cltSalvos
+        : []
+    );
+  } catch {
+    setRegistrosClt([]);
+  } finally {
+    setAtualizando(false);
+  }
+}
   const ranking = useMemo(() => {
     const agrupado = new Map<string, RankingItem>();
 
     propostas
-      .filter((proposta) => proposta.status === "Pago")
-      .forEach((proposta) => {
-        const competencia = competenciaCompraDivida(proposta);
-        const pagamento = converterData(proposta.dataPagamento);
+  .filter((proposta) => {
+    const statusPago =
+      normalizarTexto(proposta.status) === "pago";
 
-        const entraNoPeriodo =
-          periodo === "Mês"
-            ? estaNoPeriodo(competencia, periodo, true)
-            : estaNoPeriodo(pagamento, periodo);
+    if (!statusPago) {
+      return false;
+    }
 
-        if (!entraNoPeriodo) return;
+    /*
+     * Para o filtro mensal, aplica a regra oficial:
+     * digitado no mês e pago até o dia 19 do mês seguinte.
+     */
+    if (periodo === "Mês") {
+      const hoje = new Date();
+
+      const competenciaTexto =
+        `${hoje.getFullYear()}-${String(
+          hoje.getMonth() + 1
+        ).padStart(2, "0")}`;
+
+      return compraValidaNaCompetencia(
+        {
+          ...proposta,
+          produto: "Compra de Dívida",
+        },
+        competenciaTexto
+      );
+    }
+
+    /*
+     * Hoje, Semana e Todos continuam sendo tratados
+     * pela data do pagamento logo abaixo.
+     */
+    return true;
+  })
+  .forEach((proposta) => {
+        const pagamento =
+  converterData(proposta.dataPagamento);
+
+if (
+  periodo !== "Mês" &&
+  !estaNoPeriodo(pagamento, periodo)
+) {
+  return;
+}
 
         const nome =
           proposta.vendedora?.trim() || "Sem consultora";
@@ -596,7 +696,9 @@ export default function RankingManager() {
       });
 
     registrosClt
-      .filter((registro) => registro.status === "Pago")
+      .filter(
+        (registro) => normalizarTexto(registro.status) === "pago"
+      )
       .forEach((registro) => {
         const data = dataClt(registro);
 
@@ -636,28 +738,54 @@ export default function RankingManager() {
         const producaoTotal =
           item.producaoCompra + item.producaoClt;
 
-        const faixa = faixaDaProducao(producaoTotal);
+        const resultadoCompra =
+  calcularPremiacaoCompra(item.producaoCompra);
 
-        const premiacaoCompra =
-          faixa && item.producaoCompra > 0
-            ? item.producaoCompra *
-              (faixa.percentualCompra / 100)
-            : 0;
+const resultadoClt =
+  calcularPremiacaoClt(item.producaoClt);
 
-        const premiacaoClt =
-          faixa && item.producaoClt > 0
-            ? faixa.premiacaoClt
-            : 0;
+const premiacaoCompra =
+  resultadoCompra.premio;
 
-        const premiacaoTotal =
-          premiacaoCompra + premiacaoClt;
+const premiacaoClt =
+  resultadoClt.premio;
+
+const premiacaoTotal =
+  premiacaoCompra + premiacaoClt;
+
+const faixaCompra =
+  resultadoCompra.faixa;
+
+const faixaClt =
+  resultadoClt.faixa;
+
+const metaAtivada =
+  resultadoCompra.atingiuMetaMinima ||
+  resultadoClt.atingiuMetaMinima;
 
         return {
           ...item,
           contratosTotal,
           producaoTotal,
-          metaAtivada: Boolean(faixa),
-          faixa,
+          metaAtivada,
+faixa: faixaCompra
+  ? {
+      meta: faixaCompra.meta,
+      percentualCompra:
+        faixaCompra.percentual,
+      premiacaoClt:
+        faixaClt?.premioFixo || 0,
+      nome: faixaCompra.nome,
+    }
+  : faixaClt
+    ? {
+        meta: faixaClt.meta,
+        percentualCompra: 0,
+        premiacaoClt:
+          faixaClt.premioFixo,
+        nome: faixaClt.nome,
+      }
+    : null,
           premiacaoCompra,
           premiacaoClt,
           premiacaoTotal,
@@ -770,9 +898,13 @@ export default function RankingManager() {
             <option>Todos</option>
           </select>
 
-          <button type="button" onClick={carregar}>
-            Atualizar
-          </button>
+          <button
+  type="button"
+  onClick={() => void carregar()}
+  disabled={atualizando}
+>
+  {atualizando ? "Atualizando..." : "Atualizar"}
+</button>
         </div>
       </section>
 
@@ -781,8 +913,8 @@ export default function RankingManager() {
           <div>🏆</div>
           <strong>Nenhuma produção paga neste período</strong>
           <p>
-            O ranking considera contratos pagos de Compra de Dívida e
-            registros CLT com status Pago.
+            O ranking considera propostas pagas de Compra de Dívida dentro
+            da competência e registros CLT com status Pago.
           </p>
         </section>
       ) : (

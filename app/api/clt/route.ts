@@ -231,16 +231,32 @@ async function autenticar(request: NextRequest) {
   const supabase = createAdminClient();
 
   const { data: perfil, error: erroPerfil } = await supabase
-    .from("profiles")
-    .select("id, nome, perfil, ativo")
-    .eq("id", dadosAutenticacao.user.id)
-    .single();
+  .from("profiles")
+  .select("id, nome, perfil, ativo")
+  .eq("id", dadosAutenticacao.user.id)
+  .maybeSingle();
 
-  if (erroPerfil || !perfil) {
-    return {
-      resposta: respostaErro("Não foi possível localizar seu perfil.", 403),
-    };
-  }
+if (erroPerfil) {
+  console.error("Erro ao buscar profile:", erroPerfil);
+
+  return {
+    resposta: respostaErro(
+      `Erro ao buscar profile: ${erroPerfil.message}`,
+      500
+    ),
+  };
+}
+
+if (!perfil) {
+  console.error("Usuário autenticado:", dadosAutenticacao.user.id);
+
+  return {
+    resposta: respostaErro(
+      `Profile não encontrado para o usuário ${dadosAutenticacao.user.id}`,
+      404
+    ),
+  };
+}
 
   const perfilAtual = perfil as Perfil;
 

@@ -325,11 +325,16 @@ function podeAlterarCliente(perfil: Perfil, linha: LinhaCliente) {
     return true;
   }
 
-  return (
-    linha.consultora_id === perfil.id ||
-    linha.criado_por === perfil.id ||
-    normalizarTexto(linha.consultora) === normalizarTexto(perfil.nome)
-  );
+  const nomeConsultora = String(linha.consultora || "").trim();
+
+  // Quando existe nome da consultora no cliente, ele é a referência principal.
+  // Isso evita que um consultora_id antigo ou incorreto libere clientes de outras pessoas.
+  if (nomeConsultora) {
+    return normalizarTexto(nomeConsultora) === normalizarTexto(perfil.nome);
+  }
+
+  // Só usa o ID como alternativa para registros antigos que não possuem nome.
+  return linha.consultora_id === perfil.id;
 }
 
 async function montarLinha(

@@ -1,13 +1,5 @@
-import AppShell from "@/components/AppShell";
-import ProposalManager from "@/components/ProposalManager";
+import PropostasPage from "@/components/propostas/PropostasPage";
 
-export default function PropostasPage() {
-  return (
-    <AppShell
-      title="Propostas"
-      subtitle="Cadastre, acompanhe e calcule automaticamente a comissão dos contratos pagos."
-    >
-      <ProposalManager />
-    </AppShell>
-  );
+export default function Page() {
+  return <PropostasPage />;
 }

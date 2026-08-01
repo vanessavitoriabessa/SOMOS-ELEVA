@@ -1,516 +1,856 @@
-.kanban-page {
-  padding: 26px;
-  background: #f5f7fb;
-  color: #0d1b4f;
+.esteira-profissional {
+  width: 100%;
+  min-width: 0;
+  color: #12284b;
 }
 
-.kanban-summary {
+/* INDICADORES */
+
+.esteira-stats {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 18px;
 }
 
-.kanban-summary article {
-  min-height: 100px;
-  padding: 18px;
-  border: 1px solid #e4e8f1;
-  border-radius: 15px;
-  background: #ffffff;
-  box-shadow: 0 9px 25px rgba(26, 43, 90, 0.06);
-}
-
-.kanban-summary span,
-.kanban-summary strong {
-  display: block;
-}
-
-.kanban-summary span {
-  color: #65708b;
-  font-size: 12px;
-}
-
-.kanban-summary strong {
-  margin-top: 11px;
-  font-size: 22px;
-  white-space: nowrap;
-}
-
-.kanban-summary-highlight {
-  border-color: #c9d8ff !important;
-  background: linear-gradient(135deg, #edf3ff, #ffffff) !important;
-}
-
-.kanban-summary-highlight strong {
-  color: #174ed9;
-}
-
-.kanban-toolbar {
+.esteira-stats article {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 16px;
-  padding: 21px;
-  border: 1px solid #e4e8f1;
-  border-radius: 17px;
+  min-height: 100px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 18px;
+  border: 1px solid #dfe6f1;
+  border-radius: 16px;
   background: #ffffff;
-  box-shadow: 0 9px 25px rgba(26, 43, 90, 0.06);
+  box-shadow: 0 8px 24px rgba(16, 47, 78, 0.04);
 }
 
-.kanban-toolbar > div:first-child > span {
-  color: #1756ef;
+.esteira-stats article span {
+  margin-bottom: 9px;
+  color: #667085;
   font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 1.2px;
+  font-weight: 600;
 }
 
-.kanban-toolbar h2 {
-  margin: 6px 0 0;
-  font-size: 24px;
+.esteira-stats article strong {
+  color: #102f4e;
+  font-size: 23px;
+  line-height: 1;
 }
 
-.kanban-toolbar p {
-  margin: 7px 0 0;
-  color: #68738e;
+.esteira-stats article.destaque {
+  border-color: #b9ccff;
+  background: #f7f9ff;
 }
 
-.kanban-filters {
-  display: grid;
-  grid-template-columns: minmax(260px, 1fr) 180px auto;
-  gap: 9px;
+.esteira-stats article.destaque strong {
+  color: #2457f5;
 }
 
-.kanban-filters input,
-.kanban-filters select,
-.kanban-card select {
-  height: 43px;
-  border: 1px solid #dce2ec;
+/* CABEÇALHO E FILTROS */
+
+.esteira-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  margin-bottom: 18px;
+  padding: 20px;
+  border: 1px solid #dfe6f1;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.esteira-toolbar-title {
+  flex-shrink: 0;
+}
+
+.esteira-toolbar-title span {
+  display: block;
+  margin-bottom: 6px;
+  color: #2457f5;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.3px;
+}
+
+.esteira-toolbar-title h2 {
+  margin: 0;
+  color: #102f4e;
+  font-size: 21px;
+}
+
+.esteira-filtros {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.esteira-filtros input,
+.esteira-filtros select {
+  height: 42px;
+  border: 1px solid #d8e1ee;
   border-radius: 10px;
+  background: #ffffff;
+  color: #23395d;
+  font: inherit;
+  font-size: 12px;
   outline: none;
-  background: #f8f9fc;
-  color: #162142;
 }
 
-.kanban-filters input {
-  padding: 0 13px;
+.esteira-filtros input {
+  padding: 0 12px;
 }
 
-.kanban-filters select,
-.kanban-card select {
+.esteira-filtros input:first-child {
+  width: 260px;
+  min-width: 190px;
+}
+
+.esteira-filtros input[type="date"] {
+  width: 145px;
+}
+
+.esteira-filtros select {
+  width: 170px;
   padding: 0 10px;
 }
 
-.kanban-filters button {
-  padding: 0 16px;
-  border: 0;
+.esteira-filtros input:focus,
+.esteira-filtros select:focus {
+  border-color: #3568f5;
+  box-shadow: 0 0 0 3px rgba(53, 104, 245, 0.1);
+}
+
+.botao-principal,
+.botao-secundario {
+  min-height: 42px;
+  padding: 0 15px;
   border-radius: 10px;
-  background: #0c4be8;
-  color: #ffffff;
-  font-weight: 900;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.kanban-message {
+.botao-principal {
+  border: 1px solid #2457f5;
+  background: #2457f5;
+  color: #ffffff;
+}
+
+.botao-principal:hover {
+  background: #1747d8;
+}
+
+.botao-secundario {
+  border: 1px solid #cfd9e8;
+  background: #ffffff;
+  color: #18375a;
+}
+
+.botao-secundario:hover {
+  background: #f5f8fd;
+}
+
+.botao-principal:disabled,
+.botao-secundario:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* MENSAGEM */
+
+.esteira-mensagem {
   margin-bottom: 14px;
   padding: 12px 14px;
-  border-radius: 11px;
-  background: #edf3ff;
-  color: #1550dc;
+  border: 1px solid #f6c989;
+  border-radius: 10px;
+  background: #fff8ed;
+  color: #9a5300;
   font-size: 13px;
-  font-weight: 800;
 }
 
-.kanban-board {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(270px, 1fr));
-  gap: 13px;
-  overflow-x: auto;
-  padding-bottom: 9px;
-}
+/* TABELA */
 
-.kanban-column {
-  min-height: 570px;
-  border: 1px solid #dfe4ed;
-  border-radius: 15px;
-  background: #eef1f6;
-}
-
-.kanban-column > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 58px;
-  padding: 0 14px;
-  border-bottom: 1px solid #dfe4ed;
+.esteira-tabela-card {
+  overflow: hidden;
+  border: 1px solid #dfe6f1;
+  border-radius: 16px;
   background: #ffffff;
-  border-radius: 15px 15px 0 0;
 }
 
-.kanban-column > header div {
+.esteira-tabela-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.esteira-tabela {
+  width: 100%;
+  min-width: 1250px;
+  border-collapse: collapse;
+}
+
+.esteira-tabela thead {
+  background: #f8fafc;
+}
+
+.esteira-tabela th {
+  padding: 14px 13px;
+  border-bottom: 1px solid #dfe6f1;
+  color: #7a89a2;
+  font-size: 10px;
+  font-weight: 800;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.esteira-tabela td {
+  padding: 13px;
+  border-bottom: 1px solid #e8edf4;
+  color: #243b5a;
+  font-size: 12px;
+  vertical-align: middle;
+}
+
+.esteira-tabela tbody tr {
+  transition: background 0.15s;
+}
+
+.esteira-tabela tbody tr:hover {
+  background: #f7faff;
+}
+
+.esteira-tabela td strong,
+.esteira-tabela td small {
+  display: block;
+}
+
+.esteira-tabela td small {
+  margin-top: 4px;
+  color: #8c9ab0;
+  font-size: 10px;
+}
+
+.valor-final {
+  color: #08a66c;
+  white-space: nowrap;
+}
+
+.esteira-acoes {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
-.kanban-column > header i {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
+.esteira-acoes button {
+  display: inline-flex;
+  width: 31px;
+  height: 31px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #37516f;
+  cursor: pointer;
 }
 
-.kanban-column > header b {
-  min-width: 27px;
-  height: 27px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: #edf0f5;
-  font-size: 11px;
+.esteira-acoes button:hover {
+  border-color: #aac0f7;
+  background: #eef4ff;
+  color: #2457f5;
 }
 
-.column-yellow > header i { background: #e4a600; }
-.column-blue > header i { background: #1457f4; }
-.column-orange > header i { background: #ff7200; }
-.column-purple > header i { background: #7a39e8; }
-.column-green > header i { background: #09a960; }
-.column-red > header i { background: #d43a49; }
+/* STATUS */
 
-.kanban-column-body {
-  display: grid;
-  align-content: start;
-  gap: 10px;
-  min-height: 510px;
-  padding: 10px;
+.esteira-status {
+  display: inline-flex;
+  min-height: 25px;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
-.kanban-empty {
-  min-height: 150px;
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 4px;
-  color: #8891a4;
+.status-pago {
+  background: #dcf8ea;
+  color: #07804f;
+}
+
+.status-cancelado {
+  background: #fee7e7;
+  color: #c53030;
+}
+
+.status-aguardando-boleto {
+  background: #fff3d7;
+  color: #c27803;
+}
+
+.status-solicitado,
+.status-em-andamento,
+.status-enviado-ao-banco {
+  background: #e7efff;
+  color: #2457f5;
+}
+
+.status-nota-promissoria,
+.status-ag.-liberacao-de-margem,
+.status-ag.-fazer-anuencia {
+  background: #f0ecff;
+  color: #7047d7;
+}
+
+/* ESTADO VAZIO */
+
+.esteira-vazio {
+  display: flex;
+  min-height: 300px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 40px;
+  color: #72819a;
   text-align: center;
 }
 
-.kanban-empty span {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border: 1px dashed #aeb5c3;
-  border-radius: 50%;
-  font-size: 19px;
+.esteira-vazio::before {
+  content: "▤";
+  display: flex;
+  width: 48px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 5px;
+  border-radius: 14px;
+  background: #edf3ff;
+  color: #2457f5;
+  font-size: 22px;
 }
 
-.kanban-empty p {
-  margin: 0;
+.esteira-vazio strong {
+  color: #152b4c;
+  font-size: 15px;
+}
+
+.esteira-vazio span {
   font-size: 12px;
 }
 
-.kanban-card {
-  padding: 14px;
-  border: 1px solid #dce1ea;
-  border-radius: 13px;
+/* SOBREPOSIÇÃO */
+
+.esteira-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(9, 23, 43, 0.48);
+  backdrop-filter: blur(2px);
+}
+
+/* PAINEL LATERAL */
+
+.esteira-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(480px, 94vw);
+  overflow-y: auto;
+  padding: 25px;
   background: #ffffff;
-  box-shadow: 0 6px 18px rgba(25, 41, 83, 0.07);
-  cursor: grab;
-  transition: transform 0.15s ease, opacity 0.15s ease;
+  box-shadow: -16px 0 40px rgba(10, 31, 57, 0.16);
 }
 
-.kanban-card:hover {
-  transform: translateY(-2px);
-}
-
-.kanban-card.dragging {
-  opacity: 0.45;
-  transform: rotate(1deg);
-}
-
-.kanban-card-top {
+.esteira-drawer header,
+.nova-proposta-modal header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 9px;
+  gap: 15px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e4eaf2;
 }
 
-.kanban-card-top strong,
-.kanban-card-top span {
-  display: block;
-}
-
-.kanban-card-top strong {
-  font-size: 14px;
-}
-
-.kanban-card-top span {
-  margin-top: 5px;
-  color: #727c94;
+.esteira-drawer header span,
+.nova-proposta-modal header span {
+  color: #2457f5;
   font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
 }
 
-.kanban-card-top button {
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: 8px;
-  background: #f0f2f6;
-  color: #536078;
-  cursor: pointer;
+.esteira-drawer header h2,
+.nova-proposta-modal header h2 {
+  margin: 5px 0 3px;
+  color: #102f4e;
+  font-size: 22px;
 }
 
-.kanban-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin: 12px 0;
-}
-
-.kanban-tags span {
-  padding: 5px 7px;
-  border-radius: 7px;
-  background: #eaf0ff;
-  color: #1652dc;
-  font-size: 9px;
-  font-weight: 900;
-}
-
-.kanban-card-value {
-  padding: 11px;
-  border-radius: 10px;
-  background: #f7f9fc;
-}
-
-.kanban-card-value span,
-.kanban-card-value strong {
-  display: block;
-}
-
-.kanban-card-value span {
-  color: #7a8498;
-  font-size: 9px;
-}
-
-.kanban-card-value strong {
-  margin-top: 5px;
-  font-size: 16px;
-}
-
-.kanban-paid {
-  display: grid;
-  grid-template-columns: 0.7fr 1fr;
-  gap: 8px;
-  margin-top: 9px;
-}
-
-.kanban-paid div {
-  padding: 9px;
-  border-radius: 9px;
-  background: #e7f8ef;
-}
-
-.kanban-paid span,
-.kanban-paid strong {
-  display: block;
-}
-
-.kanban-paid span {
-  color: #5e7d6b;
-  font-size: 8px;
-}
-
-.kanban-paid strong {
-  margin-top: 4px;
-  color: #008f4d;
+.esteira-drawer header p {
+  margin: 0;
+  color: #72819a;
   font-size: 12px;
 }
 
-.kanban-card footer {
-  display: grid;
-  gap: 10px;
-  margin-top: 12px;
-  padding-top: 11px;
-  border-top: 1px solid #e7eaf0;
-}
-
-.kanban-card footer span,
-.kanban-card footer strong {
-  display: block;
-}
-
-.kanban-card footer span {
-  color: #7a8498;
-  font-size: 8px;
-}
-
-.kanban-card footer strong {
-  margin-top: 4px;
-  font-size: 11px;
-}
-
-.kanban-card select {
-  width: 100%;
-  height: 37px;
-  font-size: 10px;
-}
-
-.kanban-help {
-  display: flex;
+.esteira-drawer header button,
+.nova-proposta-modal header button {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
   align-items: center;
-  gap: 8px;
-  margin-top: 15px;
-  padding: 14px 16px;
-  border: 1px solid #cfe0ff;
-  border-radius: 13px;
-  background: #f3f7ff;
-  color: #43516d;
+  justify-content: center;
+  border: 1px solid #dce4ee;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #52657f;
+  font-size: 21px;
+  cursor: pointer;
+}
+
+.drawer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.drawer-grid div {
+  padding: 14px;
+  border: 1px solid #e1e7f0;
+  border-radius: 11px;
+  background: #f9fbfe;
+}
+
+.drawer-grid span {
+  display: block;
+  margin-bottom: 6px;
+  color: #7d8da6;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.drawer-grid strong {
+  color: #18375a;
   font-size: 13px;
 }
 
-.kanban-help strong {
-  color: #1651db;
+.esteira-drawer label,
+.nova-proposta-modal label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: #193555;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
-.kanban-modal-overlay {
-  position: fixed;
-  z-index: 200;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: rgba(7, 18, 52, 0.54);
+.esteira-drawer textarea,
+.nova-proposta-modal input,
+.nova-proposta-modal select,
+.nova-proposta-modal textarea {
+  width: 100%;
+  border: 1px solid #d8e1ee;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #243b5a;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  text-transform: none;
 }
 
-.kanban-modal {
-  width: min(100%, 620px);
+.esteira-drawer textarea,
+.nova-proposta-modal textarea {
+  min-height: 100px;
+  padding: 12px;
+  resize: vertical;
+}
+
+/* MODAL */
+
+.nova-proposta-modal {
+  width: min(820px, 96vw);
+  max-height: 92vh;
+  overflow-y: auto;
   padding: 24px;
   border-radius: 18px;
   background: #ffffff;
-  box-shadow: 0 28px 80px rgba(8, 20, 59, 0.3);
+  box-shadow: 0 24px 70px rgba(9, 30, 57, 0.24);
 }
 
-.kanban-modal > header {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
+.nova-proposta-modal form {
+  margin-top: 20px;
 }
 
-.kanban-modal > header span {
-  color: #1756ef;
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 1.1px;
-}
-
-.kanban-modal > header h3 {
-  margin: 7px 0 0;
-  font-size: 24px;
-}
-
-.kanban-modal > header button {
-  width: 36px;
-  height: 36px;
-  border: 0;
-  border-radius: 10px;
-  background: #edf0f5;
-  font-size: 20px;
-  cursor: pointer;
-}
-
-.kanban-modal-grid {
+.modal-form-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 11px;
-  margin-top: 22px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
 }
 
-.kanban-modal-grid div,
-.kanban-modal-note {
-  padding: 13px;
+.nova-proposta-modal input,
+.nova-proposta-modal select {
+  height: 44px;
+  padding: 0 12px;
+}
+
+.observacao-modal {
+  margin-top: 16px;
+}
+
+.valor-meta-modal {
+  display: flex;
+  min-height: 70px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px 15px;
+  border: 1px solid #ffca98;
   border-radius: 11px;
-  background: #f7f9fc;
+  background: #fff8f1;
 }
 
-.kanban-modal-grid span,
-.kanban-modal-grid strong {
-  display: block;
-}
-
-.kanban-modal-grid span,
-.kanban-modal-note span {
-  color: #7b8499;
+.valor-meta-modal span {
+  margin-bottom: 5px;
+  color: #a95b12;
   font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
-.kanban-modal-grid strong {
-  margin-top: 6px;
-  font-size: 14px;
+.valor-meta-modal strong {
+  color: #e85b00;
+  font-size: 20px;
 }
 
-.kanban-modal-note {
-  margin-top: 11px;
-}
-
-.kanban-modal-note p {
-  margin: 7px 0 0;
-  line-height: 1.45;
-}
-
-.kanban-modal footer {
+.nova-proposta-modal footer {
   display: flex;
   justify-content: flex-end;
-  gap: 9px;
-  margin-top: 18px;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid #e5eaf1;
 }
 
-.kanban-modal footer button {
-  min-height: 43px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 10px;
-  background: #e8efff;
-  color: #1650d5;
-  font-weight: 900;
-  cursor: pointer;
-}
+/* RESPONSIVO */
 
-.kanban-modal footer .delete {
-  background: #ffe9eb;
-  color: #c73845;
-}
-
-@media (max-width: 1200px) {
-  .kanban-summary {
-    grid-template-columns: repeat(3, 1fr);
+@media (max-width: 1250px) {
+  .esteira-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .kanban-toolbar {
+  .esteira-toolbar {
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .kanban-filters {
+  .esteira-filtros {
     width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 }
 
 @media (max-width: 760px) {
-  .kanban-page {
-    padding: 15px;
+  .esteira-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .kanban-summary {
-    grid-template-columns: repeat(2, 1fr);
+  .esteira-filtros input:first-child,
+  .esteira-filtros input[type="date"],
+  .esteira-filtros select {
+    width: 100%;
   }
 
-  .kanban-filters,
-  .kanban-modal-grid {
+  .modal-form-grid,
+  .drawer-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.esteira-toolbar {
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.esteira-toolbar-title {
+  flex: 1 1 300px;
+  min-width: 300px;
+}
+
+.esteira-toolbar-title h2 {
+  width: auto;
+  max-width: none;
+  white-space: nowrap;
+  overflow: visible;
+}
+
+.esteira-filtros {
+  flex: 2 1 680px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 1100px) {
+  .esteira-toolbar-title {
+    min-width: 100%;
+  }
+
+  .esteira-toolbar-title h2 {
+    white-space: normal;
+  }
+
+  .esteira-filtros {
+    width: 100%;
+  }
+}
+.esteira-toolbar {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.esteira-toolbar-title {
+  flex: 1 1 320px;
+  min-width: 320px;
+}
+
+.esteira-toolbar-title h2 {
+  width: 100%;
+  margin: 0;
+  white-space: normal;
+  overflow: visible;
+}
+
+.esteira-filtros {
+  flex: 2 1 700px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@media (max-width: 1200px) {
+  .esteira-toolbar-title {
+    flex-basis: 100%;
+    min-width: 100%;
+  }
+
+  .esteira-filtros {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+/* NOVO LAYOUT — MODAL DE PROPOSTA */
+
+.nova-proposta-modal {
+  width: min(1180px, 96vw);
+  max-height: 94vh;
+  padding: 28px;
+}
+
+.nova-proposta-modal form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 20px;
+}
+
+.secao-modal {
+  padding: 20px;
+  border: 1px solid #dfe6f1;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.secao-modal-titulo {
+  margin-bottom: 18px;
+}
+
+.secao-modal-titulo span {
+  display: block;
+  margin-bottom: 4px;
+  color: #17375e;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.secao-modal-titulo p {
+  margin: 0;
+  color: #6f7f96;
+  font-size: 12px;
+}
+
+.secao-modal .modal-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.cliente-pesquisa-modal {
+  max-width: 420px;
+}
+
+.cliente-nao-encontrado-modal {
+  padding: 12px 14px;
+  border: 1px solid #f0c98d;
+  border-radius: 10px;
+  background: #fff8ed;
+  color: #9a5300;
+  font-size: 12px;
+}
+
+.nova-proposta-modal footer {
+  position: sticky;
+  bottom: -28px;
+  z-index: 5;
+  margin: 0 -28px -28px;
+  padding: 18px 28px;
+  border-top: 1px solid #e5eaf1;
+  background: #ffffff;
+}
+
+@media (max-width: 900px) {
+  .nova-proposta-modal {
+    width: min(760px, 96vw);
+    padding: 20px;
+  }
+
+  .secao-modal .modal-form-grid {
     grid-template-columns: 1fr;
   }
 
-  .kanban-help {
-    align-items: flex-start;
-    flex-direction: column;
+  .nova-proposta-modal footer {
+    bottom: -20px;
+    margin: 0 -20px -20px;
+    padding: 16px 20px;
+  }
+}
+/* Corrige a grade externa que envolve todo o formulário */
+.nova-proposta-modal form > .modal-form-grid {
+  display: contents;
+}
+.busca-cliente-topo {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.2fr) 170px minmax(300px, 1fr);
+  align-items: end;
+  gap: 16px;
+}
+
+.cliente-pesquisa-modal {
+  max-width: none;
+}
+
+.botao-buscar-cliente {
+  height: 44px;
+  padding: 0 18px;
+  border: 1px solid #2457f5;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #2457f5;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.botao-buscar-cliente:hover {
+  background: #f3f6ff;
+}
+
+.aviso-cliente-cadastrado {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid #b9ccff;
+  border-radius: 10px;
+  background: #f7f9ff;
+  color: #294568;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.aviso-cliente-cadastrado strong {
+  color: #2457f5;
+  font-size: 18px;
+}
+
+@media (max-width: 900px) {
+  .busca-cliente-topo {
+    grid-template-columns: 1fr;
+  }
+}
+.secao-documentos {
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.documentos-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.documento-upload {
+  min-height: 145px;
+  padding: 18px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.documento-upload:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+  transform: translateY(-1px);
+}
+
+.documento-upload input {
+  display: none;
+}
+
+.documento-upload span {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+}
+
+.documento-upload strong {
+  font-size: 14px;
+  color: #2563eb;
+}
+
+.documento-upload small {
+  font-size: 12px;
+  color: #64748b;
+}
+
+@media (max-width: 720px) {
+  .documentos-grid {
+    grid-template-columns: 1fr;
   }
 }

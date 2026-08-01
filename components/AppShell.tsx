@@ -10,6 +10,7 @@ import {
   BriefcaseBusiness,
   Calculator,
   CircleDollarSign,
+  ClipboardList,
   Database,
   FileText,
   Gift,
@@ -19,6 +20,7 @@ import {
   UserCog,
   UsersRound,
   Workflow,
+  WalletCards,
 } from "lucide-react";
 import "./app-shell.css";
 
@@ -56,11 +58,6 @@ const itensOperacao: ItemMenu[] = [
     icon: UsersRound,
   },
   {
-    href: "/propostas",
-    label: "Propostas",
-    icon: FileText,
-  },
-  {
     href: "/simulacao",
     label: "Simulação",
     icon: Calculator,
@@ -80,13 +77,24 @@ const itensOperacao: ItemMenu[] = [
     label: "Baixa de pagamentos",
     icon: CircleDollarSign,
   },
+  {
+    href: "/protocolos",
+    label: "Protocolos",
+    icon: ClipboardList,
+  },
 ];
+
 
 const itensGestao: ItemMenu[] = [
   {
     href: "/ranking",
     label: "Ranking",
     icon: Trophy,
+  },
+  {
+    href: "/minha-premiacao",
+    label: "Minha Premiação",
+    icon: WalletCards,
   },
   {
     href: "/loja-premios",
@@ -124,7 +132,10 @@ const ROTAS_PERMITIDAS_CONSULTORA = [
   "/dashboard",
   "/clientes",
   "/simulacao",
+  "/esteira",
   "/clt",
+  "/protocolos",
+  "/minha-premiacao",
   "/loja-premios",
   "/perfil",
 ];
@@ -137,6 +148,7 @@ const ROTAS_PERMITIDAS_COORDENACAO = [
   "/esteira",
   "/clt",
   "/ranking",
+  "/minha-premiacao",
   "/loja-premios",
   "/perfil",
 ];
@@ -223,6 +235,7 @@ export default function AppShell({
   const [nome, setNome] = useState("Colaboradora");
   const [cargo, setCargo] = useState("Consultora");
   const [foto, setFoto] = useState("");
+  const [pontosHeader, setPontosHeader] = useState(0);
   const [permissaoCarregada, setPermissaoCarregada] = useState(false);
 
   const ehAdministracao = perfilEhAdministracao(cargo);
@@ -233,102 +246,110 @@ export default function AppShell({
   const ehRh = perfilEhRh(cargo);
 
   useEffect(() => {
-    let componenteAtivo = true;
+    const usuarioLogado =
+      localStorage.getItem("somos-eleva-usuario") || "";
 
-    async function carregarUsuario() {
-    setPermissaoCarregada(false);
+    const matriculaSalva =
+      localStorage.getItem("somos-eleva-matricula") || usuarioLogado;
+
+    let usuarioEncontrado: UsuarioSalvo | undefined;
 
     try {
-      const {
-        data: { user },
-        error: erroUsuario,
-      } = await supabase.auth.getUser();
+      const usuariosSalvos = localStorage.getItem("somos-eleva-usuarios");
 
-      if (erroUsuario || !user) {
-        await supabase.auth.signOut();
-        router.replace("/login");
-        return;
-      }
+      const usuarios: UsuarioSalvo[] = usuariosSalvos
+        ? JSON.parse(usuariosSalvos)
+        : [];
 
-      const {
-        data: perfil,
-        error: erroPerfil,
-      } = await supabase
-        .from("profiles")
-        .select(`
-          nome,
-          email,
-          perfil,
-          equipe,
-          ativo,
-          foto_url
-        `)
-        .eq("id", user.id)
-        .single();
+      const login = normalizarTexto(usuarioLogado);
 
-      if (erroPerfil || !perfil || !perfil.ativo) {
-        await supabase.auth.signOut();
-
-        localStorage.removeItem("somos-eleva-logado");
-        localStorage.removeItem("somos-eleva-usuario");
-        localStorage.removeItem("somos-eleva-nome");
-        localStorage.removeItem("somos-eleva-cargo");
-        localStorage.removeItem("somos-eleva-equipe");
-        localStorage.removeItem("somos-eleva-status");
-        localStorage.removeItem("somos-eleva-foto");
-        localStorage.removeItem("somos-eleva-supabase-user-id");
-
-        router.replace("/login");
-        return;
-      }
-
-      if (!componenteAtivo) return;
-
-      const nomeResolvido =
-        perfil.nome?.trim() ||
-        nomeBonito(perfil.email || user.email || "");
-
-      const cargoResolvido =
-        perfil.perfil?.trim() || "Consultora";
-
-      setNome(nomeResolvido);
-      setCargo(cargoResolvido);
-      setFoto(perfil.foto_url || "");
-
-      // Mantidos apenas para compatibilidade visual com páginas antigas.
-      // As permissões não dependem mais destes valores.
-      localStorage.setItem("somos-eleva-logado", "sim");
-      localStorage.setItem(
-        "somos-eleva-usuario",
-        perfil.email || user.email || ""
-      );
-      localStorage.setItem("somos-eleva-nome", nomeResolvido);
-      localStorage.setItem("somos-eleva-cargo", cargoResolvido);
-      localStorage.setItem("somos-eleva-equipe", perfil.equipe || "");
-      localStorage.setItem("somos-eleva-status", "Ativo");
-      localStorage.setItem("somos-eleva-foto", perfil.foto_url || "");
-      localStorage.setItem(
-        "somos-eleva-supabase-user-id",
-        user.id
-      );
-    } catch (erro) {
-      console.error("Erro ao carregar usuário:", erro);
-
-      await supabase.auth.signOut();
-      router.replace("/login");
-    } finally {
-      if (componenteAtivo) {
-        setPermissaoCarregada(true);
-      }
+      usuarioEncontrado = usuarios.find((usuario) => {
+        return (
+          String(usuario.id || "") === usuarioLogado ||
+          String(usuario.matricula || "") === usuarioLogado ||
+          String(usuario.matricula || "") === matriculaSalva ||
+          normalizarTexto(usuario.email || "") === login ||
+          normalizarTexto(usuario.nome || "") === login
+        );
+      });
+    } catch {
+      usuarioEncontrado = undefined;
     }
-  }
 
-    carregarUsuario();
+    const nomeSalvo = localStorage.getItem("somos-eleva-nome");
+    const cargoSalvo = localStorage.getItem("somos-eleva-cargo");
+
+    const nomeResolvido =
+      usuarioEncontrado?.nome?.trim() ||
+      nomeSalvo?.trim() ||
+      nomeBonito(usuarioLogado);
+
+    const cargoResolvido =
+      usuarioEncontrado?.perfil?.trim() ||
+      usuarioEncontrado?.cargo?.trim() ||
+      cargoSalvo?.trim() ||
+      "Consultora";
+
+    setNome(nomeResolvido);
+    setCargo(cargoResolvido);
+
+    localStorage.setItem("somos-eleva-nome", nomeResolvido);
+    localStorage.setItem("somos-eleva-cargo", cargoResolvido);
+
+    if (usuarioEncontrado?.matricula) {
+      localStorage.setItem(
+        "somos-eleva-matricula",
+        usuarioEncontrado.matricula
+      );
+    }
+
+    setFoto(
+  usuarioEncontrado?.foto ||
+    localStorage.getItem("somos-eleva-foto") ||
+    (nomeResolvido === "Tay" ? "/avatar.png" : "")
+);
+
+    setPermissaoCarregada(true);
+  }, []);
+
+  useEffect(() => {
+    function atualizarPontosHeader(event?: Event) {
+      if (event instanceof CustomEvent) {
+        const valorEvento = Number(event.detail);
+        setPontosHeader(Number.isFinite(valorEvento) ? valorEvento : 0);
+        return;
+      }
+
+      const valorSalvo = Number(
+        localStorage.getItem("somos-eleva-pontos-header") || 0
+      );
+
+      setPontosHeader(Number.isFinite(valorSalvo) ? valorSalvo : 0);
+    }
+
+    atualizarPontosHeader();
+
+    window.addEventListener(
+      "somos-eleva-pontos-atualizados",
+      atualizarPontosHeader
+    );
+    window.addEventListener("storage", atualizarPontosHeader);
+    window.addEventListener("focus", atualizarPontosHeader);
 
     return () => {
-      componenteAtivo = false;
+      window.removeEventListener(
+        "somos-eleva-pontos-atualizados",
+        atualizarPontosHeader
+      );
+      window.removeEventListener("storage", atualizarPontosHeader);
+      window.removeEventListener("focus", atualizarPontosHeader);
     };
-  }, [router, supabase]);
+  }, []);
+
+  const pontosFormatados = pontosHeader.toLocaleString("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
 
   const itensOperacaoVisiveis = useMemo(() => {
     if (ehAdministracao || ehCoordenacao) return itensOperacao;
@@ -338,7 +359,9 @@ export default function AppShell({
         "/dashboard",
         "/clientes",
         "/simulacao",
+        "/esteira",
         "/clt",
+        "/protocolos",
       ];
 
       return itensOperacao.filter((item) =>
@@ -347,25 +370,47 @@ export default function AppShell({
     }
 
     if (ehOperacional) {
-      const permitidos = ["/dashboard", "/clientes", "/propostas", "/simulacao", "/esteira", "/clt"];
-      return itensOperacao.filter((item) => permitidos.includes(item.href));
-    }
+  const permitidos = [
+    "/dashboard",
+    "/clientes",
+    "/propostas",
+    "/simulacao",
+    "/esteira",
+    "/clt",
+    "/protocolos",
+  ];
+
+  return itensOperacao.filter((item) =>
+    permitidos.includes(item.href)
+  );
+}
 
     if (ehSupervisao) {
-      const permitidos = ["/dashboard", "/clientes", "/propostas", "/simulacao", "/esteira", "/clt"];
-      return itensOperacao.filter((item) => permitidos.includes(item.href));
-    }
-
-    if (ehRh) {
       const permitidos = [
         "/dashboard",
+        "/clientes",
+        "/propostas",
+        "/simulacao",
         "/esteira",
+        "/clt",
+        "/protocolos",
       ];
 
       return itensOperacao.filter((item) =>
         permitidos.includes(item.href)
       );
     }
+
+    if (ehRh) {
+  const permitidos = [
+    "/dashboard",
+    "/esteira",
+  ];
+
+  return itensOperacao.filter((item) =>
+    permitidos.includes(item.href)
+  );
+}
 
     return itensOperacao.filter(
       (item) => item.href === "/dashboard"
@@ -383,13 +428,15 @@ export default function AppShell({
     if (ehAdministracao || ehCoordenacao) return itensGestao;
 
     if (ehConsultora) {
-      return itensGestao.filter(
-        (item) => item.href === "/loja-premios"
+      return itensGestao.filter((item) =>
+        ["/minha-premiacao", "/loja-premios"].includes(item.href)
       );
     }
 
     if (ehOperacional) {
-      return itensGestao.filter((item) => item.href === "/loja-premios");
+      return itensGestao.filter((item) =>
+        ["/minha-premiacao", "/loja-premios"].includes(item.href)
+      );
     }
 
     if (ehSupervisao) {
@@ -397,14 +444,16 @@ export default function AppShell({
     }
 
     if (ehRh) {
-      const permitidos = [
-        "/ranking",
-        "/rh",
-      ];
+      if (ehRh) {
+  const permitidos = [
+    "/ranking",
+    "/rh",
+  ];
 
-      return itensGestao.filter((item) =>
-        permitidos.includes(item.href)
-      );
+  return itensGestao.filter((item) =>
+    permitidos.includes(item.href)
+  );
+}
     }
 
     return [];
@@ -430,25 +479,42 @@ export default function AppShell({
 
     if (ehOperacional) {
       return !estaEmAlgumaRota(pathname, [
-        "/dashboard", "/clientes", "/propostas", "/simulacao", "/esteira", "/clt", "/loja-premios", "/perfil"
+        "/dashboard",
+        "/clientes",
+        "/propostas",
+        "/simulacao",
+        "/esteira",
+        "/clt",
+        "/protocolos",
+        "/minha-premiacao",
+        "/loja-premios",
+        "/perfil",
       ]);
     }
 
     if (ehSupervisao) {
       return !estaEmAlgumaRota(pathname, [
-        "/dashboard", "/clientes", "/propostas", "/simulacao", "/esteira", "/clt", "/ranking", "/perfil"
-      ]);
-    }
-
-    if (ehRh) {
-      return !estaEmAlgumaRota(pathname, [
         "/dashboard",
+        "/clientes",
+        "/propostas",
+        "/simulacao",
         "/esteira",
+        "/clt",
+        "/protocolos",
         "/ranking",
-        "/rh",
         "/perfil",
       ]);
     }
+
+   if (ehRh) {
+  return !estaEmAlgumaRota(pathname, [
+    "/dashboard",
+    "/esteira",
+    "/ranking",
+    "/rh",
+    "/perfil",
+  ]);
+}
 
     return !rotaComecaCom(pathname, "/dashboard");
   }, [
@@ -467,21 +533,17 @@ export default function AppShell({
     router.replace("/dashboard");
   }, [permissaoCarregada, rotaNegada, router]);
 
-  async function sair() {
-    await supabase.auth.signOut();
-
-  localStorage.removeItem("somos-eleva-logado");
-  localStorage.removeItem("somos-eleva-usuario");
-  localStorage.removeItem("somos-eleva-nome");
-  localStorage.removeItem("somos-eleva-cargo");
-  localStorage.removeItem("somos-eleva-matricula");
-  localStorage.removeItem("somos-eleva-equipe");
-  localStorage.removeItem("somos-eleva-status");
-  localStorage.removeItem("somos-eleva-foto");
-  localStorage.removeItem("somos-eleva-supabase-user-id");
+  function sair() {
+    localStorage.removeItem("somos-eleva-logado");
+    localStorage.removeItem("somos-eleva-usuario");
+    localStorage.removeItem("somos-eleva-nome");
+    localStorage.removeItem("somos-eleva-cargo");
+    localStorage.removeItem("somos-eleva-matricula");
+    localStorage.removeItem("somos-eleva-equipe");
+    localStorage.removeItem("somos-eleva-status");
+    localStorage.removeItem("somos-eleva-foto");
 
     router.replace("/login");
-    router.refresh();
   }
 
   function renderAvatar(tamanhoPequeno = false) {
@@ -585,10 +647,59 @@ export default function AppShell({
               ⌕&nbsp;&nbsp;Pesquisar cliente, CPF ou proposta...
             </div>
 
-            <button className="shell-notification">
-              ♧
-              <b>3</b>
-            </button>
+            <Link
+              href="/minha-premiacao"
+              aria-label="Abrir meus pontos"
+              title="Abrir Minha Premiação"
+              style={{
+                display: "flex",
+                minWidth: 92,
+                height: 40,
+                padding: "0 12px",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                border: "1px solid #dbe3ef",
+                borderRadius: 11,
+                background: "#ffffff",
+                color: "#244dcc",
+                textDecoration: "none",
+                boxShadow: "0 5px 14px rgba(31, 57, 128, 0.06)",
+              }}
+            >
+              <Gift size={16} strokeWidth={2.2} />
+
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  lineHeight: 1.05,
+                }}
+              >
+                <span
+                  style={{
+                    color: "#7d879a",
+                    fontSize: 8,
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  Pontos
+                </span>
+
+                <strong
+                  style={{
+                    marginTop: 3,
+                    color: "#244dcc",
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  {pontosFormatados}
+                </strong>
+              </div>
+            </Link>
 
             <Link
               href="/perfil"

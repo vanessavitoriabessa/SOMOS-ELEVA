@@ -1,5 +1,5 @@
 import AppShell from "@/components/AppShell";
-import KanbanBoard from "@/components/KanbanBoard";
+import EsteiraPropostas from "@/components/EsteiraPropostas";
 
 export default function EsteiraPage() {
   return (
@@ -7,7 +7,7 @@ export default function EsteiraPage() {
       title="Gestão de Propostas"
       subtitle="Acompanhe o andamento e os status de todas as propostas."
     >
-      <KanbanBoard />
+      <EsteiraPropostas />
     </AppShell>
   );
 }

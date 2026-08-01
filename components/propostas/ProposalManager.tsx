@@ -1,9 +1,13 @@
 "use client";
 
+import ProposalTable from "./ProposalTable";
+import ProposalStatus from "./ProposalStatus";
+import ProposalFilters from "./ProposalFilters";
+import ProposalStats from "./ProposalStats";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
-import "./propostas.css";
+import "../propostas.css";
 
 type StatusProposta =
   | "Solicitado"
@@ -58,6 +62,9 @@ type Proposta = {
   status: StatusProposta;
   dataCadastro: string;
   dataPagamento: string;
+  motivoCancelamento: string;
+  dataCancelamento?: string;
+  canceladoPor?: string;
   observacao: string;
 };
 
@@ -73,16 +80,7 @@ type RespostaPropostas = {
   perfil?: PerfilAtual;
   mensagem?: string;
   erro?: string;
-  encontradas?: number;
   importadas?: number;
-  atualizadas?: number;
-  ignoradas?: number;
-  falhas?: number;
-  detalhesFalhas?: Array<{
-    id?: string;
-    cliente?: string;
-    erro?: string;
-  }>;
 };
 
 type FormularioProposta = {
@@ -94,6 +92,7 @@ type FormularioProposta = {
   status: StatusProposta;
   dataDigitacao: string;
   dataPagamento: string;
+  motivoCancelamento: string;
   observacao: string;
 };
 
@@ -126,6 +125,7 @@ const formularioVazio: FormularioProposta = {
   status: "Solicitado",
   dataDigitacao: hojeIso(),
   dataPagamento: "",
+  motivoCancelamento: "",
   observacao: "",
 };
 
@@ -307,6 +307,9 @@ function normalizarProposta(
       : "Solicitado",
     dataCadastro: String(item.dataCadastro || ""),
     dataPagamento: String(item.dataPagamento || ""),
+    motivoCancelamento: String(item.motivoCancelamento || ""),
+    dataCancelamento: String(item.dataCancelamento || ""),
+    canceladoPor: String(item.canceladoPor || ""),
     observacao: String(item.observacao || item.observacoes || ""),
   };
 }
@@ -315,58 +318,10 @@ function perfilEhConsultora(perfil: string) {
   return normalizarTexto(perfil).includes("consultor");
 }
 
-function nomesCorrespondem(nomeA: string, nomeB: string) {
-  const a = normalizarTexto(nomeA);
-  const b = normalizarTexto(nomeB);
-
-  if (!a || !b) return false;
-  if (a === b) return true;
-
-  const menor = a.length <= b.length ? a : b;
-  const maior = a.length > b.length ? a : b;
-
-  return menor.length >= 5 && maior.includes(menor);
-}
-
-function mesclarPorId(principais: Proposta[], adicionais: Proposta[]) {
-  const ids = new Set(principais.map((item) => item.id));
-
-  return [
-    ...principais,
-    ...adicionais.filter((item) => !ids.has(item.id)),
-  ];
-}
-
-function chaveDuplicidadeProposta(item: Proposta, nomePadrao = "") {
-  const responsavel = normalizarTexto(item.vendedora || nomePadrao);
-  const identificadorCliente =
-    apenasNumeros(item.cpf) || normalizarTexto(item.cliente);
-  const valor = Number(item.valorContrato || 0).toFixed(2);
-  const data = dataParaInput(item.dataCadastro);
-  const tabela = normalizarTexto(item.tabela);
-
-  if (!responsavel || !identificadorCliente || Number(valor) <= 0) return "";
-
-  return `${responsavel}|${identificadorCliente}|${valor}|${data}|${tabela}`;
-}
-
-function propostaTemDadosReais(item: Proposta) {
-  /*
-   * Registros totalmente vazios são ignorados. Se houver cliente preenchido
-   * mas faltar outro campo, a proposta permanece pendente para a API informar
-   * exatamente o que precisa ser corrigido.
-   */
-  return Boolean(String(item.cliente || "").trim());
-}
-
 export default function ProposalManager() {
   const supabase = useMemo(() => createClient(), []);
 
   const [propostas, setPropostas] = useState<Proposta[]>([]);
-
-  const [propostasAntigasPendentes, setPropostasAntigasPendentes] = useState<
-    Proposta[]
-  >([]);
 
   const [clientes, setClientes] = useState<ClienteCadastrado[]>([]);
 
@@ -438,122 +393,79 @@ export default function ProposalManager() {
     };
   }
 
-  function lerListaLocal(chave: string) {
-    const salvo = localStorage.getItem(chave);
-
-    if (!salvo) return [] as Proposta[];
-
-    try {
-      const lista = JSON.parse(salvo);
-
-      return Array.isArray(lista)
-        ? lista.map((item) => normalizarProposta(item))
-        : [];
-    } catch {
-      return [] as Proposta[];
-    }
-  }
-
-  function localizarPendentes(
-    origem: Proposta[],
-    listaSupabase: Proposta[],
-    perfil: PerfilAtual,
-  ) {
-    if (!perfilEhConsultora(perfil.perfil)) return [] as Proposta[];
-
-    const candidatos = origem.filter(
-      (item) =>
-        propostaTemDadosReais(item) &&
-        (!item.vendedora.trim() || nomesCorrespondem(item.vendedora, perfil.nome)),
-    );
-
-    const idsSupabase = new Set(listaSupabase.map((item) => item.id));
-    const chavesSupabase = new Set(
-      listaSupabase
-        .map((item) => chaveDuplicidadeProposta(item, perfil.nome))
-        .filter(Boolean),
-    );
-    const idsIncluidos = new Set<string>();
-    const chavesIncluidas = new Set<string>();
-
-    return candidatos.filter((item) => {
-      const chave = chaveDuplicidadeProposta(item, perfil.nome);
-
-      if (idsSupabase.has(item.id) || idsIncluidos.has(item.id)) return false;
-      if (chave && (chavesSupabase.has(chave) || chavesIncluidas.has(chave))) {
-        return false;
-      }
-
-      idsIncluidos.add(item.id);
-      if (chave) chavesIncluidas.add(chave);
-      return true;
-    });
-  }
-
-  async function carregarPropostasDoSupabase() {
+  async function carregarPropostasDoSupabase(importarDadosLocais = false) {
     setCarregando(true);
 
     try {
-      /*
-       * Esta leitura acontece antes do GET para proteger os registros antigos.
-       * Assim, a lista do Supabase nunca sobrescreve o histórico local antes
-       * de criarmos o backup e identificarmos o que ainda precisa migrar.
-       */
-      const listaLocalAtual = lerListaLocal("somos-eleva-propostas");
-      const { conteudo, sessao } = await chamarApiPropostas("GET");
-      const perfil = conteudo.perfil || null;
-      const listaSupabase = Array.isArray(conteudo.propostas)
-        ? conteudo.propostas.map(normalizarProposta)
-        : [];
+      const sessao = await obterSessaoAtual();
 
-      setPerfilAtual(perfil);
-
-      if (perfil && perfilEhConsultora(perfil.perfil)) {
-        setForm((atual) => ({
-          ...atual,
-          vendedora: perfil.nome,
-        }));
-      }
-
-      let pendentes: Proposta[] = [];
-
-      if (perfil) {
-        const chaveBackup = `somos-eleva-propostas-backup-migracao-v2-${sessao.user.id}`;
-        const chaveImportacao = `somos-eleva-propostas-importadas-supabase-v2-${sessao.user.id}`;
-        const backupExistente = lerListaLocal(chaveBackup);
-        const origemCompleta = mesclarPorId(listaLocalAtual, backupExistente);
-        const registrosComDados = origemCompleta.filter(propostaTemDadosReais);
-
-        if (registrosComDados.length) {
-          localStorage.setItem(chaveBackup, JSON.stringify(registrosComDados));
-        }
+      if (importarDadosLocais) {
+        const chaveImportacao = `somos-eleva-propostas-importadas-supabase-v1-${sessao.user.id}`;
 
         const importacaoConcluida =
           localStorage.getItem(chaveImportacao) === "sim";
 
-        if (!importacaoConcluida) {
-          pendentes = localizarPendentes(
-            registrosComDados,
-            listaSupabase,
-            perfil,
-          );
+        const propostasSalvas = localStorage.getItem("somos-eleva-propostas");
+
+        if (!importacaoConcluida && propostasSalvas) {
+          try {
+            const listaLocal = JSON.parse(propostasSalvas);
+
+            const propostasLocais = Array.isArray(listaLocal)
+              ? listaLocal.map(normalizarProposta)
+              : [];
+
+            if (propostasLocais.length) {
+              const { conteudo: resultadoImportacao } =
+                await chamarApiPropostas("POST", {
+                  acao: "importar_local",
+                  propostas: propostasLocais,
+                });
+
+              if (Number(resultadoImportacao.importadas || 0) > 0) {
+                setMensagem(
+                  `${resultadoImportacao.importadas} proposta(s) antiga(s) foram sincronizadas com o Supabase.`,
+                );
+              }
+            }
+
+            localStorage.setItem(chaveImportacao, "sim");
+          } catch (erroImportacao) {
+            console.error(
+              "Falha ao importar propostas locais:",
+              erroImportacao,
+            );
+          }
         }
       }
 
-      setPropostasAntigasPendentes(pendentes);
-      setPropostas(mesclarPorId(listaSupabase, pendentes));
+      const { conteudo } = await chamarApiPropostas("GET");
+
+      const lista = Array.isArray(conteudo.propostas)
+        ? conteudo.propostas.map(normalizarProposta)
+        : [];
+
+      setPropostas(lista);
+
+      if (conteudo.perfil) {
+        setPerfilAtual(conteudo.perfil);
+
+        if (perfilEhConsultora(conteudo.perfil.perfil)) {
+          setForm((atual) => ({
+            ...atual,
+            vendedora: conteudo.perfil?.nome || "",
+          }));
+        }
+      }
 
       /*
-       * Só atualizamos a cópia local quando não existem itens pendentes.
-       * Enquanto houver histórico a migrar, a chave original fica preservada.
+       * Cópia temporária para os módulos antigos
+       * que ainda leem propostas do localStorage.
+       * A fonte oficial desta página já é o Supabase.
        */
-      if (!pendentes.length) {
-        localStorage.setItem(
-          "somos-eleva-propostas",
-          JSON.stringify(listaSupabase),
-        );
-      }
+      localStorage.setItem("somos-eleva-propostas", JSON.stringify(lista));
     } catch (erro) {
+      setPropostas([]);
       setMensagem(
         erro instanceof Error
           ? erro.message
@@ -632,7 +544,7 @@ export default function ProposalManager() {
   }, []);
 
   useEffect(() => {
-    void carregarPropostasDoSupabase();
+    void carregarPropostasDoSupabase(true);
   }, [supabase]);
 
   useEffect(() => {
@@ -687,65 +599,6 @@ export default function ProposalManager() {
       componenteAtivo = false;
     };
   }, [supabase]);
-
-  const idsPendentes = useMemo(
-    () => new Set(propostasAntigasPendentes.map((item) => item.id)),
-    [propostasAntigasPendentes],
-  );
-
-  async function sincronizarPropostasAntigas() {
-    if (!propostasAntigasPendentes.length || !perfilAtual) return;
-
-    const confirmar = window.confirm(
-      `Encontramos ${propostasAntigasPendentes.length} proposta(s) antiga(s) neste navegador. Confirme somente se elas pertencem à usuária ${perfilAtual.nome}.`,
-    );
-
-    if (!confirmar) return;
-
-    setProcessando(true);
-    setMensagem("");
-
-    try {
-      const { conteudo, sessao } = await chamarApiPropostas("POST", {
-        acao: "importar_local",
-        propostas: propostasAntigasPendentes,
-      });
-
-      const falhas = Number(conteudo.falhas || 0);
-
-      if (falhas === 0) {
-        const chaveImportacao = `somos-eleva-propostas-importadas-supabase-v2-${sessao.user.id}`;
-        localStorage.setItem(chaveImportacao, "sim");
-      }
-
-      await carregarPropostasDoSupabase();
-
-      const detalhes = Array.isArray(conteudo.detalhesFalhas)
-        ? conteudo.detalhesFalhas
-            .slice(0, 3)
-            .map((item) => `${item.cliente || item.id || "Registro"}: ${item.erro || "falha"}`)
-            .join(" | ")
-        : "";
-
-      setMensagem(
-        `${Number(conteudo.encontradas || 0)} encontrada(s) • ${Number(
-          conteudo.importadas || 0,
-        )} importada(s) • ${Number(
-          conteudo.atualizadas || 0,
-        )} atualizada(s) • ${Number(
-          conteudo.ignoradas || 0,
-        )} já existente(s)${falhas ? ` • ${falhas} com falha${detalhes ? ` — ${detalhes}` : ""}` : ""}.`,
-      );
-    } catch (erro) {
-      setMensagem(
-        erro instanceof Error
-          ? erro.message
-          : "Não foi possível sincronizar as propostas antigas.",
-      );
-    } finally {
-      setProcessando(false);
-    }
-  }
 
   const clienteSelecionado = useMemo(
     () => clientes.find((cliente) => cliente.id === form.clienteId),
@@ -852,6 +705,11 @@ export default function ProposalManager() {
       return;
     }
 
+    if (form.status === "Cancelado" && !form.motivoCancelamento.trim()) {
+      setMensagem("Informe o motivo do cancelamento.");
+      return;
+    }
+
     const proposta: Proposta = {
       id: editandoId || crypto.randomUUID(),
       clienteId: clienteSelecionado.id,
@@ -869,7 +727,23 @@ export default function ProposalManager() {
       status: form.status,
       dataCadastro: form.dataDigitacao,
       dataPagamento: form.status === "Pago" ? form.dataPagamento : "",
+      motivoCancelamento:
+        form.status === "Cancelado" ? form.motivoCancelamento.trim() : "",
       observacao: form.observacao.trim(),
+    };
+
+    /*
+     * A API utiliza PAGO e CANCELADA em letras maiúsculas.
+     * A tela continua exibindo Pago e Cancelado para o usuário.
+     */
+    const propostaParaApi = {
+      ...proposta,
+      status:
+        form.status === "Pago"
+          ? "PAGO"
+          : form.status === "Cancelado"
+            ? "CANCELADA"
+            : form.status,
     };
 
     const estavaEditando = Boolean(editandoId);
@@ -881,7 +755,7 @@ export default function ProposalManager() {
         proposta,
       });
 
-      await carregarPropostasDoSupabase();
+      await carregarPropostasDoSupabase(false);
 
       setForm(formularioLimpo(perfilAtual));
       setEditandoId(null);
@@ -919,11 +793,6 @@ export default function ProposalManager() {
   }
 
   function editar(proposta: Proposta) {
-    if (idsPendentes.has(proposta.id)) {
-      setMensagem("Sincronize as propostas antigas antes de editar este contrato.");
-      return;
-    }
-
     const cliente = localizarClienteDaProposta(proposta);
 
     const tabela = tabelaPeloNome(proposta.tabela);
@@ -941,6 +810,7 @@ export default function ProposalManager() {
       status: proposta.status,
       dataDigitacao: dataParaInput(proposta.dataCadastro) || hojeIso(),
       dataPagamento: dataParaInput(proposta.dataPagamento),
+      motivoCancelamento: proposta.motivoCancelamento || "",
       observacao: proposta.observacao || "",
     });
 
@@ -957,11 +827,6 @@ export default function ProposalManager() {
   }
 
   async function excluir(id: string) {
-    if (idsPendentes.has(id)) {
-      setMensagem("Sincronize as propostas antigas antes de excluir este contrato.");
-      return;
-    }
-
     const confirmar = window.confirm("Deseja realmente excluir esta proposta?");
 
     if (!confirmar) return;
@@ -972,7 +837,7 @@ export default function ProposalManager() {
     try {
       await chamarApiPropostas("DELETE", { id });
 
-      await carregarPropostasDoSupabase();
+      await carregarPropostasDoSupabase(false);
 
       if (editandoId === id) {
         setEditandoId(null);
@@ -997,78 +862,19 @@ export default function ProposalManager() {
     setMensagem("");
   }
 
-  const usuarioEhConsultora = Boolean(
-    perfilAtual && perfilEhConsultora(perfilAtual.perfil),
-  );
-
   return (
-    <div className="proposal-page">
-      {usuarioEhConsultora && propostasAntigasPendentes.length > 0 && (
-        <section
-          className="proposal-note"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 16,
-            flexWrap: "wrap",
-            marginBottom: 20,
-          }}
-        >
-          <span>
-            <strong>
-              {propostasAntigasPendentes.length} proposta(s) antiga(s) encontrada(s).
-            </strong>{" "}
-            Um backup foi criado neste navegador. Clique para enviar tudo ao
-            Supabase sem recadastrar.
-          </span>
+  <div className="proposal-page">
 
-          <button
-            type="button"
-            onClick={sincronizarPropostasAntigas}
-            disabled={processando}
-            style={{
-              border: 0,
-              borderRadius: 10,
-              padding: "12px 18px",
-              fontWeight: 800,
-              cursor: processando ? "wait" : "pointer",
-            }}
-          >
-            {processando ? "Sincronizando..." : "Sincronizar propostas antigas"}
-          </button>
-        </section>
-      )}
+    <ProposalStats
+  total={resumo.total}
+  andamento={resumo.emAndamento}
+  pagos={resumo.pagas}
+  valorPago={resumo.valorPago}
+  producao={resumo.producaoValida}
+/>
 
-      <section className="proposal-summary">
-        <article>
-          <span>Total de propostas</span>
-          <strong>{resumo.total}</strong>
-        </article>
-
-        <article>
-          <span>Em andamento</span>
-          <strong>{resumo.emAndamento}</strong>
-        </article>
-
-        <article>
-          <span>Contratos pagos</span>
-          <strong>{resumo.pagas}</strong>
-        </article>
-
-        <article>
-          <span>Valor total pago</span>
-          <strong>{moeda(resumo.valorPago)}</strong>
-        </article>
-
-        <article className="commission-summary">
-          <span>Produção válida paga</span>
-          <strong>{moeda(resumo.producaoValida)}</strong>
-        </article>
-      </section>
-
-      <section className="proposal-layout">
-        <form className="proposal-form" onSubmit={enviar}>
+    <section className="proposal-layout">
+  <form className="proposal-form" onSubmit={enviar}>
           <div className="proposal-form-heading">
             <div>
               <span>{editandoId ? "EDITAR PROPOSTA" : "NOVA PROPOSTA"}</span>
@@ -1240,6 +1046,10 @@ export default function ProposalManager() {
                       event.target.value === "Pago"
                         ? form.dataPagamento || hojeIso()
                         : "",
+                    motivoCancelamento:
+                      event.target.value === "Cancelado"
+                        ? form.motivoCancelamento
+                        : "",
                   })
                 }
               >
@@ -1284,6 +1094,32 @@ export default function ProposalManager() {
               </div>
             </div>
           </section>
+
+          {form.status === "Cancelado" && (
+            <section className="paid-section">
+              <div className="paid-section-heading">
+                <div>
+                  <span>CANCELAMENTO</span>
+                  <h3>Motivo do cancelamento</h3>
+                </div>
+              </div>
+
+              <label className="proposal-observation">
+                Motivo obrigatório
+                <textarea
+                  value={form.motivoCancelamento}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      motivoCancelamento: event.target.value,
+                    })
+                  }
+                  placeholder="Ex.: proposta criada somente para teste"
+                  required
+                />
+              </label>
+            </section>
+          )}
 
           {form.status === "Pago" && (
             <section className="paid-section">
@@ -1367,128 +1203,40 @@ export default function ProposalManager() {
             <b>{propostasFiltradas.length}</b>
           </div>
 
-          <div className="proposal-filters">
-            <input
-              value={busca}
-              onChange={(event) => setBusca(event.target.value)}
-              placeholder="Pesquisar cliente, CPF, consultora, banco ou tabela"
-            />
-
-            <select
-              value={filtroStatus}
-              onChange={(event) => setFiltroStatus(event.target.value)}
-            >
-              <option>Todos</option>
-
-              {STATUS.map((status) => (
-                <option key={status}>{status}</option>
-              ))}
-            </select>
-          </div>
+          <ProposalFilters
+  busca={busca}
+  filtroStatus={filtroStatus}
+  status={STATUS}
+  onBuscaChange={setBusca}
+  onStatusChange={setFiltroStatus}
+/>
 
           {carregando ? (
-            <div className="proposal-empty">
-              <div>⌛</div>
+  <div className="proposal-empty">
+    <div>⌛</div>
 
-              <strong>Carregando propostas</strong>
+    <strong>Carregando propostas</strong>
 
-              <p>Aguarde enquanto os dados são buscados no Supabase.</p>
-            </div>
-          ) : propostasFiltradas.length === 0 ? (
-            <div className="proposal-empty">
-              <div>▤</div>
+    <p>Aguarde enquanto os dados são buscados no Supabase.</p>
+  </div>
+) : propostasFiltradas.length === 0 ? (
+  <div className="proposal-empty">
+    <div>▤</div>
 
-              <strong>Nenhuma proposta encontrada</strong>
+    <strong>Nenhuma proposta encontrada</strong>
 
-              <p>Cadastre a primeira proposta ou altere os filtros.</p>
-            </div>
-          ) : (
-            <div className="proposal-list">
-              {propostasFiltradas.map((proposta) => {
-                const pendente = idsPendentes.has(proposta.id);
-
-                return (
-                <article key={proposta.id}>
-                  <div className="proposal-item-top">
-                    <div>
-                      <strong>{proposta.cliente}</strong>
-
-                      <span>
-                        {proposta.banco || "Banco não informado"}
-
-                        {proposta.tabela
-                          ? ` • ${proposta.tabela} — ${formatarPercentual(
-                              proposta.percentualTabela,
-                            )}`
-                          : ""}
-                        {pendente ? " • Aguardando sincronização" : ""}
-                      </span>
-                    </div>
-
-                    <span
-                      className={`status status-${proposta.status
-                        .toLowerCase()
-                        .replace(/\s/g, "-")
-                        .normalize("NFD")
-                        .replace(/[\u0300-\u036f]/g, "")}`}
-                    >
-                      {proposta.status}
-                    </span>
-                  </div>
-
-                  <div className="proposal-item-values">
-                    <div>
-                      <small>Contrato</small>
-
-                      <b>{moeda(proposta.valorContrato)}</b>
-                    </div>
-
-                    <div>
-                      <small>Percentual da tabela</small>
-
-                      <b>{formatarPercentual(proposta.percentualTabela)}</b>
-                    </div>
-
-                    <div>
-                      <small>Valor para a meta</small>
-
-                      <b>{moeda(proposta.valorMeta)}</b>
-                    </div>
-                  </div>
-
-                  <div className="proposal-item-footer">
-                    <span>
-                      {proposta.vendedora || "Consultora não informada"} •
-                      Digitado em {formatarData(proposta.dataCadastro)}
-                      {proposta.status === "Pago" && proposta.dataPagamento && (
-                        <> • Pago em {formatarData(proposta.dataPagamento)}</>
-                      )}
-                    </span>
-
-                    <div>
-                      <button
-                        disabled={processando || pendente}
-                        onClick={() => editar(proposta)}
-                      >
-                        Editar
-                      </button>
-
-                      <button
-                        className="delete"
-                        disabled={processando || pendente}
-                        onClick={() => void excluir(proposta.id)}
-                      >
-                        Excluir
-                      </button>
-                    </div>
-                  </div>
-                </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      </section>
+    <p>Cadastre a primeira proposta ou altere os filtros.</p>
+  </div>
+) : (
+  <ProposalTable
+  propostas={propostasFiltradas}
+  processando={processando}
+  onEditar={(proposta) => editar(proposta as Proposta)}
+  onExcluir={(id) => void excluir(id)}
+/>
+)}
+</section>
+</section>
 
       <section className="proposal-note">
         <strong>Como funciona:</strong>

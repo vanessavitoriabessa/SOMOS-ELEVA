@@ -1,5 +1,5 @@
 import AppShell from "@/components/AppShell";
-import SettingsManager from "@/components/SettingsManager";
+import SettingsManager from "@/components/configuracoes/SettingsManager";
 
 export default function ConfiguracoesPage() {
   return (

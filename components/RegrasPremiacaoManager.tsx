@@ -415,15 +415,52 @@ export default function RegrasPremiacaoManager() {
       )}
 
       {aba === "competencia" && (
-        <section style={styles.card}>
-          <h2 style={styles.cardTitulo}>Regra da Competência</h2>
-          <div style={styles.aviso}>Produção pertence ao mês da digitação. Pagamentos até o dia limite do mês seguinte permanecem na competência original. Depois disso, passam para o mês do pagamento.</div>
-          <div style={styles.gradeCampos}>
-            <Campo label="Dia limite do mês seguinte" valor={regras.competencia.diaLimitePagamento} onChange={(v) => setRegras({ ...regras, competencia: { ...regras.competencia, diaLimitePagamento: Math.min(28, Math.max(1, numero(v))) } })} />
-            <label style={styles.label}>Critério base<select value={regras.competencia.criterioBase} disabled style={styles.input}><option value="digitacao">Data de digitação</option></select></label>
-          </div>
-        </section>
-      )}
+  <section style={styles.card}>
+    <h2 style={styles.cardTitulo}>
+      Regra da Competência
+    </h2>
+
+    <div style={styles.aviso}>
+      Esta regra considera somente contratos de Compra de Dívida.
+      A produção pertence ao mês da digitação.
+      Os pagamentos realizados até o dia limite do mês seguinte
+      continuam pertencendo à competência original.
+    </div>
+
+    <div style={styles.gradeCampos}>
+      <Campo
+        label="Dia limite do mês seguinte"
+        valor={regras.competencia.diaLimitePagamento}
+        onChange={(valor) =>
+          setRegras({
+            ...regras,
+            competencia: {
+              ...regras.competencia,
+              diaLimitePagamento: Math.min(
+                31,
+                Math.max(1, numero(valor))
+              ),
+            },
+          })
+        }
+      />
+
+      <label style={styles.label}>
+        Critério base
+
+        <select
+          value={regras.competencia.criterioBase}
+          disabled
+          style={styles.input}
+        >
+          <option value="digitacao">
+            Data de digitação
+          </option>
+        </select>
+      </label>
+    </div>
+  </section>
+)}
 
       {aba === "saques" && (
         <section style={styles.card}>

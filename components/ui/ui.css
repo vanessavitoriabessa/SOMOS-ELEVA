@@ -1,0 +1,160 @@
+.eleva-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.eleva-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.eleva-button-primary {
+  background: #163a5f;
+  color: #ffffff;
+}
+
+.eleva-button-primary:hover {
+  background: #102f4e;
+}
+
+.eleva-button-secondary {
+  background: #edf2f7;
+  color: #163a5f;
+}
+
+.eleva-button-secondary:hover {
+  background: #dde6ef;
+}
+
+.eleva-button-danger {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.eleva-button-danger:hover {
+  background: #b91c1c;
+}
+
+.eleva-button-outline {
+  background: #ffffff;
+  color: #163a5f;
+  border: 1px solid #d7dee7;
+}
+
+.eleva-button-outline:hover {
+  background: #f6f8fa;
+}
+
+.eleva-button-small {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.eleva-button-large {
+  min-height: 46px;
+  padding: 0 20px;
+  font-size: 15px;
+}
+
+.eleva-button-full {
+  width: 100%;
+}
+
+.eleva-card {
+  background: #ffffff;
+  border: 1px solid #e5e9ef;
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+}
+
+.eleva-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 100%;
+}
+
+.eleva-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #344054;
+}
+
+.eleva-input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid #d7dee7;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #1f2937;
+  font-size: 14px;
+  outline: none;
+  transition: 0.2s ease;
+}
+
+.eleva-input:focus {
+  border-color: #163a5f;
+  box-shadow: 0 0 0 3px rgba(22, 58, 95, 0.1);
+}
+
+.eleva-input-error {
+  border-color: #dc2626;
+}
+
+.eleva-field-error {
+  margin: 0;
+  font-size: 12px;
+  color: #dc2626;
+}
+.eleva-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.eleva-modal {
+  width: 100%;
+  max-width: 720px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+}
+
+.eleva-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e9ef;
+}
+
+.eleva-modal-header h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #163a5f;
+}
+
+.eleva-modal-content {
+  padding: 24px;
+}

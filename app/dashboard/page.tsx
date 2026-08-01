@@ -1,22 +1,13 @@
-"use client";
-
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
-import DashboardClient from "@/components/DashboardClient";
+import DashboardPage from "@/components/dashboard/DashboardPage";
 
-export default function DashboardPage() {
-  const router = useRouter();
-
-  useEffect(() => {
-    if (localStorage.getItem("somos-eleva-logado") !== "sim") {
-      router.replace("/login");
-    }
-  }, [router]);
-
+export default function DashboardRoute() {
   return (
-    <AppShell title="Dashboard" subtitle="">
-      <DashboardClient />
+    <AppShell
+      title="Dashboard"
+      subtitle="Acompanhe a produção e o desempenho de toda a equipe."
+    >
+      <DashboardPage />
     </AppShell>
   );
 }

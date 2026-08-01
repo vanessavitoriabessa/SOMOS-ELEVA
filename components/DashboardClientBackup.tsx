@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import PainelDoDia from "./PainelDoDia";
-import "./dashboard.css";
+import "./dashboard-backup.css";
 
 type PropostaCompraDivida = {
   id?: string;

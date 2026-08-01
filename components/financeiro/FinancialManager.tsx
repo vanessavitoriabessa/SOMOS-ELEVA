@@ -1,12 +1,13 @@
-// VERSAO FINAL: PAGAMENTO DIA 05 E PREMIACAO DIA 20
 "use client";
 
 import {
   FormEvent,
+  useCallback,
   useEffect,
   useMemo,
   useState,
 } from "react";
+import { createClient } from "@/lib/supabase/client";
 import "./financeiro.css";
 
 type Proposta = {
@@ -16,9 +17,12 @@ type Proposta = {
   banco: string;
   tabela: string;
   valorContrato: number;
+  valorMeta?: number;
   percentualTabela: number;
   comissao: number;
   status: string;
+  dataCadastro?: string;
+  dataPagamento?: string;
 };
 
 type Lancamento = {
@@ -162,8 +166,13 @@ function formatarCompetencia(valor: string) {
 }
 
 export default function FinancialManager() {
+  const supabase = useMemo(() => createClient(), []);
+
   const [propostas, setPropostas] =
     useState<Proposta[]>([]);
+
+  const [carregandoPropostas, setCarregandoPropostas] =
+    useState(false);
 
   const [lancamentos, setLancamentos] =
     useState<Lancamento[]>([]);
@@ -216,22 +225,73 @@ const [descontoFaltas, setDescontoFaltas] =
 const [mensagemFolha, setMensagemFolha] =
   useState("");
 
-  useEffect(() => {
+  const carregarPropostas = useCallback(async () => {
+    setCarregandoPropostas(true);
+
     try {
-      const propostasSalvas = JSON.parse(
-        localStorage.getItem(
-          "somos-eleva-propostas"
-        ) || "[]"
-      );
+      const { data: sessao, error: erroSessao } =
+        await supabase.auth.getSession();
+
+      if (erroSessao || !sessao.session?.access_token) {
+        throw new Error(
+          "Sua sessão expirou. Entre novamente no sistema."
+        );
+      }
+
+      const resposta = await fetch("/api/propostas", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${sessao.session.access_token}`,
+        },
+        cache: "no-store",
+      });
+
+      const conteudo = (await resposta.json()) as {
+        propostas?: Proposta[];
+        erro?: string;
+      };
+
+      if (!resposta.ok) {
+        throw new Error(
+          conteudo.erro ||
+            "Não foi possível carregar as propostas pagas."
+        );
+      }
 
       setPropostas(
-        Array.isArray(propostasSalvas)
-          ? propostasSalvas
+        Array.isArray(conteudo.propostas)
+          ? conteudo.propostas
           : []
       );
-    } catch {
+    } catch (erro) {
+      console.error(
+        "Erro ao carregar propostas no Financeiro:",
+        erro
+      );
       setPropostas([]);
+    } finally {
+      setCarregandoPropostas(false);
     }
+  }, [supabase]);
+
+  useEffect(() => {
+    void carregarPropostas();
+
+    const atualizarAoFocar = () => {
+      void carregarPropostas();
+    };
+
+    const atualizarAoVoltar = () => {
+      if (document.visibilityState === "visible") {
+        void carregarPropostas();
+      }
+    };
+
+    window.addEventListener("focus", atualizarAoFocar);
+    document.addEventListener(
+      "visibilitychange",
+      atualizarAoVoltar
+    );
 
     try {
       const financeiroSalvo = JSON.parse(
@@ -289,26 +349,33 @@ const [mensagemFolha, setMensagemFolha] =
           : []
       );
     } catch {
-  setFolhas([]);
-}
+      setFolhas([]);
+    }
 
-try {
-  const registrosRhSalvos = JSON.parse(
-    localStorage.getItem(
-      "somos-eleva-rh-registros"
-    ) || "[]"
-  );
+    try {
+      const registrosRhSalvos = JSON.parse(
+        localStorage.getItem(
+          "somos-eleva-rh-registros"
+        ) || "[]"
+      );
 
-  setRegistrosRH(
-    Array.isArray(registrosRhSalvos)
-      ? registrosRhSalvos
-      : []
-  );
-} catch {
-  setRegistrosRH([]);
-}
+      setRegistrosRH(
+        Array.isArray(registrosRhSalvos)
+          ? registrosRhSalvos
+          : []
+      );
+    } catch {
+      setRegistrosRH([]);
+    }
 
-}, []);
+    return () => {
+      window.removeEventListener("focus", atualizarAoFocar);
+      document.removeEventListener(
+        "visibilitychange",
+        atualizarAoVoltar
+      );
+    };
+  }, [carregarPropostas]);
 
   function persistirLancamentos(
     lista: Lancamento[]
@@ -335,7 +402,9 @@ try {
   const pagas = useMemo(
     () =>
       propostas.filter(
-        (proposta) => proposta.status === "Pago"
+        (proposta) =>
+          normalizarNome(proposta.status || "") === "pago" &&
+          Boolean(proposta.dataPagamento)
       ),
     [propostas]
   );
@@ -907,7 +976,7 @@ const resumoRhDaFolha = useMemo(() => {
           <strong>
             {moeda(resumo.premiacoesCalculadas)}
           </strong>
-          <small>Vendas pagas</small>
+          <small>Comissões registradas nas propostas</small>
         </article>
 
         <article>
@@ -1654,7 +1723,9 @@ const resumoRhDaFolha = useMemo(() => {
 
         {pagas.length === 0 ? (
           <div className="paid-empty">
-            Nenhuma proposta com status Pago.
+            {carregandoPropostas
+              ? "Carregando propostas pagas..."
+              : "Nenhuma proposta com status PAGO e data de pagamento."}
           </div>
         ) : (
           <div className="paid-table">

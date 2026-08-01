@@ -1,12 +1,13 @@
 "use client";
 
+import LojaPremiosV2 from "./loja-premios/v2/LojaPremiosV2";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import "./loja-premios.css";
-import { useLojaPremiosData } from "../hooks/useLojaPremiosData";
 import StatCard from "./loja-premios/StatCard";
 import ProducaoCards from "./loja-premios/ProducaoCards";
 import ExtratoPontos from "./loja-premios/ExtratoPontos";
+import CatalogoPremios from "./loja-premios/CatalogoPremios";
 
 type PropostaCompraDivida = {
   id: string;
@@ -68,6 +69,24 @@ type SolicitacaoSaque = {
   solicitadoEm: string;
   atualizadoEm: string;
   pagoEm?: string;
+};
+
+type PedidoLojaResumo = {
+  id: string;
+  consultora: string;
+  pontos_total: number;
+  status: string;
+};
+
+type AjustePontos = {
+  id: string;
+  consultora: string;
+  competencia: string;
+  produto: "Compra de Dívida" | "CLT";
+  pontos: number;
+  motivo: string;
+  criado_por?: string | null;
+  criado_em?: string;
 };
 
 type FaixaPremiacao = {
@@ -356,7 +375,13 @@ function competenciaEstaFechada(competencia: string) {
   return Boolean(prazo && new Date() > prazo);
 }
 
-export default function LojaPremiosManager() {
+type LojaPremiosManagerProps = {
+  area?: "premiacao" | "loja";
+};
+
+export default function LojaPremiosManager({
+  area = "premiacao",
+}: LojaPremiosManagerProps) {
   const supabase = useMemo(() => createClient(), []);
   const [propostas, setPropostas] = useState<PropostaCompraDivida[]>([]);
   const [registrosClt, setRegistrosClt] = useState<RegistroClt[]>([]);
@@ -370,6 +395,15 @@ export default function LojaPremiosManager() {
   const [mostrarFormularioPix, setMostrarFormularioPix] = useState(false);
   const [chavePix, setChavePix] = useState("");
   const [erroPix, setErroPix] = useState("");
+  const [abaAtiva, setAbaAtiva] = useState<
+    "pontos" | "catalogo" | "resgates"
+  >(area === "loja" ? "catalogo" : "pontos");
+  const [pedidosLoja, setPedidosLoja] = useState<PedidoLojaResumo[]>([]);
+  const [ajustesPontos, setAjustesPontos] = useState<AjustePontos[]>([]);
+
+  useEffect(() => {
+    setAbaAtiva(area === "loja" ? "catalogo" : "pontos");
+  }, [area]);
 
   async function carregar() {
     try {
@@ -446,6 +480,46 @@ export default function LojaPremiosManager() {
       setSaques([]);
     }
 
+    try {
+      const { data: pedidosData, error: pedidosError } = await supabase
+        .from("pedidos_loja")
+        .select("id, consultora, pontos_total, status");
+
+      if (pedidosError) {
+        console.error("Erro ao carregar pedidos da loja:", pedidosError);
+        setPedidosLoja([]);
+      } else {
+        setPedidosLoja(
+          Array.isArray(pedidosData)
+            ? (pedidosData as PedidoLojaResumo[])
+            : []
+        );
+      }
+    } catch {
+      setPedidosLoja([]);
+    }
+
+    try {
+      const { data: ajustesData, error: ajustesError } = await supabase
+        .from("ajustes_pontos")
+        .select(
+          "id, consultora, competencia, produto, pontos, motivo, criado_por, criado_em"
+        );
+
+      if (ajustesError) {
+        console.error("Erro ao carregar ajustes de pontos:", ajustesError);
+        setAjustesPontos([]);
+      } else {
+        setAjustesPontos(
+          Array.isArray(ajustesData)
+            ? (ajustesData as AjustePontos[])
+            : []
+        );
+      }
+    } catch {
+      setAjustesPontos([]);
+    }
+
     const login = localStorage.getItem("somos-eleva-usuario") || "";
     const matricula =
       localStorage.getItem("somos-eleva-matricula") || login;
@@ -485,11 +559,13 @@ export default function LojaPremiosManager() {
     const intervalo = window.setInterval(atualizar, 3000);
     window.addEventListener("storage", atualizar);
     window.addEventListener("focus", atualizar);
+    window.addEventListener("loja-premios-pedidos-atualizados", atualizar);
 
     return () => {
       window.clearInterval(intervalo);
       window.removeEventListener("storage", atualizar);
       window.removeEventListener("focus", atualizar);
+      window.removeEventListener("loja-premios-pedidos-atualizados", atualizar);
     };
   }, [supabase]);
 
@@ -582,16 +658,40 @@ export default function LojaPremiosManager() {
           chaveMes(data as Date) === competencia
         );
       });
+      const ajustesDaConsultora = ajustesPontos.filter((ajuste) => {
+        return (
+          normalizarTexto(ajuste.consultora) === chave &&
+          ajuste.competencia === competencia
+        );
+      });
 
-      const pontosCompraBrutos = propostasDaConsultora.reduce(
-        (total, proposta) => total + valorValidoCompra(proposta),
-        0
-      );
+      const ajusteCompra = ajustesDaConsultora
+        .filter((ajuste) => ajuste.produto === "Compra de Dívida")
+        .reduce(
+          (total, ajuste) => total + Number(ajuste.pontos || 0),
+          0
+        );
 
-      const pontosCltBrutos = cltDaConsultora.reduce(
-        (total, registro) => total + Number(registro.parcela || 0),
-        0
-      );
+      const ajusteClt = ajustesDaConsultora
+        .filter((ajuste) => ajuste.produto === "CLT")
+        .reduce(
+          (total, ajuste) => total + Number(ajuste.pontos || 0),
+          0
+        );
+
+      const pontosCompraBrutos =
+        propostasDaConsultora.reduce(
+          (total, proposta) =>
+            total + valorValidoCompra(proposta),
+          0
+        ) + ajusteCompra;
+
+      const pontosCltBrutos =
+        cltDaConsultora.reduce(
+          (total, registro) =>
+            total + Number(registro.parcela || 0),
+          0
+        ) + ajusteClt;
 
       const saquesPagos = saques.filter(
         (saque) =>
@@ -635,6 +735,33 @@ export default function LojaPremiosManager() {
           const parteCompra = pontosCompra / totalAntesDoDesconto;
           const descontoCompra = pontosAntigosSemDivisao * parteCompra;
           const descontoClt = pontosAntigosSemDivisao - descontoCompra;
+
+          pontosCompra = Math.max(pontosCompra - descontoCompra, 0);
+          pontosClt = Math.max(pontosClt - descontoClt, 0);
+        }
+      }
+
+      const pontosResgatadosNaLoja = pedidosLoja
+        .filter((pedido) => {
+          const status = normalizarTexto(pedido.status);
+
+          return (
+            normalizarTexto(pedido.consultora) === chave &&
+            ["aprovado", "em preparacao", "entregue"].includes(status)
+          );
+        })
+        .reduce(
+          (total, pedido) => total + Number(pedido.pontos_total || 0),
+          0
+        );
+
+      if (pontosResgatadosNaLoja > 0) {
+        const totalAntesDoResgate = pontosCompra + pontosClt;
+
+        if (totalAntesDoResgate > 0) {
+          const parteCompra = pontosCompra / totalAntesDoResgate;
+          const descontoCompra = pontosResgatadosNaLoja * parteCompra;
+          const descontoClt = pontosResgatadosNaLoja - descontoCompra;
 
           pontosCompra = Math.max(pontosCompra - descontoCompra, 0);
           pontosClt = Math.max(pontosClt - descontoClt, 0);
@@ -708,7 +835,15 @@ const faixa = faixaCompra;
         movimentos,
       };
     });
-  }, [nomesConsultoras, propostas, registrosClt, competencia, saques]);
+  }, [
+    nomesConsultoras,
+    propostas,
+    registrosClt,
+    competencia,
+    saques,
+    pedidosLoja,
+    ajustesPontos,
+  ]);
 
   const resumoAtual = useMemo(() => {
     const chave = normalizarTexto(consultoraSelecionada);
@@ -767,6 +902,41 @@ const faixa = faixaCompra;
     }
     return resumoAtual;
   }, [ehCoordenadora, resumoAtual, nomeLogado, resumoCoordenacao]);
+
+  const pontosDoUsuarioLogado = useMemo(() => {
+    if (ehCoordenadora) {
+      return resumoCoordenacao.producaoTotal;
+    }
+
+    const resumoProprio = resumos.find(
+      (item) =>
+        normalizarTexto(item.nome) === normalizarTexto(nomeLogado)
+    );
+
+    return Number(resumoProprio?.pontosTotal || 0);
+  }, [
+    ehCoordenadora,
+    resumoCoordenacao.producaoTotal,
+    resumos,
+    nomeLogado,
+  ]);
+
+  useEffect(() => {
+    const pontosSeguros = Number.isFinite(pontosDoUsuarioLogado)
+      ? pontosDoUsuarioLogado
+      : 0;
+
+    localStorage.setItem(
+      "somos-eleva-pontos-header",
+      String(pontosSeguros)
+    );
+
+    window.dispatchEvent(
+      new CustomEvent("somos-eleva-pontos-atualizados", {
+        detail: pontosSeguros,
+      })
+    );
+  }, [pontosDoUsuarioLogado]);
 
   const solicitacoesDaCompetencia = useMemo(() => {
     return saques
@@ -1077,6 +1247,27 @@ competenciaCompra(proposta) === competencia
     return "bloqueado";
   }
 
+  const navegacaoLoja =
+    area === "loja" ? (
+      <section className="lp-abas-principais">
+        <button
+          type="button"
+          className={abaAtiva === "catalogo" ? "ativa" : ""}
+          onClick={() => setAbaAtiva("catalogo")}
+        >
+          Catálogo de prêmios
+        </button>
+
+        <button
+          type="button"
+          className={abaAtiva === "resgates" ? "ativa" : ""}
+          onClick={() => setAbaAtiva("resgates")}
+        >
+          Meus resgates
+        </button>
+      </section>
+    ) : null;
+
   if (!carregado) {
     return <div className="lp-carregando">Carregando seus pontos...</div>;
   }
@@ -1091,9 +1282,31 @@ competenciaCompra(proposta) === competencia
     );
   }
 
+  if (area === "loja" && abaAtiva !== "pontos") {
+    return (
+      <div className="lp-page">
+        {navegacaoLoja}
+
+        <LojaPremiosV2
+  saldoPontos={pontosDoUsuarioLogado}
+  nomeUsuario={nomeLogado}
+  perfilUsuario={perfilLogado}
+  nomesConsultoras={nomesConsultoras}
+  consultoraSelecionada={consultoraSelecionada}
+  competencia={competencia}
+  saldoConsultora={resumoExibido.pontosTotal}
+  onConsultoraChange={setConsultoraSelecionada}
+  onCompetenciaChange={setCompetencia}
+  onPontosAtualizados={carregar}
+/>
+      </div>
+    );
+  }
+
   if (ehOperacional) {
     return (
       <div className="lp-page">
+        {navegacaoLoja}
         <section className="lp-topo">
           <div>
             <span className="lp-etiqueta">MINHA PREMIAÇÃO OPERACIONAL</span>
@@ -1127,6 +1340,7 @@ competenciaCompra(proposta) === competencia
 
   return (
     <div className="lp-page">
+      {navegacaoLoja}
       <section className="lp-topo">
         <div>
           <span className="lp-etiqueta">LOJA DE PRÊMIOS</span>
@@ -1185,6 +1399,25 @@ competenciaCompra(proposta) === competencia
             <span>Saldo atual</span>
             <strong>{pontos(resumoExibido.pontosTotal)}</strong>
             <small>pontos</small>
+
+            {podeGerenciarLoja && resumoExibido.nome && (
+              <button
+                type="button"
+                style={{
+                  marginTop: 10,
+                  minHeight: 36,
+                  padding: "0 13px",
+                  border: "1px solid rgba(255, 255, 255, 0.35)",
+                  borderRadius: 10,
+                  background: "rgba(255, 255, 255, 0.14)",
+                  color: "#ffffff",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                }}
+              >
+                Ajustar pontos
+              </button>
+            )}
           </div>
 
           <div className={`lp-status ${classeStatus()}`}>
@@ -1493,7 +1726,6 @@ competenciaCompra(proposta) === competencia
     que a gestão confirmar que o pagamento foi realizado.
   </span>
 </section>
-
 </div>
 );
 }

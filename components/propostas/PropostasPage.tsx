@@ -1,9 +1,13 @@
 "use client";
 
+import ProposalTable from "./ProposalTable";
+import ProposalStatus from "./ProposalStatus";
+import ProposalFilters from "./ProposalFilters";
+import ProposalStats from "./ProposalStats";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
-import "./propostas.css";
+import "../propostas.css";
 
 type StatusProposta =
   | "Solicitado"
@@ -829,36 +833,18 @@ export default function ProposalManager() {
   }
 
   return (
-    <div className="proposal-page">
-      <section className="proposal-summary">
-        <article>
-          <span>Total de propostas</span>
-          <strong>{resumo.total}</strong>
-        </article>
+  <div className="proposal-page">
 
-        <article>
-          <span>Em andamento</span>
-          <strong>{resumo.emAndamento}</strong>
-        </article>
+    <ProposalStats
+  total={resumo.total}
+  andamento={resumo.emAndamento}
+  pagos={resumo.pagas}
+  valorPago={resumo.valorPago}
+  producao={resumo.producaoValida}
+/>
 
-        <article>
-          <span>Contratos pagos</span>
-          <strong>{resumo.pagas}</strong>
-        </article>
-
-        <article>
-          <span>Valor total pago</span>
-          <strong>{moeda(resumo.valorPago)}</strong>
-        </article>
-
-        <article className="commission-summary">
-          <span>Produção válida paga</span>
-          <strong>{moeda(resumo.producaoValida)}</strong>
-        </article>
-      </section>
-
-      <section className="proposal-layout">
-        <form className="proposal-form" onSubmit={enviar}>
+    <section className="proposal-layout">
+  <form className="proposal-form" onSubmit={enviar}>
           <div className="proposal-form-heading">
             <div>
               <span>{editandoId ? "EDITAR PROPOSTA" : "NOVA PROPOSTA"}</span>
@@ -1157,123 +1143,40 @@ export default function ProposalManager() {
             <b>{propostasFiltradas.length}</b>
           </div>
 
-          <div className="proposal-filters">
-            <input
-              value={busca}
-              onChange={(event) => setBusca(event.target.value)}
-              placeholder="Pesquisar cliente, CPF, consultora, banco ou tabela"
-            />
-
-            <select
-              value={filtroStatus}
-              onChange={(event) => setFiltroStatus(event.target.value)}
-            >
-              <option>Todos</option>
-
-              {STATUS.map((status) => (
-                <option key={status}>{status}</option>
-              ))}
-            </select>
-          </div>
+          <ProposalFilters
+  busca={busca}
+  filtroStatus={filtroStatus}
+  status={STATUS}
+  onBuscaChange={setBusca}
+  onStatusChange={setFiltroStatus}
+/>
 
           {carregando ? (
-            <div className="proposal-empty">
-              <div>⌛</div>
+  <div className="proposal-empty">
+    <div>⌛</div>
 
-              <strong>Carregando propostas</strong>
+    <strong>Carregando propostas</strong>
 
-              <p>Aguarde enquanto os dados são buscados no Supabase.</p>
-            </div>
-          ) : propostasFiltradas.length === 0 ? (
-            <div className="proposal-empty">
-              <div>▤</div>
+    <p>Aguarde enquanto os dados são buscados no Supabase.</p>
+  </div>
+) : propostasFiltradas.length === 0 ? (
+  <div className="proposal-empty">
+    <div>▤</div>
 
-              <strong>Nenhuma proposta encontrada</strong>
+    <strong>Nenhuma proposta encontrada</strong>
 
-              <p>Cadastre a primeira proposta ou altere os filtros.</p>
-            </div>
-          ) : (
-            <div className="proposal-list">
-              {propostasFiltradas.map((proposta) => (
-                <article key={proposta.id}>
-                  <div className="proposal-item-top">
-                    <div>
-                      <strong>{proposta.cliente}</strong>
-
-                      <span>
-                        {proposta.banco || "Banco não informado"}
-
-                        {proposta.tabela
-                          ? ` • ${proposta.tabela} — ${formatarPercentual(
-                              proposta.percentualTabela,
-                            )}`
-                          : ""}
-                      </span>
-                    </div>
-
-                    <span
-                      className={`status status-${proposta.status
-                        .toLowerCase()
-                        .replace(/\s/g, "-")
-                        .normalize("NFD")
-                        .replace(/[\u0300-\u036f]/g, "")}`}
-                    >
-                      {proposta.status}
-                    </span>
-                  </div>
-
-                  <div className="proposal-item-values">
-                    <div>
-                      <small>Contrato</small>
-
-                      <b>{moeda(proposta.valorContrato)}</b>
-                    </div>
-
-                    <div>
-                      <small>Percentual da tabela</small>
-
-                      <b>{formatarPercentual(proposta.percentualTabela)}</b>
-                    </div>
-
-                    <div>
-                      <small>Valor para a meta</small>
-
-                      <b>{moeda(proposta.valorMeta)}</b>
-                    </div>
-                  </div>
-
-                  <div className="proposal-item-footer">
-                    <span>
-                      {proposta.vendedora || "Consultora não informada"} •
-                      Digitado em {formatarData(proposta.dataCadastro)}
-                      {proposta.status === "Pago" && proposta.dataPagamento && (
-                        <> • Pago em {formatarData(proposta.dataPagamento)}</>
-                      )}
-                    </span>
-
-                    <div>
-                      <button
-                        disabled={processando}
-                        onClick={() => editar(proposta)}
-                      >
-                        Editar
-                      </button>
-
-                      <button
-                        className="delete"
-                        disabled={processando}
-                        onClick={() => void excluir(proposta.id)}
-                      >
-                        Excluir
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-      </section>
+    <p>Cadastre a primeira proposta ou altere os filtros.</p>
+  </div>
+) : (
+  <ProposalTable
+  propostas={propostasFiltradas}
+  processando={processando}
+  onEditar={(proposta) => editar(proposta as Proposta)}
+  onExcluir={(id) => void excluir(id)}
+/>
+)}
+</section>
+</section>
 
       <section className="proposal-note">
         <strong>Como funciona:</strong>

@@ -8,7 +8,7 @@ import {
 } from "react";
 
 import { createClient } from "@/lib/supabase/client";
-import "./operacoes.css";
+import "./operacoes/operacoes.css";
 
 type ProdutoOperacao =
   | "Compra de Dívida"

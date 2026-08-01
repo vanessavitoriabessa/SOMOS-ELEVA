@@ -1,4 +1,12 @@
-import { calcularPremiacaoCompra } from "./premiacaoService";
+import {
+  calcularPremiacaoClt,
+  calcularPremiacaoCompra,
+} from "./premiacaoService";
+
+import {
+  compraValidaNaCompetencia,
+  normalizarTexto,
+} from "./competenciaCompra";
 
 export type ResumoConsultora = {
   nome: string;
@@ -22,130 +30,113 @@ export function montarResumoConsultora({
   registrosClt,
   competencia,
   saques,
-  competenciaCompra,
   valorValidoCompra,
   chaveMes,
-  normalizarTexto,
   converterData,
 }: any): ResumoConsultora {
-
   const chave = normalizarTexto(nome);
 
-  const propostasDaConsultora = propostas.filter((proposta:any)=>{
-
-    return (
-      proposta.status==="Pago" &&
-      normalizarTexto(proposta.vendedora)===chave &&
-      competenciaCompra(proposta)===competencia
-    );
-
-  });
-
-  const cltDaConsultora = registrosClt.filter((registro:any)=>{
-
-    const data=converterData(
-      registro.dataPagamento ||
-      registro.atualizadoEm ||
-      registro.criadoEm
-    );
-
-    return(
-      registro.status==="Pago" &&
-      normalizarTexto(registro.consultora)===chave &&
-      data &&
-      chaveMes(data)===competencia
-    );
-
-  });
-
-  const pontosCompraBrutos=
-    propostasDaConsultora.reduce(
-      (t:number,p:any)=>
-        t+valorValidoCompra(p),
-      0
-    );
-
-  const pontosCltBrutos=
-    cltDaConsultora.reduce(
-      (t:number,c:any)=>
-        t+Number(c.parcela||0),
-      0
-    );
-
-  const saquesPagos=
-    saques.filter(
-      (s:any)=>
-
-        s.status==="Pago" &&
-        s.competencia===competencia &&
-        normalizarTexto(s.consultora)===chave
-
-    );
-
-  const pontosCompraPagos=
-    saquesPagos.reduce(
-      (t:number,s:any)=>
-        t+Number(s.pontosCompra||0),
-      0
-    );
-
-  const pontosCltPagos=
-    saquesPagos.reduce(
-      (t:number,s:any)=>
-        t+Number(s.pontosClt||0),
-      0
-    );
-
-  const pontosCompra=Math.max(
-      pontosCompraBrutos-
-      pontosCompraPagos,
-      0
+  const propostasDaConsultora = propostas.filter(
+    (proposta: any) =>
+      normalizarTexto(proposta.vendedora) === chave &&
+      compraValidaNaCompetencia(
+        {
+          ...proposta,
+          produto:
+            proposta.produto || "Compra de Dívida",
+        },
+        competencia
+      )
   );
 
-  const pontosClt=Math.max(
-      pontosCltBrutos-
-      pontosCltPagos,
-      0
-  );
-
-  const resultado=
-      calcularPremiacaoCompra(
-          pontosCompra
+  const cltDaConsultora = registrosClt.filter(
+    (registro: any) => {
+      const data = converterData(
+        registro.dataPagamento ||
+          registro.atualizadoEm ||
+          registro.criadoEm
       );
 
-  const premioCompra=
-      resultado.premio;
+      return (
+        normalizarTexto(registro.status) === "pago" &&
+        normalizarTexto(registro.consultora) === chave &&
+        data &&
+        chaveMes(data) === competencia
+      );
+    }
+  );
 
-  const premioClt=
-      resultado.atingiuMetaMinima
-          ? pontosClt*0.01
-          :0;
+  const pontosCompraBrutos =
+    propostasDaConsultora.reduce(
+      (total: number, proposta: any) =>
+        total + valorValidoCompra(proposta),
+      0
+    );
 
-  return{
+  const pontosCltBrutos =
+    cltDaConsultora.reduce(
+      (total: number, registro: any) =>
+        total + Number(registro.parcela || 0),
+      0
+    );
 
-      nome,
+  const saquesPagos = saques.filter(
+    (saque: any) =>
+      normalizarTexto(saque.status) === "pago" &&
+      saque.competencia === competencia &&
+      normalizarTexto(saque.consultora) === chave
+  );
 
-      pontosCompra,
+  const pontosCompraPagos =
+    saquesPagos.reduce(
+      (total: number, saque: any) =>
+        total + Number(saque.pontosCompra || 0),
+      0
+    );
 
-      pontosClt,
+  const pontosCltPagos =
+    saquesPagos.reduce(
+      (total: number, saque: any) =>
+        total + Number(saque.pontosClt || 0),
+      0
+    );
 
-      pontosTotal:
-          pontosCompra+
-          pontosClt,
+  const pontosCompra = Math.max(
+    pontosCompraBrutos - pontosCompraPagos,
+    0
+  );
 
-      premioCompra,
+  const pontosClt = Math.max(
+    pontosCltBrutos - pontosCltPagos,
+    0
+  );
 
-      premioClt,
+  const resultadoCompra =
+    calcularPremiacaoCompra(pontosCompra);
 
-      premioTotal:
-          premioCompra+
-          premioClt,
+  const resultadoClt =
+    calcularPremiacaoClt(pontosClt);
 
-      faixa:
-          resultado.faixa,
+  const premioCompra = resultadoCompra.premio;
+  const premioClt = resultadoClt.premio;
 
-      movimentos:[]
+  return {
+    nome,
 
+    pontosCompra,
+    pontosClt,
+
+    pontosTotal:
+      pontosCompra + pontosClt,
+
+    premioCompra,
+    premioClt,
+
+    premioTotal:
+      premioCompra + premioClt,
+
+    faixa: resultadoCompra.faixa,
+
+    movimentos: [],
   };
-
 }

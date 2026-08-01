@@ -268,6 +268,9 @@ export default function UserManager() {
   const [carregando, setCarregando] =
     useState(true);
 
+const [formularioAberto, setFormularioAberto] =
+  useState(false);
+
   function salvarCopiaLocal(
     lista: Usuario[]
   ) {
@@ -602,6 +605,7 @@ export default function UserManager() {
 
       setForm(formularioVazio);
       setEditandoId(null);
+      setFormularioAberto(false);
 
       await carregarUsuarios();
     } catch (erro) {
@@ -614,37 +618,38 @@ export default function UserManager() {
       setProcessando(false);
     }
   }
+  function abrirNovoUsuario() {
+  setEditandoId(null);
+  setForm(formularioVazio);
+  setMensagem("");
+  setFormularioAberto(true);
+}
+function editar(usuario: Usuario) {
+  setEditandoId(usuario.id);
 
-  function editar(
-    usuario: Usuario
-  ) {
-    setEditandoId(usuario.id);
+  setForm({
+    nome: usuario.nome,
+    email: usuario.email,
+    senha: "",
+    perfil: usuario.perfil,
+    equipe: usuario.equipe,
+    ativo: usuario.ativo,
+    foto: usuario.foto,
+  });
 
-    setForm({
-      nome: usuario.nome,
-      email: usuario.email,
-      senha: "",
-      perfil: usuario.perfil,
-      equipe: usuario.equipe,
-      ativo: usuario.ativo,
-      foto: usuario.foto,
-    });
+  setMensagem(
+    "Editando usuário selecionado. Deixe a senha vazia para mantê-la."
+  );
 
-    setMensagem(
-      "Editando usuário selecionado. Deixe a senha vazia para mantê-la."
-    );
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-  }
+  setFormularioAberto(true);
+}
 
   function cancelarEdicao() {
-    setEditandoId(null);
-    setForm(formularioVazio);
-    setMensagem("");
-  }
+  setEditandoId(null);
+  setForm(formularioVazio);
+  setMensagem("");
+  setFormularioAberto(false);
+}
 
   async function alternarStatus(
     usuario: Usuario
@@ -770,10 +775,21 @@ export default function UserManager() {
       </section>
 
       <section className="users-layout">
-        <form
-          className="users-card"
-          onSubmit={salvar}
-        >
+        {formularioAberto && (
+  <button
+    type="button"
+    className="users-drawer-backdrop"
+    aria-label="Fechar formulário"
+    onClick={cancelarEdicao}
+  />
+)}
+
+<form
+  className={`users-card users-form-panel ${
+    formularioAberto ? "open" : ""
+  }`}
+  onSubmit={salvar}
+>
           <div className="users-heading">
             <div>
               <span>
@@ -796,7 +812,14 @@ export default function UserManager() {
               </p>
             </div>
 
-            <b>+</b>
+            <button
+  type="button"
+  className="users-drawer-close"
+  onClick={cancelarEdicao}
+  aria-label="Fechar"
+>
+  ×
+</button>
           </div>
 
           <div className="users-photo-area">
@@ -1029,18 +1052,14 @@ export default function UserManager() {
           )}
 
           <div className="users-actions">
-            {editandoId && (
-              <button
-                type="button"
-                className="cancel"
-                onClick={
-                  cancelarEdicao
-                }
-                disabled={processando}
-              >
-                Cancelar
-              </button>
-            )}
+            <button
+  type="button"
+  className="cancel"
+  onClick={cancelarEdicao}
+  disabled={processando}
+>
+  Cancelar
+</button>
 
             <button
               type="submit"
@@ -1071,7 +1090,17 @@ export default function UserManager() {
               </h2>
             </div>
 
-            <b>{filtrados.length}</b>
+            <div className="users-heading-actions">
+  <b>{filtrados.length}</b>
+
+  <button
+    type="button"
+    className="users-new-button"
+    onClick={abrirNovoUsuario}
+  >
+    + Novo usuário
+  </button>
+</div>
           </div>
 
           <div className="users-filters">

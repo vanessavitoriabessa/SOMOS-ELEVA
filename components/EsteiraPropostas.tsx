@@ -1,28 +1,198 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import "./esteira.css";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+type StatusProposta =
+  | "AG. BOLETO"
+  | "PROPOSTA DIGITADA"
+  | "AG. ASS TERMO"
+  | "AG. VÍDEO"
+  | "AG. ASS PROPOSTA"
+  | "BOLETO VALIDADO"
+  | "AG. QUITAÇÃO"
+  | "BOLETO QUITADO"
+  | "AG. LIBERAÇÃO MARGEM"
+    | "AVERBADO"
+  | "PAGO"
+  | "CANCELADA";
+
+type Cliente = {
+  id: string;
+  nome: string;
+  cpf: string;
+  rg: string;
+  telefone: string;
+  telefone2: string;
+  email: string;
+  nomeMae: string;
+  nomePai: string;
+  dataNascimento: string;
+  cep: string;
+  endereco: string;
+  numero: string;
+  complemento: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
+};
 
 type Proposta = {
   id: string;
-  numero: string;
+  numeroProposta: string;
+  motivoCancelamento?: string;
+  dataCancelamento?: string;
+  canceladoPor?: string;
+  clienteId: string;
   cliente: string;
   cpf: string;
-  banco?: string;
-  produto: string;
-  valorLiquido?: number;
-  consultora: string;
-  dataDigitacao: string;
-  dataPagamento?: string;
-  status: "Digitado" | "Aguardando pagamento" | "Pago" | "Cancelado";
-  observacoes?: string;
-  protocolo?: string;
-  dataSolicitacao?: string;
-  ultimoContato?: string;
-  proximoContato?: string;
-  situacaoContato?: string;
+  telefone: string;
+  vendedora: string;
+  banco: string;
+  tabela: string;
+  percentualTabela: number;
+  valorContrato: number;
+  valorMeta: number;
+  status: StatusProposta;
+  dataSolicitacao: string;
+  dataCadastro: string;
+  dataPagamento: string;
+observacao: string;
+senhaContracheque: string;
+senhaConsignacao: string;
+protocolo?: string;
 };
 
-const CHAVE = "somos-eleva-propostas";
+type RespostaApi = {
+  perfil?: {
+    id: string;
+    nome: string;
+    perfil: string;
+  };
+  propostas?: Proposta[];
+  proposta?: Proposta;
+  erro?: string;
+};
+
+type Formulario = {
+  clienteId: string;
+  numeroProposta: string;
+  nomeCliente: string;
+cpfCliente: string;
+rgCliente: string;
+telefoneCliente: string;
+telefone2Cliente: string;
+emailCliente: string;
+nomeMaeCliente: string;
+nomePaiCliente: string;
+dataNascimentoCliente: string;
+cepCliente: string;
+enderecoCliente: string;
+numeroCliente: string;
+complementoCliente: string;
+bairroCliente: string;
+cidadeCliente: string;
+ufCliente: string;
+  vendedora: string;
+  banco: string;
+  tabela: string;
+  valorContrato: string;
+  status: StatusProposta;
+  dataSolicitacao: string;
+  dataDigitacao: string;
+  dataPagamento: string;
+observacao: string;
+senhaContracheque: string;
+senhaConsignacao: string;
+};
+
+const STATUS: StatusProposta[] = [
+  "AG. BOLETO",
+  "PROPOSTA DIGITADA",
+  "AG. ASS TERMO",
+  "AG. VÍDEO",
+  "AG. ASS PROPOSTA",
+  "BOLETO VALIDADO",
+  "AG. QUITAÇÃO",
+  "BOLETO QUITADO",
+  "AG. LIBERAÇÃO MARGEM",
+  "AVERBADO",
+  "PAGO",
+  "CANCELADA",
+];
+
+const TABELAS = [
+  { nome: "NEO NORMAL", percentual: 100 },
+  { nome: "NEO FLEX 1", percentual: 82 },
+  { nome: "NEO FLEX 2", percentual: 67 },
+  { nome: "NEO FLEX 3", percentual: 52 },
+  { nome: "NEO FLEX 4", percentual: 37 },
+  { nome: "NEO FLEX 5", percentual: 17 },
+];
+
+function hojeIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+const FORMULARIO_VAZIO: Formulario = {
+  clienteId: "",
+  numeroProposta: "",
+  nomeCliente: "",
+cpfCliente: "",
+rgCliente: "",
+telefoneCliente: "",
+telefone2Cliente: "",
+emailCliente: "",
+nomeMaeCliente: "",
+nomePaiCliente: "",
+dataNascimentoCliente: "",
+cepCliente: "",
+enderecoCliente: "",
+numeroCliente: "",
+complementoCliente: "",
+bairroCliente: "",
+cidadeCliente: "",
+ufCliente: "",
+  vendedora: "",
+  banco: "NEO",
+  tabela: "",
+  valorContrato: "",
+  status: "AG. BOLETO",
+  dataSolicitacao: hojeIso(),
+  dataDigitacao: hojeIso(),
+  dataPagamento: "",
+observacao: "",
+senhaContracheque: "",
+senhaConsignacao: "",
+};
+
+function apenasNumeros(valor: string) {
+  return String(valor || "").replace(/\D/g, "");
+}
+
+function normalizarPerfil(valor: string) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function formatarCpf(valor: string) {
+  return apenasNumeros(valor)
+    .slice(0, 11)
+    .replace(/^(\d{3})(\d)/, "$1.$2")
+    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1-$2");
+}
 
 function moeda(valor?: number) {
   return Number(valor || 0).toLocaleString("pt-BR", {
@@ -31,199 +201,1936 @@ function moeda(valor?: number) {
   });
 }
 
+function converterValor(valor: string) {
+  const limpo = valor
+    .replace(/[^\d,.-]/g, "")
+    .replace(/\./g, "")
+    .replace(",", ".");
+
+  const convertido = Number(limpo);
+
+  return Number.isFinite(convertido) ? convertido : 0;
+}
+
 function dataBR(valor?: string) {
-  return valor ? valor.split("-").reverse().join("/") : "—";
+  if (!valor) return "—";
+
+  const data = valor.slice(0, 10);
+  const partes = data.split("-");
+
+  if (partes.length !== 3) return valor;
+
+  return `${partes[2]}/${partes[1]}/${partes[0]}`;
 }
 
-function diasDesde(data?: string) {
-  if (!data) return null;
-  const inicio = new Date(`${data}T00:00:00`);
-  const hoje = new Date();
-  const atual = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
-  return Math.floor((atual.getTime() - inicio.getTime()) / 86400000);
+function classeStatus(status: string) {
+  return status
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, "-");
 }
 
-function acaoDoDia(item: Proposta) {
-  if (item.status === "Pago") return ["Finalizada", "acao-finalizada"];
-  if (item.status === "Cancelado") return ["Cancelada", "acao-cancelada"];
+function numeroProposta(id: string, indice: number) {
+  const parteId = String(id || "")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .slice(0, 8)
+    .toUpperCase();
 
-  const dias = diasDesde(item.dataSolicitacao || item.dataDigitacao);
-  if (dias === null) return ["Cadastrar data", "acao-neutra"];
-  if (dias >= 15) return ["Prazo estourado", "acao-urgente"];
-  if (dias >= 10) return ["Cobrar diariamente", "acao-alerta"];
-  if (dias >= 2) return ["Ligar novamente", "acao-ligar"];
-  return ["Acompanhar", "acao-neutra"];
+  return `PROP-${parteId || String(indice + 1).padStart(6, "0")}`;
 }
 
 export default function EsteiraPropostas() {
+  const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
+
   const [propostas, setPropostas] = useState<Proposta[]>([]);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [consultoras, setConsultoras] = useState<string[]>([]);
+  const [perfilAtual, setPerfilAtual] = useState("");
+
   const [busca, setBusca] = useState("");
-  const [filtro, setFiltro] = useState("Todas");
+  const [filtroStatus, setFiltroStatus] = useState("Todos");
+  const [dataInicial, setDataInicial] = useState("");
+  const [dataFinal, setDataFinal] = useState("");
+
   const [selecionada, setSelecionada] = useState<Proposta | null>(null);
+  const [editando, setEditando] = useState<Proposta | null>(null);
+  const [modalAberto, setModalAberto] = useState(false);
+  const [modalCancelamentoAberto, setModalCancelamentoAberto] = useState(false);
+  const [motivoCancelamento, setMotivoCancelamento] = useState("");
+  const [cancelando, setCancelando] = useState(false);
+
+  const [form, setForm] = useState<Formulario>(FORMULARIO_VAZIO);
+  const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+  const [mensagem, setMensagem] = useState("");
+const [buscaCliente, setBuscaCliente] = useState("");
+const [arquivos, setArquivos] = useState({
+  rgFrente: null as File | null,
+  rgVerso: null as File | null,
+  cnh: null as File | null,
+  contracheque: null as File |null,
+});
+
+  const obterToken = useCallback(async () => {
+    const { data, error } = await supabase.auth.getSession();
+
+    if (error || !data.session?.access_token) {
+      throw new Error("Sua sessão expirou. Entre novamente no sistema.");
+    }
+
+    return data.session.access_token;
+  }, [supabase]);
+
+  const carregarPropostas = useCallback(async () => {
+    setCarregando(true);
+    setMensagem("");
+
+    try {
+      const token = await obterToken();
+
+      const resposta = await fetch("/api/propostas", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+
+      const conteudo = (await resposta.json()) as RespostaApi;
+
+      if (!resposta.ok) {
+        throw new Error(
+          conteudo.erro || "Não foi possível carregar as propostas."
+        );
+      }
+
+      setPerfilAtual(String(conteudo.perfil?.perfil || ""));
+      setPropostas(
+        Array.isArray(conteudo.propostas) ? conteudo.propostas : []
+      );
+    } catch (erro) {
+      console.error(erro);
+      setPropostas([]);
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível carregar as propostas."
+      );
+    } finally {
+      setCarregando(false);
+    }
+  }, [obterToken]);
+
+  const carregarClientes = useCallback(async () => {
+    try {
+      const token = await obterToken();
+
+      const resposta = await fetch("/api/clientes", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+
+      const conteudo = (await resposta.json()) as {
+        clientes?: Array<Record<string, unknown>>;
+        erro?: string;
+      };
+
+      if (!resposta.ok) {
+        throw new Error(
+          conteudo.erro || "Não foi possível carregar os clientes.",
+        );
+      }
+
+      const lista = Array.isArray(conteudo.clientes)
+        ? conteudo.clientes.map((cliente) => ({
+            id: String(cliente.id || ""),
+            nome: String(cliente.nome || ""),
+            cpf: apenasNumeros(String(cliente.cpf || "")),
+            rg: String(cliente.rg || ""),
+            telefone: String(cliente.telefone || ""),
+            telefone2: String(cliente.telefone2 || ""),
+            email: String(cliente.email || ""),
+            nomeMae: String(cliente.nomeMae || ""),
+            nomePai: String(cliente.nomePai || ""),
+            dataNascimento: String(
+              cliente.nascimento || cliente.dataNascimento || "",
+            ),
+            cep: String(cliente.cep || ""),
+            endereco: String(
+              cliente.logradouro || cliente.endereco || "",
+            ),
+            numero: String(
+              cliente.numeroEndereco || cliente.numero || "",
+            ),
+            complemento: String(cliente.complemento || ""),
+            bairro: String(cliente.bairro || ""),
+            cidade: String(cliente.cidade || ""),
+            uf: String(cliente.estado || cliente.uf || ""),
+          }))
+        : [];
+
+      setClientes(lista);
+    } catch (erro) {
+      console.error("Erro ao carregar clientes pela API:", erro);
+      setClientes([]);
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível carregar os clientes.",
+      );
+    }
+  }, [obterToken]);
+
+  const carregarConsultoras = useCallback(async () => {
+    try {
+      const token = await obterToken();
+
+      const resposta = await fetch("/api/consultoras", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+
+      const conteudo = (await resposta.json()) as {
+        consultoras?: Array<{ nome?: string }>;
+      };
+
+      const nomes = (conteudo.consultoras ?? [])
+        .map((item) => String(item.nome || "").trim())
+        .filter(Boolean);
+
+      setConsultoras(
+        Array.from(new Set(nomes)).sort((a, b) =>
+          a.localeCompare(b, "pt-BR")
+        )
+      );
+    } catch (erro) {
+      console.error("Erro ao carregar consultoras:", erro);
+      setConsultoras([]);
+    }
+  }, [obterToken]);
 
   useEffect(() => {
-    const salvas = localStorage.getItem(CHAVE);
-    if (salvas) setPropostas(JSON.parse(salvas));
-  }, []);
+    void carregarPropostas();
+    void carregarClientes();
+    void carregarConsultoras();
+  }, [carregarPropostas, carregarClientes, carregarConsultoras]);
 
-  function salvar(novas: Proposta[]) {
-    setPropostas(novas);
-    localStorage.setItem(CHAVE, JSON.stringify(novas));
-  }
+  const propostasFiltradas = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
 
-  function atualizar(campo: keyof Proposta, valor: string) {
-    if (!selecionada) return;
-    const nova = { ...selecionada, [campo]: valor };
-    setSelecionada(nova);
-    salvar(propostas.map((item) => item.id === nova.id ? nova : item));
-  }
-
-  function mudarStatus(status: Proposta["status"]) {
-    if (!selecionada) return;
-    const hoje = new Date().toISOString().slice(0, 10);
-    const nova = {
-      ...selecionada,
-      status,
-      dataPagamento: status === "Pago" ? (selecionada.dataPagamento || hoje) : selecionada.dataPagamento,
-    };
-    setSelecionada(nova);
-    salvar(propostas.map((item) => item.id === nova.id ? nova : item));
-  }
-
-  const filtradas = useMemo(() => {
-    const texto = busca.toLowerCase().trim();
-
-    return propostas.filter((item) => {
-      const bateBusca =
-        !texto ||
-        [item.numero, item.cliente, item.cpf, item.consultora, item.protocolo, item.banco]
+    return propostas.filter((proposta) => {
+      const correspondeBusca =
+        !termo ||
+        [
+          proposta.numeroProposta,
+          proposta.cliente,
+          proposta.cpf,
+          proposta.vendedora,
+          proposta.banco,
+          proposta.tabela,
+          proposta.status,
+          proposta.protocolo,
+        ]
           .join(" ")
           .toLowerCase()
-          .includes(texto);
+          .includes(termo);
 
-      const [acao] = acaoDoDia(item);
-      const bateFiltro =
-        filtro === "Todas" ||
-        (filtro === "Urgentes" && ["Prazo estourado", "Cobrar diariamente"].includes(acao)) ||
-        (filtro === "Ligar hoje" && acao === "Ligar novamente") ||
-        (filtro === "Pagas" && item.status === "Pago") ||
-        (filtro === "Canceladas" && item.status === "Cancelado");
+      const correspondeStatus =
+        filtroStatus === "Todos" || proposta.status === filtroStatus;
 
-      return bateBusca && bateFiltro;
+      const dataProposta = String(proposta.dataCadastro || "").slice(0, 10);
+
+      const correspondeDataInicial =
+        !dataInicial || dataProposta >= dataInicial;
+
+      const correspondeDataFinal =
+        !dataFinal || dataProposta <= dataFinal;
+
+      return (
+        correspondeBusca &&
+        correspondeStatus &&
+        correspondeDataInicial &&
+        correspondeDataFinal
+      );
     });
-  }, [propostas, busca, filtro]);
+  }, [propostas, busca, filtroStatus, dataInicial, dataFinal]);
 
   const resumo = useMemo(() => {
-    const acoes = propostas.map((item) => acaoDoDia(item)[0]);
-    return {
-      total: propostas.length,
-      urgentes: acoes.filter((acao) => ["Prazo estourado", "Cobrar diariamente"].includes(acao)).length,
-      ligar: acoes.filter((acao) => acao === "Ligar novamente").length,
-      pagas: propostas.filter((item) => item.status === "Pago").length,
+  const ativas = propostas.filter((item) => item.status !== "CANCELADA");
+  const pagas = ativas.filter((item) => item.status === "PAGO");
+
+  return {
+    total: ativas.length,
+    andamento: ativas.filter(
+      (item) => item.status !== "PAGO"
+    ).length,
+    pagas: pagas.length,
+    aguardando: ativas.filter(
+      (item) => item.status === "AG. BOLETO"
+    ).length,
+      valorPago: pagas.reduce(
+        (total, item) => total + Number(item.valorContrato || 0),
+        0
+      ),
+      valorMeta: pagas.reduce(
+        (total, item) => total + Number(item.valorMeta || 0),
+        0
+      ),
     };
   }, [propostas]);
 
+  const clienteSelecionado = useMemo(
+    () => clientes.find((cliente) => cliente.id === form.clienteId),
+    [clientes, form.clienteId]
+  );
+
+  const tabelaSelecionada = useMemo(
+    () => TABELAS.find((tabela) => tabela.nome === form.tabela),
+    [form.tabela]
+  );
+
+  const valorContrato = converterValor(form.valorContrato);
+
+  const valorMeta =
+    valorContrato * ((tabelaSelecionada?.percentual || 0) / 100);
+
+  const podeAlterarDataPagamento = ["administradora", "operacional"].includes(
+    normalizarPerfil(perfilAtual)
+  );
+
+  const podeCancelarProposta = ["administradora", "operacional"].includes(
+    normalizarPerfil(perfilAtual)
+  );
+async function buscarClientePorCpf() {
+  const cpfNumeros = apenasNumeros(buscaCliente);
+
+  if (cpfNumeros.length !== 11) {
+    setMensagem("Digite um CPF completo.");
+    return;
+  }
+
+  setMensagem("");
+
+  const clienteEncontrado = clientes.find(
+    (cliente) => apenasNumeros(cliente.cpf) === cpfNumeros,
+  );
+
+  if (!clienteEncontrado) {
+    // Atualiza novamente antes de concluir que não existe.
+    await carregarClientes();
+
+    const token = await obterToken();
+    const resposta = await fetch("/api/clientes", {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      cache: "no-store",
+    });
+
+    const conteudo = (await resposta.json()) as {
+      clientes?: Array<Record<string, unknown>>;
+      erro?: string;
+    };
+
+    if (!resposta.ok) {
+      setMensagem(
+        conteudo.erro || "Não foi possível consultar os clientes.",
+      );
+      return;
+    }
+
+    const encontradoNaApi = (conteudo.clientes || []).find(
+      (cliente) =>
+        apenasNumeros(String(cliente.cpf || "")) === cpfNumeros,
+    );
+
+    if (!encontradoNaApi) {
+      setForm((atual) => ({
+        ...atual,
+        clienteId: "",
+        cpfCliente: cpfNumeros,
+        nomeCliente: "",
+        rgCliente: "",
+        telefoneCliente: "",
+        telefone2Cliente: "",
+        emailCliente: "",
+        nomeMaeCliente: "",
+        nomePaiCliente: "",
+        dataNascimentoCliente: "",
+        cepCliente: "",
+        enderecoCliente: "",
+        numeroCliente: "",
+        complementoCliente: "",
+        bairroCliente: "",
+        cidadeCliente: "",
+        ufCliente: "",
+      }));
+
+      setMensagem(
+        "Cliente não encontrado. Confira o CPF cadastrado na página Clientes.",
+      );
+      return;
+    }
+
+    const clienteApi: Cliente = {
+      id: String(encontradoNaApi.id || ""),
+      nome: String(encontradoNaApi.nome || ""),
+      cpf: apenasNumeros(String(encontradoNaApi.cpf || "")),
+      rg: String(encontradoNaApi.rg || ""),
+      telefone: String(encontradoNaApi.telefone || ""),
+      telefone2: String(encontradoNaApi.telefone2 || ""),
+      email: String(encontradoNaApi.email || ""),
+      nomeMae: String(encontradoNaApi.nomeMae || ""),
+      nomePai: String(encontradoNaApi.nomePai || ""),
+      dataNascimento: String(
+        encontradoNaApi.nascimento ||
+          encontradoNaApi.dataNascimento ||
+          "",
+      ),
+      cep: String(encontradoNaApi.cep || ""),
+      endereco: String(
+        encontradoNaApi.logradouro ||
+          encontradoNaApi.endereco ||
+          "",
+      ),
+      numero: String(
+        encontradoNaApi.numeroEndereco ||
+          encontradoNaApi.numero ||
+          "",
+      ),
+      complemento: String(encontradoNaApi.complemento || ""),
+      bairro: String(encontradoNaApi.bairro || ""),
+      cidade: String(encontradoNaApi.cidade || ""),
+      uf: String(encontradoNaApi.estado || encontradoNaApi.uf || ""),
+    };
+
+    setClientes((atuais) => {
+      const semDuplicar = atuais.filter(
+        (item) => item.id !== clienteApi.id,
+      );
+      return [...semDuplicar, clienteApi];
+    });
+
+    preencherClienteNoFormulario(clienteApi);
+    return;
+  }
+
+  preencherClienteNoFormulario(clienteEncontrado);
+}
+
+function preencherClienteNoFormulario(cliente: Cliente) {
+  setForm((atual) => ({
+    ...atual,
+    clienteId: cliente.id,
+    nomeCliente: cliente.nome,
+    cpfCliente: apenasNumeros(cliente.cpf),
+    rgCliente: cliente.rg,
+    telefoneCliente: cliente.telefone,
+    telefone2Cliente: cliente.telefone2,
+    emailCliente: cliente.email,
+    nomeMaeCliente: cliente.nomeMae,
+    nomePaiCliente: cliente.nomePai,
+    dataNascimentoCliente: cliente.dataNascimento,
+    cepCliente: cliente.cep,
+    enderecoCliente: cliente.endereco,
+    numeroCliente: cliente.numero,
+    complementoCliente: cliente.complemento,
+    bairroCliente: cliente.bairro,
+    cidadeCliente: cliente.cidade,
+    ufCliente: cliente.uf,
+  }));
+
+  setMensagem("Cliente encontrado. Os dados foram preenchidos.");
+}
+
+  function abrirNovaProposta() {
+  setEditando(null);
+  setForm({
+    ...FORMULARIO_VAZIO,
+    dataSolicitacao: hojeIso(),
+    dataDigitacao: hojeIso(),
+  });
+
+  setArquivos({
+    rgFrente: null,
+    rgVerso: null,
+    cnh: null,
+    contracheque: null,
+  });
+
+  setBuscaCliente("");
+  setMensagem("");
+  setModalAberto(true);
+}
+
+  function abrirEdicaoProposta(proposta: Proposta) {
+    const cliente = clientes.find((item) => item.id === proposta.clienteId);
+
+    setEditando(proposta);
+    setForm({
+      clienteId: proposta.clienteId || cliente?.id || "",
+      numeroProposta: proposta.numeroProposta || "",
+      nomeCliente: cliente?.nome || proposta.cliente || "",
+      cpfCliente: cliente?.cpf || proposta.cpf || "",
+      rgCliente: cliente?.rg || "",
+      telefoneCliente: cliente?.telefone || proposta.telefone || "",
+      telefone2Cliente: cliente?.telefone2 || "",
+      emailCliente: cliente?.email || "",
+      nomeMaeCliente: cliente?.nomeMae || "",
+      nomePaiCliente: cliente?.nomePai || "",
+      dataNascimentoCliente: cliente?.dataNascimento || "",
+      cepCliente: cliente?.cep || "",
+      enderecoCliente: cliente?.endereco || "",
+      numeroCliente: cliente?.numero || "",
+      complementoCliente: cliente?.complemento || "",
+      bairroCliente: cliente?.bairro || "",
+      cidadeCliente: cliente?.cidade || "",
+      ufCliente: cliente?.uf || "",
+      vendedora: proposta.vendedora || "",
+      banco: proposta.banco || "NEO",
+      tabela: proposta.tabela || "",
+      valorContrato: String(proposta.valorContrato || ""),
+      status: proposta.status || "AG. BOLETO",
+      dataSolicitacao: proposta.dataSolicitacao || proposta.dataCadastro || hojeIso(),
+      dataDigitacao: proposta.dataCadastro || hojeIso(),
+      dataPagamento: proposta.dataPagamento || "",
+      observacao: proposta.observacao || "",
+      senhaContracheque: proposta.senhaContracheque || "",
+      senhaConsignacao: proposta.senhaConsignacao || "",
+    });
+
+    setBuscaCliente(formatarCpf(cliente?.cpf || proposta.cpf || ""));
+    setMensagem("");
+    setModalAberto(true);
+  }
+
+  async function salvarProposta(evento: FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+
+    if (!form.cpfCliente.trim()) {
+  setMensagem("Informe o CPF do cliente.");
+  return;
+}
+
+if (!form.nomeCliente.trim()) {
+  setMensagem("Informe o nome do cliente.");
+  return;
+}
+
+if (!form.telefoneCliente.trim()) {
+  setMensagem("Informe o telefone do cliente.");
+  return;
+}
+
+    if (!form.vendedora) {
+      setMensagem("Selecione a consultora.");
+      return;
+    }
+
+    if (!form.banco.trim()) {
+      setMensagem("Informe o banco.");
+      return;
+    }
+
+    if (!tabelaSelecionada) {
+      setMensagem("Selecione a tabela.");
+      return;
+    }
+
+    if (valorContrato <= 0) {
+      setMensagem("Informe o valor do contrato.");
+      return;
+    }
+
+    setSalvando(true);
+    setMensagem("");
+
+    try {
+      const token = await obterToken();
+const dadosCliente = {
+  nome: form.nomeCliente.trim(),
+  cpf: apenasNumeros(form.cpfCliente),
+  rg: form.rgCliente.trim(),
+  telefone: form.telefoneCliente.trim(),
+  telefone2: form.telefone2Cliente.trim(),
+  email: form.emailCliente.trim(),
+  nome_mae: form.nomeMaeCliente.trim(),
+  nome_pai: form.nomePaiCliente.trim(),
+  data_nascimento: form.dataNascimentoCliente || null,
+  cep: form.cepCliente.trim(),
+  endereco: form.enderecoCliente.trim(),
+  numero: form.numeroCliente.trim(),
+  complemento: form.complementoCliente.trim(),
+  bairro: form.bairroCliente.trim(),
+  cidade: form.cidadeCliente.trim(),
+  uf: form.ufCliente.trim(),
+};
+
+let clienteId = form.clienteId;
+
+if (clienteId) {
+  const { error: erroAtualizarCliente } = await supabase
+    .from("clientes")
+    .update(dadosCliente)
+    .eq("id", clienteId);
+
+  if (erroAtualizarCliente) {
+    throw new Error(
+      `Não foi possível atualizar o cliente: ${erroAtualizarCliente.message}`
+    );
+  }
+} else {
+  const { data: clienteCriado, error: erroCriarCliente } = await supabase
+    .from("clientes")
+    .insert(dadosCliente)
+    .select("id")
+    .single();
+
+  if (erroCriarCliente || !clienteCriado?.id) {
+    throw new Error(
+      `Não foi possível cadastrar o cliente: ${
+        erroCriarCliente?.message || "cliente sem identificação"
+      }`
+    );
+  }
+
+  clienteId = String(clienteCriado.id);
+}
+      const propostaId = editando?.id || crypto.randomUUID();
+
+const proposta: Proposta = {
+  id: propostaId,
+  numeroProposta: form.numeroProposta.trim(),
+        clienteId,
+cliente: form.nomeCliente.trim(),
+cpf: apenasNumeros(form.cpfCliente),
+telefone: form.telefoneCliente.trim(),
+        vendedora: form.vendedora,
+        banco: form.banco.trim(),
+        tabela: tabelaSelecionada.nome,
+        percentualTabela: tabelaSelecionada.percentual,
+        valorContrato,
+        valorMeta,
+        status: form.status,
+dataSolicitacao: form.dataSolicitacao,
+dataCadastro: form.dataDigitacao,
+dataPagamento:
+  form.status === "PAGO" ? form.dataPagamento || hojeIso() : "",
+observacao: form.observacao.trim(),
+senhaContracheque: form.senhaContracheque.trim(),
+senhaConsignacao: form.senhaConsignacao.trim(),
+      };
+
+      const resposta = await fetch("/api/propostas", {
+        method: editando ? "PATCH" : "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ proposta }),
+      });
+
+      const conteudo = (await resposta.json()) as RespostaApi;
+
+      if (!resposta.ok) {
+        throw new Error(
+          conteudo.erro ||
+            (editando
+              ? "Não foi possível atualizar a proposta."
+              : "Não foi possível salvar a proposta.")
+        );
+      }
+const documentos = [
+  { tipo: "rg-frente", arquivo: arquivos.rgFrente },
+  { tipo: "rg-verso", arquivo: arquivos.rgVerso },
+  { tipo: "cnh", arquivo: arquivos.cnh },
+  { tipo: "contracheque", arquivo: arquivos.contracheque },
+];
+
+for (const documento of documentos) {
+  if (editando || !documento.arquivo) continue;
+
+  const extensao =
+    documento.arquivo.name.split(".").pop() || "jpg";
+
+  const caminho =
+    `${propostaId}/${documento.tipo}.${extensao}`;
+
+  const { error: erroUpload } =
+    await supabase.storage
+      .from("propostas")
+      .upload(caminho, documento.arquivo, {
+        upsert: true,
+      });
+
+  if (erroUpload) {
+    throw new Error(
+      `Erro ao enviar ${documento.tipo}: ${erroUpload.message}`
+    );
+  }
+
+  await supabase
+    .from("proposta_documentos")
+    .insert({
+      proposta_id: propostaId,
+      tipo: documento.tipo,
+      nome_arquivo: documento.arquivo.name,
+      caminho,
+    });
+}
+      await carregarPropostas();
+
+      setModalAberto(false);
+      setEditando(null);
+      setForm(FORMULARIO_VAZIO);
+      setArquivos({
+  rgFrente: null,
+  rgVerso: null,
+  cnh: null,
+  contracheque: null,
+});
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível salvar a proposta."
+      );
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  async function excluirPropostaDigitada(proposta: Proposta) {
+    if (proposta.status !== "PROPOSTA DIGITADA") return;
+
+    const confirmar = window.confirm(
+      `Deseja excluir definitivamente a proposta de ${proposta.cliente}?\n\nEssa ação não poderá ser desfeita.`,
+    );
+
+    if (!confirmar) return;
+
+    setSalvando(true);
+    setMensagem("");
+
+    try {
+      const token = await obterToken();
+
+      const resposta = await fetch("/api/propostas", {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id: proposta.id }),
+      });
+
+      const conteudo = (await resposta.json()) as RespostaApi;
+
+      if (!resposta.ok) {
+        throw new Error(
+          conteudo.erro || "Não foi possível excluir a proposta.",
+        );
+      }
+
+      await carregarPropostas();
+
+      if (editando?.id === proposta.id) {
+        setModalAberto(false);
+        setEditando(null);
+        setForm(FORMULARIO_VAZIO);
+      }
+
+      setMensagem("Proposta excluída com sucesso.");
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível excluir a proposta.",
+      );
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  async function confirmarCancelamento() {
+    if (!editando) return;
+
+    if (!motivoCancelamento.trim()) {
+      setMensagem("Informe o motivo do cancelamento.");
+      return;
+    }
+
+    setCancelando(true);
+    setMensagem("");
+
+    try {
+      const token = await obterToken();
+
+      const propostaCancelada: Proposta = {
+        ...editando,
+        numeroProposta: form.numeroProposta.trim(),
+        clienteId: form.clienteId,
+        cliente: form.nomeCliente.trim(),
+        cpf: apenasNumeros(form.cpfCliente),
+        telefone: form.telefoneCliente.trim(),
+        vendedora: form.vendedora,
+        banco: form.banco.trim(),
+        tabela: form.tabela,
+        percentualTabela: tabelaSelecionada?.percentual || 0,
+        valorContrato,
+        valorMeta,
+        status: "CANCELADA",
+        dataSolicitacao: form.dataSolicitacao,
+        dataCadastro: form.dataDigitacao,
+        dataPagamento: "",
+        observacao: form.observacao.trim(),
+        senhaContracheque: form.senhaContracheque.trim(),
+        senhaConsignacao: form.senhaConsignacao.trim(),
+        motivoCancelamento: motivoCancelamento.trim(),
+        dataCancelamento: new Date().toISOString(),
+      };
+
+      const resposta = await fetch("/api/propostas", {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ proposta: propostaCancelada }),
+      });
+
+      const conteudo = (await resposta.json()) as RespostaApi;
+
+      if (!resposta.ok) {
+        throw new Error(
+          conteudo.erro || "Não foi possível cancelar a proposta."
+        );
+      }
+
+      await carregarPropostas();
+      setModalCancelamentoAberto(false);
+      setModalAberto(false);
+      setEditando(null);
+      setMotivoCancelamento("");
+      setForm(FORMULARIO_VAZIO);
+      setMensagem("Proposta cancelada com sucesso.");
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível cancelar a proposta."
+      );
+    } finally {
+      setCancelando(false);
+    }
+  }
+
   return (
-    <>
-      <section className="mini-stats-grid">
-        <article className="mini-stat"><span>Total na esteira</span><strong>{resumo.total}</strong></article>
-        <article className="mini-stat"><span>Urgentes</span><strong>{resumo.urgentes}</strong></article>
-        <article className="mini-stat"><span>Ligar novamente</span><strong>{resumo.ligar}</strong></article>
-        <article className="mini-stat"><span>Pagas</span><strong>{resumo.pagas}</strong></article>
+    <div className="esteira-profissional">
+      <section className="esteira-stats">
+        <article>
+          <span>Total de propostas</span>
+          <strong>{resumo.total}</strong>
+        </article>
+
+        <article>
+          <span>Em andamento</span>
+          <strong>{resumo.andamento}</strong>
+        </article>
+
+        <article>
+          <span>Contratos pagos</span>
+          <strong>{resumo.pagas}</strong>
+        </article>
+
+        <article>
+          <span>Aguardando boleto</span>
+          <strong>{resumo.aguardando}</strong>
+        </article>
+
+        <article>
+          <span>Valor pago</span>
+          <strong>{moeda(resumo.valorPago)}</strong>
+        </article>
+
+        <article className="destaque">
+          <span>Produção válida</span>
+          <strong>{moeda(resumo.valorMeta)}</strong>
+        </article>
       </section>
 
-      <div className="toolbar proposal-toolbar">
-        <div className="filters-group">
-          <input className="search" value={busca} onChange={(e) => setBusca(e.target.value)}
-            placeholder="Pesquisar cliente, CPF, proposta ou protocolo..." />
-          <select className="filter-select" value={filtro} onChange={(e) => setFiltro(e.target.value)}>
-            <option>Todas</option><option>Urgentes</option><option>Ligar hoje</option>
-            <option>Pagas</option><option>Canceladas</option>
+      <section className="esteira-toolbar">
+        <div className="esteira-toolbar-title">
+          <span>GESTÃO DE PROPOSTAS</span>
+          <h2>Acompanhamento das propostas</h2>
+        </div>
+
+        <div className="esteira-filtros">
+          <input
+            value={busca}
+            onChange={(evento) => setBusca(evento.target.value)}
+            placeholder="Buscar proposta, cliente, CPF ou consultora..."
+          />
+
+          <input
+            type="date"
+            value={dataInicial}
+            onChange={(evento) => setDataInicial(evento.target.value)}
+            title="Data inicial"
+          />
+
+          <input
+            type="date"
+            value={dataFinal}
+            onChange={(evento) => setDataFinal(evento.target.value)}
+            title="Data final"
+          />
+
+          <select
+            value={filtroStatus}
+            onChange={(evento) => setFiltroStatus(evento.target.value)}
+          >
+            <option value="Todos">Todos os status</option>
+
+            {STATUS.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
           </select>
-        </div>
-      </div>
 
-      <div className="pipeline-layout">
-        <div className="table-wrap">
-          <table className="pipeline-table">
-            <thead><tr><th>Cliente</th><th>Proposta</th><th>Consultora</th><th>Solicitação</th><th>Protocolo</th><th>Ação do dia</th><th>Status</th></tr></thead>
-            <tbody>
-              {filtradas.map((item) => {
-                const [acao, classe] = acaoDoDia(item);
-                return (
-                  <tr key={item.id} onClick={() => setSelecionada(item)}>
-                    <td><strong>{item.cliente}</strong><small className="table-subtext">{item.cpf || "CPF não informado"}</small></td>
-                    <td>{item.numero}</td><td>{item.consultora || "—"}</td>
-                    <td>{dataBR(item.dataSolicitacao || item.dataDigitacao)}</td>
-                    <td>{item.protocolo || "Não cadastrado"}</td>
-                    <td><span className={`acao-badge ${classe}`}>{acao}</span></td>
-                    <td>{item.status}</td>
+          <button
+            type="button"
+            className="botao-secundario"
+            onClick={() => router.push("/clientes")}
+          >
+            + Novo cliente
+          </button>
+
+          <button
+            type="button"
+            className="botao-principal"
+            onClick={abrirNovaProposta}
+          >
+            + Nova proposta
+          </button>
+        </div>
+      </section>
+
+      {mensagem && !modalAberto && (
+        <div className="esteira-mensagem">{mensagem}</div>
+      )}
+
+      <section className="esteira-tabela-card">
+        {carregando ? (
+          <div className="esteira-vazio">
+            Carregando propostas do Supabase...
+          </div>
+        ) : propostasFiltradas.length === 0 ? (
+          <div className="esteira-vazio">
+            <strong>Nenhuma proposta encontrada</strong>
+            <span>
+              Cadastre uma proposta ou altere os filtros.
+            </span>
+          </div>
+        ) : (
+          <div className="esteira-tabela-wrapper">
+            <table className="esteira-tabela">
+              <thead>
+                <tr>
+                  <th>Nº</th>
+                  <th>Consultora</th>
+                  <th>Cliente</th>
+                  <th>Produto</th>
+                  <th>Banco / Tabela</th>
+                  <th>Valor</th>
+                  <th>Valor final</th>
+                  <th>Data / Digitação</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {propostasFiltradas.map((proposta, indice) => (
+                  <tr key={proposta.id}>
+                    <td>
+                      <strong>
+                        {proposta.numeroProposta || numeroProposta(proposta.id, indice)}
+                      </strong>
+                    </td>
+
+                    <td>{proposta.vendedora || "—"}</td>
+
+                    <td>
+                      <strong>{proposta.cliente}</strong>
+                      <small>{formatarCpf(proposta.cpf)}</small>
+                    </td>
+
+                    <td>Compra de Dívida</td>
+
+                    <td>
+                      <strong>{proposta.banco || "—"}</strong>
+                      <small>
+                        {proposta.tabela || "Tabela não informada"}
+                      </small>
+                    </td>
+
+                    <td>{moeda(proposta.valorContrato)}</td>
+
+                    <td>
+                      <strong className="valor-final">
+                        {moeda(proposta.valorMeta)}
+                      </strong>
+                    </td>
+
+                    <td>
+                      <strong>
+                        {dataBR(proposta.dataCadastro)}
+                      </strong>
+
+                      {proposta.dataPagamento && (
+                        <small>
+                          Pago em {dataBR(proposta.dataPagamento)}
+                        </small>
+                      )}
+                    </td>
+
+                    <td>
+                      <span
+                        className={`esteira-status status-${classeStatus(
+                          proposta.status
+                        )}`}
+                      >
+                        {proposta.status}
+                      </span>
+                    </td>
+
+                    <td>
+                      <div className="esteira-acoes">
+                        <button
+                          type="button"
+                          title="Visualizar"
+                          onClick={() => setSelecionada(proposta)}
+                        >
+                          ◉
+                        </button>
+
+                        <button
+                          type="button"
+                          title="Editar"
+                          onClick={() => abrirEdicaoProposta(proposta)}
+                        >
+                          ✎
+                        </button>
+
+                        {podeCancelarProposta &&
+                          proposta.status !== "CANCELADA" && (
+                            <button
+                              type="button"
+                              title="Cancelar proposta"
+                              aria-label={`Cancelar proposta de ${proposta.cliente}`}
+                              onClick={() => {
+                                abrirEdicaoProposta(proposta);
+                                setMensagem("");
+                                setMotivoCancelamento(
+                                  proposta.motivoCancelamento || "",
+                                );
+                                setModalAberto(false);
+                                setModalCancelamentoAberto(true);
+                              }}
+                              style={{
+                                color: "#b42318",
+                                borderColor: "#f0b4ae",
+                                background: "#fff5f4",
+                              }}
+                            >
+                              ⊘
+                            </button>
+                          )}
+
+                        {proposta.status === "PROPOSTA DIGITADA" && (
+                          <button
+                            type="button"
+                            title="Excluir proposta digitada"
+                            aria-label={`Excluir proposta de ${proposta.cliente}`}
+                            disabled={salvando}
+                            onClick={() =>
+                              void excluirPropostaDigitada(proposta)
+                            }
+                            style={{
+                              color: "#b42318",
+                              borderColor: "#f0b4ae",
+                              background: "#fff5f4",
+                            }}
+                          >
+                            🗑
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {selecionada && (
+        <div
+          className="esteira-overlay"
+          onClick={() => setSelecionada(null)}
+        >
+          <aside
+            className="esteira-drawer"
+            onClick={(evento) => evento.stopPropagation()}
+          >
+            <header>
+              <div>
+                <span>FICHA DA PROPOSTA</span>
+                <h2>{selecionada.cliente}</h2>
+                <p>{selecionada.vendedora}</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelecionada(null)}
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="drawer-grid">
+              <div>
+                <span>CPF</span>
+                <strong>{formatarCpf(selecionada.cpf)}</strong>
+              </div>
+
+              <div>
+                <span>Telefone</span>
+                <strong>{selecionada.telefone || "—"}</strong>
+              </div>
+
+              <div>
+                <span>Banco</span>
+                <strong>{selecionada.banco || "—"}</strong>
+              </div>
+
+              <div>
+                <span>Tabela</span>
+                <strong>{selecionada.tabela || "—"}</strong>
+              </div>
+
+              <div>
+                <span>Valor do contrato</span>
+                <strong>{moeda(selecionada.valorContrato)}</strong>
+              </div>
+
+              <div>
+                <span>Valor para meta</span>
+                <strong>{moeda(selecionada.valorMeta)}</strong>
+              </div>
+
+              <div>
+                <span>Status</span>
+                <strong>{selecionada.status}</strong>
+              </div>
+
+              <div>
+                <span>Data de digitação</span>
+                <strong>{dataBR(selecionada.dataCadastro)}</strong>
+              </div>
+            </div>
+
+            <label>
+              Observações
+              <textarea
+                rows={6}
+                value={selecionada.observacao || ""}
+                readOnly
+              />
+            </label>
+          </aside>
         </div>
-
-        <aside className="proposal-detail">
-          {!selecionada ? (
-            <div className="empty-detail"><span>📄</span><h3>Selecione uma proposta</h3><p>Clique em uma linha para abrir a ficha completa.</p></div>
-          ) : (
-            <>
-              <div className="detail-header">
-                <div><span className="panel-kicker">FICHA DA PROPOSTA</span><h3>{selecionada.cliente}</h3><p>{selecionada.numero} • {selecionada.produto}</p></div>
-                <button className="icon-button" onClick={() => setSelecionada(null)}>✕</button>
+      )}
+      {modalAberto && (
+        <div
+          className="esteira-overlay"
+          onClick={() => {
+  setModalAberto(false);
+  setEditando(null);
+  setBuscaCliente("");
+  setMensagem("");
+  setForm(FORMULARIO_VAZIO);
+}}
+        >
+          <div
+            className="nova-proposta-modal"
+            onClick={(evento) => evento.stopPropagation()}
+          >
+            <header>
+              <div>
+                <span>{editando ? "ATUALIZAR PROPOSTA" : "NOVA PROPOSTA"}</span>
+                <h2>
+                  {editando
+                    ? `Editar ${form.nomeCliente || "proposta"}`
+                    : "Cadastrar contrato"}
+                </h2>
               </div>
 
-              <div className="detail-grid">
-                <div><span>CPF</span><strong>{selecionada.cpf || "—"}</strong></div>
-                <div><span>Consultora</span><strong>{selecionada.consultora || "—"}</strong></div>
-                <div><span>Banco</span><strong>{selecionada.banco || "—"}</strong></div>
-                <div><span>Valor líquido</span><strong>{moeda(selecionada.valorLiquido)}</strong></div>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setModalAberto(false);
+                  setEditando(null);
+                }}
+              >
+                ×
+              </button>
+            </header>
 
-              <label className="detail-label">Protocolo
-                <input value={selecionada.protocolo || ""} onChange={(e) => atualizar("protocolo", e.target.value)} />
-              </label>
+            <form onSubmit={salvarProposta}>
+  <div className="modal-form-grid">
+    {/* BUSCA DO CLIENTE PELO CPF */}
+    <div className="busca-cliente-topo">
+      {mensagem && (
+  <div
+    className={
+      form.clienteId
+        ? "cliente-encontrado-modal"
+        : "cliente-nao-encontrado-modal"
+    }
+  >
+    {mensagem}
+  </div>
+)}
+      <label className="cliente-pesquisa-modal">
+        CPF do cliente
 
-              <div className="detail-two-columns">
-                <label className="detail-label">Data da solicitação
-                  <input type="date" value={selecionada.dataSolicitacao || selecionada.dataDigitacao || ""} onChange={(e) => atualizar("dataSolicitacao", e.target.value)} />
-                </label>
-                <label className="detail-label">Último contato
-                  <input type="date" value={selecionada.ultimoContato || ""} onChange={(e) => atualizar("ultimoContato", e.target.value)} />
-                </label>
-              </div>
+        <input
+  type="text"
+  inputMode="numeric"
+  value={buscaCliente}
+  onChange={(evento) => {
+    const cpfDigitado = apenasNumeros(
+      evento.target.value
+    ).slice(0, 11);
 
-              <div className="detail-two-columns">
-                <label className="detail-label">Próximo contato
-                  <input type="date" value={selecionada.proximoContato || ""} onChange={(e) => atualizar("proximoContato", e.target.value)} />
-                </label>
-                <label className="detail-label">Situação do contato
-                  <select value={selecionada.situacaoContato || ""} onChange={(e) => atualizar("situacaoContato", e.target.value)}>
-                    <option value="">Selecionar</option><option>Ligado</option><option>Não atendeu</option>
-                    <option>Retornar depois</option><option>Aguardando documento</option><option>Aguardando banco</option>
-                  </select>
-                </label>
-              </div>
+    setBuscaCliente(formatarCpf(cpfDigitado));
 
-              <label className="detail-label">Observações
-                <textarea rows={4} value={selecionada.observacoes || ""} onChange={(e) => atualizar("observacoes", e.target.value)} />
-              </label>
+    setForm((atual) => ({
+      ...atual,
+      clienteId: "",
+      cpfCliente: cpfDigitado,
+    }));
 
-              <div className="current-action"><span>Ação automática de hoje</span>
-                <strong className={`acao-badge ${acaoDoDia(selecionada)[1]}`}>{acaoDoDia(selecionada)[0]}</strong>
-              </div>
+    setMensagem("");
+  }}
+  placeholder="Digite o CPF do cliente"
+  maxLength={14}
+/>
+      </label>
 
-              <div className="status-actions">
-                <button onClick={() => mudarStatus("Aguardando pagamento")}>Aguardando</button>
-                <button className="success-action" onClick={() => mudarStatus("Pago")}>Marcar como pago</button>
-                <button className="danger-action" onClick={() => mudarStatus("Cancelado")}>Cancelar</button>
-              </div>
-            </>
-          )}
-        </aside>
+      <button
+  type="button"
+  className="botao-buscar-cliente"
+  onClick={buscarClientePorCpf}
+>
+  Buscar cliente
+</button>
+
+      <div className="aviso-cliente-cadastrado">
+        <strong>ⓘ</strong>
+
+        <span>
+          Se o cliente já estiver cadastrado, os dados serão
+          preenchidos automaticamente.
+        </span>
       </div>
-    </>
+    </div>
+
+    {/* DADOS DO CLIENTE */}
+    <div className="secao-modal">
+      <div className="secao-modal-titulo">
+        <span>👤 DADOS DO CLIENTE</span>
+        <p>
+          Preencha ou confira as informações cadastrais.
+        </p>
+      </div>
+
+      <div className="modal-form-grid">
+        <label>
+          Nome completo
+          <input
+            value={form.nomeCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                nomeCliente: evento.target.value,
+              })
+            }
+            placeholder="Nome completo do cliente"
+          />
+        </label>
+
+        <label>
+          CPF
+          <input
+            value={formatarCpf(form.cpfCliente)}
+            readOnly
+            placeholder="CPF do cliente"
+          />
+        </label>
+
+        <label>
+          RG
+          <input
+            value={form.rgCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                rgCliente: evento.target.value,
+              })
+            }
+            placeholder="Número do RG"
+          />
+        </label>
+
+        <label>
+          Data de nascimento
+          <input
+            type="date"
+            value={form.dataNascimentoCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                dataNascimentoCliente:
+                  evento.target.value,
+              })
+            }
+          />
+        </label>
+
+        <label>
+          Nome da mãe
+          <input
+            value={form.nomeMaeCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                nomeMaeCliente: evento.target.value,
+              })
+            }
+            placeholder="Nome completo da mãe"
+          />
+        </label>
+
+        <label>
+          Nome do pai
+          <input
+            value={form.nomePaiCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                nomePaiCliente: evento.target.value,
+              })
+            }
+            placeholder="Nome completo do pai"
+          />
+        </label>
+
+        <label>
+          Telefone
+          <input
+            type="tel"
+            value={form.telefoneCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                telefoneCliente: evento.target.value,
+              })
+            }
+            placeholder="Telefone principal"
+          />
+        </label>
+
+        <label>
+          Telefone 2
+          <input
+            type="tel"
+            value={form.telefone2Cliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                telefone2Cliente:
+                  evento.target.value,
+              })
+            }
+            placeholder="Telefone alternativo"
+          />
+        </label>
+
+        <label className="campo-largura-total">
+          E-mail
+          <input
+            type="email"
+            value={form.emailCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                emailCliente: evento.target.value,
+              })
+            }
+            placeholder="E-mail do cliente"
+          />
+        </label>
+      </div>
+    </div>
+
+    {/* ENDEREÇO */}
+    <div className="secao-modal">
+      <div className="secao-modal-titulo">
+        <span>📍 ENDEREÇO</span>
+        <p>
+          Informe o endereço completo do cliente.
+        </p>
+      </div>
+
+      <div className="modal-form-grid">
+        <label>
+          CEP
+          <input
+            value={form.cepCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                cepCliente: evento.target.value,
+              })
+            }
+            placeholder="00000-000"
+            maxLength={9}
+          />
+        </label>
+
+        <label>
+          Endereço
+          <input
+            value={form.enderecoCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                enderecoCliente:
+                  evento.target.value,
+              })
+            }
+            placeholder="Rua, avenida ou logradouro"
+          />
+        </label>
+
+        <label>
+          Número
+          <input
+            value={form.numeroCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                numeroCliente: evento.target.value,
+              })
+            }
+            placeholder="Número"
+          />
+        </label>
+
+        <label>
+          Complemento
+          <input
+            value={form.complementoCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                complementoCliente:
+                  evento.target.value,
+              })
+            }
+            placeholder="Casa, apartamento, bloco..."
+          />
+        </label>
+
+        <label>
+          Bairro
+          <input
+            value={form.bairroCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                bairroCliente: evento.target.value,
+              })
+            }
+            placeholder="Bairro"
+          />
+        </label>
+
+        <label>
+          Cidade
+          <input
+            value={form.cidadeCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                cidadeCliente: evento.target.value,
+              })
+            }
+            placeholder="Cidade"
+          />
+        </label>
+
+        <label>
+          UF
+          <input
+            value={form.ufCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                ufCliente: evento.target.value
+                  .toUpperCase()
+                  .slice(0, 2),
+              })
+            }
+            placeholder="GO"
+            maxLength={2}
+          />
+        </label>
+      </div>
+    </div>
+
+    {/* DADOS DA PROPOSTA */}
+    <div className="secao-modal">
+      <div className="secao-modal-titulo">
+        <span>📄 DADOS DA PROPOSTA</span>
+        <p>Informe os dados da operação.</p>
+      </div>
+
+      <div className="modal-form-grid">
+        <label>
+          Número da proposta
+          <input
+            type="text"
+            value={form.numeroProposta}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                numeroProposta: evento.target.value,
+              })
+            }
+            placeholder="Ex.: NEO-25487"
+          />
+        </label>
+
+        <label>
+          Consultora
+          <select
+            value={form.vendedora}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                vendedora: evento.target.value,
+              })
+            }
+          >
+            <option value="">Selecione a consultora</option>
+
+            {consultoras.map((consultora) => (
+              <option key={consultora} value={consultora}>
+                {consultora}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Banco
+          <input
+            value={form.banco}
+            readOnly
+          />
+        </label>
+
+        <label>
+          Tabela
+          <select
+            value={form.tabela}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                tabela: evento.target.value,
+              })
+            }
+          >
+            <option value="">
+              Selecione a tabela
+            </option>
+
+            {TABELAS.map((tabela) => (
+              <option
+                key={tabela.nome}
+                value={tabela.nome}
+              >
+                {tabela.nome} — {tabela.percentual}%
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Valor do contrato
+          <input
+            value={form.valorContrato}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                valorContrato: evento.target.value,
+              })
+            }
+            placeholder="Ex.: 20.000,00"
+          />
+        </label>
+
+        <label>
+          Data da solicitação
+          <input
+            type="date"
+            value={form.dataSolicitacao}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                dataSolicitacao:
+                  evento.target.value,
+              })
+            }
+          />
+        </label>
+
+        <label>
+          Data da digitação
+          <input
+            type="date"
+            value={form.dataDigitacao}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                dataDigitacao:
+                  evento.target.value,
+              })
+            }
+          />
+        </label>
+
+        <label>
+          Status
+          <select
+            value={form.status}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                status: evento.target.value as StatusProposta,
+                dataPagamento:
+                  evento.target.value === "PAGO" &&
+                  podeAlterarDataPagamento &&
+                  !form.dataPagamento
+                    ? hojeIso()
+                    : form.dataPagamento,
+              })
+            }
+          >
+            {STATUS.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {editando && (
+          <label>
+            Data do pagamento
+            <input
+              type="date"
+              value={form.dataPagamento}
+              disabled={!podeAlterarDataPagamento}
+              onChange={(evento) =>
+                setForm({
+                  ...form,
+                  dataPagamento: evento.target.value,
+                })
+              }
+              title={
+                podeAlterarDataPagamento
+                  ? "Data em que a proposta foi paga"
+                  : "Somente operacional ou administradora pode alterar esta data"
+              }
+            />
+            {!podeAlterarDataPagamento && (
+              <small>
+                Somente operacional ou administradora pode alterar.
+              </small>
+            )}
+          </label>
+        )}
+
+        <label>
+          Senha do contracheque
+          <input
+            type="text"
+            value={form.senhaContracheque}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                senhaContracheque:
+                  evento.target.value,
+              })
+            }
+            placeholder="Digite a senha do contracheque"
+          />
+        </label>
+
+        <label>
+          Senha da consignação
+          <input
+            type="text"
+            value={form.senhaConsignacao}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                senhaConsignacao:
+                  evento.target.value,
+              })
+            }
+            placeholder="Digite a senha da consignação"
+          />
+        </label>
+
+        <div className="valor-meta-modal">
+          <span>Valor para a meta</span>
+          <strong>{moeda(valorMeta)}</strong>
+        </div>
+      </div>
+
+      <label className="observacao-modal">
+        Observações
+        <textarea
+          rows={4}
+          value={form.observacao}
+          onChange={(evento) =>
+            setForm({
+              ...form,
+              observacao: evento.target.value,
+            })
+          }
+          placeholder="Digite informações importantes sobre a proposta"
+        />
+      </label>
+      <div className="secao-documentos">
+  <div className="secao-modal-titulo">
+    <span>📎 DOCUMENTOS</span>
+    <p>Anexe os documentos necessários para a proposta.</p>
+  </div>
+
+  <div className="documentos-grid">
+    <label className="documento-upload">
+      <span>RG frente</span>
+
+      <input
+  type="file"
+  accept="image/*,.pdf"
+  onChange={(e) =>
+    setArquivos({
+      ...arquivos,
+      rgFrente: e.target.files?.[0] ?? null,
+    })
+  }
+/>
+
+      <strong>Selecionar arquivo</strong>
+      <small>Imagem ou PDF</small>
+    </label>
+
+    <label className="documento-upload">
+      <span>RG verso</span>
+
+      <input
+        type="file"
+        accept="image/*,.pdf"
+        onChange={(e) =>
+          setArquivos({
+            ...arquivos,
+            rgVerso: e.target.files?.[0] ?? null,
+          })
+        }
+      />
+
+      <strong>Selecionar arquivo</strong>
+      <small>Imagem ou PDF</small>
+    </label>
+
+    <label className="documento-upload">
+      <span>CNH</span>
+
+      <input
+  type="file"
+  accept="image/*,.pdf"
+  onChange={(e) =>
+    setArquivos({
+      ...arquivos,
+      cnh: e.target.files?.[0] ?? null,
+    })
+  }
+/>
+
+      <strong>Selecionar arquivo</strong>
+      <small>Imagem ou PDF</small>
+    </label>
+
+    <label className="documento-upload">
+      <span>Contracheque</span>
+
+      <input
+  type="file"
+  accept="image/*,.pdf"
+  onChange={(e) =>
+    setArquivos({
+      ...arquivos,
+      contracheque: e.target.files?.[0] ?? null,
+    })
+  }
+/>
+
+      <strong>Selecionar arquivo</strong>
+      <small>Imagem ou PDF</small>
+    </label>
+  </div>
+</div>
+    </div>
+  </div>
+
+  {mensagem && (
+    <div className="esteira-mensagem">
+      {mensagem}
+    </div>
+  )}
+
+  <footer>
+    <button
+      type="button"
+      className="botao-secundario"
+      onClick={() => setModalAberto(false)}
+    >
+      Cancelar
+    </button>
+
+    <button
+      type="submit"
+      className="botao-principal"
+      disabled={salvando}
+    >
+      {salvando
+        ? editando
+          ? "Atualizando..."
+          : "Salvando..."
+        : editando
+          ? "Salvar alterações"
+          : "Salvar proposta"}
+    </button>
+  </footer>
+</form>
+          </div>
+        </div>
+      )}
+
+      {modalCancelamentoAberto && editando && (
+        <div
+          className="esteira-overlay"
+          onClick={() => {
+            if (!cancelando) setModalCancelamentoAberto(false);
+          }}
+          style={{ zIndex: 9999 }}
+        >
+          <div
+            className="nova-proposta-modal"
+            onClick={(evento) => evento.stopPropagation()}
+            style={{ maxWidth: 620 }}
+          >
+            <header>
+              <div>
+                <span>CANCELAR PROPOSTA</span>
+                <h2>{editando.cliente}</h2>
+              </div>
+
+              <button
+                type="button"
+                disabled={cancelando}
+                onClick={() => setModalCancelamentoAberto(false)}
+              >
+                ×
+              </button>
+            </header>
+
+            <div style={{ padding: "20px" }}>
+              <p>
+                A proposta continuará salva e entrará nas métricas de
+                cancelamento.
+              </p>
+
+              <label className="observacao-modal">
+                Motivo do cancelamento
+                <textarea
+                  rows={5}
+                  value={motivoCancelamento}
+                  onChange={(evento) =>
+                    setMotivoCancelamento(evento.target.value)
+                  }
+                  placeholder="Explique por que a proposta foi cancelada"
+                  disabled={cancelando}
+                />
+              </label>
+
+              {mensagem && (
+                <div className="esteira-mensagem">{mensagem}</div>
+              )}
+            </div>
+
+            <footer>
+              <button
+                type="button"
+                className="botao-secundario"
+                disabled={cancelando}
+                onClick={() => setModalCancelamentoAberto(false)}
+              >
+                Voltar
+              </button>
+
+              <button
+                type="button"
+                className="botao-principal"
+                disabled={cancelando || !motivoCancelamento.trim()}
+                onClick={confirmarCancelamento}
+                style={{ background: "#b42318" }}
+              >
+                {cancelando ? "Cancelando..." : "Confirmar cancelamento"}
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+    </div>
   );
 }

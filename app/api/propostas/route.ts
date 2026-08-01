@@ -7,15 +7,18 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 
 const STATUS = [
-  "Solicitado",
-  "Em andamento",
-  "Aguardando boleto",
-  "Nota promissória",
-  "Ag. liberação de margem",
-  "Ag. fazer anuência",
-  "Enviado ao banco",
-  "Pago",
-  "Cancelado",
+  "AG. BOLETO",
+  "PROPOSTA DIGITADA",
+  "AG. ASS TERMO",
+  "AG. VÍDEO",
+  "AG. ASS PROPOSTA",
+  "BOLETO VALIDADO",
+  "AG. QUITAÇÃO",
+  "BOLETO QUITADO",
+  "AG. LIBERAÇÃO MARGEM",
+  "AVERBADO",
+  "PAGO",
+  "CANCELADA",
 ] as const;
 
 type StatusProposta = (typeof STATUS)[number];
@@ -29,6 +32,10 @@ type Perfil = {
 
 type PropostaRecebida = {
   id?: string;
+  numeroProposta?: string;
+  motivoCancelamento?: string;
+  dataCancelamento?: string;
+  canceladoPor?: string;
   clienteId?: string;
   cliente?: string;
   cpf?: string;
@@ -55,6 +62,10 @@ type PropostaRecebida = {
 
 type LinhaProposta = {
   id: string;
+  numero_proposta: string | null;
+  motivo_cancelamento: string | null;
+  data_cancelamento: string | null;
+  cancelado_por: string | null;
   cliente_id: string | null;
   cliente: string;
   cpf: string;
@@ -116,7 +127,7 @@ function dataSegura(valor: unknown) {
 function statusSeguro(valor: unknown): StatusProposta {
   const texto = String(valor || "") as StatusProposta;
 
-  return STATUS.includes(texto) ? texto : "Solicitado";
+  return STATUS.includes(texto) ? texto : "AG. BOLETO";
 }
 
 function perfilEhConsultora(perfil: string) {
@@ -147,9 +158,163 @@ function perfilPodeAcessar(perfil: string) {
   ].includes(normalizarTexto(perfil));
 }
 
+function podeAlterarDataPagamento(perfil: string) {
+  return ["administradora", "operacional"].includes(normalizarTexto(perfil));
+}
+
+function podeCancelarProposta(perfil: string) {
+  return ["administradora", "operacional"].includes(normalizarTexto(perfil));
+}
+
+const COMISSAO_BANCO_POR_TABELA: Record<string, number> = {
+  "neo normal": 28.5,
+  "neo flex 1": 24.5,
+  "neo flex 2": 20.5,
+  "neo flex 3": 16.5,
+  "neo flex 4": 10.5,
+  "neo flex 5": 4.5,
+};
+
+function percentualComissaoBanco(tabela: string) {
+  const nome = normalizarTexto(tabela);
+
+  const chave = Object.keys(COMISSAO_BANCO_POR_TABELA).find(
+    (item) => nome === item || nome.startsWith(item),
+  );
+
+  return chave ? COMISSAO_BANCO_POR_TABELA[chave] : 0;
+}
+
+/**
+ * Contratos pagos de segunda a domingo são recebidos
+ * na terça-feira seguinte.
+ */
+function proximaTerca(dataIso: string | null) {
+  if (!dataIso) return null;
+
+  const [ano, mes, dia] = dataIso.slice(0, 10).split("-").map(Number);
+  const data = new Date(ano, mes - 1, dia);
+  const diaSemana = data.getDay();
+
+  const diasAteTerca =
+    diaSemana === 0 ? 2 : diaSemana === 1 ? 1 : 9 - diaSemana;
+
+  data.setDate(data.getDate() + diasAteTerca);
+
+  return [
+    data.getFullYear(),
+    String(data.getMonth() + 1).padStart(2, "0"),
+    String(data.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+async function sincronizarPrevisaoComissao(
+  supabase: ReturnType<typeof createAdminClient>,
+  linha: LinhaProposta,
+) {
+  if (linha.status === "CANCELADA") {
+    const { error } = await supabase
+      .from("baixas_pagamentos")
+      .delete()
+      .eq("proposta_id", linha.id);
+
+    if (error) {
+      throw new Error(
+        `A proposta foi cancelada, mas não foi possível remover a comissão do Financeiro: ${error.message}`,
+      );
+    }
+
+    return;
+  }
+
+  if (linha.status !== "PAGO" || !linha.data_pagamento) return;
+
+  const percentual = percentualComissaoBanco(linha.tabela);
+
+  if (percentual <= 0) {
+    throw new Error(
+      `A tabela "${linha.tabela}" não possui percentual de comissão bancária configurado.`,
+    );
+  }
+
+  const valorBruto = numeroSeguro(linha.valor_contrato);
+  const valorLiquido = numeroSeguro(linha.valor_meta);
+  const comissaoPrevista = valorBruto * (percentual / 100);
+  const dataPrevista = proximaTerca(linha.data_pagamento);
+
+  const { data: existente, error: erroExistente } = await supabase
+    .from("baixas_pagamentos")
+    .select("id, data_recebimento")
+    .eq("proposta_id", linha.id)
+    .maybeSingle();
+
+  if (erroExistente) {
+    throw new Error(
+      `Não foi possível verificar a previsão da comissão: ${erroExistente.message}`,
+    );
+  }
+
+  const dadosBase = {
+    proposta_id: linha.id,
+    numero_proposta: linha.numero_proposta || linha.id,
+    cliente: linha.cliente,
+    cpf: linha.cpf,
+    consultora: linha.vendedora,
+    banco: linha.banco,
+    tabela: linha.tabela,
+    valor_operacao: numeroSeguro(linha.valor_contrato),
+    valor_liquido: valorLiquido,
+    data_pagamento_proposta: linha.data_pagamento,
+    data_prevista_recebimento: dataPrevista,
+    comissao_prevista: comissaoPrevista,
+    atualizado_em: new Date().toISOString(),
+  };
+
+  // Se o banco já pagou, preserva a baixa e atualiza apenas os dados cadastrais.
+  if (existente?.id && existente.data_recebimento) {
+    const { error } = await supabase
+      .from("baixas_pagamentos")
+      .update(dadosBase)
+      .eq("id", existente.id);
+
+    if (error) {
+      throw new Error(
+        `A proposta foi paga, mas não foi possível atualizar a conciliação: ${error.message}`,
+      );
+    }
+
+    return;
+  }
+
+  const { error } = await supabase
+    .from("baixas_pagamentos")
+    .upsert(
+      {
+        ...dadosBase,
+        data_recebimento: null,
+        valor_recebido: 0,
+        diferenca: 0,
+        status: "AGUARDANDO RECEBIMENTO",
+      },
+      {
+        onConflict: "proposta_id",
+      },
+    );
+
+  if (error) {
+    throw new Error(
+      `A proposta foi paga, mas não foi possível criar a previsão da comissão: ${error.message}`,
+    );
+  }
+}
+
 function linhaParaProposta(linha: LinhaProposta) {
   return {
     id: String(linha.id),
+    numeroProposta: String(linha.numero_proposta || ""),
+    motivoCancelamento: String(linha.motivo_cancelamento || ""),
+    dataCancelamento: String(linha.data_cancelamento || ""),
+    canceladoPor: String(linha.cancelado_por || ""),
     clienteId: String(linha.cliente_id || ""),
     cliente: String(linha.cliente || ""),
     cpf: apenasNumeros(linha.cpf),
@@ -358,8 +523,27 @@ if (valorContrato <= 0) {
       ? valorMetaInformado
       : valorContrato * (percentualTabela / 100);
 
+  const status = statusSeguro(proposta.status);
+  const motivoCancelamento = String(
+    proposta.motivoCancelamento || "",
+  ).trim();
+
+  if (status === "CANCELADA" && !motivoCancelamento) {
+    throw new Error("Informe o motivo do cancelamento.");
+  }
+
   return {
     id,
+    numero_proposta: String(proposta.numeroProposta || "").trim() || null,
+    motivo_cancelamento:
+      status === "CANCELADA" ? motivoCancelamento : null,
+    data_cancelamento:
+      status === "CANCELADA"
+        ? proposta.dataCancelamento
+          ? new Date(proposta.dataCancelamento).toISOString()
+          : new Date().toISOString()
+        : null,
+    cancelado_por: status === "CANCELADA" ? perfil.id : null,
     cliente_id: String(proposta.clienteId || "").trim() || null,
     cliente,
     cpf: apenasNumeros(proposta.cpf),
@@ -377,10 +561,10 @@ parcela,
 valor_meta: valorMeta,
     comissao: numeroSeguro(proposta.comissao),
     premiacao: numeroSeguro(proposta.premiacao),
-    status: statusSeguro(proposta.status),
+    status,
     data_cadastro: dataSegura(proposta.dataCadastro),
     data_pagamento:
-      statusSeguro(proposta.status) === "Pago"
+      status === "PAGO"
         ? dataSegura(proposta.dataPagamento)
         : null,
     observacao: String(
@@ -406,6 +590,10 @@ export async function GET(request: NextRequest) {
       .select(
         `
         id,
+        numero_proposta,
+        motivo_cancelamento,
+        data_cancelamento,
+        cancelado_por,
         cliente_id,
         cliente,
         cpf,
@@ -682,7 +870,58 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    const statusAtual = statusSeguro((atual as LinhaProposta).status);
+    const statusRecebido = statusSeguro(proposta.status);
+
+    if (
+      statusRecebido === "CANCELADA" &&
+      statusAtual !== "CANCELADA" &&
+      !podeCancelarProposta(perfil.perfil)
+    ) {
+      return respostaErro(
+        "Somente operacional ou administradora pode cancelar uma proposta.",
+        403,
+      );
+    }
+
+    if (
+      statusRecebido === "CANCELADA" &&
+      !String(proposta.motivoCancelamento || "").trim()
+    ) {
+      return respostaErro("Informe o motivo do cancelamento.", 400);
+    }
+
+    const dataPagamentoAtual = dataSegura(
+      (atual as LinhaProposta).data_pagamento,
+    );
+    const dataPagamentoRecebida =
+      statusSeguro(proposta.status) === "PAGO"
+        ? dataSegura(proposta.dataPagamento)
+        : null;
+
+    if (
+      !podeAlterarDataPagamento(perfil.perfil) &&
+      dataPagamentoRecebida !== dataPagamentoAtual
+    ) {
+      return respostaErro(
+        "Somente operacional ou administradora pode alterar a data de pagamento.",
+        403,
+      );
+    }
+
     const linha = await montarLinha(supabase, perfil, proposta);
+
+    if (!podeAlterarDataPagamento(perfil.perfil)) {
+      linha.data_pagamento = dataPagamentoAtual;
+    }
+
+    if (statusAtual === "CANCELADA" && statusRecebido === "CANCELADA") {
+      linha.motivo_cancelamento =
+        (atual as LinhaProposta).motivo_cancelamento;
+      linha.data_cancelamento =
+        (atual as LinhaProposta).data_cancelamento;
+      linha.cancelado_por = (atual as LinhaProposta).cancelado_por;
+    }
 
     linha.criado_por =
       String((atual as LinhaProposta).criado_por || "") || perfil.id;
@@ -700,6 +939,11 @@ export async function PATCH(request: NextRequest) {
         400,
       );
     }
+
+    await sincronizarPrevisaoComissao(
+      supabase,
+      data as LinhaProposta,
+    );
 
     return NextResponse.json({
       mensagem: "Proposta atualizada com sucesso.",
