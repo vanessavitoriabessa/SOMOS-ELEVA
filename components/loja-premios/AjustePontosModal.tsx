@@ -221,13 +221,23 @@ export default function AjustePontosModal({
       limparFormulario();
       await carregarHistorico();
       await onAtualizado();
-    } catch (error) {
-      setErro(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível salvar o ajuste."
-      );
-    } finally {
+    } catch (error: unknown) {
+  console.error("ERRO AO SALVAR AJUSTE DE PONTOS:", error);
+
+  const mensagemErro =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" &&
+          error !== null &&
+          "message" in error
+        ? String(
+            (error as { message?: unknown }).message ||
+              "Não foi possível salvar o ajuste."
+          )
+        : "Não foi possível salvar o ajuste.";
+
+  setErro(mensagemErro);
+} finally {
       setSalvando(false);
     }
   }
