@@ -680,19 +680,8 @@ export default function LojaPremiosManager({
           0
         );
 
-      const pontosCompraBrutos =
-        propostasDaConsultora.reduce(
-          (total, proposta) =>
-            total + valorValidoCompra(proposta),
-          0
-        ) + ajusteCompra;
-
-      const pontosCltBrutos =
-        cltDaConsultora.reduce(
-          (total, registro) =>
-            total + Number(registro.parcela || 0),
-          0
-        ) + ajusteClt;
+      const pontosCompraBrutos = ajusteCompra;
+const pontosCltBrutos = ajusteClt;
 
       const saquesPagos = saques.filter(
         (saque) =>
