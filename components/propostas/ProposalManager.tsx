@@ -751,9 +751,12 @@ export default function ProposalManager() {
     setProcessando(true);
 
     try {
-      await chamarApiPropostas(estavaEditando ? "PATCH" : "POST", {
-        proposta,
-      });
+      await chamarApiPropostas(
+  estavaEditando ? "PATCH" : "POST",
+  {
+    proposta: propostaParaApi,
+  }
+);
 
       await carregarPropostasDoSupabase(false);
 

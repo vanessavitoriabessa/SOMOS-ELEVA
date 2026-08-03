@@ -64,6 +64,14 @@ export default function ClientesManager() {
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
+  const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
+  const [edicao, setEdicao] = useState({
+    nome: "",
+    telefone: "",
+    consultora: "",
+    produto: "Compra de Dívida",
+    status: "Ativo",
+  });
 
   const obterToken = useCallback(async () => {
     const { data, error } = await supabase.auth.getSession();
@@ -77,7 +85,7 @@ export default function ClientesManager() {
 
   const chamarApiClientes = useCallback(
     async (
-      method: "GET" | "POST",
+      method: "GET" | "POST" | "PATCH",
       body?: unknown
     ) => {
       const token = await obterToken();
@@ -151,6 +159,93 @@ export default function ClientesManager() {
   useEffect(() => {
     void carregarClientes();
   }, [carregarClientes]);
+
+  function abrirEdicao(cliente: Cliente) {
+    setClienteEditando(cliente);
+    setEdicao({
+      nome: cliente.nome || "",
+      telefone: cliente.telefone || "",
+      consultora:
+        perfilAtual && perfilEhConsultora(perfilAtual.perfil)
+          ? perfilAtual.nome
+          : cliente.consultora || "",
+      produto: cliente.produto || "Compra de Dívida",
+      status: cliente.status || "Ativo",
+    });
+    setErro("");
+  }
+
+  function fecharEdicao() {
+    if (salvando) return;
+    setClienteEditando(null);
+  }
+
+  async function salvarEdicao(evento: FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+
+    if (!clienteEditando) return;
+
+    const nome = edicao.nome.trim();
+    const consultora =
+      perfilAtual && perfilEhConsultora(perfilAtual.perfil)
+        ? perfilAtual.nome
+        : edicao.consultora.trim();
+
+    if (!nome) {
+      setErro("Informe o nome do cliente.");
+      return;
+    }
+
+    if (!consultora) {
+      setErro("Selecione a consultora responsável.");
+      return;
+    }
+
+    setSalvando(true);
+    setErro("");
+
+    try {
+      const conteudo = await chamarApiClientes("PATCH", {
+        cliente: {
+          ...clienteEditando,
+          nome,
+          telefone: edicao.telefone.trim(),
+          consultora,
+          produto: edicao.produto,
+          status: edicao.status,
+        },
+      });
+
+      const atualizado = conteudo.cliente || {
+        ...clienteEditando,
+        nome,
+        telefone: edicao.telefone.trim(),
+        consultora,
+        produto: edicao.produto,
+        status: edicao.status,
+      };
+
+      setClientes((atuais) =>
+        atuais.map((cliente) =>
+          cliente.id === clienteEditando.id
+            ? (atualizado as Cliente)
+            : cliente
+        )
+      );
+
+      setClienteEditando(null);
+      await carregarClientes();
+    } catch (error) {
+      console.error(error);
+      setErro(
+        error instanceof Error
+          ? error.message
+          : "Erro ao atualizar cliente."
+      );
+    } finally {
+      setSalvando(false);
+    }
+  }
 
   async function cadastrar(
     evento: FormEvent<HTMLFormElement>
@@ -463,19 +558,20 @@ const listaConsultoras = useMemo(() => {
               <th>Consultora</th>
               <th>Produto</th>
               <th>Status</th>
+              <th>Ações</th>
             </tr>
           </thead>
 
           <tbody>
             {carregando ? (
               <tr>
-                <td colSpan={6}>
+                <td colSpan={7}>
                   Carregando clientes...
                 </td>
               </tr>
             ) : filtrados.length === 0 ? (
               <tr>
-                <td colSpan={6}>
+                <td colSpan={7}>
                   Nenhum cliente encontrado.
                 </td>
               </tr>
@@ -494,12 +590,209 @@ const listaConsultoras = useMemo(() => {
                       {cliente.status || "Ativo"}
                     </span>
                   </td>
+                  <td>
+                    <button
+                      type="button"
+                      onClick={() => abrirEdicao(cliente)}
+                      aria-label={`Editar ${cliente.nome}`}
+                      title="Editar cliente"
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 10,
+                        border: "1px solid #dbe4ef",
+                        background: "#fff",
+                        cursor: "pointer",
+                        fontSize: 18,
+                      }}
+                    >
+                      ✏️
+                    </button>
+                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+
+      {clienteEditando && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Editar cliente"
+          onClick={fecharEdicao}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.55)",
+            display: "grid",
+            placeItems: "center",
+            padding: 20,
+            zIndex: 9999,
+          }}
+        >
+          <form
+            onSubmit={salvarEdicao}
+            onClick={(evento) => evento.stopPropagation()}
+            style={{
+              width: "min(680px, 100%)",
+              background: "#fff",
+              borderRadius: 18,
+              padding: 24,
+              boxShadow: "0 24px 80px rgba(15, 23, 42, 0.25)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 20,
+              }}
+            >
+              <div>
+                <small style={{ color: "#ff6b00", fontWeight: 800 }}>
+                  EDITAR CLIENTE
+                </small>
+                <h2 style={{ margin: "4px 0 0" }}>Atualizar cadastro</h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={fecharEdicao}
+                disabled={salvando}
+                style={{
+                  width: 40,
+                  height: 40,
+                  border: 0,
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  fontSize: 22,
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="form-grid">
+              <label>
+                Nome completo
+                <input
+                  value={edicao.nome}
+                  onChange={(evento) =>
+                    setEdicao({ ...edicao, nome: evento.target.value })
+                  }
+                  disabled={salvando}
+                  required
+                />
+              </label>
+
+              <label>
+                CPF
+                <input value={clienteEditando.cpf || ""} readOnly />
+              </label>
+
+              <label>
+                Telefone
+                <input
+                  value={edicao.telefone}
+                  onChange={(evento) =>
+                    setEdicao({ ...edicao, telefone: evento.target.value })
+                  }
+                  disabled={salvando}
+                />
+              </label>
+
+              <label>
+                Consultora responsável
+                <select
+                  value={edicao.consultora}
+                  onChange={(evento) =>
+                    setEdicao({ ...edicao, consultora: evento.target.value })
+                  }
+                  disabled={salvando || usuarioEhConsultora}
+                  required
+                >
+                  <option value="">Selecione a consultora</option>
+                  {edicao.consultora &&
+                    !listaConsultoras.some(
+                      (item) => item.nome === edicao.consultora
+                    ) && (
+                      <option value={edicao.consultora}>
+                        {edicao.consultora}
+                      </option>
+                    )}
+                  {listaConsultoras.map((consultora) => (
+                    <option key={consultora.nome} value={consultora.nome}>
+                      {consultora.nome}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Produto
+                <select
+                  value={edicao.produto}
+                  onChange={(evento) =>
+                    setEdicao({ ...edicao, produto: evento.target.value })
+                  }
+                  disabled={salvando}
+                >
+                  <option value="Compra de Dívida">Compra de Dívida</option>
+                  <option value="CLT">CLT</option>
+                </select>
+              </label>
+
+              <label>
+                Status
+                <select
+                  value={edicao.status}
+                  onChange={(evento) =>
+                    setEdicao({ ...edicao, status: evento.target.value })
+                  }
+                  disabled={salvando}
+                >
+                  <option value="Ativo">Ativo</option>
+                  <option value="Pendente">Pendente</option>
+                  <option value="Finalizado">Finalizado</option>
+                </select>
+              </label>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 12,
+                marginTop: 24,
+              }}
+            >
+              <button
+                type="button"
+                onClick={fecharEdicao}
+                disabled={salvando}
+                style={{
+                  height: 46,
+                  padding: "0 20px",
+                  borderRadius: 10,
+                  border: "1px solid #dbe4ef",
+                  background: "#fff",
+                  cursor: "pointer",
+                  fontWeight: 700,
+                }}
+              >
+                Cancelar
+              </button>
+
+              <button className="button" type="submit" disabled={salvando}>
+                {salvando ? "Salvando..." : "Atualizar cliente"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
