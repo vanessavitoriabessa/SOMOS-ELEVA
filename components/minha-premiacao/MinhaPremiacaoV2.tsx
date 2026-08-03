@@ -559,8 +559,17 @@ export default function MinhaPremiacaoV2({
               <TrendingUp size={18} />
 
               <div>
-                <span>Faltam para ativar a meta</span>
-                <strong>{pontos(faltaParaMeta)} pontos</strong>
+                <span>
+  {faltaParaMeta > 0
+    ? "Faltam para ativar a meta"
+    : "Meta mínima atingida"}
+</span>
+
+<strong>
+  {faltaParaMeta > 0
+    ? `${pontos(faltaParaMeta)} pontos`
+    : "Produção acima de R$ 30.000"}
+</strong>
               </div>
             </div>
           </section>

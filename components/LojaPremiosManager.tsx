@@ -1070,12 +1070,23 @@ competenciaCompra(proposta) === competencia
     };
   }, [propostas, competencia, resumoExibido.nome, ehOperacional, nomeLogado]);
 
-  const faltaParaMeta = Math.max(META_MINIMA - resumoExibido.pontosTotal, 0);
+  const producaoParaMeta =
+  acompanhamentoCompetencia.valorConfirmado;
 
-  const progresso = Math.min(
-    100,
-    Math.max(0, (resumoExibido.pontosTotal / META_MINIMA) * 100)
-  );
+const faltaParaMeta = Math.max(
+  META_MINIMA - producaoParaMeta,
+  0
+);
+
+const progressoReal =
+  META_MINIMA > 0
+    ? (producaoParaMeta / META_MINIMA) * 100
+    : 0;
+
+const progresso = Math.min(
+  100,
+  Math.max(0, progressoReal)
+);
 
   const valorSaquesPagos = useMemo(() => {
     return solicitacoesDaConsultora
