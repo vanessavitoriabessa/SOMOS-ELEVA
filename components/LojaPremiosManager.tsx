@@ -695,41 +695,8 @@ const pontosCltBrutos = ajusteClt;
         0
       );
 
-      const pontosCltPagos = saquesPagos.reduce(
-        (total, saque) => total + Number(saque.pontosClt || 0),
-        0
-      );
-
-      const pontosAntigosSemDivisao = saquesPagos.reduce((total, saque) => {
-        const temDivisao =
-          Number(saque.pontosCompra || 0) > 0 ||
-          Number(saque.pontosClt || 0) > 0;
-
-        return temDivisao ? total : total + Number(saque.pontos || 0);
-      }, 0);
-
-      let pontosCompra = Math.max(
-        pontosCompraBrutos - pontosCompraPagos,
-        0
-      );
-
-      let pontosClt = Math.max(
-        pontosCltBrutos - pontosCltPagos,
-        0
-      );
-
-      if (pontosAntigosSemDivisao > 0) {
-        const totalAntesDoDesconto = pontosCompra + pontosClt;
-
-        if (totalAntesDoDesconto > 0) {
-          const parteCompra = pontosCompra / totalAntesDoDesconto;
-          const descontoCompra = pontosAntigosSemDivisao * parteCompra;
-          const descontoClt = pontosAntigosSemDivisao - descontoCompra;
-
-          pontosCompra = Math.max(pontosCompra - descontoCompra, 0);
-          pontosClt = Math.max(pontosClt - descontoClt, 0);
-        }
-      }
+      let pontosCompra = Math.max(pontosCompraBrutos, 0);
+let pontosClt = Math.max(pontosCltBrutos, 0);
 
       const pontosResgatadosNaLoja = pedidosLoja
         .filter((pedido) => {
