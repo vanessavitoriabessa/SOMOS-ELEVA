@@ -31,6 +31,7 @@ type RegistroRecebido = {
   cpf?: string;
   dataNascimento?: string;
   nascimento?: string;
+  dataPagamento?: string;
   telefone?: string;
   valorAprovado?: number;
   parcela?: number;
@@ -47,6 +48,7 @@ type LinhaClt = {
   nome: string;
   cpf: string;
   data_nascimento: string | null;
+  data_pagamento: string | null;
   telefone: string;
   valor_aprovado: number | string;
   prazo: number | string;
@@ -175,6 +177,7 @@ function linhaParaRegistro(linha: LinhaClt) {
     nome: String(linha.nome || ""),
     cpf: apenasNumeros(linha.cpf),
     dataNascimento: String(linha.data_nascimento || ""),
+    dataPagamento: String(linha.data_pagamento || ""),
     telefone: apenasNumeros(linha.telefone),
     valorAprovado: numeroSeguro(linha.valor_aprovado),
     parcela: numeroSeguro(linha.parcela),
@@ -361,6 +364,8 @@ async function montarLinha(
   const dataNascimento = dataSegura(
     registro.dataNascimento || registro.nascimento,
   );
+  const status = statusSeguro(registro.status);
+const dataPagamento = dataSegura(registro.dataPagamento);
   const valorAprovado = numeroSeguro(registro.valorAprovado);
   const parcela = numeroSeguro(registro.parcela);
   const prazo = numeroSeguro(registro.prazo);
@@ -377,24 +382,29 @@ async function montarLinha(
   if (prazo <= 0) throw new Error("Informe o prazo em meses.");
   if (!banco) throw new Error("Informe o banco.");
 
-  const agora = new Date().toISOString();
+if (status === "Pago" && !dataPagamento) {
+  throw new Error("Informe a data do pagamento.");
+}
+
+const agora = new Date().toISOString();
 
   return {
   id,
   nome,
   cpf,
-    data_nascimento: dataNascimento,
-    telefone,
+  data_nascimento: dataNascimento,
+  data_pagamento: status === "Pago" ? dataPagamento : null,
+  telefone,
     valor_aprovado: valorAprovado,
     parcela,
     prazo,
     banco,
     consultora_id: consultora?.id || null,
-    consultora: consultora?.nome || nomeConsultora,
-    status: statusSeguro(registro.status),
-    criado_por: perfil.id,
-    criado_em: dataHoraSegura(registro.criadoEm, agora),
-    atualizado_em: dataHoraSegura(registro.atualizadoEm, agora),
+consultora: consultora?.nome || nomeConsultora,
+status,
+criado_por: perfil.id,
+criado_em: dataHoraSegura(registro.criadoEm, agora),
+atualizado_em: dataHoraSegura(registro.atualizadoEm, agora),
   };
 }
 
@@ -414,6 +424,7 @@ export async function GET(request: NextRequest) {
         nome,
         cpf,
         data_nascimento,
+        data_pagamento,
         telefone,
         valor_aprovado,
         parcela,

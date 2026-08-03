@@ -19,6 +19,7 @@ type RegistroClt = {
   nome: string;
   cpf: string;
   dataNascimento: string;
+  dataPagamento: string;
   telefone: string;
   valorAprovado: number;
   parcela: number;
@@ -34,6 +35,7 @@ type FormularioClt = {
   nome: string;
   cpf: string;
   dataNascimento: string;
+  dataPagamento: string;
   telefone: string;
   valorAprovado: string;
   parcela: string;
@@ -77,6 +79,7 @@ function formularioVazio(): FormularioClt {
     nome: "",
     cpf: "",
     dataNascimento: "",
+    dataPagamento: "",
     telefone: "",
     valorAprovado: "",
 parcela: "",
@@ -178,6 +181,9 @@ function normalizarRegistro(
       0,
       10,
     ),
+    dataPagamento: String(
+  item.dataPagamento || ""
+).slice(0,10),
     telefone: apenasNumeros(String(item.telefone || "")),
     valorAprovado: Number(item.valorAprovado || 0),
 parcela: Number(item.parcela || 0),
@@ -591,6 +597,11 @@ if (!Number.isInteger(prazo) || prazo <= 0) {
       return;
     }
 
+if (form.status === "Pago" && !form.dataPagamento) {
+  setMensagem("Informe a data do pagamento.");
+  return;
+}
+
     const duplicado = registros.some(
       (item) =>
         item.id !== editandoId &&
@@ -606,20 +617,22 @@ if (!Number.isInteger(prazo) || prazo <= 0) {
     const agora = new Date().toLocaleString("pt-BR");
     const antigo = registros.find((item) => item.id === editandoId);
     const registro: RegistroClt = {
-      id: editandoId || crypto.randomUUID(),
-      nome: form.nome.trim(),
-      cpf,
-      dataNascimento: form.dataNascimento,
-      telefone,
-      valorAprovado,
-parcela,
-prazo,
-banco: form.banco.trim(),
-      consultora: consultoraResponsavel,
-      status: form.status,
-      criadoEm: antigo?.criadoEm || agora,
-      atualizadoEm: agora,
-    };
+  id: editandoId || crypto.randomUUID(),
+  nome: form.nome.trim(),
+  cpf,
+  dataNascimento: form.dataNascimento,
+  dataPagamento:
+    form.status === "Pago" ? form.dataPagamento : "",
+  telefone,
+  valorAprovado,
+  parcela,
+  prazo,
+  banco: form.banco.trim(),
+  consultora: consultoraResponsavel,
+  status: form.status,
+  criadoEm: antigo?.criadoEm || agora,
+  atualizadoEm: agora,
+};
     const estavaEditando = Boolean(editandoId);
 
     setProcessando(true);
@@ -653,10 +666,11 @@ banco: form.banco.trim(),
 
     setEditandoId(item.id);
     setForm({
-      nome: item.nome,
-      cpf: formatarCpf(item.cpf),
-      dataNascimento: item.dataNascimento || "",
-      telefone: formatarTelefone(item.telefone),
+  nome: item.nome,
+  cpf: formatarCpf(item.cpf),
+  dataNascimento: item.dataNascimento || "",
+  dataPagamento: item.dataPagamento || "",
+  telefone: formatarTelefone(item.telefone),
       valorAprovado: item.valorAprovado
         ? item.valorAprovado.toFixed(2).replace(".", ",")
         : "",
@@ -922,22 +936,41 @@ banco: item.banco,
             </label>
 
             <label>
-              Status
-              <select
-                value={form.status}
-                disabled={processando}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    status: event.target.value as StatusClt,
-                  })
-                }
-              >
-                {STATUS.map((status) => (
-                  <option key={status}>{status}</option>
-                ))}
-              </select>
-            </label>
+  Status
+
+  <select
+    value={form.status}
+    disabled={processando}
+    onChange={(event) =>
+      setForm({
+        ...form,
+        status: event.target.value as StatusClt,
+      })
+    }
+  >
+    {STATUS.map((status) => (
+      <option key={status}>{status}</option>
+    ))}
+  </select>
+</label>
+
+{form.status === "Pago" && (
+  <label>
+    Data do pagamento
+
+    <input
+      type="date"
+      value={form.dataPagamento}
+      disabled={processando}
+      onChange={(event) =>
+        setForm({
+          ...form,
+          dataPagamento: event.target.value,
+        })
+      }
+    />
+  </label>
+)}
           </div>
 
           {mensagem && <div className="clt-message">{mensagem}</div>}
@@ -1056,6 +1089,12 @@ banco: item.banco,
       : "Não informado"}
   </b>
 </div>
+{item.status === "Pago" && (
+  <div>
+    <small>Data do pagamento</small>
+    <b>{formatarData(item.dataPagamento)}</b>
+  </div>
+)}
                     </div>
 
                     <footer>
