@@ -585,6 +585,10 @@ export async function GET(request: NextRequest) {
 
     const { supabase, perfil } = autenticacao;
 
+    console.log("PERFIL DA API", {
+  nome: perfil.nome,
+  perfil: perfil.perfil,
+});
     const { data, error } = await supabase
       .from("propostas")
       .select(
@@ -668,6 +672,10 @@ export async function POST(request: NextRequest) {
     }
 
     const { supabase, perfil } = autenticacao;
+
+    console.log("===== PERFIL =====");
+console.log(perfil);
+console.log("===== FIM =====");
 
     const dados = (await request.json()) as {
       acao?: string;

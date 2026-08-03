@@ -58,6 +58,8 @@ export default function ClientesManager() {
   const [perfilAtual, setPerfilAtual] =
     useState<PerfilAtual | null>(null);
   const [busca, setBusca] = useState("");
+  const [filtroConsultora, setFiltroConsultora] =
+  useState("Todas");
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -238,13 +240,29 @@ export default function ClientesManager() {
       setSalvando(false);
     }
   }
+const listaConsultoras = useMemo(() => {
+  const nomes = Array.from(
+    new Set(
+      clientes
+        .map((cliente) => cliente.consultora.trim())
+        .filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+  return nomes.map((nome) => ({
+    nome,
+    quantidade: clientes.filter(
+      (cliente) => cliente.consultora.trim() === nome
+    ).length,
+  }));
+}, [clientes]);
 
   const filtrados = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
+  const termo = busca.trim().toLowerCase();
 
-    if (!termo) return clientes;
-
-    return clientes.filter((cliente) =>
+  return clientes.filter((cliente) => {
+    const correspondeBusca =
+      !termo ||
       [
         cliente.nome,
         cliente.cpf,
@@ -255,25 +273,34 @@ export default function ClientesManager() {
       ]
         .join(" ")
         .toLowerCase()
-        .includes(termo)
-    );
-  }, [busca, clientes]);
+        .includes(termo);
+
+    const correspondeConsultora =
+      filtroConsultora === "Todas" ||
+      cliente.consultora === filtroConsultora;
+
+    return correspondeBusca && correspondeConsultora;
+  });
+}, [busca, clientes, filtroConsultora]);
 
   const resumo = useMemo(
-    () => ({
-      total: clientes.length,
-      ativos: clientes.filter(
-        (cliente) => cliente.status === "Ativo"
-      ).length,
-      pendentes: clientes.filter(
-        (cliente) => cliente.status === "Pendente"
-      ).length,
-      finalizados: clientes.filter(
-        (cliente) => cliente.status === "Finalizado"
-      ).length,
-    }),
-    [clientes]
-  );
+  () => ({
+    total: filtrados.length,
+
+    ativos: filtrados.filter(
+      (cliente) => cliente.status === "Ativo"
+    ).length,
+
+    pendentes: filtrados.filter(
+      (cliente) => cliente.status === "Pendente"
+    ).length,
+
+    finalizados: filtrados.filter(
+      (cliente) => cliente.status === "Finalizado"
+    ).length,
+  }),
+  [filtrados]
+);
 
   const usuarioEhConsultora = Boolean(
     perfilAtual &&
@@ -291,6 +318,26 @@ export default function ClientesManager() {
           }
           placeholder="Pesquisar nome, CPF, telefone ou consultora..."
         />
+<select
+  value={filtroConsultora}
+  onChange={(evento) =>
+    setFiltroConsultora(evento.target.value)
+  }
+  disabled={usuarioEhConsultora}
+>
+  <option value="Todas">
+    Todas as consultoras ({clientes.length})
+  </option>
+
+  {listaConsultoras.map((consultora) => (
+    <option
+      key={consultora.nome}
+      value={consultora.nome}
+    >
+      {consultora.nome} ({consultora.quantidade})
+    </option>
+  ))}
+</select>
 
         <button
           className="button"
