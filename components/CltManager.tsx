@@ -245,6 +245,7 @@ export default function CltManager() {
   const [form, setForm] = useState<FormularioClt>(formularioVazio());
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("Todos");
+  const [filtroConsultora, setFiltroConsultora] = useState("Todas");
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [mensagem, setMensagem] = useState("");
   const [carregando, setCarregando] = useState(true);
@@ -453,23 +454,29 @@ export default function CltManager() {
   );
 
   const filtrados = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    const numerico = apenasNumeros(busca);
+  const termo = busca.trim().toLowerCase();
+  const numerico = apenasNumeros(busca);
 
-    return registros.filter((item) => {
-      const statusOk =
-        filtroStatus === "Todos" || item.status === filtroStatus;
-      const buscaOk =
-        !termo ||
-        item.nome.toLowerCase().includes(termo) ||
-        item.cpf.includes(numerico) ||
-        item.telefone.includes(numerico) ||
-        item.consultora.toLowerCase().includes(termo) ||
-        item.banco.toLowerCase().includes(termo);
+  return registros.filter((item) => {
+    const statusOk =
+      filtroStatus === "Todos" ||
+      item.status === filtroStatus;
 
-      return statusOk && buscaOk;
-    });
-  }, [registros, busca, filtroStatus]);
+    const consultoraOk =
+      filtroConsultora === "Todas" ||
+      item.consultora === filtroConsultora;
+
+    const buscaOk =
+      !termo ||
+      item.nome.toLowerCase().includes(termo) ||
+      item.cpf.includes(numerico) ||
+      item.telefone.includes(numerico) ||
+      item.consultora.toLowerCase().includes(termo) ||
+      item.banco.toLowerCase().includes(termo);
+
+    return statusOk && buscaOk && consultoraOk;
+  });
+}, [registros, busca, filtroStatus, filtroConsultora]);
 
   const resumo = useMemo(
     () => ({
@@ -1011,6 +1018,26 @@ banco: item.banco,
               onChange={(event) => setBusca(event.target.value)}
               placeholder="Pesquisar cliente, CPF, telefone, banco ou consultora"
             />
+            <select
+  value={filtroConsultora}
+  disabled={usuarioEhConsultora}
+  onChange={(event) =>
+    setFiltroConsultora(event.target.value)
+  }
+>
+  <option value="Todas">
+    Todas as vendedoras
+  </option>
+
+  {consultoras.map((consultora) => (
+    <option
+      key={consultora}
+      value={consultora}
+    >
+      {consultora}
+    </option>
+  ))}
+</select>
             <select
               value={filtroStatus}
               onChange={(event) => setFiltroStatus(event.target.value)}
