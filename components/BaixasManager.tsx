@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import "./baixas.css";
 
 type BaixaPagamento = {
   id: string;
@@ -330,12 +331,16 @@ export default function BaixasManager() {
       0,
     );
 
-    const recebidoDestaTerca = destaTerca
-      .filter((item) => Boolean(item.data_recebimento))
-      .reduce(
-        (total, item) => total + Number(item.valor_recebido || 0),
-        0,
-      );
+    const recebidoDestaTerca = itensComStatus
+  .filter(
+    (item) =>
+      String(item.data_recebimento || "").slice(0, 10) ===
+      tercaReferencia,
+  )
+  .reduce(
+    (total, item) => total + Number(item.valor_recebido || 0),
+    0,
+  );
 
     const faltaDestaTerca = destaTerca
       .filter((item) => !item.data_recebimento)
@@ -643,7 +648,7 @@ export default function BaixasManager() {
         </article>
 
         <article className="resumo-recebido">
-          <span>Recebido referente a esta terça</span>
+          <span>Recebido nesta terça</span>
           <strong>{moeda(resumo.recebidoDestaTerca)}</strong>
           <small>Valores já conferidos e baixados</small>
         </article>
