@@ -56,6 +56,11 @@ type ConsultoraApi = {
   id?: string;
   nome?: string;
 };
+type FiltroPrazo =
+  | "TODOS"
+  | "ATE_15"
+  | "ACIMA_15"
+  | "ACIMA_30";
 
 const STATUS = [
   "AG. BOLETO",
@@ -102,7 +107,11 @@ function diasRestantes(dataLimite?: string) {
   const limite = new Date(`${dataLimite.slice(0, 10)}T00:00:00`);
   return Math.ceil((limite.getTime() - hoje.getTime()) / 86400000);
 }
+function diasDeAtraso(dataLimite?: string) {
+  const dias = diasRestantes(dataLimite);
 
+  return dias < 0 ? Math.abs(dias) : 0;
+}
 const FORM_VAZIO = {
   clienteId: "",
   nome: "",
@@ -130,7 +139,10 @@ export default function ProtocolosPage() {
   const [consultoras, setConsultoras] = useState<ConsultoraApi[]>([]);
 
   const [busca, setBusca] = useState("");
-  const [filtroStatus, setFiltroStatus] = useState("Todos");
+const [filtroStatus, setFiltroStatus] = useState("Todos");
+const [filtroConsultora, setFiltroConsultora] = useState("Todas");
+const [filtroPrazo, setFiltroPrazo] =
+  useState<FiltroPrazo>("TODOS");
   const [carregando, setCarregando] = useState(true);
   const [mensagem, setMensagem] = useState("");
 
@@ -225,52 +237,131 @@ export default function ProtocolosPage() {
   }, [carregarTudo]);
 
   const filtrados = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
+  const termo = busca.trim().toLowerCase();
 
-    return protocolos.filter((item) => {
-      const correspondeBusca =
-        !termo ||
-        [
-          item.nome,
-          item.cpf,
-          item.numero_protocolo,
-          item.segundo_protocolo,
-          item.consultora,
-          item.governo,
-          item.status,
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(termo);
+  return protocolos.filter((item) => {
+    const correspondeBusca =
+      !termo ||
+      [
+        item.nome,
+        item.cpf,
+        item.numero_protocolo,
+        item.segundo_protocolo,
+        item.consultora,
+        item.governo,
+        item.status,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(termo);
 
-      const correspondeStatus =
-        filtroStatus === "Todos" || item.status === filtroStatus;
+    const correspondeStatus =
+      filtroStatus === "Todos" ||
+      item.status === filtroStatus;
 
-      return correspondeBusca && correspondeStatus;
-    });
-  }, [protocolos, busca, filtroStatus]);
+    const correspondeConsultora =
+      filtroConsultora === "Todas" ||
+      item.consultora === filtroConsultora;
 
-  const resumo = useMemo(() => {
-    const ativos = protocolos.filter(
-      (item) => !["FINALIZADO", "CANCELADO"].includes(item.status),
+    const atraso = diasDeAtraso(item.data_limite);
+
+    let correspondePrazo = true;
+
+    if (filtroPrazo === "ATE_15") {
+  correspondePrazo = atraso > 0 && atraso <= 15;
+}
+
+    if (filtroPrazo === "ACIMA_15") {
+      correspondePrazo = atraso > 15;
+    }
+
+    if (filtroPrazo === "ACIMA_30") {
+      correspondePrazo = atraso > 30;
+    }
+
+    return (
+      correspondeBusca &&
+      correspondeStatus &&
+      correspondeConsultora &&
+      correspondePrazo
     );
+  });
+}, [
+  protocolos,
+  busca,
+  filtroStatus,
+  filtroConsultora,
+  filtroPrazo,
+]);
 
-    return {
-      ativos: ativos.length,
-      vencendoHoje: ativos.filter(
-        (item) => diasRestantes(item.data_limite) === 0,
-      ).length,
-      atrasados: ativos.filter(
-        (item) => diasRestantes(item.data_limite) < 0,
-      ).length,
-      boletos: protocolos.filter(
-        (item) => item.status === "BOLETO RECEBIDO",
-      ).length,
-      finalizados: protocolos.filter(
-        (item) => item.status === "FINALIZADO",
-      ).length,
-    };
-  }, [protocolos]);
+ const resumo = useMemo(() => {
+  const termo = busca.trim().toLowerCase();
+
+  const protocolosDoResumo = protocolos.filter((item) => {
+    const correspondeBusca =
+      !termo ||
+      [
+        item.nome,
+        item.cpf,
+        item.numero_protocolo,
+        item.segundo_protocolo,
+        item.consultora,
+        item.governo,
+        item.status,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(termo);
+
+    const correspondeStatus =
+      filtroStatus === "Todos" ||
+      item.status === filtroStatus;
+
+    const correspondeConsultora =
+      filtroConsultora === "Todas" ||
+      item.consultora === filtroConsultora;
+
+    return (
+      correspondeBusca &&
+      correspondeStatus &&
+      correspondeConsultora
+    );
+  });
+
+  const ativos = protocolosDoResumo.filter(
+    (item) =>
+      !["FINALIZADO", "CANCELADO"].includes(item.status),
+  );
+
+  return {
+    ativos: ativos.length,
+
+    vencendoHoje: ativos.filter(
+      (item) => diasRestantes(item.data_limite) === 0,
+    ).length,
+
+    acima15: ativos.filter(
+      (item) => diasDeAtraso(item.data_limite) > 15,
+    ).length,
+
+    acima30: ativos.filter(
+      (item) => diasDeAtraso(item.data_limite) > 30,
+    ).length,
+
+    boletos: protocolosDoResumo.filter(
+      (item) => item.status === "BOLETO RECEBIDO",
+    ).length,
+
+    finalizados: protocolosDoResumo.filter(
+      (item) => item.status === "FINALIZADO",
+    ).length,
+  };
+}, [
+  protocolos,
+  busca,
+  filtroStatus,
+  filtroConsultora,
+]);
 
   function abrirNovo() {
     setEditando(null);
@@ -549,9 +640,14 @@ export default function ProtocolosPage() {
           <strong>{resumo.vencendoHoje}</strong>
         </article>
         <article className="alerta">
-          <span>Acima de 15 dias</span>
-          <strong>{resumo.atrasados}</strong>
-        </article>
+  <span>Mais de 15 dias atrasados</span>
+  <strong>{resumo.acima15}</strong>
+</article>
+
+<article className="alerta">
+  <span>Atrasados acima de 30 dias</span>
+  <strong>{resumo.acima30}</strong>
+</article>
         <article>
           <span>Boletos recebidos</span>
           <strong>{resumo.boletos}</strong>
@@ -569,26 +665,60 @@ export default function ProtocolosPage() {
         </div>
 
         <div className="protocolos-filtros">
-          <input
-            value={busca}
-            onChange={(evento) => setBusca(evento.target.value)}
-            placeholder="Cliente, CPF, protocolo ou consultora..."
-          />
+  <input
+    value={busca}
+    onChange={(evento) => setBusca(evento.target.value)}
+    placeholder="Cliente, CPF ou protocolo..."
+  />
 
-          <select
-            value={filtroStatus}
-            onChange={(evento) => setFiltroStatus(evento.target.value)}
-          >
-            <option value="Todos">Todos os status</option>
-            {STATUS.map((status) => (
-              <option key={status}>{status}</option>
-            ))}
-          </select>
+  <select
+    value={filtroConsultora}
+    onChange={(evento) =>
+      setFiltroConsultora(evento.target.value)
+    }
+  >
+    <option value="Todas">Todas as consultoras</option>
 
-          <button type="button" onClick={abrirNovo}>
-            + Novo protocolo
-          </button>
-        </div>
+    {consultoras.map((consultora) => {
+      const nome = String(consultora.nome || "");
+
+      return (
+        <option key={String(consultora.id || nome)} value={nome}>
+          {nome}
+        </option>
+      );
+    })}
+  </select>
+
+  <select
+    value={filtroPrazo}
+    onChange={(evento) =>
+      setFiltroPrazo(evento.target.value as FiltroPrazo)
+    }
+  >
+    <option value="TODOS">Todos os prazos</option>
+    <option value="ATE_15">Até 15 dias de atraso</option>
+    <option value="ACIMA_15">Mais de 15 dias atrasados</option>
+<option value="ACIMA_30">Mais de 30 dias atrasados</option>
+  </select>
+
+  <select
+    value={filtroStatus}
+    onChange={(evento) =>
+      setFiltroStatus(evento.target.value)
+    }
+  >
+    <option value="Todos">Todos os status</option>
+
+    {STATUS.map((status) => (
+      <option key={status}>{status}</option>
+    ))}
+  </select>
+
+  <button type="button" onClick={abrirNovo}>
+    + Novo protocolo
+  </button>
+</div>
       </section>
 
       {mensagem && (
