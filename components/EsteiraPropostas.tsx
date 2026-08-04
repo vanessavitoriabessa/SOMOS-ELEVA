@@ -265,8 +265,43 @@ export default function EsteiraPropostas() {
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("Todos");
   const [filtroConsultora, setFiltroConsultora] = useState("Todas");
-  const [dataInicial, setDataInicial] = useState("");
-  const [dataFinal, setDataFinal] = useState("");
+  const hoje = new Date();
+
+const primeiroDiaMes = new Date(
+  hoje.getFullYear(),
+  hoje.getMonth(),
+  1
+);
+
+const ultimoDiaMes = new Date(
+  hoje.getFullYear(),
+  hoje.getMonth() + 1,
+  0
+);
+
+const [dataInicial, setDataInicial] = useState(
+  primeiroDiaMes.toISOString().slice(0, 10)
+);
+
+const [dataFinal, setDataFinal] = useState(
+  ultimoDiaMes.toISOString().slice(0, 10)
+);
+  function selecionarMesAtual() {
+  const agora = new Date();
+  const ano = agora.getFullYear();
+  const mes = agora.getMonth();
+
+  const inicio = new Date(ano, mes, 1);
+  const fim = new Date(ano, mes + 1, 0);
+
+  setDataInicial(inicio.toISOString().slice(0, 10));
+  setDataFinal(fim.toISOString().slice(0, 10));
+}
+
+function limparPeriodo() {
+  setDataInicial("");
+  setDataFinal("");
+}
 
   const [selecionada, setSelecionada] = useState<Proposta | null>(null);
   const [editando, setEditando] = useState<Proposta | null>(null);
@@ -1134,68 +1169,92 @@ for (const documento of documentos) {
         </div>
 
         <div className="esteira-filtros">
-          <input
-            value={busca}
-            onChange={(evento) => setBusca(evento.target.value)}
-            placeholder="Buscar proposta, cliente, CPF ou consultora..."
-          />
-<select
-  value={filtroConsultora}
-  onChange={(evento) =>
-    setFiltroConsultora(evento.target.value)
-  }
->
-  <option value="Todas">Todas as consultoras</option>
+  <input
+    value={busca}
+    onChange={(evento) => setBusca(evento.target.value)}
+    placeholder="Buscar proposta, cliente, CPF ou consultora..."
+  />
 
-  {consultoras.map((consultora) => (
-    <option key={consultora} value={consultora}>
-      {consultora}
-    </option>
-  ))}
-</select>
-          <input
-            type="date"
-            value={dataInicial}
-            onChange={(evento) => setDataInicial(evento.target.value)}
-            title="Data inicial"
-          />
+  <select
+    value={filtroConsultora}
+    onChange={(evento) =>
+      setFiltroConsultora(evento.target.value)
+    }
+  >
+    <option value="Todas">Todas as consultoras</option>
 
-          <input
-            type="date"
-            value={dataFinal}
-            onChange={(evento) => setDataFinal(evento.target.value)}
-            title="Data final"
-          />
+    {consultoras.map((consultora) => (
+      <option key={consultora} value={consultora}>
+        {consultora}
+      </option>
+    ))}
+  </select>
 
-          <select
-            value={filtroStatus}
-            onChange={(evento) => setFiltroStatus(evento.target.value)}
-          >
-            <option value="Todos">Todos os status</option>
+  <input
+    type="date"
+    value={dataInicial}
+    onChange={(evento) =>
+      setDataInicial(evento.target.value)
+    }
+    title="Data inicial"
+  />
 
-            {STATUS.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
+  <input
+    type="date"
+    value={dataFinal}
+    onChange={(evento) =>
+      setDataFinal(evento.target.value)
+    }
+    title="Data final"
+  />
 
-          <button
-            type="button"
-            className="botao-secundario"
-            onClick={() => router.push("/clientes")}
-          >
-            + Novo cliente
-          </button>
+  <button
+    type="button"
+    className="botao-secundario"
+    onClick={selecionarMesAtual}
+  >
+    Este mês
+  </button>
 
-          <button
-            type="button"
-            className="botao-principal"
-            onClick={abrirNovaProposta}
-          >
-            + Nova proposta
-          </button>
-        </div>
+  <button
+    type="button"
+    className="botao-secundario"
+    onClick={limparPeriodo}
+  >
+    Limpar período
+  </button>
+
+  <select
+    value={filtroStatus}
+    onChange={(evento) =>
+      setFiltroStatus(evento.target.value)
+    }
+  >
+    <option value="Todos">Todos os status</option>
+
+    {STATUS.map((status) => (
+      <option key={status} value={status}>
+        {status}
+      </option>
+    ))}
+  </select>
+
+  <button
+    type="button"
+    className="botao-secundario"
+    onClick={() => router.push("/clientes")}
+  >
+    + Novo cliente
+  </button>
+
+  <button
+    type="button"
+    className="botao-principal"
+    onClick={abrirNovaProposta}
+  >
+    + Nova proposta
+  </button>
+</div>
       </section>
 
       {mensagem && !modalAberto && (

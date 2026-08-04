@@ -246,6 +246,8 @@ export default function CltManager() {
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("Todos");
   const [filtroConsultora, setFiltroConsultora] = useState("Todas");
+  const [dataPagamentoInicial, setDataPagamentoInicial] = useState("");
+const [dataPagamentoFinal, setDataPagamentoFinal] = useState("");
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [mensagem, setMensagem] = useState("");
   const [carregando, setCarregando] = useState(true);
@@ -474,25 +476,77 @@ export default function CltManager() {
       item.consultora.toLowerCase().includes(termo) ||
       item.banco.toLowerCase().includes(termo);
 
-    return statusOk && buscaOk && consultoraOk;
+    const dataPagamento = String(
+      item.dataPagamento || ""
+    ).slice(0, 10);
+
+    const dataInicialOk =
+      !dataPagamentoInicial ||
+      (
+        item.status === "Pago" &&
+        dataPagamento &&
+        dataPagamento >= dataPagamentoInicial
+      );
+
+    const dataFinalOk =
+      !dataPagamentoFinal ||
+      (
+        item.status === "Pago" &&
+        dataPagamento &&
+        dataPagamento <= dataPagamentoFinal
+      );
+
+    return (
+      statusOk &&
+      consultoraOk &&
+      buscaOk &&
+      dataInicialOk &&
+      dataFinalOk
+    );
   });
-}, [registros, busca, filtroStatus, filtroConsultora]);
+}, [
+  registros,
+  busca,
+  filtroStatus,
+  filtroConsultora,
+  dataPagamentoInicial,
+  dataPagamentoFinal,
+]);
 
   const resumo = useMemo(
-    () => ({
-      total: registros.length,
-      analise: registros.filter((item) => item.status === "Em análise").length,
-      aprovados: registros.filter((item) => item.status === "Aprovado").length,
-      pagos: registros.filter((item) => item.status === "Pago").length,
-      valorPago: registros
-        .filter((item) => item.status === "Pago")
-        .reduce(
-          (total, item) => total + Number(item.valorAprovado || 0),
-          0,
-        ),
-    }),
-    [registros],
-  );
+  () => ({
+    total: filtrados.length,
+
+    analise: filtrados.filter(
+      (item) => item.status === "Em análise"
+    ).length,
+
+    aprovados: filtrados.filter(
+      (item) => item.status === "Aprovado"
+    ).length,
+
+    pagos: filtrados.filter(
+      (item) => item.status === "Pago"
+    ).length,
+
+    valorPago: filtrados
+      .filter((item) => item.status === "Pago")
+      .reduce(
+        (total, item) =>
+          total + Number(item.valorAprovado || 0),
+        0
+      ),
+
+    valorParcelasPagas: filtrados
+      .filter((item) => item.status === "Pago")
+      .reduce(
+        (total, item) =>
+          total + Number(item.parcela || 0),
+        0
+      ),
+  }),
+  [filtrados]
+);
 
   async function sincronizarRegistrosAntigos() {
     if (!registrosAntigosPendentes.length || !perfilAtual) return;
@@ -793,6 +847,10 @@ banco: item.banco,
           <span>Valor pago</span>
           <strong>{moeda(resumo.valorPago)}</strong>
         </article>
+        <article className="clt-highlight">
+  <span>Parcelas pagas</span>
+  <strong>{moeda(resumo.valorParcelasPagas)}</strong>
+</article>
       </section>
 
       <section className="clt-layout">
@@ -1047,6 +1105,23 @@ banco: item.banco,
                 <option key={status}>{status}</option>
               ))}
             </select>
+            <input
+  type="date"
+  value={dataPagamentoInicial}
+  onChange={(event) =>
+    setDataPagamentoInicial(event.target.value)
+  }
+  title="Data inicial do pagamento"
+/>
+
+<input
+  type="date"
+  value={dataPagamentoFinal}
+  onChange={(event) =>
+    setDataPagamentoFinal(event.target.value)
+  }
+  title="Data final do pagamento"
+/>
           </div>
 
           {carregando ? (
