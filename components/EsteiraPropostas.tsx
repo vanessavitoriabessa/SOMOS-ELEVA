@@ -222,7 +222,20 @@ function dataBR(valor?: string) {
 
   return `${partes[2]}/${partes[1]}/${partes[0]}`;
 }
+function calcularLimitePagamento(dataFinal: string) {
+  if (!dataFinal) return "";
 
+  const [anoTexto, mesTexto] = dataFinal.split("-");
+  let ano = Number(anoTexto);
+  let mes = Number(mesTexto) + 1;
+
+  if (mes === 13) {
+    mes = 1;
+    ano += 1;
+  }
+
+  return `${ano}-${String(mes).padStart(2, "0")}-19`;
+}
 function classeStatus(status: string) {
   return status
     .normalize("NFD")
@@ -251,6 +264,7 @@ export default function EsteiraPropostas() {
 
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("Todos");
+  const [filtroConsultora, setFiltroConsultora] = useState("Todas");
   const [dataInicial, setDataInicial] = useState("");
   const [dataFinal, setDataFinal] = useState("");
 
@@ -444,6 +458,9 @@ const [arquivos, setArquivos] = useState({
 
       const correspondeStatus =
         filtroStatus === "Todos" || proposta.status === filtroStatus;
+        const correspondeConsultora =
+  filtroConsultora === "Todas" ||
+  proposta.vendedora === filtroConsultora;
 
       const dataProposta = String(proposta.dataCadastro || "").slice(0, 10);
 
@@ -454,37 +471,77 @@ const [arquivos, setArquivos] = useState({
         !dataFinal || dataProposta <= dataFinal;
 
       return (
-        correspondeBusca &&
-        correspondeStatus &&
-        correspondeDataInicial &&
-        correspondeDataFinal
-      );
+  correspondeBusca &&
+  correspondeStatus &&
+  correspondeConsultora &&
+  correspondeDataInicial &&
+  correspondeDataFinal
+);
     });
-  }, [propostas, busca, filtroStatus, dataInicial, dataFinal]);
+  }, [
+  propostas,
+  busca,
+  filtroStatus,
+  filtroConsultora,
+  dataInicial,
+  dataFinal,
+]);
 
   const resumo = useMemo(() => {
-  const ativas = propostas.filter((item) => item.status !== "CANCELADA");
-  const pagas = ativas.filter((item) => item.status === "PAGO");
+  const ativas = propostasFiltradas.filter(
+    (item) => item.status !== "CANCELADA"
+  );
+
+  const limitePagamento = calcularLimitePagamento(dataFinal);
+
+  const pagasDentroDoPrazo = ativas.filter((item) => {
+    if (item.status !== "PAGO") return false;
+    if (!item.dataPagamento) return false;
+
+    const dataPagamento = String(item.dataPagamento).slice(0, 10);
+
+    return (
+      !limitePagamento ||
+      dataPagamento <= limitePagamento
+    );
+  });
+
+  const producaoDigitada = ativas.reduce(
+    (total, item) =>
+      total + Number(item.valorMeta || 0),
+    0
+  );
+
+  const producaoPaga = pagasDentroDoPrazo.reduce(
+    (total, item) =>
+      total + Number(item.valorMeta || 0),
+    0
+  );
+
+  const valorPago = pagasDentroDoPrazo.reduce(
+    (total, item) =>
+      total + Number(item.valorContrato || 0),
+    0
+  );
 
   return {
     total: ativas.length,
+
     andamento: ativas.filter(
       (item) => item.status !== "PAGO"
     ).length,
-    pagas: pagas.length,
+
+    pagas: pagasDentroDoPrazo.length,
+
     aguardando: ativas.filter(
       (item) => item.status === "AG. BOLETO"
     ).length,
-      valorPago: pagas.reduce(
-        (total, item) => total + Number(item.valorContrato || 0),
-        0
-      ),
-      valorMeta: pagas.reduce(
-        (total, item) => total + Number(item.valorMeta || 0),
-        0
-      ),
-    };
-  }, [propostas]);
+
+    valorPago,
+    producaoDigitada,
+    producaoPaga,
+  };
+}, [propostasFiltradas, dataFinal]);
 
   const clienteSelecionado = useMemo(
     () => clientes.find((cliente) => cliente.id === form.clienteId),
@@ -1060,10 +1117,13 @@ for (const documento of documentos) {
           <span>Valor pago</span>
           <strong>{moeda(resumo.valorPago)}</strong>
         </article>
-
+<article>
+  <span>Produção paga</span>
+  <strong>{moeda(resumo.producaoPaga)}</strong>
+</article>
         <article className="destaque">
-          <span>Produção válida</span>
-          <strong>{moeda(resumo.valorMeta)}</strong>
+          <span>Produção digitada</span>
+<strong>{moeda(resumo.producaoDigitada)}</strong>
         </article>
       </section>
 
@@ -1079,7 +1139,20 @@ for (const documento of documentos) {
             onChange={(evento) => setBusca(evento.target.value)}
             placeholder="Buscar proposta, cliente, CPF ou consultora..."
           />
+<select
+  value={filtroConsultora}
+  onChange={(evento) =>
+    setFiltroConsultora(evento.target.value)
+  }
+>
+  <option value="Todas">Todas as consultoras</option>
 
+  {consultoras.map((consultora) => (
+    <option key={consultora} value={consultora}>
+      {consultora}
+    </option>
+  ))}
+</select>
           <input
             type="date"
             value={dataInicial}
