@@ -5,15 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import "./ranking.css";
 
 import {
-  compraValidaNaCompetencia,
-} from "@/lib/premiacao/competenciaCompra";
-
-import {
   calcularPremiacaoCompra,
   calcularPremiacaoClt,
 } from "@/lib/premiacao/premiacaoService";
-type Periodo = "Hoje" | "Semana" | "Mês" | "Todos";
-
 type PropostaCompraDivida = {
   id: string;
   cliente: string;
@@ -319,12 +313,14 @@ function inicioDoMes(data: Date) {
 function converterData(valor: string) {
   if (!valor) return null;
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(valor)) {
-    const [ano, mes, dia] = valor.split("-").map(Number);
+  const valorLimpo = String(valor).trim().slice(0, 10);
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(valorLimpo)) {
+    const [ano, mes, dia] = valorLimpo.split("-").map(Number);
     return new Date(ano, mes - 1, dia);
   }
 
-  const parteData = valor.split(",")[0].trim();
+  const parteData = String(valor).split(",")[0].trim();
   const partes = parteData.split("/").map(Number);
 
   if (partes.length === 3 && partes.every(Number.isFinite)) {
@@ -334,41 +330,63 @@ function converterData(valor: string) {
   return null;
 }
 
+function dataDentroDoIntervalo(
+  data: Date | null,
+  dataInicial: string,
+  dataFinal: string
+) {
+  if (!data) return false;
+
+  const inicio = converterData(dataInicial);
+  const fim = converterData(dataFinal);
+
+  if (inicio && data < inicio) return false;
+
+  if (fim) {
+    fim.setHours(23, 59, 59, 999);
+
+    if (data > fim) return false;
+  }
+
+  return true;
+}
+
+function compraValidaNoIntervalo(
+  proposta: PropostaCompraDivida,
+  dataInicial: string,
+  dataFinal: string
+) {
+  if (normalizarTexto(proposta.status) !== "pago") {
+    return false;
+  }
+
+  const digitacao = converterData(proposta.dataCadastro);
+  const pagamento = converterData(proposta.dataPagamento);
+
+  if (!digitacao || !pagamento) return false;
+
+  if (!dataDentroDoIntervalo(digitacao, dataInicial, dataFinal)) {
+    return false;
+  }
+
+  const limitePagamento = new Date(
+    digitacao.getFullYear(),
+    digitacao.getMonth() + 1,
+    19,
+    23,
+    59,
+    59,
+    999
+  );
+
+  return pagamento <= limitePagamento;
+}
+
 function mesmaCompetencia(data: Date, referencia: Date) {
   return (
     data.getFullYear() === referencia.getFullYear() &&
     data.getMonth() === referencia.getMonth()
   );
-}
-
-function estaNoPeriodo(
-  data: Date | null,
-  periodo: Periodo,
-  usarCompetenciaMensal = false
-) {
-  if (periodo === "Todos") return true;
-  if (!data) return false;
-
-  const hoje = new Date();
-  const alvo = inicioDoDia(data);
-
-  if (periodo === "Hoje") {
-    return alvo.getTime() === inicioDoDia(hoje).getTime();
-  }
-
-  if (periodo === "Semana") {
-    return alvo >= inicioDaSemana(hoje);
-  }
-
-  if (periodo === "Mês") {
-    if (usarCompetenciaMensal) {
-      return mesmaCompetencia(alvo, hoje);
-    }
-
-    return alvo >= inicioDoMes(hoje);
-  }
-
-  return true;
 }
 
 function tabelaPeloNome(nome: string) {
@@ -479,9 +497,27 @@ export default function RankingManager() {
 
   const [registrosClt, setRegistrosClt] =
     useState<RegistroClt[]>([]);
+  const hoje = new Date();
 
-  const [periodo, setPeriodo] =
-    useState<Periodo>("Mês");
+const primeiroDiaMes = new Date(
+  hoje.getFullYear(),
+  hoje.getMonth(),
+  1
+);
+
+const ultimoDiaMes = new Date(
+  hoje.getFullYear(),
+  hoje.getMonth() + 1,
+  0
+);
+
+const [dataInicial, setDataInicial] = useState(
+  primeiroDiaMes.toISOString().slice(0, 10)
+);
+
+const [dataFinal, setDataFinal] = useState(
+  ultimoDiaMes.toISOString().slice(0, 10)
+);
 
   const [busca, setBusca] = useState("");
 
@@ -623,52 +659,14 @@ export default function RankingManager() {
     const agrupado = new Map<string, RankingItem>();
 
     propostas
-  .filter((proposta) => {
-    const statusPago =
-      normalizarTexto(proposta.status) === "pago";
-
-    if (!statusPago) {
-      return false;
-    }
-
-    /*
-     * Para o filtro mensal, aplica a regra oficial:
-     * digitado no mês e pago até o dia 19 do mês seguinte.
-     */
-    if (periodo === "Mês") {
-      const hoje = new Date();
-
-      const competenciaTexto =
-        `${hoje.getFullYear()}-${String(
-          hoje.getMonth() + 1
-        ).padStart(2, "0")}`;
-
-      return compraValidaNaCompetencia(
-        {
-          ...proposta,
-          produto: "Compra de Dívida",
-        },
-        competenciaTexto
-      );
-    }
-
-    /*
-     * Hoje, Semana e Todos continuam sendo tratados
-     * pela data do pagamento logo abaixo.
-     */
-    return true;
-  })
-  .forEach((proposta) => {
-        const pagamento =
-  converterData(proposta.dataPagamento);
-
-if (
-  periodo !== "Mês" &&
-  !estaNoPeriodo(pagamento, periodo)
-) {
-  return;
-}
-
+      .filter((proposta) =>
+        compraValidaNoIntervalo(
+          proposta,
+          dataInicial,
+          dataFinal
+        )
+      )
+      .forEach((proposta) => {
         const nome =
           proposta.vendedora?.trim() || "Sem consultora";
 
@@ -702,7 +700,15 @@ if (
       .forEach((registro) => {
         const data = dataClt(registro);
 
-        if (!estaNoPeriodo(data, periodo)) return;
+        if (
+  !dataDentroDoIntervalo(
+    data,
+    dataInicial,
+    dataFinal
+  )
+) {
+  return;
+}
 
         const nome =
           registro.consultora?.trim() || "Sem consultora";
@@ -797,7 +803,13 @@ faixa: faixaCompra
           .includes(busca.trim().toLowerCase())
       )
       .sort((a, b) => b.producaoTotal - a.producaoTotal);
-  }, [propostas, registrosClt, periodo, busca]);
+  }, [
+  propostas,
+  registrosClt,
+  dataInicial,
+  dataFinal,
+  busca,
+]);
 
   const resumo = useMemo(() => {
     return {
@@ -886,17 +898,21 @@ faixa: faixaCompra
             placeholder="Pesquisar consultora"
           />
 
-          <select
-            value={periodo}
-            onChange={(event) =>
-              setPeriodo(event.target.value as Periodo)
-            }
-          >
-            <option>Hoje</option>
-            <option>Semana</option>
-            <option>Mês</option>
-            <option>Todos</option>
-          </select>
+        <input
+  type="date"
+  value={dataInicial}
+  onChange={(event) =>
+    setDataInicial(event.target.value)
+  }
+/>
+
+<input
+  type="date"
+  value={dataFinal}
+  onChange={(event) =>
+    setDataFinal(event.target.value)
+  }
+/>
 
           <button
   type="button"
@@ -1020,7 +1036,13 @@ faixa: faixaCompra
                 <h3>Resultados por consultora</h3>
               </div>
 
-              <b>{periodo}</b>
+              <b>
+  {dataInicial && dataFinal
+    ? `${dataInicial.split("-").reverse().join("/")} até ${
+        dataFinal.split("-").reverse().join("/")
+      }`
+    : "Todos os períodos"}
+</b>
             </div>
 
             <div className="ranking-table">
