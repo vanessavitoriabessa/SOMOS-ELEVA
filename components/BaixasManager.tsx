@@ -2,7 +2,6 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import "./baixas.css";
 
 type BaixaPagamento = {
   id: string;
@@ -35,6 +34,7 @@ type FiltroConciliacao =
 
 type ItemComStatus = BaixaPagamento & {
   statusCalculado: string;
+  dataPrevistaCalculada: string;
 };
 
 type GrupoSemanal = {
@@ -91,6 +91,44 @@ function tercaDaSemanaIso(referencia = new Date()) {
   return dataIsoLocal(data);
 }
 
+
+function calcularDataPrevistaRecebimento(
+  dataPagamentoProposta?: string | null,
+  dataPrevistaSalva?: string | null,
+) {
+  const pagamentoTexto = String(dataPagamentoProposta || "").slice(0, 10);
+
+  if (!pagamentoTexto) {
+    return String(dataPrevistaSalva || "").slice(0, 10);
+  }
+
+  const pagamento = new Date(`${pagamentoTexto}T00:00:00`);
+
+  if (Number.isNaN(pagamento.getTime())) {
+    return String(dataPrevistaSalva || "").slice(0, 10);
+  }
+
+  // A produção é fechada de segunda a domingo e recebida
+  // na terça-feira imediatamente seguinte.
+  const diaSemana = pagamento.getDay();
+  const diasAteDomingo = diaSemana === 0 ? 0 : 7 - diaSemana;
+
+  const domingo = new Date(pagamento);
+  domingo.setDate(domingo.getDate() + diasAteDomingo);
+
+  const tercaRecebimento = new Date(domingo);
+  tercaRecebimento.setDate(tercaRecebimento.getDate() + 2);
+
+  return dataIsoLocal(tercaRecebimento);
+}
+
+function dataPrevistaDoItem(item: BaixaPagamento) {
+  return calcularDataPrevistaRecebimento(
+    item.data_pagamento_proposta,
+    item.data_prevista_recebimento,
+  );
+}
+
 function intervaloProducaoDaPrevisao(dataPrevista: string) {
   const prevista = new Date(`${dataPrevista}T00:00:00`);
   const fim = new Date(prevista);
@@ -135,7 +173,7 @@ function statusAtual(item: BaixaPagamento) {
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
 
-  const prevista = new Date(`${item.data_prevista_recebimento}T00:00:00`);
+  const prevista = new Date(`${dataPrevistaDoItem(item)}T00:00:00`);
 
   return prevista < hoje
     ? "COMISSÃO ATRASADA"
@@ -260,6 +298,7 @@ export default function BaixasManager() {
       baixas.map((item) => ({
         ...item,
         statusCalculado: statusAtual(item),
+        dataPrevistaCalculada: dataPrevistaDoItem(item),
       })),
     [baixas],
   );
@@ -269,20 +308,20 @@ export default function BaixasManager() {
   const resumo = useMemo(() => {
     const destaTerca = itensComStatus.filter(
       (item) =>
-        String(item.data_prevista_recebimento || "").slice(0, 10) ===
+        String(item.dataPrevistaCalculada || "").slice(0, 10) ===
         tercaReferencia,
     );
 
     const atrasadasAnteriores = itensComStatus.filter(
       (item) =>
         !item.data_recebimento &&
-        String(item.data_prevista_recebimento || "").slice(0, 10) <
+        String(item.dataPrevistaCalculada || "").slice(0, 10) <
           tercaReferencia,
     );
 
     const semanasPendentes = new Set(
       atrasadasAnteriores.map((item) =>
-        String(item.data_prevista_recebimento || "").slice(0, 10),
+        String(item.dataPrevistaCalculada || "").slice(0, 10),
       ),
     ).size;
 
@@ -345,7 +384,7 @@ export default function BaixasManager() {
         if (semanaSelecionada === "TODAS") return true;
 
         return (
-          String(item.data_prevista_recebimento || "").slice(0, 10) ===
+          String(item.dataPrevistaCalculada || "").slice(0, 10) ===
           semanaSelecionada
         );
       })
@@ -373,7 +412,7 @@ export default function BaixasManager() {
 
     listaConciliacao.forEach((item) => {
       const chave =
-        String(item.data_prevista_recebimento || "").slice(0, 10) ||
+        String(item.dataPrevistaCalculada || "").slice(0, 10) ||
         "SEM_DATA";
 
       grupos.set(chave, [...(grupos.get(chave) || []), item]);
@@ -421,7 +460,7 @@ export default function BaixasManager() {
         new Set(
           itensComStatus
             .map((item) =>
-              String(item.data_prevista_recebimento || "").slice(0, 10),
+              String(item.dataPrevistaCalculada || "").slice(0, 10),
             )
             .filter(Boolean),
         ),
@@ -604,7 +643,7 @@ export default function BaixasManager() {
         </article>
 
         <article className="resumo-recebido">
-          <span>Recebido desta terça</span>
+          <span>Recebido referente a esta terça</span>
           <strong>{moeda(resumo.recebidoDestaTerca)}</strong>
           <small>Valores já conferidos e baixados</small>
         </article>
@@ -694,7 +733,7 @@ export default function BaixasManager() {
 
               <label>
                 <span>Pagamento previsto</span>
-                <strong>{dataBR(selecionada.data_prevista_recebimento)}</strong>
+                <strong>{dataBR(dataPrevistaDoItem(selecionada))}</strong>
               </label>
 
               <label>
