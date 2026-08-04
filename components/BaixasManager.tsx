@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import "./baixas.css";
 
 type BaixaPagamento = {
   id: string;
@@ -32,6 +33,23 @@ type FiltroConciliacao =
   | "A_MENOS"
   | "A_MAIS";
 
+type ItemComStatus = BaixaPagamento & {
+  statusCalculado: string;
+};
+
+type GrupoSemanal = {
+  chave: string;
+  dataPrevista: string;
+  itens: ItemComStatus[];
+  previsto: number;
+  recebido: number;
+  pendente: number;
+  quantidade: number;
+  quantidadeRecebida: number;
+  quantidadePendente: number;
+  atrasado: boolean;
+};
+
 function moeda(valor: number) {
   return Number(valor || 0).toLocaleString("pt-BR", {
     style: "currency",
@@ -47,6 +65,41 @@ function dataBR(valor?: string | null) {
 
 function hojeIso() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function dataIsoLocal(data: Date) {
+  const ano = data.getFullYear();
+  const mes = String(data.getMonth() + 1).padStart(2, "0");
+  const dia = String(data.getDate()).padStart(2, "0");
+  return `${ano}-${mes}-${dia}`;
+}
+
+function tercaDaSemanaIso(referencia = new Date()) {
+  const data = new Date(
+    referencia.getFullYear(),
+    referencia.getMonth(),
+    referencia.getDate(),
+  );
+
+  const diaSemana = data.getDay();
+
+  // Segunda aponta para a terça seguinte. De terça a domingo,
+  // mantém a terça da semana corrente.
+  const deslocamento = diaSemana === 1 ? 1 : diaSemana === 0 ? -5 : 2 - diaSemana;
+  data.setDate(data.getDate() + deslocamento);
+
+  return dataIsoLocal(data);
+}
+
+function intervaloProducaoDaPrevisao(dataPrevista: string) {
+  const prevista = new Date(`${dataPrevista}T00:00:00`);
+  const fim = new Date(prevista);
+  fim.setDate(fim.getDate() - 2); // domingo anterior
+
+  const inicio = new Date(fim);
+  inicio.setDate(inicio.getDate() - 6); // segunda anterior
+
+  return `${dataBR(dataIsoLocal(inicio))} a ${dataBR(dataIsoLocal(fim))}`;
 }
 
 function normalizarNumero(valor: string) {
@@ -102,8 +155,7 @@ export default function BaixasManager() {
 
   const [baixas, setBaixas] = useState<BaixaPagamento[]>([]);
   const [numeroProposta, setNumeroProposta] = useState("");
-  const [selecionada, setSelecionada] =
-    useState<BaixaPagamento | null>(null);
+  const [selecionada, setSelecionada] = useState<BaixaPagamento | null>(null);
 
   const [carregando, setCarregando] = useState(true);
   const [processando, setProcessando] = useState(false);
@@ -117,6 +169,7 @@ export default function BaixasManager() {
 
   const [filtro, setFiltro] = useState<FiltroConciliacao>("TODOS");
   const [buscaHistorico, setBuscaHistorico] = useState("");
+  const [semanaSelecionada, setSemanaSelecionada] = useState("TODAS");
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -190,9 +243,7 @@ export default function BaixasManager() {
           ? valorParaInput(localizada.valor_recebido)
           : valorParaInput(localizada.comissao_prevista),
       );
-      setDataRecebimentoEditavel(
-        localizada.data_recebimento || hojeIso(),
-      );
+      setDataRecebimentoEditavel(localizada.data_recebimento || hojeIso());
       setObservacaoEditavel(localizada.observacao || "");
       setMotivoAlteracao("");
       setMensagem("");
@@ -204,57 +255,78 @@ export default function BaixasManager() {
     }
   }, [numeroProposta, baixas]);
 
-  const resumo = useMemo(() => {
-    const itens = baixas.map((item) => ({
-      ...item,
-      statusCalculado: statusAtual(item),
-    }));
+  const itensComStatus = useMemo<ItemComStatus[]>(
+    () =>
+      baixas.map((item) => ({
+        ...item,
+        statusCalculado: statusAtual(item),
+      })),
+    [baixas],
+  );
 
-    const prevista = itens.reduce(
+  const tercaReferencia = useMemo(() => tercaDaSemanaIso(), []);
+
+  const resumo = useMemo(() => {
+    const destaTerca = itensComStatus.filter(
+      (item) =>
+        String(item.data_prevista_recebimento || "").slice(0, 10) ===
+        tercaReferencia,
+    );
+
+    const atrasadasAnteriores = itensComStatus.filter(
+      (item) =>
+        !item.data_recebimento &&
+        String(item.data_prevista_recebimento || "").slice(0, 10) <
+          tercaReferencia,
+    );
+
+    const semanasPendentes = new Set(
+      atrasadasAnteriores.map((item) =>
+        String(item.data_prevista_recebimento || "").slice(0, 10),
+      ),
+    ).size;
+
+    const previstoDestaTerca = destaTerca.reduce(
       (total, item) => total + Number(item.comissao_prevista || 0),
       0,
     );
 
-    const recebida = itens.reduce(
-      (total, item) => total + Number(item.valor_recebido || 0),
+    const recebidoDestaTerca = destaTerca
+      .filter((item) => Boolean(item.data_recebimento))
+      .reduce(
+        (total, item) => total + Number(item.valor_recebido || 0),
+        0,
+      );
+
+    const faltaDestaTerca = destaTerca
+      .filter((item) => !item.data_recebimento)
+      .reduce(
+        (total, item) => total + Number(item.comissao_prevista || 0),
+        0,
+      );
+
+    const atrasoAnterior = atrasadasAnteriores.reduce(
+      (total, item) => total + Number(item.comissao_prevista || 0),
       0,
     );
 
     return {
-      prevista,
-      recebida,
-      aReceber: itens
-        .filter((item) => !item.data_recebimento)
-        .reduce(
-          (total, item) => total + Number(item.comissao_prevista || 0),
-          0,
-        ),
-      atrasada: itens
-        .filter((item) => item.statusCalculado === "COMISSÃO ATRASADA")
-        .reduce(
-          (total, item) => total + Number(item.comissao_prevista || 0),
-          0,
-        ),
-      diferenca: itens
-        .filter((item) => Boolean(item.data_recebimento))
-        .reduce(
-          (total, item) => total + Number(item.diferenca || 0),
-          0,
-        ),
-      aguardando: itens.filter((item) => !item.data_recebimento).length,
-      recebidas: itens.filter((item) => Boolean(item.data_recebimento))
-        .length,
+      previstoDestaTerca,
+      recebidoDestaTerca,
+      faltaDestaTerca,
+      atrasoAnterior,
+      propostasDestaTerca: destaTerca.length,
+      propostasPendentesDestaTerca: destaTerca.filter(
+        (item) => !item.data_recebimento,
+      ).length,
+      semanasPendentes,
     };
-  }, [baixas]);
+  }, [itensComStatus, tercaReferencia]);
 
   const listaConciliacao = useMemo(() => {
     const termo = normalizarNumero(buscaHistorico);
 
-    return baixas
-      .map((item) => ({
-        ...item,
-        statusCalculado: statusAtual(item),
-      }))
+    return itensComStatus
       .filter((item) => {
         if (!termo) return true;
 
@@ -268,6 +340,14 @@ export default function BaixasManager() {
             item.tabela,
           ].join(" "),
         ).includes(termo);
+      })
+      .filter((item) => {
+        if (semanaSelecionada === "TODAS") return true;
+
+        return (
+          String(item.data_prevista_recebimento || "").slice(0, 10) ===
+          semanaSelecionada
+        );
       })
       .filter((item) => {
         if (filtro === "TODOS") return true;
@@ -286,13 +366,73 @@ export default function BaixasManager() {
 
         return item.statusCalculado === "RECEBEU A MAIS";
       });
-  }, [baixas, buscaHistorico, filtro]);
+  }, [itensComStatus, buscaHistorico, filtro, semanaSelecionada]);
+
+  const gruposSemanais = useMemo<GrupoSemanal[]>(() => {
+    const grupos = new Map<string, ItemComStatus[]>();
+
+    listaConciliacao.forEach((item) => {
+      const chave =
+        String(item.data_prevista_recebimento || "").slice(0, 10) ||
+        "SEM_DATA";
+
+      grupos.set(chave, [...(grupos.get(chave) || []), item]);
+    });
+
+    return Array.from(grupos.entries())
+      .map(([chave, itens]) => {
+        const previsto = itens.reduce(
+          (total, item) => total + Number(item.comissao_prevista || 0),
+          0,
+        );
+
+        const recebido = itens
+          .filter((item) => Boolean(item.data_recebimento))
+          .reduce(
+            (total, item) => total + Number(item.valor_recebido || 0),
+            0,
+          );
+
+        const pendentes = itens.filter((item) => !item.data_recebimento);
+        const pendente = pendentes.reduce(
+          (total, item) => total + Number(item.comissao_prevista || 0),
+          0,
+        );
+
+        return {
+          chave,
+          dataPrevista: chave,
+          itens,
+          previsto,
+          recebido,
+          pendente,
+          quantidade: itens.length,
+          quantidadeRecebida: itens.length - pendentes.length,
+          quantidadePendente: pendentes.length,
+          atrasado: chave !== "SEM_DATA" && chave < hojeIso() && pendentes.length > 0,
+        };
+      })
+      .sort((a, b) => b.chave.localeCompare(a.chave));
+  }, [listaConciliacao]);
+
+  const semanasDisponiveis = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          itensComStatus
+            .map((item) =>
+              String(item.data_prevista_recebimento || "").slice(0, 10),
+            )
+            .filter(Boolean),
+        ),
+      ).sort((a, b) => b.localeCompare(a)),
+    [itensComStatus],
+  );
 
   const valorRecebidoCalculado = converterValor(valorRecebidoEditavel);
 
   const diferencaCalculada = selecionada
-    ? valorRecebidoCalculado -
-      Number(selecionada.comissao_prevista || 0)
+    ? valorRecebidoCalculado - Number(selecionada.comissao_prevista || 0)
     : 0;
 
   const statusCalculado = !selecionada
@@ -440,42 +580,54 @@ export default function BaixasManager() {
 
   return (
     <div className="baixas-page">
-      <section className="baixas-resumo baixas-resumo-expandido">
-        <article>
-          <span>Comissão prevista</span>
-          <strong>{moeda(resumo.prevista)}</strong>
+      <section className="baixas-ciclo-atual">
+        <div>
+          <span>RECEBIMENTO DA SEMANA</span>
+          <h2>Terça-feira, {dataBR(tercaReferencia)}</h2>
+          <p>
+            Produção considerada: {intervaloProducaoDaPrevisao(tercaReferencia)}
+          </p>
+        </div>
+
+        <div className="baixas-ciclo-indicador">
+          <span>Falta conferir</span>
+          <strong>{moeda(resumo.faltaDestaTerca)}</strong>
+          <small>{resumo.propostasPendentesDestaTerca} proposta(s)</small>
+        </div>
+      </section>
+
+      <section className="baixas-resumo baixas-resumo-semanal">
+        <article className="resumo-previsto">
+          <span>Previsto para esta terça</span>
+          <strong>{moeda(resumo.previstoDestaTerca)}</strong>
+          <small>{resumo.propostasDestaTerca} proposta(s) previstas</small>
         </article>
-        <article>
-          <span>Comissão recebida</span>
-          <strong>{moeda(resumo.recebida)}</strong>
+
+        <article className="resumo-recebido">
+          <span>Recebido desta terça</span>
+          <strong>{moeda(resumo.recebidoDestaTerca)}</strong>
+          <small>Valores já conferidos e baixados</small>
         </article>
-        <article>
-          <span>A receber</span>
-          <strong>{moeda(resumo.aReceber)}</strong>
+
+        <article className="resumo-pendente">
+          <span>Falta receber desta terça</span>
+          <strong>{moeda(resumo.faltaDestaTerca)}</strong>
+          <small>{resumo.propostasPendentesDestaTerca} pendência(s)</small>
         </article>
-        <article>
-          <span>Em atraso</span>
-          <strong>{moeda(resumo.atrasada)}</strong>
-        </article>
-        <article>
-          <span>Diferença total</span>
-          <strong>{moeda(resumo.diferenca)}</strong>
-        </article>
-        <article>
-          <span>Aguardando / recebidas</span>
-          <strong>
-            {resumo.aguardando} / {resumo.recebidas}
-          </strong>
+
+        <article className="resumo-atrasado">
+          <span>Atrasado de semanas anteriores</span>
+          <strong>{moeda(resumo.atrasoAnterior)}</strong>
+          <small>{resumo.semanasPendentes} semana(s) pendente(s)</small>
         </article>
       </section>
 
       <section className="baixas-localizar">
         <div>
           <span>LOCALIZAR PROPOSTA</span>
-          <h2>Digite o número da proposta</h2>
+          <h2>Conferência individual</h2>
           <p>
-            Ao informar o número exato, os dados da comissão aparecem
-            automaticamente.
+            Digite o número da proposta para conferir ou corrigir uma baixa.
           </p>
         </div>
 
@@ -503,35 +655,26 @@ export default function BaixasManager() {
 
       {mensagem && <div className="baixas-mensagem">{mensagem}</div>}
 
-      <section className="baixas-tabela-card">
-        {carregando ? (
-          <div className="baixas-vazio">Carregando comissões...</div>
-        ) : !numeroProposta.trim() ? (
-          <div className="baixas-vazio">
-            Digite o número da proposta para localizar.
-          </div>
-        ) : !selecionada ? (
-          <div className="baixas-vazio">
-            Nenhuma proposta localizada com esse número.
-          </div>
-        ) : (
+      {selecionada && (
+        <section className="baixas-tabela-card">
           <div className="baixa-edicao">
             <div className="baixa-edicao-cabecalho">
               <div>
                 <span>PROPOSTA {selecionada.numero_proposta}</span>
                 <h3>{selecionada.cliente}</h3>
                 <p>
-                  {selecionada.banco || "—"} •{" "}
-                  {selecionada.tabela || "—"} •{" "}
+                  {selecionada.banco || "—"} • {selecionada.tabela || "—"} •{" "}
                   {selecionada.consultora || "—"}
                 </p>
               </div>
 
-              <span className={`baixa-status ${classeStatus(
-                selecionada.data_recebimento
-                  ? statusCalculado
-                  : statusAtual(selecionada),
-              )}`}>
+              <span
+                className={`baixa-status ${classeStatus(
+                  selecionada.data_recebimento
+                    ? statusCalculado
+                    : statusAtual(selecionada),
+                )}`}
+              >
                 {selecionada.data_recebimento
                   ? statusCalculado
                   : statusAtual(selecionada)}
@@ -545,8 +688,13 @@ export default function BaixasManager() {
               </label>
 
               <label>
-                <span>Comissão prevista</span>
+                <span>Comissão esperada</span>
                 <strong>{moeda(selecionada.comissao_prevista)}</strong>
+              </label>
+
+              <label>
+                <span>Pagamento previsto</span>
+                <strong>{dataBR(selecionada.data_prevista_recebimento)}</strong>
               </label>
 
               <label>
@@ -584,11 +732,6 @@ export default function BaixasManager() {
                       ? "Recebido a mais"
                       : "Valor faltante"}
                 </small>
-              </label>
-
-              <label>
-                <span>Status calculado</span>
-                <strong>{statusCalculado}</strong>
               </label>
             </div>
 
@@ -632,24 +775,38 @@ export default function BaixasManager() {
               </button>
             </div>
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
       <section className="baixas-conciliacao">
         <div className="baixas-conciliacao-topo">
           <div>
-            <span>PAINEL DE CONCILIAÇÃO</span>
-            <h2>Comissões e divergências</h2>
+            <span>CONFERÊNCIA POR SEMANA</span>
+            <h2>Recebimentos previstos por terça-feira</h2>
+            <p>
+              Abra uma semana para ver as propostas, conferir os valores e dar
+              baixa individualmente.
+            </p>
           </div>
 
           <div className="baixas-conciliacao-filtros">
             <input
               value={buscaHistorico}
-              onChange={(evento) =>
-                setBuscaHistorico(evento.target.value)
-              }
+              onChange={(evento) => setBuscaHistorico(evento.target.value)}
               placeholder="Proposta, cliente, banco ou consultora"
             />
+
+            <select
+              value={semanaSelecionada}
+              onChange={(evento) => setSemanaSelecionada(evento.target.value)}
+            >
+              <option value="TODAS">Todas as semanas</option>
+              {semanasDisponiveis.map((semana) => (
+                <option key={semana} value={semana}>
+                  Recebimento {dataBR(semana)}
+                </option>
+              ))}
+            </select>
 
             <select
               value={filtro}
@@ -657,7 +814,7 @@ export default function BaixasManager() {
                 setFiltro(evento.target.value as FiltroConciliacao)
               }
             >
-              <option value="TODOS">Todos</option>
+              <option value="TODOS">Todos os status</option>
               <option value="AGUARDANDO">Aguardando</option>
               <option value="ATRASADAS">Em atraso</option>
               <option value="RECEBIDAS">Recebidas</option>
@@ -667,73 +824,119 @@ export default function BaixasManager() {
           </div>
         </div>
 
-        <div className="baixas-tabela-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Nº proposta</th>
-                <th>Cliente</th>
-                <th>Banco / tabela</th>
-                <th>Previsto</th>
-                <th>Recebido</th>
-                <th>Diferença</th>
-                <th>Previsão</th>
-                <th>Status</th>
-                <th>Ação</th>
-              </tr>
-            </thead>
+        <div className="baixas-semanas-lista">
+          {carregando ? (
+            <div className="baixas-vazio">Carregando comissões...</div>
+          ) : gruposSemanais.length === 0 ? (
+            <div className="baixas-vazio">
+              Nenhuma comissão encontrada nos filtros selecionados.
+            </div>
+          ) : (
+            gruposSemanais.map((grupo, indice) => (
+              <details
+                className={`baixas-semana-card ${grupo.atrasado ? "semana-atrasada" : ""}`}
+                key={grupo.chave}
+                open={
+                  grupo.dataPrevista === tercaReferencia ||
+                  (indice === 0 && semanaSelecionada !== "TODAS")
+                }
+              >
+                <summary>
+                  <div className="baixas-semana-titulo">
+                    <span>
+                      {grupo.atrasado
+                        ? "SEMANA EM ATRASO"
+                        : grupo.dataPrevista === tercaReferencia
+                          ? "RECEBIMENTO DESTA TERÇA"
+                          : "SEMANA DE RECEBIMENTO"}
+                    </span>
+                    <h3>Terça-feira, {dataBR(grupo.dataPrevista)}</h3>
+                    <small>
+                      Produção de {intervaloProducaoDaPrevisao(grupo.dataPrevista)}
+                    </small>
+                  </div>
 
-            <tbody>
-              {listaConciliacao.length === 0 ? (
-                <tr>
-                  <td colSpan={9}>
-                    <div className="baixas-vazio">
-                      Nenhuma comissão encontrada nesse filtro.
+                  <div className="baixas-semana-resumo">
+                    <div>
+                      <span>Previsto</span>
+                      <strong>{moeda(grupo.previsto)}</strong>
                     </div>
-                  </td>
-                </tr>
-              ) : (
-                listaConciliacao.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <strong>{item.numero_proposta}</strong>
-                    </td>
-                    <td>
-                      <strong>{item.cliente}</strong>
-                      <small>{item.consultora || "—"}</small>
-                    </td>
-                    <td>
-                      <strong>{item.banco || "—"}</strong>
-                      <small>{item.tabela || "—"}</small>
-                    </td>
-                    <td>{moeda(item.comissao_prevista)}</td>
-                    <td>{moeda(item.valor_recebido)}</td>
-                    <td>{moeda(item.diferenca)}</td>
-                    <td>{dataBR(item.data_prevista_recebimento)}</td>
-                    <td>
-                      <span
-                        className={`baixa-status ${classeStatus(
-                          item.statusCalculado,
-                        )}`}
-                      >
-                        {item.statusCalculado}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        onClick={() => abrirParaEditar(item)}
-                      >
-                        {item.data_recebimento
-                          ? "Editar baixa"
-                          : "Dar baixa"}
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                    <div>
+                      <span>Recebido</span>
+                      <strong>{moeda(grupo.recebido)}</strong>
+                    </div>
+                    <div>
+                      <span>Pendente</span>
+                      <strong>{moeda(grupo.pendente)}</strong>
+                    </div>
+                    <div>
+                      <span>Propostas</span>
+                      <strong>
+                        {grupo.quantidadeRecebida}/{grupo.quantidade}
+                      </strong>
+                    </div>
+                  </div>
+                </summary>
+
+                <div className="baixas-tabela-wrapper">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Nº proposta</th>
+                        <th>Cliente / consultora</th>
+                        <th>Banco / tabela</th>
+                        <th>Comissão esperada</th>
+                        <th>Recebido</th>
+                        <th>Diferença</th>
+                        <th>Status</th>
+                        <th>Ação</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {grupo.itens.map((item) => (
+                        <tr key={item.id}>
+                          <td>
+                            <strong>{item.numero_proposta}</strong>
+                          </td>
+                          <td>
+                            <strong>{item.cliente}</strong>
+                            <small>{item.consultora || "—"}</small>
+                          </td>
+                          <td>
+                            <strong>{item.banco || "—"}</strong>
+                            <small>{item.tabela || "—"}</small>
+                          </td>
+                          <td>{moeda(item.comissao_prevista)}</td>
+                          <td>{moeda(item.valor_recebido)}</td>
+                          <td>{moeda(item.diferenca)}</td>
+                          <td>
+                            <span
+                              className={`baixa-status ${classeStatus(
+                                item.statusCalculado,
+                              )}`}
+                            >
+                              {item.statusCalculado}
+                            </span>
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              onClick={() => abrirParaEditar(item)}
+                            >
+                              {item.data_recebimento
+                                ? "Editar baixa"
+                                : "Dar baixa"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            ))
+          )}
         </div>
       </section>
     </div>
