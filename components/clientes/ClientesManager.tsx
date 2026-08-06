@@ -354,21 +354,29 @@ const listaConsultoras = useMemo(() => {
 
   const filtrados = useMemo(() => {
   const termo = busca.trim().toLowerCase();
+  const termoNumerico = busca.replace(/\D/g, "");
 
   return clientes.filter((cliente) => {
     const correspondeBusca =
       !termo ||
-      [
-        cliente.nome,
-        cliente.cpf,
-        cliente.telefone,
-        cliente.consultora,
-        cliente.produto,
-        cliente.status,
-      ]
-        .join(" ")
+      String(cliente.nome || "")
         .toLowerCase()
-        .includes(termo);
+        .includes(termo) ||
+      String(cliente.consultora || "")
+        .toLowerCase()
+        .includes(termo) ||
+      String(cliente.produto || "")
+        .toLowerCase()
+        .includes(termo) ||
+      String(cliente.status || "")
+        .toLowerCase()
+        .includes(termo) ||
+      String(cliente.cpf || "")
+        .replace(/\D/g, "")
+        .includes(termoNumerico) ||
+      String(cliente.telefone || "")
+        .replace(/\D/g, "")
+        .includes(termoNumerico);
 
     const correspondeConsultora =
       filtroConsultora === "Todas" ||
