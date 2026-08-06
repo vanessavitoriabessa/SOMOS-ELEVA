@@ -301,15 +301,23 @@ async function listarConsultoras(
 ) {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, nome, perfil, ativo");
+    .select("id, nome, perfil, ativo")
+    .eq("ativo", true);
 
   if (error) {
     throw new Error("Não foi possível consultar as consultoras.");
   }
 
-  return (data || []).filter((perfil) =>
-    perfilEhConsultora(String(perfil.perfil || "")),
-  ) as Perfil[];
+  return (data || []).filter((perfil) => {
+    const nome = normalizarTexto(perfil.nome);
+    const perfilNormalizado = normalizarTexto(perfil.perfil);
+
+    return (
+      perfilNormalizado.includes("consultor") ||
+      nome.includes("vinicius") ||
+      nome.includes("sthefane")
+    );
+  }) as Perfil[];
 }
 
 function encontrarConsultora(consultoras: Perfil[], nome: string) {

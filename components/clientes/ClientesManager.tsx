@@ -26,6 +26,12 @@ type PerfilAtual = {
   perfil: string;
 };
 
+type ConsultoraApi = {
+  id: string;
+  nome: string;
+  perfil?: string;
+};
+
 type RespostaClientes = {
   clientes?: Cliente[];
   cliente?: Cliente;
@@ -55,6 +61,8 @@ export default function ClientesManager() {
   const supabase = useMemo(() => createClient(), []);
 
   const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [consultorasDisponiveis, setConsultorasDisponiveis] =
+  useState<ConsultoraApi[]>([]);
   const [perfilAtual, setPerfilAtual] =
     useState<PerfilAtual | null>(null);
   const [busca, setBusca] = useState("");
@@ -159,6 +167,41 @@ export default function ClientesManager() {
   useEffect(() => {
     void carregarClientes();
   }, [carregarClientes]);
+
+  useEffect(() => {
+  async function carregarConsultoras() {
+    try {
+      const token = await obterToken();
+
+      const resposta = await fetch("/api/consultoras", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+
+      const conteudo = await resposta.json();
+
+      if (!resposta.ok) {
+        throw new Error(
+          conteudo.erro ||
+            "Não foi possível carregar as consultoras.",
+        );
+      }
+
+      setConsultorasDisponiveis(
+        Array.isArray(conteudo.consultoras)
+          ? conteudo.consultoras
+          : [],
+      );
+    } catch (error) {
+      console.error(error);
+      setConsultorasDisponiveis([]);
+    }
+  }
+
+  void carregarConsultoras();
+}, [obterToken]);
 
   function abrirEdicao(cliente: Cliente) {
     setClienteEditando(cliente);
@@ -432,14 +475,15 @@ const listaConsultoras = useMemo(() => {
     Todas as consultoras ({clientes.length})
   </option>
 
-  {listaConsultoras.map((consultora) => (
-    <option
-      key={consultora.nome}
-      value={consultora.nome}
-    >
-      {consultora.nome} ({consultora.quantidade})
-    </option>
-  ))}
+  {consultorasDisponiveis.map((consultora) => (
+  <option
+    key={consultora.id}
+    value={consultora.nome}
+  >
+    {consultora.nome}
+  </option>
+))}
+
 </select>
 
         <button
@@ -493,18 +537,37 @@ const listaConsultoras = useMemo(() => {
           </label>
 
           <label>
-            Consultora
-            <input
-              name="consultora"
-              defaultValue={
-                usuarioEhConsultora
-                  ? perfilAtual?.nome || ""
-                  : ""
-              }
-              readOnly={usuarioEhConsultora}
-              disabled={salvando}
-            />
-          </label>
+  Consultora
+
+  <select
+    name="consultora"
+    defaultValue={
+      usuarioEhConsultora
+        ? perfilAtual?.nome || ""
+        : ""
+    }
+    disabled={salvando || usuarioEhConsultora}
+    required
+  >
+    <option value="">Selecione a consultora</option>
+
+    {usuarioEhConsultora && perfilAtual?.nome && (
+      <option value={perfilAtual.nome}>
+        {perfilAtual.nome}
+      </option>
+    )}
+
+    {!usuarioEhConsultora &&
+      consultorasDisponiveis.map((consultora) => (
+        <option
+          key={consultora.id}
+          value={consultora.nome}
+        >
+          {consultora.nome}
+        </option>
+      ))}
+  </select>
+</label>
 
           <label>
             Produto
