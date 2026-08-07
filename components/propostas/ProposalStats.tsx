@@ -1,9 +1,14 @@
+"use client";
+
 type Props = {
-  total: number;
-  andamento: number;
   pagos: number;
-  valorPago: number;
-  producao: number;
+  valorBrutoPago: number;
+  valorLiquidoPago: number;
+  producaoDigitada: number;
+  andamento: number;
+  canceladas: number;
+  onVerPagas?: () => void;
+  onVerCanceladas?: () => void;
 };
 
 function moeda(valor: number) {
@@ -14,37 +19,63 @@ function moeda(valor: number) {
 }
 
 export default function ProposalStats({
-  total,
-  andamento,
   pagos,
-  valorPago,
-  producao,
+  valorBrutoPago,
+  valorLiquidoPago,
+  producaoDigitada,
+  andamento,
+  canceladas,
+  onVerPagas,
+  onVerCanceladas,
 }: Props) {
   return (
-    <section className="proposal-summary">
+    <section className="proposal-summary proposal-summary-pro">
       <article>
-        <span>Total de propostas</span>
-        <strong>{total}</strong>
+        <span>Propostas pagas</span>
+        <strong>{pagos}</strong>
+        <small>Contratos com status Pago</small>
+
+        {onVerPagas && (
+          <button type="button" onClick={onVerPagas}>
+            Ver pagas
+          </button>
+        )}
+      </article>
+
+      <article className="proposal-stat-success">
+        <span>Valor bruto pago</span>
+        <strong>{moeda(valorBrutoPago)}</strong>
+        <small>Valor dos contratos pagos</small>
+      </article>
+
+      <article className="proposal-stat-success">
+        <span>Valor líquido pago</span>
+        <strong>{moeda(valorLiquidoPago)}</strong>
+        <small>Produção válida dos contratos pagos</small>
       </article>
 
       <article>
+        <span>Produção digitada</span>
+        <strong>{moeda(producaoDigitada)}</strong>
+        <small>Produção válida de todas as propostas</small>
+      </article>
+
+      <article className="proposal-stat-warning">
         <span>Em andamento</span>
         <strong>{andamento}</strong>
+        <small>Aguardando conclusão</small>
       </article>
 
-      <article>
-        <span>Contratos pagos</span>
-        <strong>{pagos}</strong>
-      </article>
+      <article className="proposal-stat-danger">
+        <span>Canceladas</span>
+        <strong>{canceladas}</strong>
+        <small>Contratos cancelados</small>
 
-      <article>
-        <span>Valor total pago</span>
-        <strong>{moeda(valorPago)}</strong>
-      </article>
-
-      <article className="commission-summary">
-        <span>Produção válida paga</span>
-        <strong>{moeda(producao)}</strong>
+        {onVerCanceladas && (
+          <button type="button" onClick={onVerCanceladas}>
+            Ver canceladas
+          </button>
+        )}
       </article>
     </section>
   );

@@ -29,9 +29,11 @@ export default function NovaPropostaModal({
     >
       <section
         className="nova-proposta-modal"
-        onClick={(event) => event.stopPropagation()}
+        onClick={(event) =>
+          event.stopPropagation()
+        }
       >
-        <header>
+        <header className="nova-proposta-cabecalho">
           <div>
             <span>NOVA PROPOSTA</span>
             <h2>{cliente.nome}</h2>
@@ -40,6 +42,7 @@ export default function NovaPropostaModal({
           <button
             type="button"
             onClick={onFechar}
+            aria-label="Fechar"
           >
             ×
           </button>

@@ -964,7 +964,7 @@ const resumoRhDaFolha = useMemo(() => {
     <div className="finance-page">
       <section className="finance-summary">
         <article>
-          <span>Produção paga</span>
+          <span> VALOR LIQUÍDO PAGO </span>
           <strong>
             {moeda(resumo.producao)}
           </strong>

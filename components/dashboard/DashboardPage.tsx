@@ -18,10 +18,12 @@ type PerfilAtual = {
 
 type PropostaCompra = {
   id?: string;
+  numeroProposta?: string;
   cliente?: string;
   cpf?: string;
   vendedora?: string;
   consultora?: string;
+  banco?: string;
   tabela?: string;
   percentualTabela?: number;
   valorContrato?: number;
@@ -55,6 +57,7 @@ type RespostaApi = {
 
 type Periodo =
   | "Hoje"
+  | "Esta semana"
   | "Este mês"
   | "Este ano"
   | "Tudo"
@@ -222,6 +225,57 @@ function mesmaData(
   );
 }
 
+function inicioSemana(data: Date) {
+  const copia = new Date(data);
+  copia.setHours(0, 0, 0, 0);
+
+  const diaSemana = copia.getDay();
+  const diferenca = diaSemana === 0 ? -6 : 1 - diaSemana;
+
+  copia.setDate(copia.getDate() + diferenca);
+
+  return copia;
+}
+
+function fimSemana(data: Date) {
+  const inicio = inicioSemana(data);
+  const fim = new Date(inicio);
+
+  fim.setDate(fim.getDate() + 6);
+  fim.setHours(23, 59, 59, 999);
+
+  return fim;
+}
+
+function statusNormalizado(valor?: string) {
+  return normalizarTexto(valor).replace(/\s+/g, " ");
+}
+
+function propostaCompraPaga(status?: string) {
+  return statusNormalizado(status) === "pago";
+}
+
+function propostaCompraCancelada(status?: string) {
+  const texto = statusNormalizado(status);
+
+  return texto === "cancelada" || texto === "cancelado";
+}
+
+function propostaCltPaga(status?: string) {
+  return statusNormalizado(status) === "pago";
+}
+
+function propostaCltCancelada(status?: string) {
+  const texto = statusNormalizado(status);
+
+  return (
+    texto === "cancelada" ||
+    texto === "cancelado" ||
+    texto === "recusada" ||
+    texto === "recusado"
+  );
+}
+
 function estaNoPeriodo(
   data: Date | null,
   periodo: Periodo,
@@ -236,6 +290,10 @@ function estaNoPeriodo(
 
   if (periodo === "Hoje") {
     return mesmaData(data, hoje);
+  }
+
+  if (periodo === "Esta semana") {
+    return data >= inicioSemana(hoje) && data <= fimSemana(hoje);
   }
 
   if (periodo === "Este mês") {
@@ -286,6 +344,14 @@ function estaNoPeriodo(
     data >= dataInicial &&
     data <= dataFinal
   );
+}
+
+function dataBR(valor?: string) {
+  const data = converterData(valor);
+
+  if (!data) return "—";
+
+  return data.toLocaleDateString("pt-BR");
 }
 
 function percentualTabela(
@@ -435,12 +501,27 @@ export default function DashboardClient() {
   const [
     status,
     setStatus,
-  ] = useState("Pagas");
+  ] = useState("Todas");
 
   const [
     busca,
     setBusca,
   ] = useState("");
+
+  const [
+    consultoraDetalhe,
+    setConsultoraDetalhe,
+  ] = useState<string | null>(null);
+
+  const [
+    detalheAberto,
+    setDetalheAberto,
+  ] = useState(false);
+
+  const [
+    detalheSomenteCanceladas,
+    setDetalheSomenteCanceladas,
+  ] = useState(false);
 
   async function obterSessao() {
     const {
@@ -569,6 +650,101 @@ export default function DashboardClient() {
     perfilAtual?.nome ||
     "Equipe Eleva";
 
+  const cancelamentosPeriodo = useMemo(() => {
+    const nomeUsuarioNormalizado =
+      normalizarTexto(perfilAtual?.nome);
+
+    const porConsultora = new Map<string, number>();
+
+    let total = 0;
+
+    propostas.forEach((proposta) => {
+      const nome = nomeResponsavelCompra(proposta);
+
+      if (
+        ehConsultora &&
+        normalizarTexto(nome) !== nomeUsuarioNormalizado
+      ) {
+        return;
+      }
+
+      if (!propostaCompraCancelada(proposta.status)) {
+        return;
+      }
+
+      if (
+        !estaNoPeriodo(
+          converterData(
+            proposta.dataCadastro ||
+              proposta.dataPagamento,
+          ),
+          periodo,
+          dataInicial,
+          dataFinal,
+        )
+      ) {
+        return;
+      }
+
+      total += 1;
+
+      porConsultora.set(
+        nome,
+        (porConsultora.get(nome) || 0) + 1,
+      );
+    });
+
+    registrosClt.forEach((registro) => {
+      const nome = nomeResponsavelClt(registro);
+
+      if (
+        ehConsultora &&
+        normalizarTexto(nome) !== nomeUsuarioNormalizado
+      ) {
+        return;
+      }
+
+      if (!propostaCltCancelada(registro.status)) {
+        return;
+      }
+
+      if (
+        !estaNoPeriodo(
+          converterData(
+            registro.atualizadoEm ||
+              registro.criadoEm ||
+              registro.dataPagamento,
+          ),
+          periodo,
+          dataInicial,
+          dataFinal,
+        )
+      ) {
+        return;
+      }
+
+      total += 1;
+
+      porConsultora.set(
+        nome,
+        (porConsultora.get(nome) || 0) + 1,
+      );
+    });
+
+    return {
+      total,
+      porConsultora,
+    };
+  }, [
+    propostas,
+    registrosClt,
+    perfilAtual,
+    ehConsultora,
+    periodo,
+    dataInicial,
+    dataFinal,
+  ]);
+
   const resultado =
     useMemo(() => {
       const nomeUsuarioNormalizado =
@@ -591,24 +767,18 @@ export default function DashboardClient() {
               return false;
             }
 
-            if (
-              status === "Pagas" &&
-              proposta.status !==
-                "Pago"
-            ) {
+            if (status === "Pagas" && !propostaCompraPaga(proposta.status)) {
+              return false;
+            }
+
+            if (status === "Canceladas" && !propostaCompraCancelada(proposta.status)) {
               return false;
             }
 
             if (
-              status ===
-                "Em andamento" &&
-              [
-                "Pago",
-                "Cancelado",
-              ].includes(
-                proposta.status ||
-                  "",
-              )
+              status === "Em andamento" &&
+              (propostaCompraPaga(proposta.status) ||
+                propostaCompraCancelada(proposta.status))
             ) {
               return false;
             }
@@ -637,24 +807,18 @@ export default function DashboardClient() {
               return false;
             }
 
-            if (
-              status === "Pagas" &&
-              registro.status !==
-                "Pago"
-            ) {
+            if (status === "Pagas" && !propostaCltPaga(registro.status)) {
+              return false;
+            }
+
+            if (status === "Canceladas" && !propostaCltCancelada(registro.status)) {
               return false;
             }
 
             if (
-              status ===
-                "Em andamento" &&
-              [
-                "Pago",
-                "Recusado",
-              ].includes(
-                registro.status ||
-                  "",
-              )
+              status === "Em andamento" &&
+              (propostaCltPaga(registro.status) ||
+                propostaCltCancelada(registro.status))
             ) {
               return false;
             }
@@ -889,6 +1053,215 @@ export default function DashboardClient() {
       8,
     );
 
+  const propostasDetalhe = useMemo(() => {
+    const nomeNormalizado =
+      consultoraDetalhe
+        ? normalizarTexto(consultoraDetalhe)
+        : "";
+
+    const compra = propostas.filter((proposta) => {
+      if (
+        nomeNormalizado &&
+        normalizarTexto(
+          nomeResponsavelCompra(proposta),
+        ) !== nomeNormalizado
+      ) {
+        return false;
+      }
+
+      if (
+        detalheSomenteCanceladas &&
+        !propostaCompraCancelada(proposta.status)
+      ) {
+        return false;
+      }
+
+      if (!detalheSomenteCanceladas) {
+        if (
+          status === "Pagas" &&
+          !propostaCompraPaga(proposta.status)
+        ) {
+          return false;
+        }
+
+        if (
+          status === "Canceladas" &&
+          !propostaCompraCancelada(proposta.status)
+        ) {
+          return false;
+        }
+
+        if (
+          status === "Em andamento" &&
+          (propostaCompraPaga(proposta.status) ||
+            propostaCompraCancelada(proposta.status))
+        ) {
+          return false;
+        }
+      }
+
+      return estaNoPeriodo(
+        detalheSomenteCanceladas
+          ? converterData(
+              proposta.dataCadastro ||
+                proposta.dataPagamento,
+            )
+          : dataCompra(proposta),
+        periodo,
+        dataInicial,
+        dataFinal,
+      );
+    });
+
+    const clt = registrosClt.filter((registro) => {
+      if (
+        nomeNormalizado &&
+        normalizarTexto(
+          nomeResponsavelClt(registro),
+        ) !== nomeNormalizado
+      ) {
+        return false;
+      }
+
+      if (
+        detalheSomenteCanceladas &&
+        !propostaCltCancelada(registro.status)
+      ) {
+        return false;
+      }
+
+      if (!detalheSomenteCanceladas) {
+        if (
+          status === "Pagas" &&
+          !propostaCltPaga(registro.status)
+        ) {
+          return false;
+        }
+
+        if (
+          status === "Canceladas" &&
+          !propostaCltCancelada(registro.status)
+        ) {
+          return false;
+        }
+
+        if (
+          status === "Em andamento" &&
+          (propostaCltPaga(registro.status) ||
+            propostaCltCancelada(registro.status))
+        ) {
+          return false;
+        }
+      }
+
+      return estaNoPeriodo(
+        detalheSomenteCanceladas
+          ? converterData(
+              registro.atualizadoEm ||
+                registro.criadoEm ||
+                registro.dataPagamento,
+            )
+          : dataClt(registro),
+        periodo,
+        dataInicial,
+        dataFinal,
+      );
+    });
+
+    return { compra, clt };
+  }, [
+    consultoraDetalhe,
+    detalheSomenteCanceladas,
+    propostas,
+    registrosClt,
+    status,
+    periodo,
+    dataInicial,
+    dataFinal,
+  ]);
+
+  const resumoDetalhe = useMemo(() => {
+    const quantidade =
+      propostasDetalhe.compra.length +
+      propostasDetalhe.clt.length;
+
+    const brutoCompra =
+      propostasDetalhe.compra.reduce(
+        (total, proposta) =>
+          total +
+          Number(
+            proposta.valorContrato || 0,
+          ),
+        0,
+      );
+
+    const liquidoCompra =
+      propostasDetalhe.compra.reduce(
+        (total, proposta) =>
+          total +
+          valorFinalCompra(proposta),
+        0,
+      );
+
+    const brutoClt =
+      propostasDetalhe.clt.reduce(
+        (total, registro) =>
+          total +
+          Number(
+            registro.valorAprovado || 0,
+          ),
+        0,
+      );
+
+    const liquidoClt =
+      propostasDetalhe.clt.reduce(
+        (total, registro) =>
+          total +
+          Number(
+            registro.parcela || 0,
+          ),
+        0,
+      );
+
+    const canceladas =
+      propostasDetalhe.compra.filter(
+        (proposta) =>
+          propostaCompraCancelada(
+            proposta.status,
+          ),
+      ).length +
+      propostasDetalhe.clt.filter(
+        (registro) =>
+          propostaCltCancelada(
+            registro.status,
+          ),
+      ).length;
+
+    return {
+      quantidade,
+      bruto:
+        brutoCompra + brutoClt,
+      liquido:
+        liquidoCompra + liquidoClt,
+      canceladas,
+    };
+  }, [propostasDetalhe]);
+
+  function abrirDetalhes(
+    consultora: string | null = null,
+    somenteCanceladas = false,
+  ) {
+    setConsultoraDetalhe(consultora);
+    setDetalheSomenteCanceladas(somenteCanceladas);
+    setDetalheAberto(true);
+  }
+
+  function fecharDetalhes() {
+    setDetalheAberto(false);
+    setConsultoraDetalhe(null);
+    setDetalheSomenteCanceladas(false);
+  }
+
   return (
     <div className="eleva-dashboard">
       <section className="eleva-dashboard-title">
@@ -929,7 +1302,7 @@ export default function DashboardClient() {
       )}
 
       <section className="eleva-dashboard-kpis">
-        <article>
+        <article className="eleva-kpi-clickable">
           <div className="eleva-kpi-icon blue">
             ◫
           </div>
@@ -946,29 +1319,39 @@ export default function DashboardClient() {
             </strong>
 
             <small>
-              Período selecionado
+              Período e status selecionados
             </small>
           </div>
+
+          <button
+            type="button"
+            className="eleva-kpi-link"
+            onClick={() =>
+              abrirDetalhes(null, false)
+            }
+          >
+            Ver propostas
+          </button>
         </article>
 
         <article>
           <div className="eleva-kpi-icon orange">
-            ◆
+            R$
           </div>
 
           <div>
             <span>
-              Compra de Dívida
+              Valor bruto pago
             </span>
 
             <strong>
               {moeda(
-                resultado.totalCompra,
+                resultado.totalBruto,
               )}
             </strong>
 
             <small>
-              Valor conforme tabela
+              Valor total dos contratos
             </small>
           </div>
         </article>
@@ -980,29 +1363,7 @@ export default function DashboardClient() {
 
           <div>
             <span>
-              Produção CLT
-            </span>
-
-            <strong>
-              {moeda(
-                resultado.totalClt,
-              )}
-            </strong>
-
-            <small>
-              Soma das parcelas
-            </small>
-          </div>
-        </article>
-
-        <article className="eleva-kpi-highlight">
-          <div className="eleva-kpi-icon purple">
-            R$
-          </div>
-
-          <div>
-            <span>
-              Produção total
+              Produção líquida
             </span>
 
             <strong>
@@ -1012,9 +1373,41 @@ export default function DashboardClient() {
             </strong>
 
             <small>
-              Compra de Dívida + CLT
+              Compra líquida + CLT
             </small>
           </div>
+        </article>
+
+        <article className="eleva-kpi-highlight eleva-kpi-clickable">
+          <div className="eleva-kpi-icon red">
+            ×
+          </div>
+
+          <div>
+            <span>
+              Canceladas
+            </span>
+
+            <strong>
+              {numero(
+                cancelamentosPeriodo.total,
+              )}
+            </strong>
+
+            <small>
+              Cancelamentos no período
+            </small>
+          </div>
+
+          <button
+            type="button"
+            className="eleva-kpi-link danger"
+            onClick={() =>
+              abrirDetalhes(null, true)
+            }
+          >
+            Ver canceladas
+          </button>
         </article>
       </section>
 
@@ -1026,7 +1419,7 @@ export default function DashboardClient() {
             </span>
 
             <h3>
-              Faturamento por consultora
+              Produção Financeira
             </h3>
           </div>
 
@@ -1053,6 +1446,7 @@ export default function DashboardClient() {
               {(
                 [
                   "Hoje",
+                  "Esta semana",
                   "Este mês",
                   "Este ano",
                   "Tudo",
@@ -1140,6 +1534,10 @@ export default function DashboardClient() {
               <option>
                 Todas
               </option>
+
+              <option>
+                Canceladas
+              </option>
             </select>
           </label>
         </div>
@@ -1147,22 +1545,24 @@ export default function DashboardClient() {
         <div className="eleva-filter-summary">
           <article>
             <span>
-              Propostas
+              Compra de Dívida
             </span>
 
             <strong>
-              {resultado.totalPropostas}
+              {moeda(
+                resultado.totalCompra,
+              )}
             </strong>
           </article>
 
           <article>
             <span>
-              Produção final
+              Produção CLT
             </span>
 
             <strong>
               {moeda(
-                resultado.totalFinal,
+                resultado.totalClt,
               )}
             </strong>
           </article>
@@ -1190,99 +1590,146 @@ export default function DashboardClient() {
           </article>
         </div>
 
+        <div style={{ margin: "14px 0 18px", padding: "12px 14px", border: "1px solid #dfe6f2", borderRadius: 12, background: "#f8fafc", color: "#526077", fontSize: 13 }}>
+          <strong style={{ color: "#183b73" }}>Como os valores são calculados:</strong>{" "}
+          Compra de Dívida usa o valor bruto do contrato e o valor líquido conforme a tabela.
+          No CLT, o valor bruto é o aprovado e a produção líquida considerada é a parcela.
+        </div>
+
         {carregando ? (
           <div className="eleva-dashboard-empty">
             Carregando os dados do Dashboard...
           </div>
-        ) : linhasGrafico.length ===
-          0 ? (
+        ) : linhasGrafico.length === 0 ? (
           <div className="eleva-dashboard-empty">
             Nenhuma produção encontrada no período selecionado.
           </div>
         ) : (
-          <div className="eleva-chart">
-            <div className="eleva-chart-legend">
-              <span>
-                <i className="bar" />
-                Valor final pago
-              </span>
+          <div className="eleva-dual-charts">
+            <div className="eleva-mini-chart-card">
+              <div className="eleva-mini-chart-head">
+                <div>
+                  <span>PRODUÇÃO</span>
+                  <h4>Produção líquida por consultora</h4>
+                </div>
 
-              <span>
-                <i className="line" />
-                Propostas
-              </span>
+                <strong>
+                  {moeda(
+                    resultado.totalFinal,
+                  )}
+                </strong>
+              </div>
+
+              <div className="eleva-chart eleva-chart-compact">
+                <div className="eleva-chart-area">
+                  {linhasGrafico.map(
+                    (linha, indice) => {
+                      const altura =
+                        Math.max(
+                          (linha.valorFinal /
+                            maiorValor) *
+                            100,
+                          5,
+                        );
+
+                      return (
+                        <div
+                          className="eleva-chart-column"
+                          key={`valor-${linha.nome}`}
+                        >
+                          <div className="eleva-chart-values">
+                            <strong>
+                              {moeda(
+                                linha.valorFinal,
+                              )}
+                            </strong>
+                          </div>
+
+                          <div className="eleva-chart-track">
+                            <div
+                              className={`eleva-chart-bar color-${
+                                (indice % 5) + 1
+                              }`}
+                              style={{
+                                height:
+                                  `${altura}%`,
+                              }}
+                            />
+                          </div>
+
+                          <div className="eleva-chart-name">
+                            <strong>
+                              {linha.nome}
+                            </strong>
+                          </div>
+                        </div>
+                      );
+                    },
+                  )}
+                </div>
+              </div>
             </div>
 
-            <div className="eleva-chart-area">
-              {linhasGrafico.map(
-                (linha, indice) => {
-                  const altura =
-                    Math.max(
-                      (linha.valorFinal /
-                        maiorValor) *
-                        100,
-                      5,
-                    );
+            <div className="eleva-mini-chart-card">
+              <div className="eleva-mini-chart-head">
+                <div>
+                  <span>QUANTIDADE</span>
+                  <h4>Contratos por consultora</h4>
+                </div>
 
-                  const alturaLinha =
-                    Math.max(
-                      (linha.propostas /
-                        maiorQuantidade) *
-                        85,
-                      8,
-                    );
+                <strong>
+                  {numero(
+                    resultado.totalPropostas,
+                  )}
+                </strong>
+              </div>
 
-                  return (
-                    <div
-                      className="eleva-chart-column"
-                      key={linha.nome}
-                    >
-                      <div className="eleva-chart-values">
-                        <small>
-                          Bruto{" "}
-                          {moeda(
-                            linha.valorBruto,
-                          )}
-                        </small>
+              <div className="eleva-chart eleva-chart-compact">
+                <div className="eleva-chart-area">
+                  {linhasGrafico.map(
+                    (linha, indice) => {
+                      const altura =
+                        Math.max(
+                          (linha.propostas /
+                            maiorQuantidade) *
+                            100,
+                          5,
+                        );
 
-                        <strong>
-                          {moeda(
-                            linha.valorFinal,
-                          )}
-                        </strong>
-                      </div>
-
-                      <div className="eleva-chart-track">
+                      return (
                         <div
-                          className={`eleva-chart-bar color-${
-                            (indice %
-                              5) +
-                            1
-                          }`}
-                          style={{
-                            height:
-                              `${altura}%`,
-                          }}
-                        />
+                          className="eleva-chart-column"
+                          key={`quantidade-${linha.nome}`}
+                        >
+                          <div className="eleva-chart-values">
+                            <strong>
+                              {linha.propostas}
+                            </strong>
+                          </div>
 
-                      </div>
+                          <div className="eleva-chart-track">
+                            <div
+                              className={`eleva-chart-bar color-${
+                                (indice % 5) + 1
+                              }`}
+                              style={{
+                                height:
+                                  `${altura}%`,
+                              }}
+                            />
+                          </div>
 
-                      <div className="eleva-chart-name">
-  <strong>
-    {linha.nome}
-  </strong>
-
-  <small>
-    {linha.propostas}{" "}
-    {linha.propostas === 1
-      ? "proposta"
-      : "propostas"}
-  </small>
-</div>
-                    </div>
-                  );
-                },
-              )}
+                          <div className="eleva-chart-name">
+                            <strong>
+                              {linha.nome}
+                            </strong>
+                          </div>
+                        </div>
+                      );
+                    },
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1322,7 +1769,7 @@ export default function DashboardClient() {
                 </th>
 
                 <th>
-                  Compra
+                  Compra líquida
                 </th>
 
                 <th>
@@ -1330,11 +1777,15 @@ export default function DashboardClient() {
                 </th>
 
                 <th>
+                  Canceladas
+                </th>
+
+                <th>
                   Propostas
                 </th>
 
                 <th>
-                  Valor final
+                  Valor líquido
                 </th>
 
                 <th>
@@ -1344,6 +1795,10 @@ export default function DashboardClient() {
                 <th>
                   % do total
                 </th>
+
+                <th>
+                  Ação
+                </th>
               </tr>
             </thead>
 
@@ -1352,8 +1807,14 @@ export default function DashboardClient() {
                 (linha, indice) => (
                   <tr key={linha.nome}>
                     <td>
-                      <b>
-                        #{indice + 1}
+                      <b className="eleva-rank-position">
+                        {indice === 0
+                          ? "🥇"
+                          : indice === 1
+                            ? "🥈"
+                            : indice === 2
+                              ? "🥉"
+                              : `#${indice + 1}`}
                       </b>
                     </td>
 
@@ -1384,6 +1845,14 @@ export default function DashboardClient() {
                       {moeda(
                         linha.cltFinal,
                       )}
+                    </td>
+
+                    <td>
+                      <strong className="eleva-cancel-count">
+                        {cancelamentosPeriodo.porConsultora.get(
+                          linha.nome,
+                        ) || 0}
+                      </strong>
                     </td>
 
                     <td>
@@ -1426,6 +1895,21 @@ export default function DashboardClient() {
                         </span>
                       </div>
                     </td>
+
+                    <td>
+                      <button
+                        type="button"
+                        className="eleva-table-view-button"
+                        onClick={() =>
+                          abrirDetalhes(
+                            linha.nome,
+                            false,
+                          )
+                        }
+                      >
+                        Ver propostas
+                      </button>
+                    </td>
                   </tr>
                 ),
               )}
@@ -1435,6 +1919,10 @@ export default function DashboardClient() {
               <tr>
                 <td colSpan={4}>
                   TOTAL GERAL
+                </td>
+
+                <td>
+                  {cancelamentosPeriodo.total}
                 </td>
 
                 <td>
@@ -1458,11 +1946,251 @@ export default function DashboardClient() {
                 <td>
                   100%
                 </td>
+
+                <td />
               </tr>
             </tfoot>
           </table>
         </div>
       </section>
+
+      {detalheAberto && (
+        <div
+          className="eleva-detail-overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={fecharDetalhes}
+        >
+          <div
+            className="eleva-detail-modal"
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+            <div className="eleva-detail-head">
+              <div>
+                <span>
+                  {detalheSomenteCanceladas
+                    ? "PROPOSTAS CANCELADAS"
+                    : consultoraDetalhe
+                      ? "PROPOSTAS DA CONSULTORA"
+                      : "PROPOSTAS DO PERÍODO"}
+                </span>
+
+                <h3>
+                  {consultoraDetalhe ||
+                    (detalheSomenteCanceladas
+                      ? "Canceladas"
+                      : "Todas as propostas")}
+                </h3>
+
+                <p>
+                  {propostasDetalhe.compra.length +
+                    propostasDetalhe.clt.length}{" "}
+                  registro(s) no período e status selecionados.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={fecharDetalhes}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="eleva-detail-summary">
+              <article>
+                <span>
+                  Quantidade
+                </span>
+                <strong>
+                  {resumoDetalhe.quantidade}
+                </strong>
+              </article>
+
+              <article>
+                <span>
+                  Valor bruto
+                </span>
+                <strong>
+                  {moeda(
+                    resumoDetalhe.bruto,
+                  )}
+                </strong>
+              </article>
+
+              <article>
+                <span>
+                  Valor líquido
+                </span>
+                <strong>
+                  {moeda(
+                    resumoDetalhe.liquido,
+                  )}
+                </strong>
+              </article>
+
+              <article className="danger">
+                <span>
+                  Canceladas
+                </span>
+                <strong>
+                  {resumoDetalhe.canceladas}
+                </strong>
+              </article>
+            </div>
+
+            <div className="eleva-detail-table-wrap">
+              <table className="eleva-detail-table">
+                <thead>
+                  <tr>
+                    <th>Cliente</th>
+                    <th>Produto</th>
+                    <th>Banco / tabela</th>
+                    <th>Status</th>
+                    <th>Data</th>
+                    <th>Valor bruto</th>
+                    <th>Valor líquido</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {propostasDetalhe.compra.map(
+                    (proposta, indice) => (
+                      <tr
+                        key={`compra-${
+                          proposta.id ||
+                          proposta.numeroProposta ||
+                          indice
+                        }`}
+                      >
+                        <td>
+                          <strong>
+                            {proposta.cliente ||
+                              "Cliente não informado"}
+                          </strong>
+                          <small>
+                            {proposta.cpf || "—"}
+                          </small>
+                        </td>
+
+                        <td>
+                          Compra de Dívida
+                        </td>
+
+                        <td>
+                          <strong>
+                            {proposta.banco || "—"}
+                          </strong>
+                          <small>
+                            {proposta.tabela || "—"}
+                          </small>
+                        </td>
+
+                        <td>
+                          {proposta.status || "—"}
+                        </td>
+
+                        <td>
+                          {dataBR(
+                            proposta.dataPagamento ||
+                              proposta.dataCadastro,
+                          )}
+                        </td>
+
+                        <td>
+                          {moeda(
+                            Number(
+                              proposta.valorContrato ||
+                                0,
+                            ),
+                          )}
+                        </td>
+
+                        <td className="final-value">
+                          {moeda(
+                            valorFinalCompra(
+                              proposta,
+                            ),
+                          )}
+                        </td>
+                      </tr>
+                    ),
+                  )}
+
+                  {propostasDetalhe.clt.map(
+                    (registro, indice) => (
+                      <tr
+                        key={`clt-${
+                          registro.id || indice
+                        }`}
+                      >
+                        <td>
+                          <strong>
+                            {registro.nome ||
+                              "Cliente não informado"}
+                          </strong>
+                          <small>
+                            {registro.cpf || "—"}
+                          </small>
+                        </td>
+
+                        <td>CLT</td>
+
+                        <td>CLT</td>
+
+                        <td>
+                          {registro.status || "—"}
+                        </td>
+
+                        <td>
+                          {dataBR(
+                            registro.dataPagamento ||
+                              registro.atualizadoEm ||
+                              registro.criadoEm,
+                          )}
+                        </td>
+
+                        <td>
+                          {moeda(
+                            Number(
+                              registro.valorAprovado ||
+                                0,
+                            ),
+                          )}
+                        </td>
+
+                        <td className="final-value">
+                          {moeda(
+                            Number(
+                              registro.parcela || 0,
+                            ),
+                          )}
+                        </td>
+                      </tr>
+                    ),
+                  )}
+
+                  {propostasDetalhe.compra.length ===
+                    0 &&
+                    propostasDetalhe.clt.length ===
+                      0 && (
+                      <tr>
+                        <td
+                          colSpan={7}
+                          className="eleva-detail-empty"
+                        >
+                          Nenhuma proposta encontrada.
+                        </td>
+                      </tr>
+                    )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

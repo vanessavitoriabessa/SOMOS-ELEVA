@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import "./configuracoes.css";
 
 type Banco = {
@@ -13,9 +14,8 @@ type Tabela = {
   id: string;
   banco: string;
   nome: string;
+  codigo: string;
   percentual: number;
-  fator: number;
-  prazo: number;
   ativo: boolean;
 };
 
@@ -50,15 +50,12 @@ const bancosPadrao: Banco[] = [
 ];
 
 const tabelasPadrao: Tabela[] = [
-  {
-    id: "neo-normal-100",
-    banco: "NEO",
-    nome: "NEO NORMAL — 100%",
-    percentual: 100,
-    fator: 0.04199,
-    prazo: 22,
-    ativo: true,
-  },
+  { id: "neo-normal-399", banco: "NEO", nome: "NORMAL", codigo: "399", percentual: 100, ativo: true },
+  { id: "neo-flex-1-379", banco: "NEO", nome: "FLEX 1", codigo: "379", percentual: 75, ativo: true },
+  { id: "neo-flex-2-359", banco: "NEO", nome: "FLEX 2", codigo: "359", percentual: 50, ativo: true },
+  { id: "neo-flex-3-339", banco: "NEO", nome: "FLEX 3", codigo: "339", percentual: 40, ativo: true },
+  { id: "neo-flex-4-319", banco: "NEO", nome: "FLEX 4", codigo: "319", percentual: 20, ativo: true },
+  { id: "neo-flex-5-299", banco: "NEO", nome: "FLEX 5", codigo: "299", percentual: 8, ativo: true },
 ];
 
 const configPadrao: ConfiguracaoGeral = {
@@ -69,8 +66,22 @@ const configPadrao: ConfiguracaoGeral = {
 };
 
 function numero(valor: string) {
-  const limpo = valor.replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
-  const convertido = Number(limpo);
+  const texto = String(valor || "")
+    .trim()
+    .replace(/[^\d,.-]/g, "");
+
+  if (!texto) return 0;
+
+  let normalizado = texto;
+
+  if (texto.includes(",") && texto.includes(".")) {
+    normalizado = texto.replace(/\./g, "").replace(",", ".");
+  } else if (texto.includes(",")) {
+    normalizado = texto.replace(",", ".");
+  }
+
+  const convertido = Number(normalizado);
+
   return Number.isFinite(convertido) ? convertido : 0;
 }
 
@@ -82,20 +93,30 @@ function moeda(valor: number) {
 }
 
 export default function SettingsManager() {
+  const supabase = useMemo(() => createClient(), []);
+
   const [aba, setAba] = useState<"geral" | "bancos" | "tabelas" | "metas">("geral");
   const [bancos, setBancos] = useState<Banco[]>([]);
   const [tabelas, setTabelas] = useState<Tabela[]>([]);
   const [metas, setMetas] = useState<Meta[]>([]);
   const [geral, setGeral] = useState<ConfiguracaoGeral>(configPadrao);
   const [mensagem, setMensagem] = useState("");
+  const [processando, setProcessando] = useState(false);
 
   const [novoBanco, setNovoBanco] = useState("");
   const [novaTabela, setNovaTabela] = useState({
     banco: "NEO",
     nome: "",
+    codigo: "",
     percentual: "",
-    fator: "",
-    prazo: "22",
+  });
+
+  const [editandoTabelaId, setEditandoTabelaId] = useState<string | null>(null);
+  const [edicaoTabela, setEdicaoTabela] = useState({
+    banco: "NEO",
+    nome: "",
+    codigo: "",
+    percentual: "",
   });
   const [novaMeta, setNovaMeta] = useState({
     nome: "",
@@ -106,138 +127,408 @@ export default function SettingsManager() {
     fim: hoje(),
   });
 
-  useEffect(() => {
-    carregar();
-  }, []);
+  async function obterToken() {
+    const { data, error } = await supabase.auth.getSession();
 
-  function carregar() {
+    if (error || !data.session?.access_token) {
+      throw new Error(
+        "Sua sessão expirou. Entre novamente no sistema.",
+      );
+    }
+
+    return data.session.access_token;
+  }
+
+  async function chamarApi(
+    method: "GET" | "POST" | "PATCH" | "DELETE",
+    body?: unknown,
+  ) {
+    const token = await obterToken();
+
+    const resposta = await fetch("/api/configuracoes", {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(body
+          ? {
+              "Content-Type": "application/json",
+            }
+          : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      cache: "no-store",
+    });
+
+    const conteudo = await resposta.json();
+
+    if (!resposta.ok) {
+      throw new Error(
+        conteudo.erro ||
+          "Não foi possível concluir a operação.",
+      );
+    }
+
+    return conteudo;
+  }
+
+  async function carregar() {
+    setProcessando(true);
+
     try {
-      const salvo = JSON.parse(localStorage.getItem("somos-eleva-config-bancos") || "null");
-      const lista = Array.isArray(salvo) && salvo.length ? salvo : bancosPadrao;
-      setBancos(lista);
-      localStorage.setItem("somos-eleva-config-bancos", JSON.stringify(lista));
-    } catch {
+      const conteudo = await chamarApi("GET");
+
+      const bancosApi = Array.isArray(conteudo.bancos)
+        ? conteudo.bancos.map((item: Record<string, unknown>) => ({
+            id: String(item.id || ""),
+            nome: String(item.nome || ""),
+            ativo: item.ativo !== false,
+          }))
+        : [];
+
+      const tabelasApi = Array.isArray(conteudo.tabelas)
+        ? conteudo.tabelas.map((item: Record<string, unknown>) => ({
+            id: String(item.id || ""),
+            banco: String(item.banco || ""),
+            nome: String(item.nome || ""),
+            codigo: String(item.codigo || ""),
+            percentual: Number(item.percentual || 0),
+            ativo: item.ativo !== false,
+          }))
+        : [];
+
+      setBancos(bancosApi);
+      setTabelas(tabelasApi);
+
+      // Metas e geral permanecem locais por enquanto.
+      try {
+        setMetas(
+          JSON.parse(
+            localStorage.getItem("somos-eleva-config-metas") || "[]",
+          ),
+        );
+      } catch {
+        setMetas([]);
+      }
+
+      try {
+        const salvo = JSON.parse(
+          localStorage.getItem("somos-eleva-config-geral") || "null",
+        );
+        setGeral(salvo || configPadrao);
+      } catch {
+        setGeral(configPadrao);
+      }
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível carregar as configurações.",
+      );
+
       setBancos(bancosPadrao);
-    }
-
-    try {
-      const salvo = JSON.parse(localStorage.getItem("somos-eleva-config-tabelas") || "null");
-      const lista = Array.isArray(salvo) && salvo.length ? salvo : tabelasPadrao;
-      setTabelas(lista);
-      localStorage.setItem("somos-eleva-config-tabelas", JSON.stringify(lista));
-    } catch {
       setTabelas(tabelasPadrao);
-    }
-
-    try {
-      setMetas(JSON.parse(localStorage.getItem("somos-eleva-config-metas") || "[]"));
-    } catch {
-      setMetas([]);
-    }
-
-    try {
-      const salvo = JSON.parse(localStorage.getItem("somos-eleva-config-geral") || "null");
-      setGeral(salvo || configPadrao);
-    } catch {
-      setGeral(configPadrao);
+    } finally {
+      setProcessando(false);
     }
   }
+
+  useEffect(() => {
+    void carregar();
+  }, [supabase]);
 
   function salvarGeral() {
     localStorage.setItem("somos-eleva-config-geral", JSON.stringify(geral));
     setMensagem("Configurações gerais salvas.");
   }
 
-  function adicionarBanco(event: FormEvent) {
+  async function adicionarBanco(event: FormEvent) {
     event.preventDefault();
+
     const nome = novoBanco.trim().toUpperCase();
 
-    if (!nome) return setMensagem("Informe o nome do banco.");
-    if (bancos.some((item) => item.nome === nome)) {
-      return setMensagem("Esse banco já está cadastrado.");
+    if (!nome) {
+      setMensagem("Informe o nome do banco.");
+      return;
     }
 
-    const lista = [
-      ...bancos,
-      { id: crypto.randomUUID(), nome, ativo: true },
-    ];
+    setProcessando(true);
+    setMensagem("");
 
-    setBancos(lista);
-    localStorage.setItem("somos-eleva-config-bancos", JSON.stringify(lista));
-    setNovoBanco("");
-    setMensagem("Banco cadastrado.");
+    try {
+      const conteudo = await chamarApi("POST", {
+        acao: "criar_banco",
+        banco: {
+          nome,
+        },
+      });
+
+      setNovoBanco("");
+      setMensagem(
+        conteudo.mensagem ||
+          "Banco cadastrado com sucesso.",
+      );
+
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível cadastrar o banco.",
+      );
+    } finally {
+      setProcessando(false);
+    }
   }
 
-  function alternarBanco(id: string) {
-    const lista = bancos.map((item) =>
-      item.id === id ? { ...item, ativo: !item.ativo } : item
-    );
-    setBancos(lista);
-    localStorage.setItem("somos-eleva-config-bancos", JSON.stringify(lista));
-  }
-
-  function excluirBanco(id: string) {
-    if (!window.confirm("Deseja excluir este banco?")) return;
+  async function alternarBanco(id: string) {
     const banco = bancos.find((item) => item.id === id);
-    const lista = bancos.filter((item) => item.id !== id);
-    setBancos(lista);
-    localStorage.setItem("somos-eleva-config-bancos", JSON.stringify(lista));
 
-    if (banco) {
-      const novasTabelas = tabelas.filter((item) => item.banco !== banco.nome);
-      setTabelas(novasTabelas);
-      localStorage.setItem("somos-eleva-config-tabelas", JSON.stringify(novasTabelas));
+    if (!banco) return;
+
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const conteudo = await chamarApi("PATCH", {
+        acao: "editar_banco",
+        banco: {
+          id,
+          ativo: !banco.ativo,
+        },
+      });
+
+      setMensagem(
+        conteudo.mensagem ||
+          "Banco atualizado com sucesso.",
+      );
+
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível atualizar o banco.",
+      );
+    } finally {
+      setProcessando(false);
     }
   }
 
-  function adicionarTabela(event: FormEvent) {
+  async function excluirBanco(id: string) {
+    if (!window.confirm("Deseja excluir este banco?")) return;
+
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const conteudo = await chamarApi("DELETE", {
+        tipo: "banco",
+        id,
+      });
+
+      setMensagem(
+        conteudo.mensagem ||
+          "Banco excluído com sucesso.",
+      );
+
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível excluir o banco.",
+      );
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  async function adicionarTabela(event: FormEvent) {
     event.preventDefault();
 
-    const fator = numero(novaTabela.fator);
+    const nome = novaTabela.nome.trim().toUpperCase();
+    const codigo = novaTabela.codigo.trim();
     const percentual = numero(novaTabela.percentual);
-    const prazo = Number(novaTabela.prazo);
 
-    if (!novaTabela.nome.trim()) return setMensagem("Informe o nome da tabela.");
-    if (fator <= 0) return setMensagem("Informe um fator maior que zero.");
-    if (percentual <= 0) return setMensagem("Informe o percentual da tabela.");
-    if (prazo <= 0) return setMensagem("Informe um prazo válido.");
+    if (!novaTabela.banco) return setMensagem("Selecione o banco.");
+    if (!nome) return setMensagem("Informe o nome da tabela.");
+    if (!codigo) return setMensagem("Informe o código da tabela.");
+    if (percentual <= 0 || percentual > 100) {
+      return setMensagem("Informe um percentual entre 0,01% e 100%.");
+    }
 
-    const tabela: Tabela = {
-      id: crypto.randomUUID(),
-      banco: novaTabela.banco,
-      nome: novaTabela.nome.trim().toUpperCase(),
-      percentual,
-      fator,
-      prazo,
-      ativo: true,
-    };
+    setProcessando(true);
+    setMensagem("");
 
-    const lista = [...tabelas, tabela];
-    setTabelas(lista);
-    localStorage.setItem("somos-eleva-config-tabelas", JSON.stringify(lista));
-    setNovaTabela({
-      banco: bancos.find((item) => item.ativo)?.nome || "",
-      nome: "",
-      percentual: "",
-      fator: "",
-      prazo: "22",
+    try {
+      const conteudo = await chamarApi("POST", {
+        acao: "criar_tabela",
+        tabela: {
+          banco: novaTabela.banco,
+          nome,
+          codigo,
+          percentual,
+        },
+      });
+
+      setNovaTabela({
+        banco: bancos.find((item) => item.ativo)?.nome || "",
+        nome: "",
+        codigo: "",
+        percentual: "",
+      });
+
+      setMensagem(
+        conteudo.mensagem ||
+          "Tabela cadastrada com sucesso.",
+      );
+
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível cadastrar a tabela.",
+      );
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  function iniciarEdicaoTabela(tabela: Tabela) {
+    setEditandoTabelaId(tabela.id);
+    setEdicaoTabela({
+      banco: tabela.banco,
+      nome: tabela.nome,
+      codigo: tabela.codigo,
+      percentual: String(tabela.percentual).replace(".", ","),
     });
-    setMensagem("Tabela cadastrada.");
+    setMensagem("");
   }
 
-  function alternarTabela(id: string) {
-    const lista = tabelas.map((item) =>
-      item.id === id ? { ...item, ativo: !item.ativo } : item
-    );
-    setTabelas(lista);
-    localStorage.setItem("somos-eleva-config-tabelas", JSON.stringify(lista));
+  function cancelarEdicaoTabela() {
+    setEditandoTabelaId(null);
+    setEdicaoTabela({
+      banco: "NEO",
+      nome: "",
+      codigo: "",
+      percentual: "",
+    });
   }
 
-  function excluirTabela(id: string) {
+  async function salvarEdicaoTabela() {
+    if (!editandoTabelaId) return;
+
+    const nome = edicaoTabela.nome.trim().toUpperCase();
+    const codigo = edicaoTabela.codigo.trim();
+    const percentual = numero(edicaoTabela.percentual);
+
+    if (!edicaoTabela.banco) return setMensagem("Selecione o banco.");
+    if (!nome) return setMensagem("Informe o nome da tabela.");
+    if (!codigo) return setMensagem("Informe o código da tabela.");
+    if (percentual <= 0 || percentual > 100) {
+      return setMensagem("Informe um percentual entre 0,01% e 100%.");
+    }
+
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const conteudo = await chamarApi("PATCH", {
+        acao: "editar_tabela",
+        tabela: {
+          id: editandoTabelaId,
+          banco: edicaoTabela.banco,
+          nome,
+          codigo,
+          percentual,
+        },
+      });
+
+      cancelarEdicaoTabela();
+
+      setMensagem(
+        conteudo.mensagem ||
+          "Tabela atualizada com sucesso.",
+      );
+
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível atualizar a tabela.",
+      );
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  async function alternarTabela(id: string) {
+    const tabela = tabelas.find((item) => item.id === id);
+
+    if (!tabela) return;
+
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const conteudo = await chamarApi("PATCH", {
+        acao: "editar_tabela",
+        tabela: {
+          id,
+          ativo: !tabela.ativo,
+        },
+      });
+
+      setMensagem(
+        conteudo.mensagem ||
+          "Tabela atualizada com sucesso.",
+      );
+
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível atualizar a tabela.",
+      );
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  async function excluirTabela(id: string) {
     if (!window.confirm("Deseja excluir esta tabela?")) return;
-    const lista = tabelas.filter((item) => item.id !== id);
-    setTabelas(lista);
-    localStorage.setItem("somos-eleva-config-tabelas", JSON.stringify(lista));
+
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const conteudo = await chamarApi("DELETE", {
+        tipo: "tabela",
+        id,
+      });
+
+      setMensagem(
+        conteudo.mensagem ||
+          "Tabela excluída com sucesso.",
+      );
+
+      if (editandoTabelaId === id) {
+        cancelarEdicaoTabela();
+      }
+
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível excluir a tabela.",
+      );
+    } finally {
+      setProcessando(false);
+    }
   }
 
   function adicionarMeta(event: FormEvent) {
@@ -349,8 +640,8 @@ export default function SettingsManager() {
                   <div><strong>{banco.nome}</strong><span>{banco.ativo ? "Disponível no sistema" : "Desativado"}</span></div>
                   <span className={banco.ativo ? "status-active" : "status-inactive"}>{banco.ativo ? "Ativo" : "Inativo"}</span>
                   <div className="settings-row-actions">
-                    <button onClick={()=>alternarBanco(banco.id)}>{banco.ativo ? "Desativar" : "Ativar"}</button>
-                    <button className="delete" onClick={()=>excluirBanco(banco.id)}>Excluir</button>
+                    <button onClick={() => void alternarBanco(banco.id)}>{banco.ativo ? "Desativar" : "Ativar"}</button>
+                    <button className="delete" onClick={() => void excluirBanco(banco.id)}>Excluir</button>
                   </div>
                 </article>
               ))}
@@ -360,35 +651,284 @@ export default function SettingsManager() {
       )}
 
       {aba === "tabelas" && (
-        <section className="settings-grid">
+        <section className="settings-grid settings-grid-tabelas">
           <form className="settings-card" onSubmit={adicionarTabela}>
-            <div className="settings-heading"><div><span>NOVA TABELA</span><h2>Cadastrar fator e percentual</h2></div><b>%</b></div>
-            <div className="settings-form-grid">
-              <label>Banco<select value={novaTabela.banco} onChange={e=>setNovaTabela({...novaTabela,banco:e.target.value})}>{bancos.filter(b=>b.ativo).map(b=><option key={b.id}>{b.nome}</option>)}</select></label>
-              <label>Nome da tabela<input value={novaTabela.nome} onChange={e=>setNovaTabela({...novaTabela,nome:e.target.value})} placeholder="Ex.: NEO FLEX 1"/></label>
-              <label>Percentual<input value={novaTabela.percentual} onChange={e=>setNovaTabela({...novaTabela,percentual:e.target.value})} placeholder="Ex.: 82" inputMode="decimal"/></label>
-              <label>Fator<input value={novaTabela.fator} onChange={e=>setNovaTabela({...novaTabela,fator:e.target.value})} placeholder="Ex.: 0,04199" inputMode="decimal"/></label>
-              <label>Prazo<input value={novaTabela.prazo} onChange={e=>setNovaTabela({...novaTabela,prazo:e.target.value})} type="number"/></label>
+            <div className="settings-heading">
+              <div>
+                <span>NOVA TABELA</span>
+                <h2>Cadastrar tabela</h2>
+                <p>
+                  Banco, código e percentual ficam salvos no Supabase e valem para toda a equipe.
+                </p>
+              </div>
+              <b>%</b>
             </div>
-            <div className="settings-actions"><button type="submit">Adicionar tabela</button></div>
+
+            <div className="settings-form-grid">
+              <label>
+                Banco
+                <select
+                  value={novaTabela.banco}
+                  onChange={(e) =>
+                    setNovaTabela({
+                      ...novaTabela,
+                      banco: e.target.value,
+                    })
+                  }
+                  disabled={processando}
+                >
+                  {bancos
+                    .filter((banco) => banco.ativo)
+                    .map((banco) => (
+                      <option key={banco.id} value={banco.nome}>
+                        {banco.nome}
+                      </option>
+                    ))}
+                </select>
+              </label>
+
+              <label>
+                Nome da tabela
+                <input
+                  value={novaTabela.nome}
+                  onChange={(e) =>
+                    setNovaTabela({
+                      ...novaTabela,
+                      nome: e.target.value,
+                    })
+                  }
+                  placeholder="Ex.: FLEX 1"
+                  disabled={processando}
+                />
+              </label>
+
+              <label>
+                Código da tabela
+                <input
+                  value={novaTabela.codigo}
+                  onChange={(e) =>
+                    setNovaTabela({
+                      ...novaTabela,
+                      codigo: e.target.value,
+                    })
+                  }
+                  placeholder="Ex.: 379"
+                  inputMode="numeric"
+                  disabled={processando}
+                />
+              </label>
+
+              <label>
+                % para produção
+                <input
+                  value={novaTabela.percentual}
+                  onChange={(e) =>
+                    setNovaTabela({
+                      ...novaTabela,
+                      percentual: e.target.value,
+                    })
+                  }
+                  placeholder="Ex.: 75"
+                  inputMode="decimal"
+                  disabled={processando}
+                />
+              </label>
+            </div>
+
+            <div className="settings-actions">
+              <button type="submit" disabled={processando}>
+                {processando ? "Salvando..." : "Adicionar tabela"}
+              </button>
+            </div>
           </form>
 
           <section className="settings-card">
-            <div className="settings-list-heading"><div><span>TABELAS CADASTRADAS</span><h2>Fatores e percentuais</h2></div><b>{tabelas.length}</b></div>
+            <div className="settings-list-heading">
+              <div>
+                <span>TABELAS CADASTRADAS</span>
+                <h2>Regras de produção</h2>
+                <p>
+                  Alterações feitas aqui ficam disponíveis para todos os usuários do sistema.
+                </p>
+              </div>
+              <b>{tabelas.length}</b>
+            </div>
+
+            <div className="settings-table-head settings-table-grid">
+              <span>Tabela</span>
+              <span>Banco</span>
+              <span>Código</span>
+              <span>% Produção</span>
+              <span>Status</span>
+              <span>Ações</span>
+            </div>
+
             <div className="settings-table-list">
-              {tabelas.map(tabela=>(
-                <article key={tabela.id}>
-                  <div><strong>{tabela.nome}</strong><span>{tabela.banco}</span></div>
-                  <div><small>Percentual</small><b>{String(tabela.percentual).replace(".",",")}%</b></div>
-                  <div><small>Fator</small><b>{tabela.fator.toFixed(5).replace(".",",")}</b></div>
-                  <div><small>Prazo</small><b>{tabela.prazo}x</b></div>
-                  <span className={tabela.ativo ? "status-active" : "status-inactive"}>{tabela.ativo ? "Ativa" : "Inativa"}</span>
-                  <div className="settings-row-actions">
-                    <button onClick={()=>alternarTabela(tabela.id)}>{tabela.ativo ? "Desativar" : "Ativar"}</button>
-                    <button className="delete" onClick={()=>excluirTabela(tabela.id)}>Excluir</button>
-                  </div>
-                </article>
-              ))}
+              {tabelas.map((tabela) => {
+                const editando = editandoTabelaId === tabela.id;
+
+                return (
+                  <article
+                    key={tabela.id}
+                    className="settings-table-grid settings-table-row-new"
+                  >
+                    {editando ? (
+                      <>
+                        <div>
+                          <input
+                            value={edicaoTabela.nome}
+                            onChange={(e) =>
+                              setEdicaoTabela({
+                                ...edicaoTabela,
+                                nome: e.target.value,
+                              })
+                            }
+                            disabled={processando}
+                          />
+                        </div>
+
+                        <div>
+                          <select
+                            value={edicaoTabela.banco}
+                            onChange={(e) =>
+                              setEdicaoTabela({
+                                ...edicaoTabela,
+                                banco: e.target.value,
+                              })
+                            }
+                            disabled={processando}
+                          >
+                            {bancos
+                              .filter((banco) => banco.ativo)
+                              .map((banco) => (
+                                <option key={banco.id} value={banco.nome}>
+                                  {banco.nome}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <input
+                            value={edicaoTabela.codigo}
+                            onChange={(e) =>
+                              setEdicaoTabela({
+                                ...edicaoTabela,
+                                codigo: e.target.value,
+                              })
+                            }
+                            inputMode="numeric"
+                            disabled={processando}
+                          />
+                        </div>
+
+                        <div>
+                          <input
+                            value={edicaoTabela.percentual}
+                            onChange={(e) =>
+                              setEdicaoTabela({
+                                ...edicaoTabela,
+                                percentual: e.target.value,
+                              })
+                            }
+                            inputMode="decimal"
+                            disabled={processando}
+                          />
+                        </div>
+
+                        <span
+                          className={
+                            tabela.ativo
+                              ? "status-active"
+                              : "status-inactive"
+                          }
+                        >
+                          {tabela.ativo ? "Ativa" : "Inativa"}
+                        </span>
+
+                        <div className="settings-row-actions">
+                          <button
+                            type="button"
+                            className="save-edit"
+                            onClick={() => void salvarEdicaoTabela()}
+                            disabled={processando}
+                          >
+                            Salvar
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={cancelarEdicaoTabela}
+                            disabled={processando}
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <strong>{tabela.nome}</strong>
+                          <span>
+                            {tabela.banco} • Código {tabela.codigo || "—"}
+                          </span>
+                        </div>
+
+                        <div>
+                          <strong>{tabela.banco}</strong>
+                        </div>
+
+                        <div>
+                          <b>{tabela.codigo || "—"}</b>
+                        </div>
+
+                        <div>
+                          <b className="settings-percent-value">
+                            {String(tabela.percentual).replace(".", ",")}%
+                          </b>
+                        </div>
+
+                        <span
+                          className={
+                            tabela.ativo
+                              ? "status-active"
+                              : "status-inactive"
+                          }
+                        >
+                          {tabela.ativo ? "Ativa" : "Inativa"}
+                        </span>
+
+                        <div className="settings-row-actions">
+                          <button
+                            type="button"
+                            onClick={() => iniciarEdicaoTabela(tabela)}
+                            disabled={processando}
+                          >
+                            Editar
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => void alternarTabela(tabela.id)}
+                            disabled={processando}
+                          >
+                            {tabela.ativo ? "Desativar" : "Ativar"}
+                          </button>
+
+                          <button
+                            type="button"
+                            className="delete"
+                            onClick={() => void excluirTabela(tabela.id)}
+                            disabled={processando}
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </article>
+                );
+              })}
             </div>
           </section>
         </section>

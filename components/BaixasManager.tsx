@@ -23,32 +23,18 @@ type BaixaPagamento = {
   diferenca: number;
   status: string;
   observacao: string | null;
+  data_emissao?: string;
 };
 
-type FiltroConciliacao =
+type SituacaoFiltro =
   | "TODOS"
-  | "AGUARDANDO"
-  | "ATRASADAS"
-  | "RECEBIDAS"
-  | "A_MENOS"
-  | "A_MAIS";
+  | "A_RECEBER"
+  | "PARCIAL"
+  | "FINALIZADO";
 
-type ItemComStatus = BaixaPagamento & {
-  statusCalculado: string;
-  dataPrevistaCalculada: string;
-};
-
-type GrupoSemanal = {
-  chave: string;
-  dataPrevista: string;
-  itens: ItemComStatus[];
-  previsto: number;
-  recebido: number;
-  pendente: number;
-  quantidade: number;
-  quantidadeRecebida: number;
-  quantidadePendente: number;
-  atrasado: boolean;
+type LinhaComSituacao = BaixaPagamento & {
+  situacaoExibicao: SituacaoFiltro;
+  taxaComissao: number;
 };
 
 function moeda(valor: number) {
@@ -60,155 +46,146 @@ function moeda(valor: number) {
 
 function dataBR(valor?: string | null) {
   if (!valor) return "—";
-  const [ano, mes, dia] = String(valor).slice(0, 10).split("-");
-  return ano && mes && dia ? `${dia}/${mes}/${ano}` : valor;
+
+  const [ano, mes, dia] = String(valor)
+    .slice(0, 10)
+    .split("-");
+
+  return ano && mes && dia
+    ? `${dia}/${mes}/${ano}`
+    : valor;
 }
 
 function hojeIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function dataIsoLocal(data: Date) {
-  const ano = data.getFullYear();
-  const mes = String(data.getMonth() + 1).padStart(2, "0");
-  const dia = String(data.getDate()).padStart(2, "0");
-  return `${ano}-${mes}-${dia}`;
-}
-
-function tercaDaSemanaIso(referencia = new Date()) {
-  const data = new Date(
-    referencia.getFullYear(),
-    referencia.getMonth(),
-    referencia.getDate(),
-  );
-
-  const diaSemana = data.getDay();
-
-  // Segunda aponta para a terça seguinte. De terça a domingo,
-  // mantém a terça da semana corrente.
-  const deslocamento = diaSemana === 1 ? 1 : diaSemana === 0 ? -5 : 2 - diaSemana;
-  data.setDate(data.getDate() + deslocamento);
-
-  return dataIsoLocal(data);
-}
-
-
-function calcularDataPrevistaRecebimento(
-  dataPagamentoProposta?: string | null,
-  dataPrevistaSalva?: string | null,
-) {
-  const pagamentoTexto = String(dataPagamentoProposta || "").slice(0, 10);
-
-  if (!pagamentoTexto) {
-    return String(dataPrevistaSalva || "").slice(0, 10);
-  }
-
-  const pagamento = new Date(`${pagamentoTexto}T00:00:00`);
-
-  if (Number.isNaN(pagamento.getTime())) {
-    return String(dataPrevistaSalva || "").slice(0, 10);
-  }
-
-  // A produção é fechada de segunda a domingo e recebida
-  // na terça-feira imediatamente seguinte.
-  const diaSemana = pagamento.getDay();
-  const diasAteDomingo = diaSemana === 0 ? 0 : 7 - diaSemana;
-
-  const domingo = new Date(pagamento);
-  domingo.setDate(domingo.getDate() + diasAteDomingo);
-
-  const tercaRecebimento = new Date(domingo);
-  tercaRecebimento.setDate(tercaRecebimento.getDate() + 2);
-
-  return dataIsoLocal(tercaRecebimento);
-}
-
-function dataPrevistaDoItem(item: BaixaPagamento) {
-  return calcularDataPrevistaRecebimento(
-    item.data_pagamento_proposta,
-    item.data_prevista_recebimento,
-  );
-}
-
-function intervaloProducaoDaPrevisao(dataPrevista: string) {
-  const prevista = new Date(`${dataPrevista}T00:00:00`);
-  const fim = new Date(prevista);
-  fim.setDate(fim.getDate() - 2); // domingo anterior
-
-  const inicio = new Date(fim);
-  inicio.setDate(inicio.getDate() - 6); // segunda anterior
-
-  return `${dataBR(dataIsoLocal(inicio))} a ${dataBR(dataIsoLocal(fim))}`;
-}
-
-function normalizarNumero(valor: string) {
+function normalizar(valor: string) {
   return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .trim()
-    .replace(/\s+/g, "")
     .toLowerCase();
 }
 
-function converterValor(valor: string) {
-  const convertido = Number(
-    String(valor || "")
-      .replace(/[^\d,.-]/g, "")
-      .replace(/\./g, "")
-      .replace(",", "."),
-  );
+function somenteNumeros(valor: string) {
+  return String(valor || "").replace(/\D/g, "");
+}
 
-  return Number.isFinite(convertido) ? convertido : 0;
+function formatarCpf(valor: string) {
+  const numeros = somenteNumeros(valor).slice(0, 11);
+
+  return numeros
+    .replace(/^(\d{3})(\d)/, "$1.$2")
+    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1-$2");
+}
+
+function converterValor(valor: string) {
+  const texto = String(valor || "")
+    .trim()
+    .replace(/[^\d,.-]/g, "");
+
+  if (!texto) return 0;
+
+  let normalizado = texto;
+
+  if (texto.includes(",") && texto.includes(".")) {
+    normalizado = texto
+      .replace(/\./g, "")
+      .replace(",", ".");
+  } else if (texto.includes(",")) {
+    normalizado = texto.replace(",", ".");
+  }
+
+  const numero = Number(normalizado);
+
+  return Number.isFinite(numero) ? numero : 0;
 }
 
 function valorParaInput(valor: number) {
-  return Number(valor || 0).toFixed(2).replace(".", ",");
+  return Number(valor || 0)
+    .toFixed(2)
+    .replace(".", ",");
 }
 
-function statusAtual(item: BaixaPagamento) {
-  if (item.data_recebimento) {
-    const diferenca = Number(item.diferenca || 0);
+function calcularSituacao(
+  item: BaixaPagamento,
+): SituacaoFiltro {
+  const previsto = Number(item.comissao_prevista || 0);
+  const recebido = Number(item.valor_recebido || 0);
 
-    if (Math.abs(diferenca) < 0.01) return "VALOR RECEBIDO";
-    return diferenca > 0 ? "RECEBEU A MAIS" : "RECEBEU A MENOS";
+  if (!item.data_recebimento || recebido <= 0) {
+    return "A_RECEBER";
   }
 
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
+  if (recebido + 0.01 < previsto) {
+    return "PARCIAL";
+  }
 
-  const prevista = new Date(`${dataPrevistaDoItem(item)}T00:00:00`);
-
-  return prevista < hoje
-    ? "COMISSÃO ATRASADA"
-    : "AGUARDANDO RECEBIMENTO";
+  return "FINALIZADO";
 }
 
-function classeStatus(status: string) {
-  if (status === "VALOR RECEBIDO") return "status-ok";
-  if (status === "RECEBEU A MAIS") return "status-mais";
-  if (status === "RECEBEU A MENOS") return "status-menos";
-  if (status === "COMISSÃO ATRASADA") return "status-atrasada";
-  return "status-aguardando";
+function textoSituacao(situacao: SituacaoFiltro) {
+  if (situacao === "A_RECEBER") return "À RECEBER";
+  if (situacao === "PARCIAL") return "REC. PARCIAL";
+  if (situacao === "FINALIZADO") return "FINALIZADO";
+  return "TODOS";
+}
+
+function classeSituacao(situacao: SituacaoFiltro) {
+  if (situacao === "A_RECEBER") return "situacao-receber";
+  if (situacao === "PARCIAL") return "situacao-parcial";
+  if (situacao === "FINALIZADO") return "situacao-finalizado";
+  return "";
 }
 
 export default function BaixasManager() {
   const supabase = useMemo(() => createClient(), []);
 
-  const [baixas, setBaixas] = useState<BaixaPagamento[]>([]);
-  const [numeroProposta, setNumeroProposta] = useState("");
-  const [selecionada, setSelecionada] = useState<BaixaPagamento | null>(null);
+  const [baixas, setBaixas] =
+    useState<BaixaPagamento[]>([]);
+  const [carregando, setCarregando] =
+    useState(true);
+  const [processando, setProcessando] =
+    useState(false);
+  const [mensagem, setMensagem] =
+    useState("");
 
-  const [carregando, setCarregando] = useState(true);
-  const [processando, setProcessando] = useState(false);
-  const [mensagem, setMensagem] = useState("");
+  const [busca, setBusca] = useState("");
+  const [filtroBanco, setFiltroBanco] =
+    useState("TODOS");
+  const [filtroSituacao, setFiltroSituacao] =
+    useState<SituacaoFiltro>("A_RECEBER");
 
-  const [valorRecebidoEditavel, setValorRecebidoEditavel] = useState("");
-  const [dataRecebimentoEditavel, setDataRecebimentoEditavel] =
-    useState(hojeIso());
-  const [observacaoEditavel, setObservacaoEditavel] = useState("");
-  const [motivoAlteracao, setMotivoAlteracao] = useState("");
+  const [dataInicial, setDataInicial] =
+    useState("");
+  const [dataFinal, setDataFinal] =
+    useState("");
 
-  const [filtro, setFiltro] = useState<FiltroConciliacao>("TODOS");
-  const [buscaHistorico, setBuscaHistorico] = useState("");
-  const [semanaSelecionada, setSemanaSelecionada] = useState("TODAS");
+  const [selecionada, setSelecionada] =
+    useState<BaixaPagamento | null>(null);
+
+  const [selecionadasIds, setSelecionadasIds] =
+    useState<Set<string>>(new Set());
+
+  const [
+    valorRecebidoEditavel,
+    setValorRecebidoEditavel,
+  ] = useState("");
+
+  const [
+    dataRecebimentoEditavel,
+    setDataRecebimentoEditavel,
+  ] = useState(hojeIso());
+
+  const [
+    observacaoEditavel,
+    setObservacaoEditavel,
+  ] = useState("");
+
+  const [motivoAlteracao, setMotivoAlteracao] =
+    useState("");
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -217,27 +194,63 @@ export default function BaixasManager() {
       const { data, error } = await supabase
         .from("baixas_pagamentos")
         .select("*")
-        .order("data_prevista_recebimento", { ascending: false });
+        .order("data_pagamento_proposta", {
+          ascending: false,
+        });
 
-      if (error) throw new Error(error.message);
-
-      const registros = (data || []) as BaixaPagamento[];
-      setBaixas(registros);
-
-      if (numeroProposta.trim()) {
-        const localizada =
-          registros.find(
-            (item) =>
-              normalizarNumero(item.numero_proposta) ===
-              normalizarNumero(numeroProposta),
-          ) || null;
-
-        setSelecionada(localizada);
+      if (error) {
+        throw new Error(error.message);
       }
+
+      const registros =
+        (data || []) as BaixaPagamento[];
+
+      /*
+       * A data de emissão é a data da digitação da proposta.
+       * Ela fica na tabela de propostas como data_cadastro.
+       * Buscamos somente as propostas necessárias e enriquecemos
+       * as linhas da baixa sem alterar a tabela baixas_pagamentos.
+       */
+      const ids = Array.from(
+        new Set(
+          registros
+            .map((item) => item.proposta_id)
+            .filter(Boolean),
+        ),
+      );
+
+      let emissoes = new Map<string, string>();
+
+      if (ids.length) {
+        const { data: propostas, error: erroPropostas } =
+          await supabase
+            .from("propostas")
+            .select("id, data_cadastro")
+            .in("id", ids);
+
+        if (!erroPropostas && propostas) {
+          emissoes = new Map(
+            propostas.map((item) => [
+              String(item.id),
+              String(item.data_cadastro || ""),
+            ]),
+          );
+        }
+      }
+
+      setBaixas(
+        registros.map((item) => ({
+          ...item,
+          data_emissao:
+            emissoes.get(item.proposta_id) ||
+            item.data_pagamento_proposta ||
+            "",
+        })),
+      );
     } catch (erro) {
       console.error(erro);
       setBaixas([]);
-      setSelecionada(null);
+
       setMensagem(
         erro instanceof Error
           ? erro.message
@@ -246,305 +259,293 @@ export default function BaixasManager() {
     } finally {
       setCarregando(false);
     }
-  }, [supabase, numeroProposta]);
+  }, [supabase]);
 
   useEffect(() => {
     void carregar();
 
     const atualizar = () => void carregar();
+
     window.addEventListener("focus", atualizar);
 
-    return () => window.removeEventListener("focus", atualizar);
+    return () =>
+      window.removeEventListener(
+        "focus",
+        atualizar,
+      );
   }, [carregar]);
 
-  useEffect(() => {
-    const termo = normalizarNumero(numeroProposta);
-
-    if (!termo) {
-      setSelecionada(null);
-      setValorRecebidoEditavel("");
-      setDataRecebimentoEditavel(hojeIso());
-      setObservacaoEditavel("");
-      setMotivoAlteracao("");
-      return;
-    }
-
-    const localizada =
-      baixas.find(
-        (item) => normalizarNumero(item.numero_proposta) === termo,
-      ) || null;
-
-    setSelecionada(localizada);
-
-    if (localizada) {
-      setValorRecebidoEditavel(
-        localizada.data_recebimento
-          ? valorParaInput(localizada.valor_recebido)
-          : valorParaInput(localizada.comissao_prevista),
-      );
-      setDataRecebimentoEditavel(localizada.data_recebimento || hojeIso());
-      setObservacaoEditavel(localizada.observacao || "");
-      setMotivoAlteracao("");
-      setMensagem("");
-    } else {
-      setValorRecebidoEditavel("");
-      setDataRecebimentoEditavel(hojeIso());
-      setObservacaoEditavel("");
-      setMotivoAlteracao("");
-    }
-  }, [numeroProposta, baixas]);
-
-  const itensComStatus = useMemo<ItemComStatus[]>(
+  const linhas = useMemo<LinhaComSituacao[]>(
     () =>
       baixas.map((item) => ({
         ...item,
-        statusCalculado: statusAtual(item),
-        dataPrevistaCalculada: dataPrevistaDoItem(item),
+        situacaoExibicao:
+          calcularSituacao(item),
+        taxaComissao:
+          Number(item.valor_operacao || 0) > 0
+            ? (Number(
+                item.comissao_prevista || 0,
+              ) /
+                Number(
+                  item.valor_operacao || 0,
+                )) *
+              100
+            : 0,
       })),
     [baixas],
   );
 
-  const tercaReferencia = useMemo(() => tercaDaSemanaIso(), []);
+  const bancos = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          linhas
+            .map((item) =>
+              String(item.banco || "").trim(),
+            )
+            .filter(Boolean),
+        ),
+      ).sort((a, b) =>
+        a.localeCompare(b, "pt-BR"),
+      ),
+    [linhas],
+  );
+
+  const filtradas = useMemo(() => {
+    const termo = normalizar(busca);
+    const numeros = somenteNumeros(busca);
+
+    return linhas.filter((item) => {
+      const correspondeBusca =
+        !termo ||
+        normalizar(item.numero_proposta).includes(
+          termo,
+        ) ||
+        normalizar(item.cliente).includes(
+          termo,
+        ) ||
+        somenteNumeros(item.cpf).includes(
+          numeros,
+        ) ||
+        normalizar(item.consultora).includes(
+          termo,
+        ) ||
+        normalizar(item.banco).includes(
+          termo,
+        ) ||
+        normalizar(item.tabela).includes(
+          termo,
+        );
+
+      const correspondeBanco =
+        filtroBanco === "TODOS" ||
+        item.banco === filtroBanco;
+
+      const correspondeSituacao =
+        filtroSituacao === "TODOS" ||
+        item.situacaoExibicao ===
+          filtroSituacao;
+
+      const emissao = String(
+        item.data_emissao || "",
+      ).slice(0, 10);
+
+      const correspondeDatas =
+        (!dataInicial ||
+          emissao >= dataInicial) &&
+        (!dataFinal || emissao <= dataFinal);
+
+      return (
+        correspondeBusca &&
+        correspondeBanco &&
+        correspondeSituacao &&
+        correspondeDatas
+      );
+    });
+  }, [
+    linhas,
+    busca,
+    filtroBanco,
+    filtroSituacao,
+    dataInicial,
+    dataFinal,
+  ]);
 
   const resumo = useMemo(() => {
-    const destaTerca = itensComStatus.filter(
+    const aReceber = linhas.filter(
       (item) =>
-        String(item.dataPrevistaCalculada || "").slice(0, 10) ===
-        tercaReferencia,
+        item.situacaoExibicao ===
+        "A_RECEBER",
     );
 
-    const atrasadasAnteriores = itensComStatus.filter(
+    const parciais = linhas.filter(
       (item) =>
-        !item.data_recebimento &&
-        String(item.dataPrevistaCalculada || "").slice(0, 10) <
-          tercaReferencia,
+        item.situacaoExibicao === "PARCIAL",
     );
 
-    const semanasPendentes = new Set(
-      atrasadasAnteriores.map((item) =>
-        String(item.dataPrevistaCalculada || "").slice(0, 10),
-      ),
-    ).size;
+    const finalizadas = linhas.filter(
+      (item) =>
+        item.situacaoExibicao ===
+        "FINALIZADO",
+    );
 
-    const previstoDestaTerca = destaTerca.reduce(
-      (total, item) => total + Number(item.comissao_prevista || 0),
+    const comissoesAReceber = aReceber.reduce(
+      (total, item) =>
+        total +
+        Number(item.comissao_prevista || 0),
       0,
     );
 
-    const recebidoDestaTerca = itensComStatus
-  .filter(
-    (item) =>
-      String(item.data_recebimento || "").slice(0, 10) ===
-      tercaReferencia,
-  )
-  .reduce(
-    (total, item) => total + Number(item.valor_recebido || 0),
-    0,
-  );
+    const saldoParcial = parciais.reduce(
+      (total, item) =>
+        total +
+        Math.max(
+          0,
+          Number(
+            item.comissao_prevista || 0,
+          ) -
+            Number(
+              item.valor_recebido || 0,
+            ),
+        ),
+      0,
+    );
 
-    const faltaDestaTerca = destaTerca
-      .filter((item) => !item.data_recebimento)
-      .reduce(
-        (total, item) => total + Number(item.comissao_prevista || 0),
-        0,
-      );
-
-    const atrasoAnterior = atrasadasAnteriores.reduce(
-      (total, item) => total + Number(item.comissao_prevista || 0),
+    const recebido = linhas.reduce(
+      (total, item) =>
+        total +
+        Number(item.valor_recebido || 0),
       0,
     );
 
     return {
-      previstoDestaTerca,
-      recebidoDestaTerca,
-      faltaDestaTerca,
-      atrasoAnterior,
-      propostasDestaTerca: destaTerca.length,
-      propostasPendentesDestaTerca: destaTerca.filter(
-        (item) => !item.data_recebimento,
-      ).length,
-      semanasPendentes,
+      quantidade: linhas.length,
+      aReceber: aReceber.length,
+      parciais: parciais.length,
+      finalizadas: finalizadas.length,
+      comissoesAReceber,
+      saldoParcial,
+      recebido,
     };
-  }, [itensComStatus, tercaReferencia]);
+  }, [linhas]);
 
-  const listaConciliacao = useMemo(() => {
-    const termo = normalizarNumero(buscaHistorico);
-
-    return itensComStatus
-      .filter((item) => {
-        if (!termo) return true;
-
-        return normalizarNumero(
-          [
-            item.numero_proposta,
-            item.cliente,
-            item.cpf,
-            item.consultora,
-            item.banco,
-            item.tabela,
-          ].join(" "),
-        ).includes(termo);
-      })
-      .filter((item) => {
-        if (semanaSelecionada === "TODAS") return true;
-
-        return (
-          String(item.dataPrevistaCalculada || "").slice(0, 10) ===
-          semanaSelecionada
-        );
-      })
-      .filter((item) => {
-        if (filtro === "TODOS") return true;
-        if (filtro === "AGUARDANDO") {
-          return item.statusCalculado === "AGUARDANDO RECEBIMENTO";
-        }
-        if (filtro === "ATRASADAS") {
-          return item.statusCalculado === "COMISSÃO ATRASADA";
-        }
-        if (filtro === "RECEBIDAS") {
-          return Boolean(item.data_recebimento);
-        }
-        if (filtro === "A_MENOS") {
-          return item.statusCalculado === "RECEBEU A MENOS";
-        }
-
-        return item.statusCalculado === "RECEBEU A MAIS";
-      });
-  }, [itensComStatus, buscaHistorico, filtro, semanaSelecionada]);
-
-  const gruposSemanais = useMemo<GrupoSemanal[]>(() => {
-    const grupos = new Map<string, ItemComStatus[]>();
-
-    listaConciliacao.forEach((item) => {
-      const chave =
-        String(item.dataPrevistaCalculada || "").slice(0, 10) ||
-        "SEM_DATA";
-
-      grupos.set(chave, [...(grupos.get(chave) || []), item]);
-    });
-
-    return Array.from(grupos.entries())
-      .map(([chave, itens]) => {
-        const previsto = itens.reduce(
-          (total, item) => total + Number(item.comissao_prevista || 0),
-          0,
-        );
-
-        const recebido = itens
-          .filter((item) => Boolean(item.data_recebimento))
-          .reduce(
-            (total, item) => total + Number(item.valor_recebido || 0),
-            0,
-          );
-
-        const pendentes = itens.filter((item) => !item.data_recebimento);
-        const pendente = pendentes.reduce(
-          (total, item) => total + Number(item.comissao_prevista || 0),
-          0,
-        );
-
-        return {
-          chave,
-          dataPrevista: chave,
-          itens,
-          previsto,
-          recebido,
-          pendente,
-          quantidade: itens.length,
-          quantidadeRecebida: itens.length - pendentes.length,
-          quantidadePendente: pendentes.length,
-          atrasado: chave !== "SEM_DATA" && chave < hojeIso() && pendentes.length > 0,
-        };
-      })
-      .sort((a, b) => b.chave.localeCompare(a.chave));
-  }, [listaConciliacao]);
-
-  const semanasDisponiveis = useMemo(
+  const selecionadas = useMemo(
     () =>
-      Array.from(
-        new Set(
-          itensComStatus
-            .map((item) =>
-              String(item.dataPrevistaCalculada || "").slice(0, 10),
-            )
-            .filter(Boolean),
-        ),
-      ).sort((a, b) => b.localeCompare(a)),
-    [itensComStatus],
+      linhas.filter((item) =>
+        selecionadasIds.has(item.id),
+      ),
+    [linhas, selecionadasIds],
   );
 
-  const valorRecebidoCalculado = converterValor(valorRecebidoEditavel);
+  const totalSelecionado = useMemo(
+    () =>
+      selecionadas.reduce(
+        (total, item) =>
+          total +
+          Number(item.comissao_prevista || 0),
+        0,
+      ),
+    [selecionadas],
+  );
 
-  const diferencaCalculada = selecionada
-    ? valorRecebidoCalculado - Number(selecionada.comissao_prevista || 0)
-    : 0;
+  const todasFiltradasSelecionadas =
+    filtradas.length > 0 &&
+    filtradas.every((item) =>
+      selecionadasIds.has(item.id),
+    );
 
-  const statusCalculado = !selecionada
-    ? ""
-    : Math.abs(diferencaCalculada) < 0.01
-      ? "VALOR RECEBIDO"
-      : diferencaCalculada > 0
-        ? "RECEBEU A MAIS"
-        : "RECEBEU A MENOS";
+  function alternarSelecao(id: string) {
+    setSelecionadasIds((atual) => {
+      const proximo = new Set(atual);
 
-  function localizarProposta() {
-    const termo = normalizarNumero(numeroProposta);
+      if (proximo.has(id)) {
+        proximo.delete(id);
+      } else {
+        proximo.add(id);
+      }
 
-    if (!termo) {
-      setSelecionada(null);
-      setMensagem("Digite o número da proposta.");
-      return;
-    }
+      return proximo;
+    });
+  }
 
-    const localizada =
-      baixas.find(
-        (item) => normalizarNumero(item.numero_proposta) === termo,
-      ) || null;
+  function selecionarTodasFiltradas() {
+    setSelecionadasIds((atual) => {
+      const proximo = new Set(atual);
 
-    setSelecionada(localizada);
+      if (todasFiltradasSelecionadas) {
+        filtradas.forEach((item) =>
+          proximo.delete(item.id),
+        );
+      } else {
+        filtradas.forEach((item) =>
+          proximo.add(item.id),
+        );
+      }
 
-    if (!localizada) {
+      return proximo;
+    });
+  }
+
+  function limparSelecao() {
+    setSelecionadasIds(new Set());
+  }
+
+  function abrirRecebimento(
+    item: BaixaPagamento,
+  ) {
+    setSelecionada(item);
+
+    setValorRecebidoEditavel(
+      item.valor_recebido > 0
+        ? valorParaInput(item.valor_recebido)
+        : valorParaInput(
+            item.comissao_prevista,
+          ),
+    );
+
+    setDataRecebimentoEditavel(
+      item.data_recebimento || hojeIso(),
+    );
+
+    setObservacaoEditavel(
+      item.observacao || "",
+    );
+
+    setMotivoAlteracao("");
+    setMensagem("");
+  }
+
+  async function salvarRecebimento() {
+    if (!selecionada) return;
+
+    const valorRecebido =
+      converterValor(
+        valorRecebidoEditavel,
+      );
+
+    if (valorRecebido <= 0) {
       setMensagem(
-        "Proposta não encontrada nas comissões. Verifique se ela já foi marcada como PAGO.",
+        "Informe um valor recebido válido.",
       );
       return;
     }
 
-    setMensagem("");
-  }
-
-  function abrirParaEditar(item: BaixaPagamento) {
-    setNumeroProposta(item.numero_proposta);
-    setSelecionada(item);
-    setValorRecebidoEditavel(
-      item.data_recebimento
-        ? valorParaInput(item.valor_recebido)
-        : valorParaInput(item.comissao_prevista),
-    );
-    setDataRecebimentoEditavel(item.data_recebimento || hojeIso());
-    setObservacaoEditavel(item.observacao || "");
-    setMotivoAlteracao("");
-    setMensagem("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  async function salvarBaixa(item: BaixaPagamento) {
-    const valorRecebido = converterValor(valorRecebidoEditavel);
-    const jaTinhaBaixa = Boolean(item.data_recebimento);
-
-    if (valorRecebido <= 0) {
-      setMensagem("Informe um valor recebido válido.");
-      return;
-    }
-
     if (!dataRecebimentoEditavel) {
-      setMensagem("Informe a data do recebimento.");
+      setMensagem(
+        "Informe a data do pagamento.",
+      );
       return;
     }
 
-    if (jaTinhaBaixa && !motivoAlteracao.trim()) {
+    const jaTinhaRecebimento =
+      Boolean(selecionada.data_recebimento);
+
+    if (
+      jaTinhaRecebimento &&
+      !motivoAlteracao.trim()
+    ) {
       setMensagem(
-        "Informe o motivo da alteração para corrigir uma baixa já realizada.",
+        "Informe o motivo da alteração para corrigir um recebimento já registrado.",
       );
       return;
     }
@@ -553,27 +554,41 @@ export default function BaixasManager() {
     setMensagem("");
 
     try {
+      const esperado = Number(
+        selecionada.comissao_prevista || 0,
+      );
+
       const diferenca =
-        valorRecebido - Number(item.comissao_prevista || 0);
+        valorRecebido - esperado;
 
-      const status =
-        Math.abs(diferenca) < 0.01
-          ? "VALOR RECEBIDO"
-          : diferenca > 0
-            ? "RECEBEU A MAIS"
-            : "RECEBEU A MENOS";
+      const situacao: SituacaoFiltro =
+        valorRecebido + 0.01 < esperado
+          ? "PARCIAL"
+          : "FINALIZADO";
 
-      const { data: usuario } = await supabase.auth.getUser();
+      const statusBanco =
+        situacao === "PARCIAL"
+          ? "RECEBIMENTO PARCIAL"
+          : "FINALIZADO";
 
-      const historicoAnterior = jaTinhaBaixa
-        ? [
-            `ALTERAÇÃO MANUAL EM ${new Date().toLocaleString("pt-BR")}`,
-            `Valor anterior: ${moeda(item.valor_recebido)}`,
-            `Data anterior: ${dataBR(item.data_recebimento)}`,
-            `Status anterior: ${statusAtual(item)}`,
-            `Motivo: ${motivoAlteracao.trim()}`,
-          ].join(" | ")
-        : "";
+      const { data: usuario } =
+        await supabase.auth.getUser();
+
+      const historicoAnterior =
+        jaTinhaRecebimento
+          ? [
+              `ALTERAÇÃO MANUAL EM ${new Date().toLocaleString(
+                "pt-BR",
+              )}`,
+              `Valor anterior: ${moeda(
+                selecionada.valor_recebido,
+              )}`,
+              `Data anterior: ${dataBR(
+                selecionada.data_recebimento,
+              )}`,
+              `Motivo: ${motivoAlteracao.trim()}`,
+            ].join(" | ")
+          : "";
 
       const observacaoFinal = [
         observacaoEditavel.trim(),
@@ -585,404 +600,670 @@ export default function BaixasManager() {
       const { error } = await supabase
         .from("baixas_pagamentos")
         .update({
-          data_recebimento: dataRecebimentoEditavel,
+          data_recebimento:
+            dataRecebimentoEditavel,
           valor_recebido: valorRecebido,
           diferenca,
-          status,
-          observacao: observacaoFinal || null,
-          baixado_por: usuario.user?.id || null,
-          atualizado_em: new Date().toISOString(),
+          status: statusBanco,
+          observacao:
+            observacaoFinal || null,
+          baixado_por:
+            usuario.user?.id || null,
+          atualizado_em:
+            new Date().toISOString(),
         })
-        .eq("id", item.id);
+        .eq("id", selecionada.id);
 
-      if (error) throw new Error(error.message);
+      if (error) {
+        throw new Error(error.message);
+      }
 
       setMensagem(
-        jaTinhaBaixa
-          ? "Baixa atualizada manualmente e valores recalculados."
-          : status === "VALOR RECEBIDO"
-            ? "Baixa registrada com o valor correto."
-            : status === "RECEBEU A MAIS"
-              ? `Baixa registrada. Recebido a mais: ${moeda(diferenca)}.`
-              : `Baixa registrada. Valor faltante: ${moeda(
-                  Math.abs(diferenca),
-                )}.`,
+        situacao === "PARCIAL"
+          ? `Recebimento parcial salvo. Ainda falta ${moeda(
+              Math.max(
+                0,
+                esperado - valorRecebido,
+              ),
+            )}.`
+          : "Recebimento finalizado com sucesso.",
       );
 
+      setSelecionada(null);
       setMotivoAlteracao("");
+
+      setSelecionadasIds((atual) => {
+        const proximo = new Set(atual);
+        proximo.delete(selecionada.id);
+        return proximo;
+      });
+
       await carregar();
     } catch (erro) {
       setMensagem(
         erro instanceof Error
           ? erro.message
-          : "Não foi possível salvar a baixa.",
+          : "Não foi possível salvar o recebimento.",
       );
     } finally {
       setProcessando(false);
     }
   }
 
+  const esperadoSelecionado = Number(
+    selecionada?.comissao_prevista || 0,
+  );
+
+  const recebidoSelecionado =
+    converterValor(
+      valorRecebidoEditavel,
+    );
+
+  const saldoSelecionado = Math.max(
+    0,
+    esperadoSelecionado -
+      recebidoSelecionado,
+  );
+
   return (
-    <div className="baixas-page">
-      <section className="baixas-ciclo-atual">
-        <div>
-          <span>RECEBIMENTO DA SEMANA</span>
-          <h2>Terça-feira, {dataBR(tercaReferencia)}</h2>
-          <p>
-            Produção considerada: {intervaloProducaoDaPrevisao(tercaReferencia)}
-          </p>
-        </div>
-
-        <div className="baixas-ciclo-indicador">
-          <span>Falta conferir</span>
-          <strong>{moeda(resumo.faltaDestaTerca)}</strong>
-          <small>{resumo.propostasPendentesDestaTerca} proposta(s)</small>
-        </div>
-      </section>
-
-      <section className="baixas-resumo baixas-resumo-semanal">
-        <article className="resumo-previsto">
-          <span>Previsto para esta terça</span>
-          <strong>{moeda(resumo.previstoDestaTerca)}</strong>
-          <small>{resumo.propostasDestaTerca} proposta(s) previstas</small>
+    <div className="baixas-page baixas-livecred-eleva">
+      <section className="baixas-resumo-live">
+        <article>
+          <span>COMISSÕES À RECEBER</span>
+          <strong>
+            {moeda(
+              resumo.comissoesAReceber +
+                resumo.saldoParcial,
+            )}
+          </strong>
+          <small>
+            À receber + saldo dos parciais
+          </small>
         </article>
 
-        <article className="resumo-recebido">
-          <span>Recebido nesta terça</span>
-          <strong>{moeda(resumo.recebidoDestaTerca)}</strong>
-          <small>Valores já conferidos e baixados</small>
+        <article>
+          <span>À RECEBER</span>
+          <strong>{resumo.aReceber}</strong>
+          <small>Contratos sem recebimento</small>
         </article>
 
-        <article className="resumo-pendente">
-          <span>Falta receber desta terça</span>
-          <strong>{moeda(resumo.faltaDestaTerca)}</strong>
-          <small>{resumo.propostasPendentesDestaTerca} pendência(s)</small>
+        <article className="resumo-parcial">
+          <span>REC. PARCIAL</span>
+          <strong>{resumo.parciais}</strong>
+          <small>
+            Saldo: {moeda(resumo.saldoParcial)}
+          </small>
         </article>
 
-        <article className="resumo-atrasado">
-          <span>Atrasado de semanas anteriores</span>
-          <strong>{moeda(resumo.atrasoAnterior)}</strong>
-          <small>{resumo.semanasPendentes} semana(s) pendente(s)</small>
+        <article className="resumo-finalizado">
+          <span>FINALIZADOS</span>
+          <strong>{resumo.finalizadas}</strong>
+          <small>
+            Recebido: {moeda(resumo.recebido)}
+          </small>
         </article>
       </section>
 
-      <section className="baixas-localizar">
-        <div>
-          <span>LOCALIZAR PROPOSTA</span>
-          <h2>Conferência individual</h2>
-          <p>
-            Digite o número da proposta para conferir ou corrigir uma baixa.
-          </p>
-        </div>
-
-        <div className="baixas-busca">
-          <input
-            value={numeroProposta}
-            onChange={(evento) => setNumeroProposta(evento.target.value)}
-            onKeyDown={(evento) => {
-              if (evento.key === "Enter") localizarProposta();
-            }}
-            placeholder="Ex.: 12345678"
-            inputMode="numeric"
-            autoComplete="off"
-          />
+      <section className="baixas-live-card">
+        <div className="baixas-live-actions">
+          <button
+            type="button"
+            className={
+              filtroSituacao ===
+              "A_RECEBER"
+                ? "active"
+                : ""
+            }
+            onClick={() =>
+              setFiltroSituacao(
+                "A_RECEBER",
+              )
+            }
+          >
+            RECEBER
+          </button>
 
           <button
             type="button"
-            onClick={localizarProposta}
-            disabled={carregando}
+            className={
+              filtroSituacao === "PARCIAL"
+                ? "active"
+                : ""
+            }
+            onClick={() =>
+              setFiltroSituacao("PARCIAL")
+            }
           >
-            Localizar
+            REC. PARCIAL
           </button>
+
+          <button
+            type="button"
+            className={
+              filtroSituacao ===
+              "FINALIZADO"
+                ? "active"
+                : ""
+            }
+            onClick={() =>
+              setFiltroSituacao(
+                "FINALIZADO",
+              )
+            }
+          >
+            FINALIZADOS
+          </button>
+
+          <button
+            type="button"
+            className={
+              filtroSituacao === "TODOS"
+                ? "active"
+                : ""
+            }
+            onClick={() =>
+              setFiltroSituacao("TODOS")
+            }
+          >
+            TODOS
+          </button>
+
+          <div className="baixas-live-selected">
+            <span>
+              {selecionadasIds.size}
+            </span>
+            {selecionadasIds.size === 1
+              ? "SELECIONADO"
+              : "SELECIONADOS"}
+          </div>
         </div>
-      </section>
 
-      {mensagem && <div className="baixas-mensagem">{mensagem}</div>}
+        <div className="baixas-live-total">
+          <div className="baixas-live-total-principal">
+            <span>
+              {selecionadasIds.size > 0
+                ? "COMISSÕES SELECIONADAS"
+                : "COMISSÕES À RECEBER"}
+            </span>
 
-      {selecionada && (
-        <section className="baixas-tabela-card">
-          <div className="baixa-edicao">
-            <div className="baixa-edicao-cabecalho">
-              <div>
-                <span>PROPOSTA {selecionada.numero_proposta}</span>
-                <h3>{selecionada.cliente}</h3>
-                <p>
-                  {selecionada.banco || "—"} • {selecionada.tabela || "—"} •{" "}
-                  {selecionada.consultora || "—"}
-                </p>
-              </div>
+            <strong>
+              {selecionadasIds.size > 0
+                ? moeda(totalSelecionado)
+                : moeda(
+                    resumo.comissoesAReceber +
+                      resumo.saldoParcial,
+                  )}
+            </strong>
+          </div>
 
-              <span
-                className={`baixa-status ${classeStatus(
-                  selecionada.data_recebimento
-                    ? statusCalculado
-                    : statusAtual(selecionada),
-                )}`}
-              >
-                {selecionada.data_recebimento
-                  ? statusCalculado
-                  : statusAtual(selecionada)}
-              </span>
-            </div>
+          <div className="baixas-live-selection-actions">
+            <button
+              type="button"
+              onClick={selecionarTodasFiltradas}
+              disabled={filtradas.length === 0}
+            >
+              {todasFiltradasSelecionadas
+                ? "Desmarcar filtradas"
+                : "Selecionar tudo"}
+            </button>
 
-            <div className="baixa-edicao-grid">
-              <label>
-                <span>Valor bruto</span>
-                <strong>{moeda(selecionada.valor_operacao)}</strong>
-              </label>
-
-              <label>
-                <span>Comissão esperada</span>
-                <strong>{moeda(selecionada.comissao_prevista)}</strong>
-              </label>
-
-              <label>
-                <span>Pagamento previsto</span>
-                <strong>{dataBR(dataPrevistaDoItem(selecionada))}</strong>
-              </label>
-
-              <label>
-                <span>Valor recebido</span>
-                <input
-                  value={valorRecebidoEditavel}
-                  onChange={(evento) =>
-                    setValorRecebidoEditavel(evento.target.value)
-                  }
-                  placeholder="R$ 0,00"
-                  inputMode="decimal"
-                  disabled={processando}
-                />
-              </label>
-
-              <label>
-                <span>Data do recebimento</span>
-                <input
-                  type="date"
-                  value={dataRecebimentoEditavel}
-                  onChange={(evento) =>
-                    setDataRecebimentoEditavel(evento.target.value)
-                  }
-                  disabled={processando}
-                />
-              </label>
-
-              <label>
-                <span>Diferença calculada</span>
-                <strong>{moeda(diferencaCalculada)}</strong>
-                <small>
-                  {Math.abs(diferencaCalculada) < 0.01
-                    ? "Sem diferença"
-                    : diferencaCalculada > 0
-                      ? "Recebido a mais"
-                      : "Valor faltante"}
-                </small>
-              </label>
-            </div>
-
-            <div className="baixa-edicao-textos">
-              <label>
-                <span>Observação</span>
-                <textarea
-                  value={observacaoEditavel}
-                  onChange={(evento) =>
-                    setObservacaoEditavel(evento.target.value)
-                  }
-                  placeholder="Observação opcional sobre o pagamento"
-                  disabled={processando}
-                />
-              </label>
-
-              {selecionada.data_recebimento && (
-                <label>
-                  <span>Motivo da alteração manual *</span>
-                  <textarea
-                    value={motivoAlteracao}
-                    onChange={(evento) =>
-                      setMotivoAlteracao(evento.target.value)
-                    }
-                    placeholder="Ex.: valor conferido novamente no extrato bancário"
-                    disabled={processando}
-                  />
-                </label>
-              )}
-            </div>
-
-            <div className="baixa-edicao-acoes">
+            {selecionadasIds.size > 0 && (
               <button
                 type="button"
-                disabled={processando}
-                onClick={() => void salvarBaixa(selecionada)}
+                className="secondary"
+                onClick={limparSelecao}
               >
-                {selecionada.data_recebimento
-                  ? "Salvar alteração manual"
-                  : "Confirmar baixa"}
+                Limpar seleção
               </button>
-            </div>
+            )}
           </div>
-        </section>
-      )}
+        </div>
 
-      <section className="baixas-conciliacao">
-        <div className="baixas-conciliacao-topo">
-          <div>
-            <span>CONFERÊNCIA POR SEMANA</span>
-            <h2>Recebimentos previstos por terça-feira</h2>
-            <p>
-              Abra uma semana para ver as propostas, conferir os valores e dar
-              baixa individualmente.
-            </p>
-          </div>
-
-          <div className="baixas-conciliacao-filtros">
+        <div className="baixas-live-filtros">
+          <label className="filtro-busca">
+            <span>PESQUISAR</span>
             <input
-              value={buscaHistorico}
-              onChange={(evento) => setBuscaHistorico(evento.target.value)}
-              placeholder="Proposta, cliente, banco ou consultora"
+              value={busca}
+              onChange={(event) =>
+                setBusca(event.target.value)
+              }
+              placeholder="Proposta, cliente, CPF, banco ou consultora"
             />
+          </label>
 
+          <label>
+            <span>BANCO</span>
             <select
-              value={semanaSelecionada}
-              onChange={(evento) => setSemanaSelecionada(evento.target.value)}
+              value={filtroBanco}
+              onChange={(event) =>
+                setFiltroBanco(
+                  event.target.value,
+                )
+              }
             >
-              <option value="TODAS">Todas as semanas</option>
-              {semanasDisponiveis.map((semana) => (
-                <option key={semana} value={semana}>
-                  Recebimento {dataBR(semana)}
+              <option value="TODOS">
+                Todos os bancos
+              </option>
+
+              {bancos.map((banco) => (
+                <option
+                  key={banco}
+                  value={banco}
+                >
+                  {banco}
                 </option>
               ))}
             </select>
+          </label>
 
+          <label>
+            <span>SITUAÇÃO</span>
             <select
-              value={filtro}
-              onChange={(evento) =>
-                setFiltro(evento.target.value as FiltroConciliacao)
+              value={filtroSituacao}
+              onChange={(event) =>
+                setFiltroSituacao(
+                  event.target
+                    .value as SituacaoFiltro,
+                )
               }
             >
-              <option value="TODOS">Todos os status</option>
-              <option value="AGUARDANDO">Aguardando</option>
-              <option value="ATRASADAS">Em atraso</option>
-              <option value="RECEBIDAS">Recebidas</option>
-              <option value="A_MENOS">Recebeu a menos</option>
-              <option value="A_MAIS">Recebeu a mais</option>
+              <option value="TODOS">
+                Todas
+              </option>
+              <option value="A_RECEBER">
+                À receber
+              </option>
+              <option value="PARCIAL">
+                Rec. parcial
+              </option>
+              <option value="FINALIZADO">
+                Finalizado
+              </option>
             </select>
-          </div>
+          </label>
+
+          <label>
+            <span>EMISSÃO DE</span>
+            <input
+              type="date"
+              value={dataInicial}
+              onChange={(event) =>
+                setDataInicial(
+                  event.target.value,
+                )
+              }
+            />
+          </label>
+
+          <label>
+            <span>EMISSÃO ATÉ</span>
+            <input
+              type="date"
+              value={dataFinal}
+              onChange={(event) =>
+                setDataFinal(
+                  event.target.value,
+                )
+              }
+            />
+          </label>
         </div>
 
-        <div className="baixas-semanas-lista">
-          {carregando ? (
-            <div className="baixas-vazio">Carregando comissões...</div>
-          ) : gruposSemanais.length === 0 ? (
-            <div className="baixas-vazio">
-              Nenhuma comissão encontrada nos filtros selecionados.
-            </div>
-          ) : (
-            gruposSemanais.map((grupo, indice) => (
-              <details
-                className={`baixas-semana-card ${grupo.atrasado ? "semana-atrasada" : ""}`}
-                key={grupo.chave}
-                open={
-                  grupo.dataPrevista === tercaReferencia ||
-                  (indice === 0 && semanaSelecionada !== "TODAS")
-                }
-              >
-                <summary>
-                  <div className="baixas-semana-titulo">
-                    <span>
-                      {grupo.atrasado
-                        ? "SEMANA EM ATRASO"
-                        : grupo.dataPrevista === tercaReferencia
-                          ? "RECEBIMENTO DESTA TERÇA"
-                          : "SEMANA DE RECEBIMENTO"}
-                    </span>
-                    <h3>Terça-feira, {dataBR(grupo.dataPrevista)}</h3>
-                    <small>
-                      Produção de {intervaloProducaoDaPrevisao(grupo.dataPrevista)}
-                    </small>
-                  </div>
+        <div className="baixas-live-table-wrapper">
+          <table className="baixas-live-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>EMISSÃO</th>
+                <th>CPF</th>
+                <th>CLIENTE</th>
+                <th>BANCO / TABELA</th>
+                <th>VL. LIBERADO</th>
+                <th>TX. COMISS.</th>
+                <th>COMISS. LÍQ.</th>
+                <th>RECEBIDO</th>
+                <th>SITUAÇÃO</th>
+                <th>ESTEIRA</th>
+                <th>DATA PAGAMENTO</th>
+                <th>AÇÃO</th>
+              </tr>
+            </thead>
 
-                  <div className="baixas-semana-resumo">
-                    <div>
-                      <span>Previsto</span>
-                      <strong>{moeda(grupo.previsto)}</strong>
-                    </div>
-                    <div>
-                      <span>Recebido</span>
-                      <strong>{moeda(grupo.recebido)}</strong>
-                    </div>
-                    <div>
-                      <span>Pendente</span>
-                      <strong>{moeda(grupo.pendente)}</strong>
-                    </div>
-                    <div>
-                      <span>Propostas</span>
-                      <strong>
-                        {grupo.quantidadeRecebida}/{grupo.quantidade}
-                      </strong>
-                    </div>
-                  </div>
-                </summary>
+            <tbody>
+              {carregando ? (
+                <tr>
+                  <td
+                    colSpan={13}
+                    className="baixas-live-vazio"
+                  >
+                    Carregando comissões...
+                  </td>
+                </tr>
+              ) : filtradas.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={13}
+                    className="baixas-live-vazio"
+                  >
+                    Nenhuma comissão encontrada nos filtros.
+                  </td>
+                </tr>
+              ) : (
+                filtradas.map((item) => {
+                  const ativa =
+                    selecionadasIds.has(item.id);
 
-                <div className="baixas-tabela-wrapper">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Nº proposta</th>
-                        <th>Cliente / consultora</th>
-                        <th>Banco / tabela</th>
-                        <th>Comissão esperada</th>
-                        <th>Recebido</th>
-                        <th>Diferença</th>
-                        <th>Status</th>
-                        <th>Ação</th>
-                      </tr>
-                    </thead>
+                  return (
+                    <tr
+                      key={item.id}
+                      className={
+                        ativa ? "selected" : ""
+                      }
+                      onClick={() =>
+                        alternarSelecao(item.id)
+                      }
+                    >
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={ativa}
+                          onClick={(event) =>
+                            event.stopPropagation()
+                          }
+                          onChange={() =>
+                            alternarSelecao(item.id)
+                          }
+                        />
+                      </td>
 
-                    <tbody>
-                      {grupo.itens.map((item) => (
-                        <tr key={item.id}>
-                          <td>
-                            <strong>{item.numero_proposta}</strong>
-                          </td>
-                          <td>
-                            <strong>{item.cliente}</strong>
-                            <small>{item.consultora || "—"}</small>
-                          </td>
-                          <td>
-                            <strong>{item.banco || "—"}</strong>
-                            <small>{item.tabela || "—"}</small>
-                          </td>
-                          <td>{moeda(item.comissao_prevista)}</td>
-                          <td>{moeda(item.valor_recebido)}</td>
-                          <td>{moeda(item.diferenca)}</td>
-                          <td>
-                            <span
-                              className={`baixa-status ${classeStatus(
-                                item.statusCalculado,
-                              )}`}
-                            >
-                              {item.statusCalculado}
-                            </span>
-                          </td>
-                          <td>
-                            <button
-                              type="button"
-                              onClick={() => abrirParaEditar(item)}
-                            >
-                              {item.data_recebimento
-                                ? "Editar baixa"
-                                : "Dar baixa"}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </details>
-            ))
-          )}
+                      <td>
+                        {dataBR(
+                          item.data_emissao,
+                        )}
+                      </td>
+
+                      <td>
+                        {formatarCpf(
+                          item.cpf,
+                        )}
+                      </td>
+
+                      <td>
+                        <strong>
+                          {item.cliente || "—"}
+                        </strong>
+                        <small>
+                          {item.consultora || "—"}
+                        </small>
+                      </td>
+
+                      <td>
+                        <strong>
+                          {item.banco || "—"}
+                        </strong>
+                        <small>
+                          {item.tabela || "—"}
+                        </small>
+                      </td>
+
+                      <td>
+                        <strong>
+                          {moeda(
+                            item.valor_operacao,
+                          )}
+                        </strong>
+                      </td>
+
+                      <td>
+                        {item.taxaComissao
+                          .toFixed(2)
+                          .replace(".", ",")}
+                        %
+                      </td>
+
+                      <td>
+                        <strong className="comissao-pill">
+                          {moeda(
+                            item.comissao_prevista,
+                          )}
+                        </strong>
+                      </td>
+
+                      <td>
+                        {moeda(
+                          item.valor_recebido,
+                        )}
+                      </td>
+
+                      <td>
+                        <span
+                          className={`baixas-live-status ${classeSituacao(
+                            item.situacaoExibicao,
+                          )}`}
+                        >
+                          {textoSituacao(
+                            item.situacaoExibicao,
+                          )}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span className="baixas-live-esteira">
+                          ● Proposta Paga
+                        </span>
+                      </td>
+
+                      <td>
+                        {dataBR(
+                          item.data_recebimento,
+                        )}
+                      </td>
+
+                      <td>
+                        <button
+                          type="button"
+                          className="baixas-live-action"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            abrirRecebimento(
+                              item,
+                            );
+                          }}
+                        >
+                          {item.situacaoExibicao ===
+                          "A_RECEBER"
+                            ? "Receber"
+                            : "Editar"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
       </section>
+
+      {selecionada && (
+        <div
+          className="baixas-live-overlay"
+          onClick={() =>
+            setSelecionada(null)
+          }
+        >
+          <section
+            className="baixas-live-modal"
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+            <header>
+              <div>
+                <span>RECEBER COMISSÃO</span>
+                <h2>
+                  {selecionada.cliente}
+                </h2>
+                <p>
+                  Proposta{" "}
+                  {selecionada.numero_proposta}
+                  {" • "}
+                  {selecionada.banco}
+                  {selecionada.tabela
+                    ? ` • ${selecionada.tabela}`
+                    : ""}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setSelecionada(null)
+                }
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="baixas-live-modal-resumo">
+              <article>
+                <span>EMISSÃO</span>
+                <strong>
+                  {dataBR(
+                    selecionada.data_emissao,
+                  )}
+                </strong>
+              </article>
+
+              <article>
+                <span>VALOR LIBERADO</span>
+                <strong>
+                  {moeda(
+                    selecionada.valor_operacao,
+                  )}
+                </strong>
+              </article>
+
+              <article>
+                <span>COMISSÃO ESPERADA</span>
+                <strong>
+                  {moeda(
+                    selecionada.comissao_prevista,
+                  )}
+                </strong>
+              </article>
+
+              <article>
+                <span>SALDO APÓS BAIXA</span>
+                <strong>
+                  {moeda(
+                    saldoSelecionado,
+                  )}
+                </strong>
+              </article>
+            </div>
+
+            <div className="baixas-live-modal-grid">
+              <label>
+                <span>VALOR RECEBIDO</span>
+                <input
+                  value={
+                    valorRecebidoEditavel
+                  }
+                  onChange={(event) =>
+                    setValorRecebidoEditavel(
+                      event.target.value,
+                    )
+                  }
+                  inputMode="decimal"
+                  placeholder="R$ 0,00"
+                  disabled={processando}
+                />
+              </label>
+
+              <label>
+                <span>DATA DO PAGAMENTO</span>
+                <input
+                  type="date"
+                  value={
+                    dataRecebimentoEditavel
+                  }
+                  onChange={(event) =>
+                    setDataRecebimentoEditavel(
+                      event.target.value,
+                    )
+                  }
+                  disabled={processando}
+                />
+              </label>
+            </div>
+
+            <label className="baixas-live-observacao">
+              <span>OBSERVAÇÃO</span>
+              <textarea
+                value={observacaoEditavel}
+                onChange={(event) =>
+                  setObservacaoEditavel(
+                    event.target.value,
+                  )
+                }
+                placeholder="Observação opcional"
+                disabled={processando}
+              />
+            </label>
+
+            {selecionada.data_recebimento && (
+              <label className="baixas-live-observacao">
+                <span>
+                  MOTIVO DA ALTERAÇÃO *
+                </span>
+                <textarea
+                  value={motivoAlteracao}
+                  onChange={(event) =>
+                    setMotivoAlteracao(
+                      event.target.value,
+                    )
+                  }
+                  placeholder="Informe por que esta baixa está sendo alterada"
+                  disabled={processando}
+                />
+              </label>
+            )}
+
+            <footer>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() =>
+                  setSelecionada(null)
+                }
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  void salvarRecebimento()
+                }
+                disabled={processando}
+              >
+                {processando
+                  ? "Salvando..."
+                  : saldoSelecionado > 0
+                    ? "Salvar recebimento parcial"
+                    : "Finalizar recebimento"}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+
+      {mensagem && (
+        <div className="baixas-live-mensagem">
+          {mensagem}
+        </div>
+      )}
     </div>
   );
 }

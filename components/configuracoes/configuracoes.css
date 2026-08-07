@@ -514,3 +514,15 @@
     padding: 18px;
   }
 }
+/* COMPLEMENTO — TABELAS ADMINISTRATIVAS */
+.settings-grid-tabelas{grid-template-columns:minmax(360px,.72fr) minmax(0,1.28fr)}
+.settings-table-head{margin-top:18px;min-height:42px;padding:0 14px;align-items:center;border-radius:10px;background:#f5f7fb;color:#68738c;font-size:10px;font-weight:900;text-transform:uppercase}
+.settings-table-grid{display:grid;grid-template-columns:minmax(150px,1.2fr) minmax(90px,.75fr) 85px 100px 90px minmax(210px,1fr);gap:12px;align-items:center}
+.settings-table-row-new{min-height:66px;padding:12px 14px!important}
+.settings-table-row-new>div>strong,.settings-table-row-new>div>span{display:block}
+.settings-table-row-new>div>span{margin-top:4px;color:#7d879d;font-size:10px}
+.settings-table-row-new input,.settings-table-row-new select{width:100%;min-height:38px;padding:0 10px;border:1px solid #d7deea;border-radius:9px;background:#fff;color:#17203d;outline:none}
+.settings-percent-value{color:#0b56e8;font-size:16px}
+.settings-row-actions .save-edit{border-color:#bde5cf;background:#effbf4;color:#087d43}
+@media(max-width:1250px){.settings-grid-tabelas{grid-template-columns:1fr}}
+@media(max-width:900px){.settings-table-head{display:none}.settings-table-grid{grid-template-columns:1fr 1fr}.settings-row-actions{grid-column:1/-1}}

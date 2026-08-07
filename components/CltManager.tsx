@@ -12,6 +12,7 @@ type StatusClt =
   | "Digitado"
   | "Aprovado"
   | "Pago"
+  | "Cancelado"
   | "Recusado";
 
 type RegistroClt = {
@@ -51,6 +52,12 @@ type PerfilAtual = {
   perfil: string;
 };
 
+type BancoConfiguracao = {
+  id: string;
+  nome: string;
+  ativo: boolean;
+};
+
 type RespostaClt = {
   registros?: RegistroClt[];
   registro?: RegistroClt;
@@ -71,6 +78,7 @@ const STATUS: StatusClt[] = [
   "Digitado",
   "Aprovado",
   "Pago",
+  "Cancelado",
   "Recusado",
 ];
 
@@ -118,12 +126,21 @@ function formatarTelefone(valor: string) {
 }
 
 function numero(valor: string) {
-  const limpo = valor
-    .replace(/[^\d,.-]/g, "")
-    .replace(/\./g, "")
-    .replace(",", ".");
+  const texto = String(valor || "")
+    .trim()
+    .replace(/[^\d,.-]/g, "");
 
-  const convertido = Number(limpo);
+  if (!texto) return 0;
+
+  let normalizado = texto;
+
+  if (texto.includes(",") && texto.includes(".")) {
+    normalizado = texto.replace(/\./g, "").replace(",", ".");
+  } else if (texto.includes(",")) {
+    normalizado = texto.replace(",", ".");
+  }
+
+  const convertido = Number(normalizado);
 
   return Number.isFinite(convertido) ? convertido : 0;
 }
@@ -241,17 +258,61 @@ export default function CltManager() {
     RegistroClt[]
   >([]);
   const [consultoras, setConsultoras] = useState<string[]>([]);
+  const [bancos, setBancos] = useState<BancoConfiguracao[]>([]);
   const [perfilAtual, setPerfilAtual] = useState<PerfilAtual | null>(null);
   const [form, setForm] = useState<FormularioClt>(formularioVazio());
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("Todos");
   const [filtroConsultora, setFiltroConsultora] = useState("Todas");
+  const [periodo, setPeriodo] = useState<"Hoje" | "Este mês" | "Todas" | "Personalizado">("Este mês");
   const [dataPagamentoInicial, setDataPagamentoInicial] = useState("");
-const [dataPagamentoFinal, setDataPagamentoFinal] = useState("");
+  const [dataPagamentoFinal, setDataPagamentoFinal] = useState("");
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [mensagem, setMensagem] = useState("");
   const [carregando, setCarregando] = useState(true);
   const [processando, setProcessando] = useState(false);
+  const [mostrarTodasPropostas, setMostrarTodasPropostas] = useState(false);
+
+  function dataIsoLocal(data: Date) {
+    const ano = data.getFullYear();
+    const mes = String(data.getMonth() + 1).padStart(2, "0");
+    const dia = String(data.getDate()).padStart(2, "0");
+    return `${ano}-${mes}-${dia}`;
+  }
+
+  function aplicarPeriodo(novoPeriodo: "Hoje" | "Este mês" | "Todas") {
+    setPeriodo(novoPeriodo);
+
+    const agora = new Date();
+
+    if (novoPeriodo === "Todas") {
+      setDataPagamentoInicial("");
+      setDataPagamentoFinal("");
+      return;
+    }
+
+    if (novoPeriodo === "Hoje") {
+      const hoje = dataIsoLocal(agora);
+      setDataPagamentoInicial(hoje);
+      setDataPagamentoFinal(hoje);
+      return;
+    }
+
+    const inicio = new Date(
+      agora.getFullYear(),
+      agora.getMonth(),
+      1,
+    );
+
+    const fim = new Date(
+      agora.getFullYear(),
+      agora.getMonth() + 1,
+      0,
+    );
+
+    setDataPagamentoInicial(dataIsoLocal(inicio));
+    setDataPagamentoFinal(dataIsoLocal(fim));
+  }
 
   function formularioLimpo(perfil = perfilAtual): FormularioClt {
     return {
@@ -450,6 +511,69 @@ const [dataPagamentoFinal, setDataPagamentoFinal] = useState("");
     };
   }, [supabase]);
 
+  useEffect(() => {
+    let ativo = true;
+
+    async function carregarBancos() {
+      try {
+        const sessao = await obterSessaoAtual();
+
+        const resposta = await fetch("/api/configuracoes", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${sessao.access_token}`,
+          },
+          cache: "no-store",
+        });
+
+        const conteudo = (await resposta.json()) as {
+          bancos?: Array<Record<string, unknown>>;
+          erro?: string;
+        };
+
+        if (!resposta.ok) {
+          throw new Error(
+            conteudo.erro || "Não foi possível carregar os bancos.",
+          );
+        }
+
+        const lista = Array.isArray(conteudo.bancos)
+          ? conteudo.bancos
+              .map((item): BancoConfiguracao => ({
+                id: String(item.id || crypto.randomUUID()),
+                nome: String(item.nome || "").trim().toUpperCase(),
+                ativo: item.ativo !== false,
+              }))
+              .filter((item) => item.ativo && item.nome)
+          : [];
+
+        if (ativo) {
+          setBancos(lista);
+        }
+      } catch (erro) {
+        console.error("Erro ao carregar bancos do CLT:", erro);
+
+        if (ativo) {
+          setBancos([
+            { id: "3rn", nome: "3RN", ativo: true },
+            { id: "c6", nome: "C6", ativo: true },
+            { id: "finanbank", nome: "FINANBANK", ativo: true },
+          ]);
+        }
+      }
+    }
+
+    void carregarBancos();
+
+    return () => {
+      ativo = false;
+    };
+  }, [supabase]);
+
+  useEffect(() => {
+    aplicarPeriodo("Este mês");
+  }, []);
+
   const idsPendentes = useMemo(
     () => new Set(registrosAntigosPendentes.map((item) => item.id)),
     [registrosAntigosPendentes],
@@ -521,8 +645,8 @@ const [dataPagamentoFinal, setDataPagamentoFinal] = useState("");
       (item) => item.status === "Em análise"
     ).length,
 
-    aprovados: filtrados.filter(
-      (item) => item.status === "Aprovado"
+    cancelados: filtrados.filter(
+      (item) => item.status === "Cancelado"
     ).length,
 
     pagos: filtrados.filter(
@@ -547,6 +671,15 @@ const [dataPagamentoFinal, setDataPagamentoFinal] = useState("");
   }),
   [filtrados]
 );
+
+  const registrosExibidos = useMemo(
+    () =>
+      mostrarTodasPropostas
+        ? filtrados
+        : filtrados.slice(0, 10),
+    [filtrados, mostrarTodasPropostas],
+  );
+
 
   async function sincronizarRegistrosAntigos() {
     if (!registrosAntigosPendentes.length || !perfilAtual) return;
@@ -828,33 +961,33 @@ banco: item.banco,
 
       <section className="clt-summary">
         <article>
-          <span>Total de registros</span>
+          <span>TOTAL DE REGISTROS</span>
           <strong>{resumo.total}</strong>
         </article>
         <article>
-          <span>Em análise</span>
+          <span>EM ANÁLISE</span>
           <strong>{resumo.analise}</strong>
         </article>
         <article>
-          <span>Aprovados</span>
-          <strong>{resumo.aprovados}</strong>
+          <span>CANCELADOS</span>
+          <strong>{resumo.cancelados}</strong>
         </article>
         <article>
-          <span>Pagos</span>
+          <span>PAGOS</span>
           <strong>{resumo.pagos}</strong>
         </article>
         <article className="clt-highlight">
-          <span>Valor pago</span>
+          <span>VALOR APROVADO PAGO</span>
           <strong>{moeda(resumo.valorPago)}</strong>
         </article>
         <article className="clt-highlight">
-  <span>Parcelas pagas</span>
+  <span>VALOR DAS PARCELAS PAGAS</span>
   <strong>{moeda(resumo.valorParcelasPagas)}</strong>
 </article>
       </section>
 
-      <section className="clt-layout">
-        <form className="clt-card" onSubmit={salvar}>
+      <section className="clt-layout clt-layout-vertical">
+        <form className="clt-card clt-form-card-full" onSubmit={salvar}>
           <div className="clt-heading">
             <div>
               <span>{editandoId ? "EDITAR REGISTRO" : "NOVO CLIENTE CLT"}</span>
@@ -974,8 +1107,19 @@ banco: item.banco,
     }
   >
     <option value="">Selecione o banco</option>
-    <option value="3RN">3RN</option>
-    <option value="C6">C6</option>
+
+    {form.banco &&
+      !bancos.some((banco) => banco.nome === form.banco) && (
+        <option value={form.banco}>
+          {form.banco} (histórico)
+        </option>
+      )}
+
+    {bancos.map((banco) => (
+      <option key={banco.id} value={banco.nome}>
+        {banco.nome}
+      </option>
+    ))}
   </select>
 </label>
 
@@ -1061,13 +1205,43 @@ banco: item.banco,
           </div>
         </form>
 
-        <section className="clt-card">
-          <div className="clt-list-heading">
+        <section className="clt-card clt-wallet-card-full">
+          <div className="clt-list-heading clt-list-heading-actions">
             <div>
               <span>CARTEIRA CLT</span>
               <h2>Clientes e análises</h2>
             </div>
-            <b>{filtrados.length}</b>
+
+            <div className="clt-wallet-actions">
+              <button
+                type="button"
+                className="clt-view-all-button"
+                onClick={() =>
+                  setMostrarTodasPropostas((atual) => !atual)
+                }
+              >
+                {mostrarTodasPropostas
+                  ? "Mostrar menos"
+                  : `Ver todas as propostas (${filtrados.length})`}
+              </button>
+            </div>
+          </div>
+
+          <div className="clt-periodo-rapido">
+            <span>PERÍODO DO PAGAMENTO</span>
+
+            <div>
+              {(["Hoje", "Este mês", "Todas"] as const).map((item) => (
+                <button
+                  type="button"
+                  key={item}
+                  className={periodo === item ? "active" : ""}
+                  onClick={() => aplicarPeriodo(item)}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="clt-filters">
@@ -1076,26 +1250,28 @@ banco: item.banco,
               onChange={(event) => setBusca(event.target.value)}
               placeholder="Pesquisar cliente, CPF, telefone, banco ou consultora"
             />
-            <select
-  value={filtroConsultora}
-  disabled={usuarioEhConsultora}
-  onChange={(event) =>
-    setFiltroConsultora(event.target.value)
-  }
->
-  <option value="Todas">
-    Todas as vendedoras
-  </option>
 
-  {consultoras.map((consultora) => (
-    <option
-      key={consultora}
-      value={consultora}
-    >
-      {consultora}
-    </option>
-  ))}
-</select>
+            <select
+              value={filtroConsultora}
+              disabled={usuarioEhConsultora}
+              onChange={(event) =>
+                setFiltroConsultora(event.target.value)
+              }
+            >
+              <option value="Todas">
+                Todas as vendedoras
+              </option>
+
+              {consultoras.map((consultora) => (
+                <option
+                  key={consultora}
+                  value={consultora}
+                >
+                  {consultora}
+                </option>
+              ))}
+            </select>
+
             <select
               value={filtroStatus}
               onChange={(event) => setFiltroStatus(event.target.value)}
@@ -1105,23 +1281,26 @@ banco: item.banco,
                 <option key={status}>{status}</option>
               ))}
             </select>
-            <input
-  type="date"
-  value={dataPagamentoInicial}
-  onChange={(event) =>
-    setDataPagamentoInicial(event.target.value)
-  }
-  title="Data inicial do pagamento"
-/>
 
-<input
-  type="date"
-  value={dataPagamentoFinal}
-  onChange={(event) =>
-    setDataPagamentoFinal(event.target.value)
-  }
-  title="Data final do pagamento"
-/>
+            <input
+              type="date"
+              value={dataPagamentoInicial}
+              onChange={(event) => {
+                setDataPagamentoInicial(event.target.value);
+                setPeriodo("Personalizado");
+              }}
+              title="Data inicial do pagamento"
+            />
+
+            <input
+              type="date"
+              value={dataPagamentoFinal}
+              onChange={(event) => {
+                setDataPagamentoFinal(event.target.value);
+                setPeriodo("Personalizado");
+              }}
+              title="Data final do pagamento"
+            />
           </div>
 
           {carregando ? (
@@ -1137,7 +1316,7 @@ banco: item.banco,
             </div>
           ) : (
             <div className="clt-list">
-              {filtrados.map((item) => {
+              {registrosExibidos.map((item) => {
                 const pendente = idsPendentes.has(item.id);
 
                 return (
@@ -1227,6 +1406,15 @@ banco: item.banco,
               })}
             </div>
           )}
+
+          {!carregando &&
+            filtrados.length > 10 &&
+            !mostrarTodasPropostas && (
+              <div className="clt-list-more">
+                Mostrando 10 de {filtrados.length} propostas.
+                Clique em <strong>Ver todas as propostas</strong> para abrir a carteira completa.
+              </div>
+            )}
         </section>
       </section>
 
@@ -1234,6 +1422,7 @@ banco: item.banco,
         <strong>Cadastro CLT:</strong>
         <span>
           acompanhe cada cliente pelo status da análise e pelo valor aprovado.
+          Os bancos disponíveis são carregados das Configurações da Administração.
         </span>
       </section>
     </div>

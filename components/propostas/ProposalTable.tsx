@@ -1,6 +1,8 @@
+"use client";
+
 import ProposalStatus from "./ProposalStatus";
 
-type PropostaTabela = {
+export type PropostaTabela = {
   id: string;
   cliente: string;
   cpf: string;
@@ -14,11 +16,14 @@ type PropostaTabela = {
   status: string;
   dataCadastro: string;
   dataPagamento: string;
+  observacao?: string;
+  motivoCancelamento?: string;
 };
 
 type Props = {
   propostas: PropostaTabela[];
   processando: boolean;
+  onVer: (proposta: PropostaTabela) => void;
   onEditar: (proposta: PropostaTabela) => void;
   onExcluir: (id: string) => void;
 };
@@ -46,29 +51,29 @@ function formatarCpf(valor: string) {
 
   return numeros
     .replace(/^(\d{3})(\d)/, "$1.$2")
-    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
-    .replace(/\.(\d{3})(\d)/, ".$1-$2");
+    .replace(/^(\d{3}).(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/.(\d{3})(\d)/, ".$1-$2");
 }
 
 export default function ProposalTable({
   propostas,
   processando,
+  onVer,
   onEditar,
   onExcluir,
 }: Props) {
   return (
     <div className="proposal-table-wrapper">
-      <table className="proposal-table">
+      <table className="proposal-table proposal-table-pro">
         <thead>
           <tr>
             <th>Nº</th>
-            <th>Consultora</th>
-            <th>Cliente</th>
-            <th>Produto</th>
-            <th>Banco / Tabela</th>
-            <th>Valor</th>
-            <th>Valor final</th>
-            <th>Data / Digitação</th>
+            <th>Cliente / consultora</th>
+            <th>Banco / tabela</th>
+            <th>Valor bruto</th>
+            <th>Valor líquido</th>
+            <th>Digitado</th>
+            <th>Pago</th>
             <th>Status</th>
             <th>Ações</th>
           </tr>
@@ -83,14 +88,12 @@ export default function ProposalTable({
                 </strong>
               </td>
 
-              <td>{proposta.vendedora || "—"}</td>
-
               <td>
                 <strong>{proposta.cliente || "Cliente não informado"}</strong>
-                <small>{formatarCpf(proposta.cpf)}</small>
+                <small>
+                  {proposta.vendedora || "—"} • {formatarCpf(proposta.cpf)}
+                </small>
               </td>
-
-              <td>Compra de Dívida</td>
 
               <td>
                 <strong>{proposta.banco || "—"}</strong>
@@ -110,22 +113,25 @@ export default function ProposalTable({
                 </strong>
               </td>
 
-              <td>
-                <strong>{formatarData(proposta.dataCadastro)}</strong>
+              <td>{formatarData(proposta.dataCadastro)}</td>
 
-                {proposta.dataPagamento && (
-                  <small>
-                    Pago em {formatarData(proposta.dataPagamento)}
-                  </small>
-                )}
-              </td>
+              <td>{formatarData(proposta.dataPagamento)}</td>
 
               <td>
                 <ProposalStatus status={proposta.status} />
               </td>
 
               <td>
-                <div className="proposal-table-actions">
+                <div className="proposal-table-actions proposal-table-actions-pro">
+                  <button
+                    type="button"
+                    className="view"
+                    disabled={processando}
+                    onClick={() => onVer(proposta)}
+                  >
+                    Ver
+                  </button>
+
                   <button
                     type="button"
                     title="Editar proposta"

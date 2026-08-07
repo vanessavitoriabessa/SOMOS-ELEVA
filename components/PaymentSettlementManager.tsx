@@ -1,26 +1,41 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import "./baixas.css";
 
-type Proposta = {
+type BaixaPagamento = {
   id: string;
+  proposta_id: string;
+  numero_proposta: string;
   cliente: string;
   cpf: string;
-  telefone: string;
-  vendedora: string;
+  consultora: string;
   banco: string;
   tabela: string;
-  valorContrato: number;
-  percentualTabela: number;
-  comissao: number;
+  valor_operacao: number;
+  valor_liquido: number;
+  data_pagamento_proposta: string;
+  data_prevista_recebimento: string;
+  data_recebimento: string | null;
+  comissao_prevista: number;
+  valor_recebido: number;
+  diferenca: number;
   status: string;
-  dataCadastro: string;
-  dataPagamento: string;
-  observacao: string;
+  observacao: string | null;
+  data_emissao?: string;
 };
 
-const PERCENTUAIS = [1, 2, 3.25, 5, 7, 10, 16.5, 20.5, 24.5, 28.5];
+type SituacaoFiltro =
+  | "TODOS"
+  | "A_RECEBER"
+  | "PARCIAL"
+  | "FINALIZADO";
+
+type LinhaComSituacao = BaixaPagamento & {
+  situacaoExibicao: SituacaoFiltro;
+  taxaComissao: number;
+};
 
 function moeda(valor: number) {
   return Number(valor || 0).toLocaleString("pt-BR", {
@@ -29,361 +44,1126 @@ function moeda(valor: number) {
   });
 }
 
-function apenasNumeros(valor: string) {
-  return valor.replace(/\D/g, "");
+function dataBR(valor?: string | null) {
+  if (!valor) return "—";
+
+  const [ano, mes, dia] = String(valor)
+    .slice(0, 10)
+    .split("-");
+
+  return ano && mes && dia
+    ? `${dia}/${mes}/${ano}`
+    : valor;
 }
 
 function hojeIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function PaymentSettlementManager() {
-  const [propostas, setPropostas] = useState<Proposta[]>([]);
+function normalizar(valor: string) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function somenteNumeros(valor: string) {
+  return String(valor || "").replace(/\D/g, "");
+}
+
+function formatarCpf(valor: string) {
+  const numeros = somenteNumeros(valor).slice(0, 11);
+
+  return numeros
+    .replace(/^(\d{3})(\d)/, "$1.$2")
+    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1-$2");
+}
+
+function converterValor(valor: string) {
+  const texto = String(valor || "")
+    .trim()
+    .replace(/[^\d,.-]/g, "");
+
+  if (!texto) return 0;
+
+  let normalizado = texto;
+
+  if (texto.includes(",") && texto.includes(".")) {
+    normalizado = texto
+      .replace(/\./g, "")
+      .replace(",", ".");
+  } else if (texto.includes(",")) {
+    normalizado = texto.replace(",", ".");
+  }
+
+  const numero = Number(normalizado);
+
+  return Number.isFinite(numero) ? numero : 0;
+}
+
+function valorParaInput(valor: number) {
+  return Number(valor || 0)
+    .toFixed(2)
+    .replace(".", ",");
+}
+
+function calcularSituacao(
+  item: BaixaPagamento,
+): SituacaoFiltro {
+  const previsto = Number(item.comissao_prevista || 0);
+  const recebido = Number(item.valor_recebido || 0);
+
+  if (!item.data_recebimento || recebido <= 0) {
+    return "A_RECEBER";
+  }
+
+  if (recebido + 0.01 < previsto) {
+    return "PARCIAL";
+  }
+
+  return "FINALIZADO";
+}
+
+function textoSituacao(situacao: SituacaoFiltro) {
+  if (situacao === "A_RECEBER") return "À RECEBER";
+  if (situacao === "PARCIAL") return "REC. PARCIAL";
+  if (situacao === "FINALIZADO") return "FINALIZADO";
+  return "TODOS";
+}
+
+function classeSituacao(situacao: SituacaoFiltro) {
+  if (situacao === "A_RECEBER") return "situacao-receber";
+  if (situacao === "PARCIAL") return "situacao-parcial";
+  if (situacao === "FINALIZADO") return "situacao-finalizado";
+  return "";
+}
+
+export default function BaixasManager() {
+  const supabase = useMemo(() => createClient(), []);
+
+  const [baixas, setBaixas] =
+    useState<BaixaPagamento[]>([]);
+  const [carregando, setCarregando] =
+    useState(true);
+  const [processando, setProcessando] =
+    useState(false);
+  const [mensagem, setMensagem] =
+    useState("");
+
   const [busca, setBusca] = useState("");
-  const [selecionadaId, setSelecionadaId] = useState("");
-  const [percentual, setPercentual] = useState("3,25");
-  const [dataPagamento, setDataPagamento] = useState(hojeIso());
-  const [mensagem, setMensagem] = useState("");
+  const [filtroBanco, setFiltroBanco] =
+    useState("TODOS");
+  const [filtroSituacao, setFiltroSituacao] =
+    useState<SituacaoFiltro>("A_RECEBER");
+
+  const [dataInicial, setDataInicial] =
+    useState("");
+  const [dataFinal, setDataFinal] =
+    useState("");
+
+  const [selecionada, setSelecionada] =
+    useState<BaixaPagamento | null>(null);
+
+  const [
+    valorRecebidoEditavel,
+    setValorRecebidoEditavel,
+  ] = useState("");
+
+  const [
+    dataRecebimentoEditavel,
+    setDataRecebimentoEditavel,
+  ] = useState(hojeIso());
+
+  const [
+    observacaoEditavel,
+    setObservacaoEditavel,
+  ] = useState("");
+
+  const [motivoAlteracao, setMotivoAlteracao] =
+    useState("");
+
+  const carregar = useCallback(async () => {
+    setCarregando(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("baixas_pagamentos")
+        .select("*")
+        .order("data_pagamento_proposta", {
+          ascending: false,
+        });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      const registros =
+        (data || []) as BaixaPagamento[];
+
+      /*
+       * A data de emissão é a data da digitação da proposta.
+       * Ela fica na tabela de propostas como data_cadastro.
+       * Buscamos somente as propostas necessárias e enriquecemos
+       * as linhas da baixa sem alterar a tabela baixas_pagamentos.
+       */
+      const ids = Array.from(
+        new Set(
+          registros
+            .map((item) => item.proposta_id)
+            .filter(Boolean),
+        ),
+      );
+
+      let emissoes = new Map<string, string>();
+
+      if (ids.length) {
+        const { data: propostas, error: erroPropostas } =
+          await supabase
+            .from("propostas")
+            .select("id, data_cadastro")
+            .in("id", ids);
+
+        if (!erroPropostas && propostas) {
+          emissoes = new Map(
+            propostas.map((item) => [
+              String(item.id),
+              String(item.data_cadastro || ""),
+            ]),
+          );
+        }
+      }
+
+      setBaixas(
+        registros.map((item) => ({
+          ...item,
+          data_emissao:
+            emissoes.get(item.proposta_id) ||
+            item.data_pagamento_proposta ||
+            "",
+        })),
+      );
+    } catch (erro) {
+      console.error(erro);
+      setBaixas([]);
+
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível carregar as comissões.",
+      );
+    } finally {
+      setCarregando(false);
+    }
+  }, [supabase]);
 
   useEffect(() => {
-    carregar();
-  }, []);
+    void carregar();
 
-  function carregar() {
-    try {
-      setPropostas(JSON.parse(localStorage.getItem("somos-eleva-propostas") || "[]"));
-    } catch {
-      setPropostas([]);
-    }
-  }
+    const atualizar = () => void carregar();
 
-  function persistir(lista: Proposta[]) {
-    setPropostas(lista);
-    localStorage.setItem("somos-eleva-propostas", JSON.stringify(lista));
-  }
+    window.addEventListener("focus", atualizar);
 
-  const pendentes = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    const numerico = apenasNumeros(busca);
-
-    return propostas
-      .filter((item) => item.status !== "Pago" && item.status !== "Cancelado")
-      .filter(
-        (item) =>
-          !termo ||
-          item.cliente.toLowerCase().includes(termo) ||
-          item.cpf.includes(numerico) ||
-          item.vendedora.toLowerCase().includes(termo) ||
-          item.banco.toLowerCase().includes(termo)
+    return () =>
+      window.removeEventListener(
+        "focus",
+        atualizar,
       );
-  }, [propostas, busca]);
+  }, [carregar]);
 
-  const pagas = useMemo(
+  const linhas = useMemo<LinhaComSituacao[]>(
     () =>
-      propostas
-        .filter((item) => item.status === "Pago")
-        .sort((a, b) => (b.dataPagamento || "").localeCompare(a.dataPagamento || "")),
-    [propostas]
+      baixas.map((item) => ({
+        ...item,
+        situacaoExibicao:
+          calcularSituacao(item),
+        taxaComissao:
+          Number(item.valor_operacao || 0) > 0
+            ? (Number(
+                item.comissao_prevista || 0,
+              ) /
+                Number(
+                  item.valor_operacao || 0,
+                )) *
+              100
+            : 0,
+      })),
+    [baixas],
   );
 
-  const selecionada = propostas.find((item) => item.id === selecionadaId) || null;
-  const percentualNumero = Number(percentual.replace(",", ".")) || 0;
-  const comissaoPrevista = selecionada
-    ? selecionada.valorContrato * (percentualNumero / 100)
-    : 0;
+  const bancos = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          linhas
+            .map((item) =>
+              String(item.banco || "").trim(),
+            )
+            .filter(Boolean),
+        ),
+      ).sort((a, b) =>
+        a.localeCompare(b, "pt-BR"),
+      ),
+    [linhas],
+  );
+
+  const filtradas = useMemo(() => {
+    const termo = normalizar(busca);
+    const numeros = somenteNumeros(busca);
+
+    return linhas.filter((item) => {
+      const correspondeBusca =
+        !termo ||
+        normalizar(item.numero_proposta).includes(
+          termo,
+        ) ||
+        normalizar(item.cliente).includes(
+          termo,
+        ) ||
+        somenteNumeros(item.cpf).includes(
+          numeros,
+        ) ||
+        normalizar(item.consultora).includes(
+          termo,
+        ) ||
+        normalizar(item.banco).includes(
+          termo,
+        ) ||
+        normalizar(item.tabela).includes(
+          termo,
+        );
+
+      const correspondeBanco =
+        filtroBanco === "TODOS" ||
+        item.banco === filtroBanco;
+
+      const correspondeSituacao =
+        filtroSituacao === "TODOS" ||
+        item.situacaoExibicao ===
+          filtroSituacao;
+
+      const emissao = String(
+        item.data_emissao || "",
+      ).slice(0, 10);
+
+      const correspondeDatas =
+        (!dataInicial ||
+          emissao >= dataInicial) &&
+        (!dataFinal || emissao <= dataFinal);
+
+      return (
+        correspondeBusca &&
+        correspondeBanco &&
+        correspondeSituacao &&
+        correspondeDatas
+      );
+    });
+  }, [
+    linhas,
+    busca,
+    filtroBanco,
+    filtroSituacao,
+    dataInicial,
+    dataFinal,
+  ]);
 
   const resumo = useMemo(() => {
-    const valorPago = pagas.reduce((total, item) => total + Number(item.valorContrato || 0), 0);
-    const comissoes = pagas.reduce((total, item) => total + Number(item.comissao || 0), 0);
+    const aReceber = linhas.filter(
+      (item) =>
+        item.situacaoExibicao ===
+        "A_RECEBER",
+    );
+
+    const parciais = linhas.filter(
+      (item) =>
+        item.situacaoExibicao === "PARCIAL",
+    );
+
+    const finalizadas = linhas.filter(
+      (item) =>
+        item.situacaoExibicao ===
+        "FINALIZADO",
+    );
+
+    const comissoesAReceber = aReceber.reduce(
+      (total, item) =>
+        total +
+        Number(item.comissao_prevista || 0),
+      0,
+    );
+
+    const saldoParcial = parciais.reduce(
+      (total, item) =>
+        total +
+        Math.max(
+          0,
+          Number(
+            item.comissao_prevista || 0,
+          ) -
+            Number(
+              item.valor_recebido || 0,
+            ),
+        ),
+      0,
+    );
+
+    const recebido = linhas.reduce(
+      (total, item) =>
+        total +
+        Number(item.valor_recebido || 0),
+      0,
+    );
 
     return {
-      pendentes: propostas.filter(
-        (item) => item.status !== "Pago" && item.status !== "Cancelado"
-      ).length,
-      pagas: pagas.length,
-      valorPago,
-      comissoes,
+      quantidade: linhas.length,
+      aReceber: aReceber.length,
+      parciais: parciais.length,
+      finalizadas: finalizadas.length,
+      comissoesAReceber,
+      saldoParcial,
+      recebido,
     };
-  }, [propostas, pagas]);
+  }, [linhas]);
 
-  function darBaixa() {
+  function abrirRecebimento(
+    item: BaixaPagamento,
+  ) {
+    setSelecionada(item);
+
+    setValorRecebidoEditavel(
+      item.valor_recebido > 0
+        ? valorParaInput(item.valor_recebido)
+        : valorParaInput(
+            item.comissao_prevista,
+          ),
+    );
+
+    setDataRecebimentoEditavel(
+      item.data_recebimento || hojeIso(),
+    );
+
+    setObservacaoEditavel(
+      item.observacao || "",
+    );
+
+    setMotivoAlteracao("");
+    setMensagem("");
+  }
+
+  async function salvarRecebimento() {
+    if (!selecionada) return;
+
+    const valorRecebido =
+      converterValor(
+        valorRecebidoEditavel,
+      );
+
+    if (valorRecebido <= 0) {
+      setMensagem(
+        "Informe um valor recebido válido.",
+      );
+      return;
+    }
+
+    if (!dataRecebimentoEditavel) {
+      setMensagem(
+        "Informe a data do pagamento.",
+      );
+      return;
+    }
+
+    const jaTinhaRecebimento =
+      Boolean(selecionada.data_recebimento);
+
+    if (
+      jaTinhaRecebimento &&
+      !motivoAlteracao.trim()
+    ) {
+      setMensagem(
+        "Informe o motivo da alteração para corrigir um recebimento já registrado.",
+      );
+      return;
+    }
+
+    setProcessando(true);
     setMensagem("");
 
-    if (!selecionada) {
-      setMensagem("Selecione um contrato para dar baixa.");
-      return;
+    try {
+      const esperado = Number(
+        selecionada.comissao_prevista || 0,
+      );
+
+      const diferenca =
+        valorRecebido - esperado;
+
+      const situacao: SituacaoFiltro =
+        valorRecebido + 0.01 < esperado
+          ? "PARCIAL"
+          : "FINALIZADO";
+
+      const statusBanco =
+        situacao === "PARCIAL"
+          ? "RECEBIMENTO PARCIAL"
+          : "FINALIZADO";
+
+      const { data: usuario } =
+        await supabase.auth.getUser();
+
+      const historicoAnterior =
+        jaTinhaRecebimento
+          ? [
+              `ALTERAÇÃO MANUAL EM ${new Date().toLocaleString(
+                "pt-BR",
+              )}`,
+              `Valor anterior: ${moeda(
+                selecionada.valor_recebido,
+              )}`,
+              `Data anterior: ${dataBR(
+                selecionada.data_recebimento,
+              )}`,
+              `Motivo: ${motivoAlteracao.trim()}`,
+            ].join(" | ")
+          : "";
+
+      const observacaoFinal = [
+        observacaoEditavel.trim(),
+        historicoAnterior,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const { error } = await supabase
+        .from("baixas_pagamentos")
+        .update({
+          data_recebimento:
+            dataRecebimentoEditavel,
+          valor_recebido: valorRecebido,
+          diferenca,
+          status: statusBanco,
+          observacao:
+            observacaoFinal || null,
+          baixado_por:
+            usuario.user?.id || null,
+          atualizado_em:
+            new Date().toISOString(),
+        })
+        .eq("id", selecionada.id);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      setMensagem(
+        situacao === "PARCIAL"
+          ? `Recebimento parcial salvo. Ainda falta ${moeda(
+              Math.max(
+                0,
+                esperado - valorRecebido,
+              ),
+            )}.`
+          : "Recebimento finalizado com sucesso.",
+      );
+
+      setSelecionada(null);
+      setMotivoAlteracao("");
+
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível salvar o recebimento.",
+      );
+    } finally {
+      setProcessando(false);
     }
-
-    if (percentualNumero <= 0) {
-      setMensagem("Informe um percentual maior que zero.");
-      return;
-    }
-
-    const atualizadas = propostas.map((item) =>
-      item.id === selecionada.id
-        ? {
-            ...item,
-            status: "Pago",
-            percentualTabela: percentualNumero,
-            comissao: item.valorContrato * (percentualNumero / 100),
-            dataPagamento,
-          }
-        : item
-    );
-
-    persistir(atualizadas);
-    setMensagem(
-      `Pagamento baixado. Comissão calculada: ${moeda(
-        selecionada.valorContrato * (percentualNumero / 100)
-      )}.`
-    );
-    setSelecionadaId("");
   }
 
-  function desfazerBaixa(id: string) {
-    if (!window.confirm("Deseja desfazer a baixa deste contrato?")) return;
+  const esperadoSelecionado = Number(
+    selecionada?.comissao_prevista || 0,
+  );
 
-    const atualizadas = propostas.map((item) =>
-      item.id === id
-        ? {
-            ...item,
-            status: "Em andamento",
-            percentualTabela: 0,
-            comissao: 0,
-            dataPagamento: "",
-          }
-        : item
+  const recebidoSelecionado =
+    converterValor(
+      valorRecebidoEditavel,
     );
 
-    persistir(atualizadas);
-    setMensagem("Baixa desfeita. O contrato voltou para Em andamento.");
-  }
+  const saldoSelecionado = Math.max(
+    0,
+    esperadoSelecionado -
+      recebidoSelecionado,
+  );
 
   return (
-    <div className="settlement-page">
-      <section className="settlement-summary">
+    <div className="baixas-page baixas-livecred-eleva">
+      <section className="baixas-resumo-live">
         <article>
-          <span>Contratos pendentes</span>
-          <strong>{resumo.pendentes}</strong>
-        </article>
-        <article>
-          <span>Contratos pagos</span>
-          <strong>{resumo.pagas}</strong>
-        </article>
-        <article>
-          <span>Valor pago</span>
-          <strong>{moeda(resumo.valorPago)}</strong>
-        </article>
-        <article className="settlement-highlight">
-          <span>Comissão gerada</span>
-          <strong>{moeda(resumo.comissoes)}</strong>
-        </article>
-      </section>
-
-      <section className="settlement-grid">
-        <section className="settlement-card">
-          <div className="settlement-heading">
-            <div>
-              <span>LOCALIZAR CONTRATO</span>
-              <h2>Selecionar proposta</h2>
-              <p>Pesquise por cliente, CPF, banco ou consultora.</p>
-            </div>
-            <b>⌕</b>
-          </div>
-
-          <input
-            className="settlement-search"
-            value={busca}
-            onChange={(event) => setBusca(event.target.value)}
-            placeholder="Digite para pesquisar"
-          />
-
-          <div className="settlement-pending-list">
-            {pendentes.length === 0 ? (
-              <div className="settlement-empty">
-                <strong>Nenhum contrato pendente</strong>
-                <p>Cadastre uma proposta ou altere os filtros.</p>
-              </div>
-            ) : (
-              pendentes.map((item) => (
-                <button
-                  type="button"
-                  key={item.id}
-                  className={selecionadaId === item.id ? "selected" : ""}
-                  onClick={() => setSelecionadaId(item.id)}
-                >
-                  <div>
-                    <strong>{item.cliente}</strong>
-                    <span>
-                      {item.banco || "Banco não informado"}
-                      {item.tabela ? ` • ${item.tabela}` : ""}
-                    </span>
-                  </div>
-
-                  <div>
-                    <strong>{moeda(item.valorContrato)}</strong>
-                    <span>{item.vendedora || "Sem consultora"}</span>
-                  </div>
-                </button>
-              ))
+          <span>COMISSÕES À RECEBER</span>
+          <strong>
+            {moeda(
+              resumo.comissoesAReceber +
+                resumo.saldoParcial,
             )}
-          </div>
-        </section>
+          </strong>
+          <small>
+            À receber + saldo dos parciais
+          </small>
+        </article>
 
-        <section className="settlement-card">
-          <div className="settlement-heading">
-            <div>
-              <span>BAIXA DO PAGAMENTO</span>
-              <h2>Confirmar contrato pago</h2>
-              <p>Informe a porcentagem da tabela para calcular a comissão.</p>
-            </div>
-            <b>✓</b>
-          </div>
+        <article>
+          <span>À RECEBER</span>
+          <strong>{resumo.aReceber}</strong>
+          <small>Contratos sem recebimento</small>
+        </article>
 
-          {!selecionada ? (
-            <div className="settlement-no-selection">
-              <div>▤</div>
-              <strong>Nenhum contrato selecionado</strong>
-              <p>Escolha uma proposta na lista ao lado.</p>
-            </div>
-          ) : (
-            <>
-              <section className="settlement-selected">
-                <div>
-                  <span>Cliente</span>
-                  <strong>{selecionada.cliente}</strong>
-                </div>
-                <div>
-                  <span>Consultora</span>
-                  <strong>{selecionada.vendedora || "Não informada"}</strong>
-                </div>
-                <div>
-                  <span>Banco/Tabela</span>
-                  <strong>
-                    {selecionada.banco || "—"}
-                    {selecionada.tabela ? ` • ${selecionada.tabela}` : ""}
-                  </strong>
-                </div>
-                <div>
-                  <span>Valor do contrato</span>
-                  <strong>{moeda(selecionada.valorContrato)}</strong>
-                </div>
-              </section>
+        <article className="resumo-parcial">
+          <span>REC. PARCIAL</span>
+          <strong>{resumo.parciais}</strong>
+          <small>
+            Saldo: {moeda(resumo.saldoParcial)}
+          </small>
+        </article>
 
-              <div className="settlement-form-grid">
-                <label>
-                  Porcentagem da tabela
-                  <select
-                    value={percentual}
-                    onChange={(event) => setPercentual(event.target.value)}
-                  >
-                    {PERCENTUAIS.map((item) => (
-                      <option key={item} value={String(item).replace(".", ",")}>
-                        {String(item).replace(".", ",")}%
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  Digitar outra porcentagem
-                  <input
-                    value={percentual}
-                    onChange={(event) => setPercentual(event.target.value)}
-                    placeholder="Ex.: 3,25"
-                    inputMode="decimal"
-                  />
-                </label>
-
-                <label>
-                  Data do pagamento
-                  <input
-                    type="date"
-                    value={dataPagamento}
-                    onChange={(event) => setDataPagamento(event.target.value)}
-                  />
-                </label>
-              </div>
-
-              <section className="settlement-calculation">
-                <div>
-                  <span>Contrato</span>
-                  <strong>{moeda(selecionada.valorContrato)}</strong>
-                </div>
-                <b>×</b>
-                <div>
-                  <span>Percentual</span>
-                  <strong>{percentualNumero.toFixed(2).replace(".", ",")}%</strong>
-                </div>
-                <b>=</b>
-                <div className="settlement-result">
-                  <span>Comissão</span>
-                  <strong>{moeda(comissaoPrevista)}</strong>
-                </div>
-              </section>
-
-              <button className="settlement-confirm" onClick={darBaixa}>
-                Confirmar pagamento
-              </button>
-            </>
-          )}
-
-          {mensagem && <div className="settlement-message">{mensagem}</div>}
-        </section>
+        <article className="resumo-finalizado">
+          <span>FINALIZADOS</span>
+          <strong>{resumo.finalizadas}</strong>
+          <small>
+            Recebido: {moeda(resumo.recebido)}
+          </small>
+        </article>
       </section>
 
-      <section className="settlement-card paid-history">
-        <div className="settlement-list-heading">
-          <div>
-            <span>HISTÓRICO DE BAIXAS</span>
-            <h2>Contratos pagos</h2>
+      <section className="baixas-live-card">
+        <div className="baixas-live-actions">
+          <button
+            type="button"
+            className={
+              filtroSituacao ===
+              "A_RECEBER"
+                ? "active"
+                : ""
+            }
+            onClick={() =>
+              setFiltroSituacao(
+                "A_RECEBER",
+              )
+            }
+          >
+            RECEBER
+          </button>
+
+          <button
+            type="button"
+            className={
+              filtroSituacao === "PARCIAL"
+                ? "active"
+                : ""
+            }
+            onClick={() =>
+              setFiltroSituacao("PARCIAL")
+            }
+          >
+            REC. PARCIAL
+          </button>
+
+          <button
+            type="button"
+            className={
+              filtroSituacao ===
+              "FINALIZADO"
+                ? "active"
+                : ""
+            }
+            onClick={() =>
+              setFiltroSituacao(
+                "FINALIZADO",
+              )
+            }
+          >
+            FINALIZADOS
+          </button>
+
+          <button
+            type="button"
+            className={
+              filtroSituacao === "TODOS"
+                ? "active"
+                : ""
+            }
+            onClick={() =>
+              setFiltroSituacao("TODOS")
+            }
+          >
+            TODOS
+          </button>
+
+          <div className="baixas-live-selected">
+            <span>
+              {selecionada ? 1 : 0}
+            </span>
+            SELECIONADO
           </div>
-          <b>{pagas.length}</b>
         </div>
 
-        {pagas.length === 0 ? (
-          <div className="paid-history-empty">Nenhum contrato pago.</div>
-        ) : (
-          <div className="paid-history-table">
-            <div className="paid-history-row paid-history-head">
-              <span>Cliente</span>
-              <span>Consultora</span>
-              <span>Banco/Tabela</span>
-              <span>Contrato</span>
-              <span>Percentual</span>
-              <span>Comissão</span>
-              <span>Data</span>
-              <span>Ação</span>
+        <div className="baixas-live-total">
+          <span>
+            COMISSÕES À RECEBER
+          </span>
+          <strong>
+            {moeda(
+              resumo.comissoesAReceber +
+                resumo.saldoParcial,
+            )}
+          </strong>
+        </div>
+
+        <div className="baixas-live-filtros">
+          <label className="filtro-busca">
+            <span>PESQUISAR</span>
+            <input
+              value={busca}
+              onChange={(event) =>
+                setBusca(event.target.value)
+              }
+              placeholder="Proposta, cliente, CPF, banco ou consultora"
+            />
+          </label>
+
+          <label>
+            <span>BANCO</span>
+            <select
+              value={filtroBanco}
+              onChange={(event) =>
+                setFiltroBanco(
+                  event.target.value,
+                )
+              }
+            >
+              <option value="TODOS">
+                Todos os bancos
+              </option>
+
+              {bancos.map((banco) => (
+                <option
+                  key={banco}
+                  value={banco}
+                >
+                  {banco}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>SITUAÇÃO</span>
+            <select
+              value={filtroSituacao}
+              onChange={(event) =>
+                setFiltroSituacao(
+                  event.target
+                    .value as SituacaoFiltro,
+                )
+              }
+            >
+              <option value="TODOS">
+                Todas
+              </option>
+              <option value="A_RECEBER">
+                À receber
+              </option>
+              <option value="PARCIAL">
+                Rec. parcial
+              </option>
+              <option value="FINALIZADO">
+                Finalizado
+              </option>
+            </select>
+          </label>
+
+          <label>
+            <span>EMISSÃO DE</span>
+            <input
+              type="date"
+              value={dataInicial}
+              onChange={(event) =>
+                setDataInicial(
+                  event.target.value,
+                )
+              }
+            />
+          </label>
+
+          <label>
+            <span>EMISSÃO ATÉ</span>
+            <input
+              type="date"
+              value={dataFinal}
+              onChange={(event) =>
+                setDataFinal(
+                  event.target.value,
+                )
+              }
+            />
+          </label>
+        </div>
+
+        <div className="baixas-live-table-wrapper">
+          <table className="baixas-live-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>EMISSÃO</th>
+                <th>CPF</th>
+                <th>CLIENTE</th>
+                <th>BANCO / TABELA</th>
+                <th>VL. LIBERADO</th>
+                <th>TX. COMISS.</th>
+                <th>COMISS. LÍQ.</th>
+                <th>RECEBIDO</th>
+                <th>SITUAÇÃO</th>
+                <th>ESTEIRA</th>
+                <th>DATA PAGAMENTO</th>
+                <th>AÇÃO</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {carregando ? (
+                <tr>
+                  <td
+                    colSpan={13}
+                    className="baixas-live-vazio"
+                  >
+                    Carregando comissões...
+                  </td>
+                </tr>
+              ) : filtradas.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={13}
+                    className="baixas-live-vazio"
+                  >
+                    Nenhuma comissão encontrada nos filtros.
+                  </td>
+                </tr>
+              ) : (
+                filtradas.map((item) => {
+                  const ativa =
+                    selecionada?.id ===
+                    item.id;
+
+                  return (
+                    <tr
+                      key={item.id}
+                      className={
+                        ativa ? "selected" : ""
+                      }
+                      onClick={() =>
+                        abrirRecebimento(item)
+                      }
+                    >
+                      <td>
+                        <input
+                          type="radio"
+                          name="baixa-selecionada"
+                          checked={ativa}
+                          onChange={() =>
+                            abrirRecebimento(
+                              item,
+                            )
+                          }
+                        />
+                      </td>
+
+                      <td>
+                        {dataBR(
+                          item.data_emissao,
+                        )}
+                      </td>
+
+                      <td>
+                        {formatarCpf(
+                          item.cpf,
+                        )}
+                      </td>
+
+                      <td>
+                        <strong>
+                          {item.cliente || "—"}
+                        </strong>
+                        <small>
+                          {item.consultora || "—"}
+                        </small>
+                      </td>
+
+                      <td>
+                        <strong>
+                          {item.banco || "—"}
+                        </strong>
+                        <small>
+                          {item.tabela || "—"}
+                        </small>
+                      </td>
+
+                      <td>
+                        <strong>
+                          {moeda(
+                            item.valor_operacao,
+                          )}
+                        </strong>
+                      </td>
+
+                      <td>
+                        {item.taxaComissao
+                          .toFixed(2)
+                          .replace(".", ",")}
+                        %
+                      </td>
+
+                      <td>
+                        <strong className="comissao-pill">
+                          {moeda(
+                            item.comissao_prevista,
+                          )}
+                        </strong>
+                      </td>
+
+                      <td>
+                        {moeda(
+                          item.valor_recebido,
+                        )}
+                      </td>
+
+                      <td>
+                        <span
+                          className={`baixas-live-status ${classeSituacao(
+                            item.situacaoExibicao,
+                          )}`}
+                        >
+                          {textoSituacao(
+                            item.situacaoExibicao,
+                          )}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span className="baixas-live-esteira">
+                          ● Proposta Paga
+                        </span>
+                      </td>
+
+                      <td>
+                        {dataBR(
+                          item.data_recebimento,
+                        )}
+                      </td>
+
+                      <td>
+                        <button
+                          type="button"
+                          className="baixas-live-action"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            abrirRecebimento(
+                              item,
+                            );
+                          }}
+                        >
+                          {item.situacaoExibicao ===
+                          "A_RECEBER"
+                            ? "Receber"
+                            : "Editar"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {selecionada && (
+        <div
+          className="baixas-live-overlay"
+          onClick={() =>
+            setSelecionada(null)
+          }
+        >
+          <section
+            className="baixas-live-modal"
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+            <header>
+              <div>
+                <span>RECEBER COMISSÃO</span>
+                <h2>
+                  {selecionada.cliente}
+                </h2>
+                <p>
+                  Proposta{" "}
+                  {selecionada.numero_proposta}
+                  {" • "}
+                  {selecionada.banco}
+                  {selecionada.tabela
+                    ? ` • ${selecionada.tabela}`
+                    : ""}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setSelecionada(null)
+                }
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="baixas-live-modal-resumo">
+              <article>
+                <span>EMISSÃO</span>
+                <strong>
+                  {dataBR(
+                    selecionada.data_emissao,
+                  )}
+                </strong>
+              </article>
+
+              <article>
+                <span>VALOR LIBERADO</span>
+                <strong>
+                  {moeda(
+                    selecionada.valor_operacao,
+                  )}
+                </strong>
+              </article>
+
+              <article>
+                <span>COMISSÃO ESPERADA</span>
+                <strong>
+                  {moeda(
+                    selecionada.comissao_prevista,
+                  )}
+                </strong>
+              </article>
+
+              <article>
+                <span>SALDO APÓS BAIXA</span>
+                <strong>
+                  {moeda(
+                    saldoSelecionado,
+                  )}
+                </strong>
+              </article>
             </div>
 
-            {pagas.map((item) => (
-              <div className="paid-history-row" key={item.id}>
-                <strong>{item.cliente}</strong>
-                <span>{item.vendedora || "Não informada"}</span>
-                <span>
-                  {item.banco || "—"}
-                  {item.tabela ? ` • ${item.tabela}` : ""}
-                </span>
-                <strong>{moeda(item.valorContrato)}</strong>
-                <span>{String(item.percentualTabela || 0).replace(".", ",")}%</span>
-                <strong className="settlement-commission">
-                  {moeda(item.comissao)}
-                </strong>
-                <span>{item.dataPagamento || "—"}</span>
-                <button onClick={() => desfazerBaixa(item.id)}>Desfazer</button>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+            <div className="baixas-live-modal-grid">
+              <label>
+                <span>VALOR RECEBIDO</span>
+                <input
+                  value={
+                    valorRecebidoEditavel
+                  }
+                  onChange={(event) =>
+                    setValorRecebidoEditavel(
+                      event.target.value,
+                    )
+                  }
+                  inputMode="decimal"
+                  placeholder="R$ 0,00"
+                  disabled={processando}
+                />
+              </label>
 
-      <section className="settlement-help">
-        <strong>Integração automática:</strong>
-        <span>
-          ao confirmar o pagamento, a proposta é atualizada e passa a aparecer no
-          Ranking e no Financeiro.
-        </span>
-      </section>
+              <label>
+                <span>DATA DO PAGAMENTO</span>
+                <input
+                  type="date"
+                  value={
+                    dataRecebimentoEditavel
+                  }
+                  onChange={(event) =>
+                    setDataRecebimentoEditavel(
+                      event.target.value,
+                    )
+                  }
+                  disabled={processando}
+                />
+              </label>
+            </div>
+
+            <label className="baixas-live-observacao">
+              <span>OBSERVAÇÃO</span>
+              <textarea
+                value={observacaoEditavel}
+                onChange={(event) =>
+                  setObservacaoEditavel(
+                    event.target.value,
+                  )
+                }
+                placeholder="Observação opcional"
+                disabled={processando}
+              />
+            </label>
+
+            {selecionada.data_recebimento && (
+              <label className="baixas-live-observacao">
+                <span>
+                  MOTIVO DA ALTERAÇÃO *
+                </span>
+                <textarea
+                  value={motivoAlteracao}
+                  onChange={(event) =>
+                    setMotivoAlteracao(
+                      event.target.value,
+                    )
+                  }
+                  placeholder="Informe por que esta baixa está sendo alterada"
+                  disabled={processando}
+                />
+              </label>
+            )}
+
+            <footer>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() =>
+                  setSelecionada(null)
+                }
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  void salvarRecebimento()
+                }
+                disabled={processando}
+              >
+                {processando
+                  ? "Salvando..."
+                  : saldoSelecionado > 0
+                    ? "Salvar recebimento parcial"
+                    : "Finalizar recebimento"}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+
+      {mensagem && (
+        <div className="baixas-live-mensagem">
+          {mensagem}
+        </div>
+      )}
     </div>
   );
 }

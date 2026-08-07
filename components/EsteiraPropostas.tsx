@@ -82,6 +82,15 @@ type RespostaApi = {
   erro?: string;
 };
 
+type TabelaConfiguracao = {
+  id: string;
+  banco: string;
+  nome: string;
+  codigo: string;
+  percentual: number;
+  ativo: boolean;
+};
+
 type Formulario = {
   clienteId: string;
   numeroProposta: string;
@@ -129,17 +138,78 @@ const STATUS: StatusProposta[] = [
   "CANCELADA",
 ];
 
-const TABELAS = [
-  { nome: "NEO NORMAL", percentual: 100 },
-  { nome: "NEO FLEX 1", percentual: 82 },
-  { nome: "NEO FLEX 2", percentual: 67 },
-  { nome: "NEO FLEX 3", percentual: 52 },
-  { nome: "NEO FLEX 4", percentual: 37 },
-  { nome: "NEO FLEX 5", percentual: 17 },
+const TABELAS_PADRAO: TabelaConfiguracao[] = [
+  {
+    id: "neo-normal-399",
+    banco: "NEO",
+    nome: "NORMAL",
+    codigo: "399",
+    percentual: 100,
+    ativo: true,
+  },
+  {
+    id: "neo-flex-1-379",
+    banco: "NEO",
+    nome: "FLEX 1",
+    codigo: "379",
+    percentual: 75,
+    ativo: true,
+  },
+  {
+    id: "neo-flex-2-359",
+    banco: "NEO",
+    nome: "FLEX 2",
+    codigo: "359",
+    percentual: 50,
+    ativo: true,
+  },
+  {
+    id: "neo-flex-3-339",
+    banco: "NEO",
+    nome: "FLEX 3",
+    codigo: "339",
+    percentual: 40,
+    ativo: true,
+  },
+  {
+    id: "neo-flex-4-319",
+    banco: "NEO",
+    nome: "FLEX 4",
+    codigo: "319",
+    percentual: 20,
+    ativo: true,
+  },
+  {
+    id: "neo-flex-5-299",
+    banco: "NEO",
+    nome: "FLEX 5",
+    codigo: "299",
+    percentual: 8,
+    ativo: true,
+  },
 ];
 
 function hojeIso() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function nomeCompletoTabela(tabela: TabelaConfiguracao) {
+  const banco = String(tabela.banco || "").trim().toUpperCase();
+  const nome = String(tabela.nome || "").trim().toUpperCase();
+
+  if (!nome) return "";
+
+  return nome.startsWith(`${banco} `)
+    ? nome
+    : `${banco} ${nome}`.trim();
+}
+
+function normalizarTabela(valor: string) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toUpperCase();
 }
 
 const FORMULARIO_VAZIO: Formulario = {
@@ -202,12 +272,21 @@ function moeda(valor?: number) {
 }
 
 function converterValor(valor: string) {
-  const limpo = valor
-    .replace(/[^\d,.-]/g, "")
-    .replace(/\./g, "")
-    .replace(",", ".");
+  const texto = String(valor || "")
+    .trim()
+    .replace(/[^\d,.-]/g, "");
 
-  const convertido = Number(limpo);
+  if (!texto) return 0;
+
+  let normalizado = texto;
+
+  if (texto.includes(",") && texto.includes(".")) {
+    normalizado = texto.replace(/\./g, "").replace(",", ".");
+  } else if (texto.includes(",")) {
+    normalizado = texto.replace(",", ".");
+  }
+
+  const convertido = Number(normalizado);
 
   return Number.isFinite(convertido) ? convertido : 0;
 }
@@ -260,6 +339,8 @@ export default function EsteiraPropostas() {
   const [propostas, setPropostas] = useState<Proposta[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [consultoras, setConsultoras] = useState<string[]>([]);
+  const [tabelas, setTabelas] =
+    useState<TabelaConfiguracao[]>(TABELAS_PADRAO);
   const [perfilAtual, setPerfilAtual] = useState("");
 
   const [busca, setBusca] = useState("");
@@ -465,11 +546,70 @@ const [arquivos, setArquivos] = useState({
     }
   }, [obterToken]);
 
+  const carregarTabelas = useCallback(async () => {
+    try {
+      const token = await obterToken();
+
+      const resposta = await fetch("/api/configuracoes", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+
+      const conteudo = (await resposta.json()) as {
+        tabelas?: Array<Record<string, unknown>>;
+        erro?: string;
+      };
+
+      if (!resposta.ok) {
+        throw new Error(
+          conteudo.erro ||
+            "Não foi possível carregar as tabelas.",
+        );
+      }
+
+      const lista: TabelaConfiguracao[] = Array.isArray(conteudo.tabelas)
+        ? conteudo.tabelas
+            .map((item) => ({
+              id: String(item.id || crypto.randomUUID()),
+              banco: String(item.banco || "NEO")
+                .trim()
+                .toUpperCase(),
+              nome: String(item.nome || "")
+                .trim()
+                .toUpperCase(),
+              codigo: String(item.codigo || "").trim(),
+              percentual: Number(item.percentual || 0),
+              ativo: item.ativo !== false,
+            }))
+            .filter(
+              (item) =>
+                item.ativo &&
+                Boolean(item.nome) &&
+                item.percentual > 0,
+            )
+        : [];
+
+      setTabelas(lista.length ? lista : TABELAS_PADRAO);
+    } catch (erro) {
+      console.error("Erro ao carregar tabelas:", erro);
+      setTabelas(TABELAS_PADRAO);
+    }
+  }, [obterToken]);
+
   useEffect(() => {
     void carregarPropostas();
     void carregarClientes();
     void carregarConsultoras();
-  }, [carregarPropostas, carregarClientes, carregarConsultoras]);
+    void carregarTabelas();
+  }, [
+    carregarPropostas,
+    carregarClientes,
+    carregarConsultoras,
+    carregarTabelas,
+  ]);
 
   const propostasFiltradas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -572,6 +712,10 @@ const [arquivos, setArquivos] = useState({
       (item) => item.status === "AG. BOLETO"
     ).length,
 
+    canceladas: propostasFiltradas.filter(
+      (item) => item.status === "CANCELADA"
+    ).length,
+
     valorPago,
     producaoDigitada,
     producaoPaga,
@@ -583,10 +727,22 @@ const [arquivos, setArquivos] = useState({
     [clientes, form.clienteId]
   );
 
-  const tabelaSelecionada = useMemo(
-    () => TABELAS.find((tabela) => tabela.nome === form.tabela),
-    [form.tabela]
-  );
+  const tabelaSelecionada = useMemo(() => {
+    const procurada = normalizarTabela(form.tabela);
+
+    return tabelas.find((tabela) => {
+      const nomeCompleto = normalizarTabela(
+        nomeCompletoTabela(tabela),
+      );
+
+      const nomeSimples = normalizarTabela(tabela.nome);
+
+      return (
+        procurada === nomeCompleto ||
+        procurada === nomeSimples
+      );
+    });
+  }, [form.tabela, tabelas]);
 
   const valorContrato = converterValor(form.valorContrato);
 
@@ -907,7 +1063,7 @@ cpf: apenasNumeros(form.cpfCliente),
 telefone: form.telefoneCliente.trim(),
         vendedora: form.vendedora,
         banco: form.banco.trim(),
-        tabela: tabelaSelecionada.nome,
+        tabela: nomeCompletoTabela(tabelaSelecionada),
         percentualTabela: tabelaSelecionada.percentual,
         valorContrato,
         valorMeta,
@@ -1000,11 +1156,11 @@ for (const documento of documentos) {
     }
   }
 
-  async function excluirPropostaDigitada(proposta: Proposta) {
-    if (proposta.status !== "PROPOSTA DIGITADA") return;
-
+  async function excluirProposta(proposta: Proposta) {
     const confirmar = window.confirm(
-      `Deseja excluir definitivamente a proposta de ${proposta.cliente}?\n\nEssa ação não poderá ser desfeita.`,
+      `Deseja excluir definitivamente a proposta de ${proposta.cliente}?
+
+Essa ação não poderá ser desfeita.`,
     );
 
     if (!confirmar) return;
@@ -1038,6 +1194,10 @@ for (const documento of documentos) {
         setModalAberto(false);
         setEditando(null);
         setForm(FORMULARIO_VAZIO);
+      }
+
+      if (selecionada?.id === proposta.id) {
+        setSelecionada(null);
       }
 
       setMensagem("Proposta excluída com sucesso.");
@@ -1075,8 +1235,13 @@ for (const documento of documentos) {
         telefone: form.telefoneCliente.trim(),
         vendedora: form.vendedora,
         banco: form.banco.trim(),
-        tabela: form.tabela,
-        percentualTabela: tabelaSelecionada?.percentual || 0,
+        tabela: tabelaSelecionada
+          ? nomeCompletoTabela(tabelaSelecionada)
+          : form.tabela,
+        percentualTabela:
+          tabelaSelecionada?.percentual ||
+          editando.percentualTabela ||
+          0,
         valorContrato,
         valorMeta,
         status: "CANCELADA",
@@ -1129,36 +1294,62 @@ for (const documento of documentos) {
     <div className="esteira-profissional">
       <section className="esteira-stats">
         <article>
-          <span>Total de propostas</span>
+          <span style={{ fontWeight: 900 }}>TOTAL DE PROPOSTAS</span>
           <strong>{resumo.total}</strong>
         </article>
 
         <article>
-          <span>Em andamento</span>
+          <span style={{ fontWeight: 900 }}>EM ANDAMENTO</span>
           <strong>{resumo.andamento}</strong>
         </article>
 
         <article>
-          <span>Contratos pagos</span>
+          <span style={{ fontWeight: 900 }}>CONTRATOS PAGOS</span>
           <strong>{resumo.pagas}</strong>
         </article>
 
         <article>
-          <span>Aguardando boleto</span>
+          <span style={{ fontWeight: 900 }}>AGUARDANDO BOLETO</span>
           <strong>{resumo.aguardando}</strong>
         </article>
 
         <article>
-          <span>Valor pago</span>
+          <span style={{ fontWeight: 900 }}>
+            VALOR BRUTO PAGO
+          </span>
           <strong>{moeda(resumo.valorPago)}</strong>
         </article>
-<article>
-  <span>Produção paga</span>
-  <strong>{moeda(resumo.producaoPaga)}</strong>
-</article>
+
+        <article>
+          <span style={{ fontWeight: 900 }}>
+            VALOR LÍQUIDO PAGO
+          </span>
+          <strong>{moeda(resumo.producaoPaga)}</strong>
+        </article>
+
+        <article
+          role="button"
+          tabIndex={0}
+          title="Mostrar somente propostas canceladas"
+          onClick={() => setFiltroStatus("CANCELADA")}
+          onKeyDown={(evento) => {
+            if (evento.key === "Enter" || evento.key === " ") {
+              setFiltroStatus("CANCELADA");
+            }
+          }}
+          style={{ cursor: "pointer" }}
+        >
+          <span style={{ fontWeight: 900 }}>
+            CANCELADAS
+          </span>
+          <strong>{resumo.canceladas}</strong>
+        </article>
+
         <article className="destaque">
-          <span>Produção digitada</span>
-<strong>{moeda(resumo.producaoDigitada)}</strong>
+          <span style={{ fontWeight: 900 }}>
+            PRODUÇÃO DIGITADA
+          </span>
+          <strong>{moeda(resumo.producaoDigitada)}</strong>
         </article>
       </section>
 
@@ -1231,12 +1422,15 @@ for (const documento of documentos) {
     }
   >
     <option value="Todos">Todos os status</option>
+    <option value="CANCELADA">CANCELADAS</option>
 
-    {STATUS.map((status) => (
-      <option key={status} value={status}>
-        {status}
-      </option>
-    ))}
+    {STATUS
+      .filter((status) => status !== "CANCELADA")
+      .map((status) => (
+        <option key={status} value={status}>
+          {status}
+        </option>
+      ))}
   </select>
 
   <button
@@ -1279,15 +1473,15 @@ for (const documento of documentos) {
               <thead>
                 <tr>
                   <th>Nº</th>
-                  <th>Consultora</th>
-                  <th>Cliente</th>
-                  <th>Produto</th>
-                  <th>Banco / Tabela</th>
-                  <th>Valor</th>
-                  <th>Valor final</th>
-                  <th>Data / Digitação</th>
-                  <th>Status</th>
-                  <th>Ações</th>
+                  <th>CONSULTORA</th>
+                  <th>CLIENTE</th>
+                  <th>PRODUTO</th>
+                  <th>BANCO / TABELA</th>
+                  <th>VALOR</th>
+                  <th>VALOR FINAL</th>
+                  <th>DATA / DIGITAÇÃO</th>
+                  <th>STATUS</th>
+                  <th>AÇÕES</th>
                 </tr>
               </thead>
 
@@ -1389,14 +1583,14 @@ for (const documento of documentos) {
                             </button>
                           )}
 
-                        {proposta.status === "PROPOSTA DIGITADA" && (
+                        {podeCancelarProposta && (
                           <button
                             type="button"
-                            title="Excluir proposta digitada"
+                            title="Excluir proposta"
                             aria-label={`Excluir proposta de ${proposta.cliente}`}
                             disabled={salvando}
                             onClick={() =>
-                              void excluirPropostaDigitada(proposta)
+                              void excluirProposta(proposta)
                             }
                             style={{
                               color: "#b42318",
@@ -1911,14 +2105,35 @@ for (const documento of documentos) {
               Selecione a tabela
             </option>
 
-            {TABELAS.map((tabela) => (
-              <option
-                key={tabela.nome}
-                value={tabela.nome}
-              >
-                {tabela.nome} — {tabela.percentual}%
-              </option>
-            ))}
+            {form.tabela &&
+              !tabelas.some(
+                (tabela) =>
+                  normalizarTabela(
+                    nomeCompletoTabela(tabela),
+                  ) === normalizarTabela(form.tabela),
+              ) && (
+                <option value={form.tabela}>
+                  {form.tabela} — {editando?.percentualTabela || 0}% (histórica)
+                </option>
+              )}
+
+            {tabelas.map((tabela) => {
+              const nomeTabela =
+                nomeCompletoTabela(tabela);
+
+              return (
+                <option
+                  key={tabela.id}
+                  value={nomeTabela}
+                >
+                  {nomeTabela}
+                  {tabela.codigo
+                    ? ` ${tabela.codigo}`
+                    : ""}{" "}
+                  — {tabela.percentual}%
+                </option>
+              );
+            })}
           </select>
         </label>
 

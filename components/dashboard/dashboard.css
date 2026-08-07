@@ -627,3 +627,783 @@
   gap: 10px;
 }
 }
+/* DASHBOARD — BOTÃO VER + MODAL DE PROPOSTAS */
+
+.eleva-table-view-button {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid #dbe4ef;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #1756ef;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.eleva-table-view-button:hover {
+  background: #eef4ff;
+  border-color: #aac2ff;
+  transform: translateY(-1px);
+}
+
+.eleva-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+.eleva-detail-modal {
+  width: min(1180px, 96vw);
+  max-height: 86vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #dfe6f1;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 28px 90px rgba(15, 23, 42, 0.28);
+}
+
+.eleva-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 24px;
+  border-bottom: 1px solid #e5eaf2;
+}
+
+.eleva-detail-head > div > span {
+  display: block;
+  color: #1756ef;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+}
+
+.eleva-detail-head h3 {
+  margin: 5px 0 0;
+  color: #071b4d;
+  font-size: 23px;
+}
+
+.eleva-detail-head p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.eleva-detail-head > button {
+  width: 40px;
+  height: 40px;
+  border: 1px solid #e1e7ef;
+  border-radius: 10px;
+  background: #f7f9fc;
+  color: #0f172a;
+  font-size: 23px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.eleva-detail-table-wrap {
+  overflow: auto;
+  padding: 18px 20px 22px;
+}
+
+.eleva-detail-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
+
+.eleva-detail-table thead {
+  background: #f6f8fc;
+}
+
+.eleva-detail-table th {
+  padding: 13px 14px;
+  text-align: left;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.eleva-detail-table td {
+  padding: 14px;
+  border-top: 1px solid #e9edf4;
+  color: #15203d;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.eleva-detail-table td strong,
+.eleva-detail-table td small {
+  display: block;
+}
+
+.eleva-detail-table td small {
+  margin-top: 4px;
+  color: #8490a8;
+  font-size: 10px;
+}
+
+.eleva-detail-table .final-value {
+  color: #069b55;
+  font-weight: 900;
+}
+
+.eleva-detail-empty {
+  padding: 34px !important;
+  text-align: center;
+  color: #7b8498 !important;
+}
+
+@media (max-width: 760px) {
+  .eleva-detail-overlay {
+    padding: 10px;
+  }
+
+  .eleva-detail-modal {
+    width: 100%;
+    max-height: 92vh;
+    border-radius: 15px;
+  }
+
+  .eleva-detail-head {
+    padding: 17px;
+  }
+
+  .eleva-detail-table-wrap {
+    padding: 10px;
+  }
+}
+/* DASHBOARD — BOTÃO VER + MODAL DE PROPOSTAS */
+
+.eleva-table-view-button {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid #dbe4ef;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #1756ef;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.eleva-table-view-button:hover {
+  background: #eef4ff;
+  border-color: #aac2ff;
+  transform: translateY(-1px);
+}
+
+.eleva-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+.eleva-detail-modal {
+  width: min(1180px, 96vw);
+  max-height: 86vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #dfe6f1;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 28px 90px rgba(15, 23, 42, 0.28);
+}
+
+.eleva-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 24px;
+  border-bottom: 1px solid #e5eaf2;
+}
+
+.eleva-detail-head > div > span {
+  display: block;
+  color: #1756ef;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+}
+
+.eleva-detail-head h3 {
+  margin: 5px 0 0;
+  color: #071b4d;
+  font-size: 23px;
+}
+
+.eleva-detail-head p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.eleva-detail-head > button {
+  width: 40px;
+  height: 40px;
+  border: 1px solid #e1e7ef;
+  border-radius: 10px;
+  background: #f7f9fc;
+  color: #0f172a;
+  font-size: 23px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.eleva-detail-table-wrap {
+  overflow: auto;
+  padding: 18px 20px 22px;
+}
+
+.eleva-detail-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
+
+.eleva-detail-table thead {
+  background: #f6f8fc;
+}
+
+.eleva-detail-table th {
+  padding: 13px 14px;
+  text-align: left;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.eleva-detail-table td {
+  padding: 14px;
+  border-top: 1px solid #e9edf4;
+  color: #15203d;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.eleva-detail-table td strong,
+.eleva-detail-table td small {
+  display: block;
+}
+
+.eleva-detail-table td small {
+  margin-top: 4px;
+  color: #8490a8;
+  font-size: 10px;
+}
+
+.eleva-detail-table .final-value {
+  color: #069b55;
+  font-weight: 900;
+}
+
+.eleva-detail-empty {
+  padding: 34px !important;
+  text-align: center;
+  color: #7b8498 !important;
+}
+
+@media (max-width: 760px) {
+  .eleva-detail-overlay {
+    padding: 10px;
+  }
+
+  .eleva-detail-modal {
+    width: 100%;
+    max-height: 92vh;
+    border-radius: 15px;
+  }
+
+  .eleva-detail-head {
+    padding: 17px;
+  }
+
+  .eleva-detail-table-wrap {
+    padding: 10px;
+  }
+}
+
+
+/* DASHBOARD — REFINAMENTO PROFISSIONAL */
+
+.eleva-kpi-clickable {
+  position: relative;
+}
+
+.eleva-kpi-link {
+  margin-left: auto;
+  align-self: center;
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid #dbe5f6;
+  border-radius: 9px;
+  background: #f8fbff;
+  color: #1655e8;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.eleva-kpi-link:hover {
+  background: #edf4ff;
+  border-color: #aec6ff;
+}
+
+.eleva-kpi-link.danger {
+  color: #c62828;
+  background: #fff7f7;
+  border-color: #ffd3d3;
+}
+
+.eleva-kpi-icon.red {
+  background: #feecec;
+  color: #d32f2f;
+}
+
+.eleva-rank-position {
+  font-size: 15px;
+}
+
+.eleva-cancel-count {
+  color: #d32f2f;
+}
+
+.eleva-chart {
+  min-height: 390px;
+}
+
+.eleva-chart-area {
+  min-height: 315px;
+}
+
+.eleva-chart-track {
+  min-height: 215px;
+}
+
+.eleva-dashboard-table th:last-child,
+.eleva-dashboard-table td:last-child {
+  text-align: center;
+}
+
+@media (max-width: 1180px) {
+  .eleva-kpi-link {
+    margin-left: 0;
+  }
+}
+/* DASHBOARD — BOTÃO VER + MODAL DE PROPOSTAS */
+
+.eleva-table-view-button {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid #dbe4ef;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #1756ef;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.eleva-table-view-button:hover {
+  background: #eef4ff;
+  border-color: #aac2ff;
+  transform: translateY(-1px);
+}
+
+.eleva-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+.eleva-detail-modal {
+  width: min(1180px, 96vw);
+  max-height: 86vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #dfe6f1;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 28px 90px rgba(15, 23, 42, 0.28);
+}
+
+.eleva-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 24px;
+  border-bottom: 1px solid #e5eaf2;
+}
+
+.eleva-detail-head > div > span {
+  display: block;
+  color: #1756ef;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+}
+
+.eleva-detail-head h3 {
+  margin: 5px 0 0;
+  color: #071b4d;
+  font-size: 23px;
+}
+
+.eleva-detail-head p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.eleva-detail-head > button {
+  width: 40px;
+  height: 40px;
+  border: 1px solid #e1e7ef;
+  border-radius: 10px;
+  background: #f7f9fc;
+  color: #0f172a;
+  font-size: 23px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.eleva-detail-table-wrap {
+  overflow: auto;
+  padding: 18px 20px 22px;
+}
+
+.eleva-detail-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
+
+.eleva-detail-table thead {
+  background: #f6f8fc;
+}
+
+.eleva-detail-table th {
+  padding: 13px 14px;
+  text-align: left;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.eleva-detail-table td {
+  padding: 14px;
+  border-top: 1px solid #e9edf4;
+  color: #15203d;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.eleva-detail-table td strong,
+.eleva-detail-table td small {
+  display: block;
+}
+
+.eleva-detail-table td small {
+  margin-top: 4px;
+  color: #8490a8;
+  font-size: 10px;
+}
+
+.eleva-detail-table .final-value {
+  color: #069b55;
+  font-weight: 900;
+}
+
+.eleva-detail-empty {
+  padding: 34px !important;
+  text-align: center;
+  color: #7b8498 !important;
+}
+
+@media (max-width: 760px) {
+  .eleva-detail-overlay {
+    padding: 10px;
+  }
+
+  .eleva-detail-modal {
+    width: 100%;
+    max-height: 92vh;
+    border-radius: 15px;
+  }
+
+  .eleva-detail-head {
+    padding: 17px;
+  }
+
+  .eleva-detail-table-wrap {
+    padding: 10px;
+  }
+}
+
+
+/* DASHBOARD — REFINAMENTO PROFISSIONAL */
+
+.eleva-kpi-clickable {
+  position: relative;
+}
+
+.eleva-kpi-link {
+  margin-left: auto;
+  align-self: center;
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid #dbe5f6;
+  border-radius: 9px;
+  background: #f8fbff;
+  color: #1655e8;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.eleva-kpi-link:hover {
+  background: #edf4ff;
+  border-color: #aec6ff;
+}
+
+.eleva-kpi-link.danger {
+  color: #c62828;
+  background: #fff7f7;
+  border-color: #ffd3d3;
+}
+
+.eleva-kpi-icon.red {
+  background: #feecec;
+  color: #d32f2f;
+}
+
+.eleva-rank-position {
+  font-size: 15px;
+}
+
+.eleva-cancel-count {
+  color: #d32f2f;
+}
+
+.eleva-chart {
+  min-height: 390px;
+}
+
+.eleva-chart-area {
+  min-height: 315px;
+}
+
+.eleva-chart-track {
+  min-height: 215px;
+}
+
+.eleva-dashboard-table th:last-child,
+.eleva-dashboard-table td:last-child {
+  text-align: center;
+}
+
+@media (max-width: 1180px) {
+  .eleva-kpi-link {
+    margin-left: 0;
+  }
+}
+
+
+/* =========================================================
+   DASHBOARD FINAL — ACABAMENTO
+   ========================================================= */
+
+.eleva-dashboard-kpis article {
+  min-width: 0;
+}
+
+.eleva-kpi-link {
+  padding: 0 12px;
+}
+
+.eleva-table-view-button {
+  min-width: 96px;
+  background: #f7faff;
+  border-color: #cbdafb;
+  color: #1254e8;
+}
+
+.eleva-dashboard-table th,
+.eleva-dashboard-table td {
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+}
+
+.eleva-dashboard-table tbody tr {
+  height: 52px;
+}
+
+.eleva-dashboard-table td small {
+  margin-top: 2px;
+  line-height: 1.15;
+}
+
+.eleva-dual-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.eleva-mini-chart-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #e0e7f1;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.eleva-mini-chart-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 18px 0;
+}
+
+.eleva-mini-chart-head span {
+  color: #1454ed;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.eleva-mini-chart-head h4 {
+  margin: 5px 0 0;
+  color: #071b4d;
+  font-size: 15px;
+}
+
+.eleva-mini-chart-head > strong {
+  color: #0a43cc;
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+.eleva-chart-compact {
+  min-height: 285px !important;
+  margin-top: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.eleva-chart-compact .eleva-chart-area {
+  min-height: 245px !important;
+  padding: 18px 10px 12px !important;
+}
+
+.eleva-chart-compact .eleva-chart-track {
+  min-height: 155px !important;
+}
+
+.eleva-chart-compact .eleva-chart-values strong {
+  font-size: 10px;
+}
+
+.eleva-chart-compact .eleva-chart-name strong {
+  max-width: 82px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+}
+
+.eleva-detail-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px 20px 0;
+}
+
+.eleva-detail-summary article {
+  padding: 14px;
+  border: 1px solid #e2e8f2;
+  border-radius: 12px;
+  background: #f8faff;
+}
+
+.eleva-detail-summary span,
+.eleva-detail-summary strong {
+  display: block;
+}
+
+.eleva-detail-summary span {
+  color: #72809a;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.eleva-detail-summary strong {
+  margin-top: 6px;
+  color: #071b4d;
+  font-size: 17px;
+}
+
+.eleva-detail-summary article.danger {
+  border-color: #ffd3d3;
+  background: #fff7f7;
+}
+
+.eleva-detail-summary article.danger strong {
+  color: #c62828;
+}
+
+@media (max-width: 1100px) {
+  .eleva-dual-charts {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .eleva-detail-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 12px 12px 0;
+  }
+}

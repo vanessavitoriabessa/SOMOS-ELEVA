@@ -2129,7 +2129,7 @@ function cancelarEdicao() {
 
   <article className="operations-summary-highlight">
     <span>
-      Valor pago Compra de Dívida
+      Valor bruto pago
     </span>
 
     <strong>
