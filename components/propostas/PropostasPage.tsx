@@ -1,8 +1,8 @@
 "use client";
 
-import ProposalTable from "./ProposalTable";
+import ProposalTable, { type PropostaTabela } from "./ProposalTable";
 import ProposalStatus from "./ProposalStatus";
-import ProposalFilters from "./ProposalFilters";
+import ProposalFilters, { type PeriodoProposta } from "./ProposalFilters";
 import ProposalStats from "./ProposalStats";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
@@ -30,8 +30,12 @@ type ClienteCadastrado = {
   status?: string;
 };
 type TabelaCompraDivida = {
+  id: string;
+  banco: string;
   nome: string;
+  codigo: string;
   percentual: number;
+  ativo: boolean;
 };
 
 type Proposta = {
@@ -62,6 +66,9 @@ type Proposta = {
   status: StatusProposta;
   dataCadastro: string;
   dataPagamento: string;
+  motivoCancelamento: string;
+  dataCancelamento?: string;
+  canceladoPor?: string;
   observacao: string;
 };
 
@@ -89,6 +96,7 @@ type FormularioProposta = {
   status: StatusProposta;
   dataDigitacao: string;
   dataPagamento: string;
+  motivoCancelamento: string;
   observacao: string;
 };
 
@@ -104,12 +112,55 @@ const STATUS: StatusProposta[] = [
   "Cancelado",
 ];
 
-const TABELAS_COMPRA_DIVIDA: TabelaCompraDivida[] = [
-  { nome: "NEO NORMAL", percentual: 100 },
-  { nome: "NEO FLEX 1", percentual: 82 },
-  { nome: "NEO FLEX 2", percentual: 67 },
-  { nome: "NEO FLEX 4", percentual: 37 },
-  { nome: "NEO FLEX 5", percentual: 17 },
+const TABELAS_COMPRA_DIVIDA_PADRAO: TabelaCompraDivida[] = [
+  {
+    id: "neo-normal-399",
+    banco: "NEO",
+    nome: "NORMAL",
+    codigo: "399",
+    percentual: 100,
+    ativo: true,
+  },
+  {
+    id: "neo-flex-1-379",
+    banco: "NEO",
+    nome: "FLEX 1",
+    codigo: "379",
+    percentual: 75,
+    ativo: true,
+  },
+  {
+    id: "neo-flex-2-359",
+    banco: "NEO",
+    nome: "FLEX 2",
+    codigo: "359",
+    percentual: 50,
+    ativo: true,
+  },
+  {
+    id: "neo-flex-3-339",
+    banco: "NEO",
+    nome: "FLEX 3",
+    codigo: "339",
+    percentual: 40,
+    ativo: true,
+  },
+  {
+    id: "neo-flex-4-319",
+    banco: "NEO",
+    nome: "FLEX 4",
+    codigo: "319",
+    percentual: 20,
+    ativo: true,
+  },
+  {
+    id: "neo-flex-5-299",
+    banco: "NEO",
+    nome: "FLEX 5",
+    codigo: "299",
+    percentual: 8,
+    ativo: true,
+  },
 ];
 
 const formularioVazio: FormularioProposta = {
@@ -121,16 +172,28 @@ const formularioVazio: FormularioProposta = {
   status: "Solicitado",
   dataDigitacao: hojeIso(),
   dataPagamento: "",
+  motivoCancelamento: "",
   observacao: "",
 };
 
 function numero(valor: string) {
-  const limpo = valor
-    .replace(/[^\d,.-]/g, "")
-    .replace(/\./g, "")
-    .replace(",", ".");
+  const texto = String(valor || "")
+    .trim()
+    .replace(/[^\d,.-]/g, "");
 
-  const convertido = Number(limpo);
+  if (!texto) return 0;
+
+  let normalizado = texto;
+
+  if (texto.includes(",") && texto.includes(".")) {
+    normalizado = texto
+      .replace(/\./g, "")
+      .replace(",", ".");
+  } else if (texto.includes(",")) {
+    normalizado = texto.replace(",", ".");
+  }
+
+  const convertido = Number(normalizado);
 
   return Number.isFinite(convertido) ? convertido : 0;
 }
@@ -215,94 +278,218 @@ function normalizarTexto(valor: string) {
     .toLowerCase();
 }
 
-function tabelaPeloNome(nome: string) {
-  const nomeNormalizado = normalizarTexto(nome);
+function nomeCanonicoTabela(
+  banco: string,
+  nome: string,
+) {
+  const bancoLimpo = String(banco || "").trim().toUpperCase();
+  const nomeLimpo = String(nome || "").trim().toUpperCase();
 
-  return TABELAS_COMPRA_DIVIDA.find((item) => {
-    const tabelaNormalizada = normalizarTexto(item.nome);
+  if (!nomeLimpo) return "";
+
+  if (
+    bancoLimpo === "NEO" &&
+    !nomeLimpo.startsWith("NEO ")
+  ) {
+    return `NEO ${nomeLimpo}`;
+  }
+
+  return nomeLimpo;
+}
+
+function nomeExibicaoTabela(
+  tabela: TabelaCompraDivida,
+) {
+  const nome = nomeCanonicoTabela(
+    tabela.banco,
+    tabela.nome,
+  );
+
+  const codigo = tabela.codigo
+    ? ` ${tabela.codigo}`
+    : "";
+
+  return `${nome}${codigo}`;
+}
+
+function tabelaPeloNome(
+  nome: string,
+  tabelas: TabelaCompraDivida[],
+) {
+  const nomeNormalizado =
+    normalizarTexto(nome);
+
+  return tabelas.find((item) => {
+    const canonico = nomeCanonicoTabela(
+      item.banco,
+      item.nome,
+    );
+
+    const tabelaNormalizada =
+      normalizarTexto(canonico);
+
+    const exibicaoNormalizada =
+      normalizarTexto(
+        nomeExibicaoTabela(item),
+      );
 
     return (
       nomeNormalizado === tabelaNormalizada ||
-      nomeNormalizado.startsWith(tabelaNormalizada)
+      nomeNormalizado === exibicaoNormalizada ||
+      nomeNormalizado.startsWith(
+        tabelaNormalizada,
+      )
     );
   });
 }
 
-function percentualDaTabela(tabela: string, percentualSalvo: unknown) {
-  const tabelaEncontrada = tabelaPeloNome(tabela);
+function percentualSalvoDaProposta(
+  percentualSalvo: unknown,
+  tabela: string,
+) {
+  const salvo = Number(
+    percentualSalvo || 0,
+  );
 
-  if (tabelaEncontrada) {
-    return tabelaEncontrada.percentual;
+  if (
+    Number.isFinite(salvo) &&
+    salvo > 0
+  ) {
+    return salvo;
   }
 
-  const percentualNoNome = String(tabela || "").match(/(\d+(?:[.,]\d+)?)\s*%/);
+  const percentualNoNome =
+    String(tabela || "").match(
+      /(\\d+(?:[.,]\\d+)?)\\s*%/,
+    );
 
   if (percentualNoNome) {
-    const percentual = Number(percentualNoNome[1].replace(",", "."));
+    const percentual = Number(
+      percentualNoNome[1].replace(
+        ",",
+        ".",
+      ),
+    );
 
-    if (Number.isFinite(percentual)) {
+    if (
+      Number.isFinite(percentual)
+    ) {
       return percentual;
     }
   }
 
-  const percentual = Number(percentualSalvo || 0);
-
-  const permitido = TABELAS_COMPRA_DIVIDA.some(
-    (item) => Math.abs(item.percentual - percentual) < 0.01,
-  );
-
-  return permitido ? percentual : 0;
+  return 0;
 }
 
-function nomeLimpoDaTabela(tabela: string) {
-  return (
-    tabelaPeloNome(tabela)?.nome ||
-    String(tabela || "")
-      .replace(/\s*[-–—]\s*\d+(?:[.,]\d+)?\s*%/g, "")
-      .trim()
-  );
+function nomeLimpoDaTabela(
+  tabela: string,
+) {
+  return String(tabela || "")
+    .replace(
+      /\\s*[-–—]\\s*\\d+(?:[.,]\\d+)?\\s*%/g,
+      "",
+    )
+    .trim();
 }
 
 function normalizarProposta(
-  item: Partial<Proposta> & Record<string, unknown>,
+  item: Partial<Proposta> &
+    Record<string, unknown>,
 ): Proposta {
-  const valorContrato = Number(item.valorContrato ?? item.valorOperacao ?? 0);
+  const valorContrato = Number(
+    item.valorContrato ??
+      item.valorOperacao ??
+      0,
+  );
 
-  const tabela = nomeLimpoDaTabela(String(item.tabela || ""));
+  const tabela =
+    nomeLimpoDaTabela(
+      String(item.tabela || ""),
+    );
 
-  const percentualTabela = percentualDaTabela(
-    String(item.tabela || ""),
-    item.percentualTabela,
+  const percentualTabela =
+    percentualSalvoDaProposta(
+      item.percentualTabela,
+      String(item.tabela || ""),
+    );
+
+  const valorMetaSalvo = Number(
+    item.valorMeta ??
+      item.valorLiquido ??
+      0,
   );
 
   const valorMeta =
-    Number.isFinite(valorContrato) && percentualTabela > 0
-      ? valorContrato * (percentualTabela / 100)
-      : 0;
+    Number.isFinite(valorMetaSalvo) &&
+    valorMetaSalvo > 0
+      ? valorMetaSalvo
+      : Number.isFinite(valorContrato) &&
+          percentualTabela > 0
+        ? valorContrato *
+          (percentualTabela / 100)
+        : 0;
 
   return {
-    id: String(item.id || crypto.randomUUID()),
-    clienteId: String(item.clienteId || ""),
-    cliente: String(item.cliente || ""),
-    cpf: apenasNumeros(String(item.cpf || "")),
-    telefone: apenasNumeros(String(item.telefone || "")),
-    vendedora: String(item.vendedora || item.consultora || ""),
-    banco: String(item.banco || ""),
+    id: String(
+      item.id ||
+        crypto.randomUUID(),
+    ),
+    clienteId: String(
+      item.clienteId || "",
+    ),
+    cliente: String(
+      item.cliente || "",
+    ),
+    cpf: apenasNumeros(
+      String(item.cpf || ""),
+    ),
+    telefone: apenasNumeros(
+      String(item.telefone || ""),
+    ),
+    vendedora: String(
+      item.vendedora ||
+        item.consultora ||
+        "",
+    ),
+    banco: String(
+      item.banco || "",
+    ),
     tabela,
     percentualTabela,
-    valorContrato: Number.isFinite(valorContrato) ? valorContrato : 0,
+    valorContrato:
+      Number.isFinite(valorContrato)
+        ? valorContrato
+        : 0,
     valorMeta,
 
-    // Valores antigos são zerados para não serem confundidos com premiação.
     comissao: 0,
     premiacao: 0,
 
-    status: STATUS.includes(item.status as StatusProposta)
+    status: STATUS.includes(
+      item.status as StatusProposta,
+    )
       ? (item.status as StatusProposta)
       : "Solicitado",
-    dataCadastro: String(item.dataCadastro || ""),
-    dataPagamento: String(item.dataPagamento || ""),
-    observacao: String(item.observacao || item.observacoes || ""),
+    dataCadastro: String(
+      item.dataCadastro || "",
+    ),
+    dataPagamento: String(
+      item.dataPagamento || "",
+    ),
+    motivoCancelamento: String(
+      item.motivoCancelamento || "",
+    ),
+    dataCancelamento: String(
+      item.dataCancelamento || "",
+    ),
+    canceladoPor: String(
+      item.canceladoPor || "",
+    ),
+    observacao: String(
+      item.observacao ||
+        item.observacoes ||
+        "",
+    ),
   };
 }
 
@@ -319,6 +506,13 @@ export default function ProposalManager() {
 
   const [consultoras, setConsultoras] = useState<string[]>([]);
 
+  const [
+    tabelasCompraDivida,
+    setTabelasCompraDivida,
+  ] = useState<TabelaCompraDivida[]>(
+    TABELAS_COMPRA_DIVIDA_PADRAO,
+  );
+
   const [perfilAtual, setPerfilAtual] = useState<PerfilAtual | null>(null);
 
   const [form, setForm] = useState<FormularioProposta>(formularioVazio);
@@ -326,6 +520,15 @@ export default function ProposalManager() {
   const [busca, setBusca] = useState("");
 
   const [filtroStatus, setFiltroStatus] = useState("Todos");
+  const [periodoFiltro, setPeriodoFiltro] =
+    useState<PeriodoProposta>("Este mês");
+  const [dataInicialFiltro, setDataInicialFiltro] = useState("");
+  const [dataFinalFiltro, setDataFinalFiltro] = useState("");
+  const [consultoraFiltro, setConsultoraFiltro] = useState("Todas");
+  const [bancoFiltro, setBancoFiltro] = useState("Todos");
+  const [tabelaFiltro, setTabelaFiltro] = useState("Todas");
+  const [propostaDetalhe, setPropostaDetalhe] =
+    useState<Proposta | null>(null);
 
   const [editandoId, setEditandoId] = useState<string | null>(null);
 
@@ -536,6 +739,127 @@ export default function ProposalManager() {
   }, []);
 
   useEffect(() => {
+    let ativo = true;
+
+    async function carregarTabelasConfiguradas() {
+      try {
+        const { data, error } =
+          await supabase.auth.getSession();
+
+        if (
+          error ||
+          !data.session?.access_token
+        ) {
+          throw new Error(
+            "Sua sessão expirou. Entre novamente no sistema.",
+          );
+        }
+
+        const resposta = await fetch(
+          "/api/configuracoes",
+          {
+            method: "GET",
+            headers: {
+              Authorization:
+                `Bearer ${data.session.access_token}`,
+            },
+            cache: "no-store",
+          },
+        );
+
+        const conteudo =
+          await resposta.json();
+
+        if (!resposta.ok) {
+          throw new Error(
+            conteudo.erro ||
+              "Não foi possível carregar as tabelas.",
+          );
+        }
+
+        const lista =
+          Array.isArray(
+            conteudo.tabelas,
+          )
+            ? conteudo.tabelas
+            : [];
+
+        const normalizadas =
+          lista
+            .map(
+              (
+                item: Partial<TabelaCompraDivida>,
+              ): TabelaCompraDivida => ({
+                id: String(
+                  item.id ||
+                    crypto.randomUUID(),
+                ),
+                banco: String(
+                  item.banco || "NEO",
+                )
+                  .trim()
+                  .toUpperCase(),
+                nome: String(
+                  item.nome || "",
+                )
+                  .trim()
+                  .toUpperCase(),
+                codigo: String(
+                  item.codigo || "",
+                ).trim(),
+                percentual: Number(
+                  item.percentual || 0,
+                ),
+                ativo:
+                  item.ativo !== false,
+              }),
+            )
+            .filter(
+  (item: TabelaCompraDivida) =>
+    item.ativo &&
+    item.nome &&
+    item.percentual > 0,
+);
+
+        if (!ativo) return;
+
+        setTabelasCompraDivida(
+          normalizadas.length
+            ? normalizadas
+            : TABELAS_COMPRA_DIVIDA_PADRAO,
+        );
+      } catch (erro) {
+        console.error(erro);
+
+        if (!ativo) return;
+
+        setTabelasCompraDivida(
+          TABELAS_COMPRA_DIVIDA_PADRAO,
+        );
+      }
+    }
+
+    void carregarTabelasConfiguradas();
+
+    const atualizar = () =>
+      void carregarTabelasConfiguradas();
+
+    window.addEventListener(
+      "focus",
+      atualizar,
+    );
+
+    return () => {
+      ativo = false;
+
+      window.removeEventListener(
+        "focus",
+        atualizar,
+      );
+    };
+  }, [supabase]);
+
+  useEffect(() => {
     void carregarPropostasDoSupabase(true);
   }, [supabase]);
 
@@ -598,8 +922,15 @@ export default function ProposalManager() {
   );
 
   const tabelaSelecionada = useMemo(
-    () => TABELAS_COMPRA_DIVIDA.find((item) => item.nome === form.tabela),
-    [form.tabela],
+    () =>
+      tabelaPeloNome(
+        form.tabela,
+        tabelasCompraDivida,
+      ),
+    [
+      form.tabela,
+      tabelasCompraDivida,
+    ],
   );
 
   const valorContrato = numero(form.valorContrato);
@@ -608,12 +939,133 @@ export default function ProposalManager() {
 
   const valorMeta = valorContrato * (percentualTabela / 100);
 
+  function dataIsoLocal(data: Date) {
+    const ano = data.getFullYear();
+    const mes = String(data.getMonth() + 1).padStart(2, "0");
+    const dia = String(data.getDate()).padStart(2, "0");
+    return `${ano}-${mes}-${dia}`;
+  }
+
+  function intervaloPeriodo(periodo: PeriodoProposta) {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    if (periodo === "Todos") {
+      return {
+        inicio: "",
+        fim: "",
+      };
+    }
+
+    if (periodo === "Personalizado") {
+      return {
+        inicio: dataInicialFiltro,
+        fim: dataFinalFiltro,
+      };
+    }
+
+    if (periodo === "Hoje") {
+      const iso = dataIsoLocal(hoje);
+      return {
+        inicio: iso,
+        fim: iso,
+      };
+    }
+
+    if (periodo === "Esta semana") {
+      const inicio = new Date(hoje);
+      const diaSemana = inicio.getDay();
+      const diferenca = diaSemana === 0 ? -6 : 1 - diaSemana;
+      inicio.setDate(inicio.getDate() + diferenca);
+
+      const fim = new Date(inicio);
+      fim.setDate(fim.getDate() + 6);
+
+      return {
+        inicio: dataIsoLocal(inicio),
+        fim: dataIsoLocal(fim),
+      };
+    }
+
+    const inicioMes = new Date(
+      hoje.getFullYear(),
+      hoje.getMonth(),
+      1,
+    );
+
+    const fimMes = new Date(
+      hoje.getFullYear(),
+      hoje.getMonth() + 1,
+      0,
+    );
+
+    return {
+      inicio: dataIsoLocal(inicioMes),
+      fim: dataIsoLocal(fimMes),
+    };
+  }
+
+  const intervaloFiltro = useMemo(
+    () => intervaloPeriodo(periodoFiltro),
+    [
+      periodoFiltro,
+      dataInicialFiltro,
+      dataFinalFiltro,
+    ],
+  );
+
+  const bancosFiltro = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          propostas
+            .map((item) => item.banco)
+            .filter(Boolean),
+        ),
+      ).sort((a, b) =>
+        a.localeCompare(b, "pt-BR"),
+      ),
+    [propostas],
+  );
+
+  const tabelasFiltro = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          propostas
+            .filter(
+              (item) =>
+                bancoFiltro === "Todos" ||
+                item.banco === bancoFiltro,
+            )
+            .map((item) => item.tabela)
+            .filter(Boolean),
+        ),
+      ).sort((a, b) =>
+        a.localeCompare(b, "pt-BR"),
+      ),
+    [propostas, bancoFiltro],
+  );
+
   const propostasFiltradas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
 
     return propostas.filter((proposta) => {
       const correspondeStatus =
-        filtroStatus === "Todos" || proposta.status === filtroStatus;
+        filtroStatus === "Todos" ||
+        proposta.status === filtroStatus;
+
+      const correspondeConsultora =
+        consultoraFiltro === "Todas" ||
+        proposta.vendedora === consultoraFiltro;
+
+      const correspondeBanco =
+        bancoFiltro === "Todos" ||
+        proposta.banco === bancoFiltro;
+
+      const correspondeTabela =
+        tabelaFiltro === "Todas" ||
+        proposta.tabela === tabelaFiltro;
 
       const correspondeBusca =
         !termo ||
@@ -623,35 +1075,85 @@ export default function ProposalManager() {
         proposta.banco.toLowerCase().includes(termo) ||
         proposta.tabela.toLowerCase().includes(termo);
 
-      return correspondeStatus && correspondeBusca;
+      const data = String(
+        proposta.dataCadastro || "",
+      ).slice(0, 10);
+
+      const correspondePeriodo =
+        (!intervaloFiltro.inicio ||
+          data >= intervaloFiltro.inicio) &&
+        (!intervaloFiltro.fim ||
+          data <= intervaloFiltro.fim);
+
+      return (
+        correspondeStatus &&
+        correspondeConsultora &&
+        correspondeBanco &&
+        correspondeTabela &&
+        correspondeBusca &&
+        correspondePeriodo
+      );
     });
-  }, [propostas, busca, filtroStatus]);
+  }, [
+    propostas,
+    busca,
+    filtroStatus,
+    consultoraFiltro,
+    bancoFiltro,
+    tabelaFiltro,
+    intervaloFiltro,
+  ]);
 
   const resumo = useMemo(() => {
-    const pagas = propostas.filter((item) => item.status === "Pago");
+    const baseResumo = propostasFiltradas;
 
-    const valorPago = pagas.reduce(
-      (total, item) => total + Number(item.valorContrato || 0),
+    const pagas = baseResumo.filter(
+      (item) => item.status === "Pago",
+    );
+
+    const canceladas = baseResumo.filter(
+      (item) => item.status === "Cancelado",
+    );
+
+    const valorBrutoPago = pagas.reduce(
+      (total, item) =>
+        total +
+        Number(item.valorContrato || 0),
       0,
     );
 
-    const producaoValida = pagas.reduce(
-      (total, item) => total + Number(item.valorMeta || 0),
+    const valorLiquidoPago = pagas.reduce(
+      (total, item) =>
+        total +
+        Number(item.valorMeta || 0),
       0,
     );
 
-    const emAndamento = propostas.filter(
-      (item) => item.status !== "Pago" && item.status !== "Cancelado",
+    const producaoDigitada = baseResumo
+      .filter((item) => item.status !== "Cancelado")
+      .reduce(
+        (total, item) =>
+          total +
+          Number(item.valorMeta || 0),
+        0,
+      );
+
+    const emAndamento = baseResumo.filter(
+      (item) =>
+        item.status !== "Pago" &&
+        item.status !== "Cancelado",
     ).length;
 
     return {
-      total: propostas.length,
+      total: baseResumo.length,
       pagas: pagas.length,
+      canceladas: canceladas.length,
       emAndamento,
-      valorPago,
-      producaoValida,
+      valorBrutoPago,
+      valorLiquidoPago,
+      producaoDigitada,
     };
-  }, [propostas]);
+  }, [propostasFiltradas]);
 
   async function enviar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -697,6 +1199,49 @@ export default function ProposalManager() {
       return;
     }
 
+    if (form.status === "Cancelado" && !form.motivoCancelamento.trim()) {
+      setMensagem("Informe o motivo do cancelamento.");
+      return;
+    }
+
+    const propostaAnterior =
+      editandoId
+        ? propostas.find(
+            (item) =>
+              item.id === editandoId,
+          )
+        : undefined;
+
+    const valorFoiCorrigido =
+      Boolean(propostaAnterior) &&
+      Math.abs(
+        Number(
+          propostaAnterior?.valorContrato ||
+            0,
+        ) - valorContrato,
+      ) > 0.009;
+
+    const observacaoFinal =
+      valorFoiCorrigido &&
+      propostaAnterior?.status ===
+        "Cancelado"
+        ? [
+            form.observacao.trim(),
+            `CORREÇÃO DE VALOR EM ${new Date().toLocaleString(
+              "pt-BR",
+            )}: ${moeda(
+              Number(
+                propostaAnterior.valorContrato ||
+                  0,
+              ),
+            )} → ${moeda(
+              valorContrato,
+            )}.`,
+          ]
+            .filter(Boolean)
+            .join("\n")
+        : form.observacao.trim();
+
     const proposta: Proposta = {
       id: editandoId || crypto.randomUUID(),
       clienteId: clienteSelecionado.id,
@@ -705,7 +1250,10 @@ export default function ProposalManager() {
       telefone: clienteSelecionado.telefone,
       vendedora: consultoraResponsavel,
       banco: form.banco.trim(),
-      tabela: tabelaSelecionada.nome,
+      tabela: nomeCanonicoTabela(
+        tabelaSelecionada.banco,
+        tabelaSelecionada.nome,
+      ),
       percentualTabela: tabelaSelecionada.percentual,
       valorContrato,
       valorMeta,
@@ -714,7 +1262,23 @@ export default function ProposalManager() {
       status: form.status,
       dataCadastro: form.dataDigitacao,
       dataPagamento: form.status === "Pago" ? form.dataPagamento : "",
-      observacao: form.observacao.trim(),
+      motivoCancelamento:
+        form.status === "Cancelado" ? form.motivoCancelamento.trim() : "",
+      observacao: observacaoFinal,
+    };
+
+    /*
+     * A API utiliza PAGO e CANCELADA em letras maiúsculas.
+     * A tela continua exibindo Pago e Cancelado para o usuário.
+     */
+    const propostaParaApi = {
+      ...proposta,
+      status:
+        form.status === "Pago"
+          ? "PAGO"
+          : form.status === "Cancelado"
+            ? "CANCELADA"
+            : form.status,
     };
 
     const estavaEditando = Boolean(editandoId);
@@ -722,9 +1286,12 @@ export default function ProposalManager() {
     setProcessando(true);
 
     try {
-      await chamarApiPropostas(estavaEditando ? "PATCH" : "POST", {
-        proposta,
-      });
+      await chamarApiPropostas(
+  estavaEditando ? "PATCH" : "POST",
+  {
+    proposta: propostaParaApi,
+  }
+);
 
       await carregarPropostasDoSupabase(false);
 
@@ -766,7 +1333,10 @@ export default function ProposalManager() {
   function editar(proposta: Proposta) {
     const cliente = localizarClienteDaProposta(proposta);
 
-    const tabela = tabelaPeloNome(proposta.tabela);
+    const tabela = tabelaPeloNome(
+      proposta.tabela,
+      tabelasCompraDivida,
+    );
 
     setEditandoId(proposta.id);
 
@@ -781,6 +1351,7 @@ export default function ProposalManager() {
       status: proposta.status,
       dataDigitacao: dataParaInput(proposta.dataCadastro) || hojeIso(),
       dataPagamento: dataParaInput(proposta.dataPagamento),
+      motivoCancelamento: proposta.motivoCancelamento || "",
       observacao: proposta.observacao || "",
     });
 
@@ -836,12 +1407,21 @@ export default function ProposalManager() {
   <div className="proposal-page">
 
     <ProposalStats
-  total={resumo.total}
-  andamento={resumo.emAndamento}
-  pagos={resumo.pagas}
-  valorPago={resumo.valorPago}
-  producao={resumo.producaoValida}
-/>
+      pagos={resumo.pagas}
+      valorBrutoPago={resumo.valorBrutoPago}
+      valorLiquidoPago={resumo.valorLiquidoPago}
+      producaoDigitada={resumo.producaoDigitada}
+      andamento={resumo.emAndamento}
+      canceladas={resumo.canceladas}
+      onVerPagas={() => {
+        setFiltroStatus("Pago");
+        setPropostaDetalhe(null);
+      }}
+      onVerCanceladas={() => {
+        setFiltroStatus("Cancelado");
+        setPropostaDetalhe(null);
+      }}
+    />
 
     <section className="proposal-layout">
   <form className="proposal-form" onSubmit={enviar}>
@@ -968,11 +1548,43 @@ export default function ProposalManager() {
               >
                 <option value="">Selecione a tabela</option>
 
-                {TABELAS_COMPRA_DIVIDA.map((tabela) => (
-                  <option key={tabela.nome} value={tabela.nome}>
-                    {tabela.nome} — {formatarPercentual(tabela.percentual)}
-                  </option>
-                ))}
+                {form.tabela &&
+                  !tabelasCompraDivida.some(
+                    (tabela) =>
+                      normalizarTexto(
+                        nomeCanonicoTabela(
+                          tabela.banco,
+                          tabela.nome,
+                        ),
+                      ) ===
+                      normalizarTexto(
+                        form.tabela,
+                      ),
+                  ) && (
+                    <option value={form.tabela}>
+                      {form.tabela} — tabela histórica
+                    </option>
+                  )}
+
+                {tabelasCompraDivida.map((tabela) => {
+                  const nomeTabela =
+                    nomeCanonicoTabela(
+                      tabela.banco,
+                      tabela.nome,
+                    );
+
+                  return (
+                    <option
+                      key={tabela.id}
+                      value={nomeTabela}
+                    >
+                      {nomeExibicaoTabela(tabela)} —{" "}
+                      {formatarPercentual(
+                        tabela.percentual,
+                      )}
+                    </option>
+                  );
+                })}
               </select>
             </label>
 
@@ -1015,6 +1627,10 @@ export default function ProposalManager() {
                     dataPagamento:
                       event.target.value === "Pago"
                         ? form.dataPagamento || hojeIso()
+                        : "",
+                    motivoCancelamento:
+                      event.target.value === "Cancelado"
+                        ? form.motivoCancelamento
                         : "",
                   })
                 }
@@ -1060,6 +1676,41 @@ export default function ProposalManager() {
               </div>
             </div>
           </section>
+
+          {editandoId &&
+            form.status === "Cancelado" && (
+              <div className="proposal-message">
+                Esta proposta está cancelada. Você pode corrigir o valor do contrato,
+                a tabela, o banco e as demais informações sem reativá-la. Ao salvar,
+                ela continuará com status Cancelado.
+              </div>
+            )}
+
+          {form.status === "Cancelado" && (
+            <section className="paid-section">
+              <div className="paid-section-heading">
+                <div>
+                  <span>CANCELAMENTO</span>
+                  <h3>Motivo do cancelamento</h3>
+                </div>
+              </div>
+
+              <label className="proposal-observation">
+                Motivo obrigatório
+                <textarea
+                  value={form.motivoCancelamento}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      motivoCancelamento: event.target.value,
+                    })
+                  }
+                  placeholder="Ex.: proposta criada somente para teste"
+                  required
+                />
+              </label>
+            </section>
+          )}
 
           {form.status === "Pago" && (
             <section className="paid-section">
@@ -1144,12 +1795,30 @@ export default function ProposalManager() {
           </div>
 
           <ProposalFilters
-  busca={busca}
-  filtroStatus={filtroStatus}
-  status={STATUS}
-  onBuscaChange={setBusca}
-  onStatusChange={setFiltroStatus}
-/>
+            busca={busca}
+            filtroStatus={filtroStatus}
+            status={STATUS}
+            periodo={periodoFiltro}
+            dataInicial={dataInicialFiltro}
+            dataFinal={dataFinalFiltro}
+            consultora={consultoraFiltro}
+            banco={bancoFiltro}
+            tabela={tabelaFiltro}
+            consultoras={consultoras}
+            bancos={bancosFiltro}
+            tabelas={tabelasFiltro}
+            onBuscaChange={setBusca}
+            onStatusChange={setFiltroStatus}
+            onPeriodoChange={setPeriodoFiltro}
+            onDataInicialChange={setDataInicialFiltro}
+            onDataFinalChange={setDataFinalFiltro}
+            onConsultoraChange={setConsultoraFiltro}
+            onBancoChange={(valor) => {
+              setBancoFiltro(valor);
+              setTabelaFiltro("Todas");
+            }}
+            onTabelaChange={setTabelaFiltro}
+          />
 
           {carregando ? (
   <div className="proposal-empty">
@@ -1169,11 +1838,16 @@ export default function ProposalManager() {
   </div>
 ) : (
   <ProposalTable
-  propostas={propostasFiltradas}
-  processando={processando}
-  onEditar={(proposta) => editar(proposta as Proposta)}
-  onExcluir={(id) => void excluir(id)}
-/>
+    propostas={propostasFiltradas}
+    processando={processando}
+    onVer={(proposta) =>
+      setPropostaDetalhe(proposta as Proposta)
+    }
+    onEditar={(proposta) =>
+      editar(proposta as Proposta)
+    }
+    onExcluir={(id) => void excluir(id)}
+  />
 )}
 </section>
 </section>
@@ -1183,11 +1857,180 @@ export default function ProposalManager() {
 
         <span>
           o percentual da tabela define quanto o contrato vale para a meta.
-          Exemplo: contrato de R$ 20.000,00 na tabela de 82% vale R$ 16.400,00
+          Exemplo: contrato de R$ 20.000,00 na tabela de 75% vale R$ 15.000,00
           na produção da consultora. A premiação será calculada no Ranking
           depois da soma da Compra de Dívida com as parcelas do CLT.
         </span>
       </section>
+
+      {propostaDetalhe && (
+        <div
+          className="proposal-detail-overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={() =>
+            setPropostaDetalhe(null)
+          }
+        >
+          <section
+            className="proposal-detail-modal"
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+            <header className="proposal-detail-head">
+              <div>
+                <span>DETALHES DA PROPOSTA</span>
+                <h3>
+                  {propostaDetalhe.cliente ||
+                    "Cliente não informado"}
+                </h3>
+                <p>
+                  {propostaDetalhe.vendedora || "—"} •{" "}
+                  {propostaDetalhe.status}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setPropostaDetalhe(null)
+                }
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="proposal-detail-summary">
+              <article>
+                <span>Valor bruto</span>
+                <strong>
+                  {moeda(
+                    propostaDetalhe.valorContrato,
+                  )}
+                </strong>
+              </article>
+
+              <article>
+                <span>Valor líquido</span>
+                <strong>
+                  {moeda(
+                    propostaDetalhe.valorMeta,
+                  )}
+                </strong>
+              </article>
+
+              <article>
+                <span>Percentual</span>
+                <strong>
+                  {propostaDetalhe.percentualTabela || 0}%
+                </strong>
+              </article>
+
+              <article>
+                <span>Status</span>
+                <strong>
+                  {propostaDetalhe.status}
+                </strong>
+              </article>
+            </div>
+
+            <div className="proposal-detail-grid">
+              <div>
+                <span>CPF</span>
+                <strong>{propostaDetalhe.cpf || "—"}</strong>
+              </div>
+
+              <div>
+                <span>Telefone</span>
+                <strong>{propostaDetalhe.telefone || "—"}</strong>
+              </div>
+
+              <div>
+                <span>Consultora</span>
+                <strong>{propostaDetalhe.vendedora || "—"}</strong>
+              </div>
+
+              <div>
+                <span>Banco</span>
+                <strong>{propostaDetalhe.banco || "—"}</strong>
+              </div>
+
+              <div>
+                <span>Tabela</span>
+                <strong>{propostaDetalhe.tabela || "—"}</strong>
+              </div>
+
+              <div>
+                <span>Data da digitação</span>
+                <strong>
+                  {propostaDetalhe.dataCadastro
+                    ? new Date(
+                        `${propostaDetalhe.dataCadastro.slice(0, 10)}T12:00:00`,
+                      ).toLocaleDateString("pt-BR")
+                    : "—"}
+                </strong>
+              </div>
+
+              <div>
+                <span>Data do pagamento</span>
+                <strong>
+                  {propostaDetalhe.dataPagamento
+                    ? new Date(
+                        `${propostaDetalhe.dataPagamento.slice(0, 10)}T12:00:00`,
+                      ).toLocaleDateString("pt-BR")
+                    : "—"}
+                </strong>
+              </div>
+            </div>
+
+            {(propostaDetalhe.observacao ||
+              propostaDetalhe.motivoCancelamento) && (
+              <div className="proposal-detail-notes">
+                {propostaDetalhe.motivoCancelamento && (
+                  <div>
+                    <span>Motivo do cancelamento</span>
+                    <p>
+                      {propostaDetalhe.motivoCancelamento}
+                    </p>
+                  </div>
+                )}
+
+                {propostaDetalhe.observacao && (
+                  <div>
+                    <span>Observações / histórico</span>
+                    <p>{propostaDetalhe.observacao}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <footer className="proposal-detail-actions">
+              <button
+                type="button"
+                className="secondary"
+                onClick={() =>
+                  setPropostaDetalhe(null)
+                }
+              >
+                Fechar
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const proposta =
+                    propostaDetalhe;
+                  setPropostaDetalhe(null);
+                  editar(proposta);
+                }}
+              >
+                Editar proposta
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
