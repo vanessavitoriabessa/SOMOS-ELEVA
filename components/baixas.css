@@ -603,3 +603,746 @@ tr.selected .baixas-live-action {
     justify-content: center;
   }
 }
+/* =========================================================
+   BAIXA DE PAGAMENTOS — VISUAL EXECUTIVO / ELEVA
+   Cole no FINAL de components/baixas.css
+   Não altera cálculos, filtros ou regras: somente o visual.
+   ========================================================= */
+
+/* Página */
+.baixas-livecred-eleva {
+  --eleva-blue: #1557e8;
+  --eleva-blue-dark: #0d2f67;
+  --eleva-orange: #f47b0b;
+  --eleva-green: #0f9f57;
+  --eleva-border: #dce5f2;
+  --eleva-muted: #71809a;
+  --eleva-bg: #f5f8fd;
+}
+
+/* =========================================================
+   1. CARDS DO TOPO — 5 EM UMA LINHA
+   Ordem visual:
+   COMISSÕES À RECEBER | REC. PARCIAL | TOTAL JÁ RECEBIDO |
+   FINALIZADOS | À RECEBER
+   ========================================================= */
+
+.baixas-resumo-live {
+  display: flex !important;
+  align-items: stretch !important;
+  gap: 14px !important;
+  margin: 0 0 18px !important;
+}
+
+.baixas-resumo-live > article {
+  position: relative;
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  min-height: 142px !important;
+  padding: 20px 20px 17px !important;
+  border: 1px solid var(--eleva-border) !important;
+  border-radius: 15px !important;
+  background: #fff !important;
+  box-shadow: 0 5px 18px rgba(26, 55, 105, .045) !important;
+  overflow: hidden;
+  transition:
+    transform .18s ease,
+    box-shadow .18s ease,
+    border-color .18s ease;
+}
+
+.baixas-resumo-live > article:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 9px 24px rgba(26, 55, 105, .08) !important;
+}
+
+/* Ordem sem alterar o TSX */
+.baixas-resumo-live > article:nth-child(1) { order: 1; }
+.baixas-resumo-live > article.resumo-parcial { order: 2; }
+.baixas-resumo-live > article.resumo-total-recebido { order: 3; }
+.baixas-resumo-live > article.resumo-finalizado { order: 4; }
+.baixas-resumo-live > article:nth-child(2) { order: 5; }
+
+/* Título */
+.baixas-resumo-live > article > span {
+  display: block !important;
+  margin-bottom: 11px !important;
+  color: #53627c !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  letter-spacing: .3px !important;
+  text-transform: uppercase !important;
+}
+
+/* Valor principal */
+.baixas-resumo-live > article > strong {
+  display: block !important;
+  margin-bottom: 8px !important;
+  color: var(--eleva-blue-dark) !important;
+  font-size: clamp(21px, 1.7vw, 29px) !important;
+  font-weight: 950 !important;
+  line-height: 1.08 !important;
+  letter-spacing: -.6px !important;
+}
+
+/* Texto auxiliar */
+.baixas-resumo-live > article > small {
+  display: block !important;
+  max-width: 90% !important;
+  color: var(--eleva-muted) !important;
+  font-size: 9.5px !important;
+  font-weight: 650 !important;
+  line-height: 1.45 !important;
+}
+
+/* Comissão em aberto */
+.baixas-resumo-live > article:nth-child(1) {
+  border-color: #bed1ff !important;
+  background:
+    linear-gradient(145deg, #ffffff 0%, #f5f8ff 100%) !important;
+}
+
+.baixas-resumo-live > article:nth-child(1) > strong {
+  color: var(--eleva-blue) !important;
+}
+
+/* Parcial — deixa o SALDO bem evidente e separado */
+.baixas-resumo-live > article.resumo-parcial {
+  border-color: #ffc98e !important;
+  background:
+    linear-gradient(145deg, #ffffff 0%, #fff8ef 100%) !important;
+}
+
+.baixas-resumo-live > article.resumo-parcial > strong,
+.baixas-resumo-live > article.resumo-parcial > small {
+  color: var(--eleva-orange) !important;
+}
+
+.baixas-resumo-live > article.resumo-parcial > small {
+  margin-top: 3px !important;
+  padding-top: 8px !important;
+  border-top: 1px solid rgba(244, 123, 11, .18) !important;
+  font-weight: 850 !important;
+}
+
+/* Total recebido */
+.baixas-resumo-live > article.resumo-total-recebido {
+  border-color: #bde6cf !important;
+  background:
+    linear-gradient(145deg, #ffffff 0%, #f2fbf6 100%) !important;
+}
+
+.baixas-resumo-live > article.resumo-total-recebido > strong {
+  color: var(--eleva-green) !important;
+}
+
+/* Finalizados */
+.baixas-resumo-live > article.resumo-finalizado {
+  border-color: #cbd5ff !important;
+  background:
+    linear-gradient(145deg, #ffffff 0%, #f7f7ff 100%) !important;
+}
+
+.baixas-resumo-live > article.resumo-finalizado > strong {
+  color: #324ed1 !important;
+}
+
+/* À receber — quantidade */
+.baixas-resumo-live > article:nth-child(2) {
+  background:
+    linear-gradient(145deg, #ffffff 0%, #fafbfd 100%) !important;
+}
+
+/* =========================================================
+   2. CARD PRINCIPAL
+   ========================================================= */
+
+.baixas-live-card {
+  border: 1px solid var(--eleva-border) !important;
+  border-radius: 16px !important;
+  background: #fff !important;
+  box-shadow: 0 8px 26px rgba(30, 58, 110, .055) !important;
+  overflow: hidden !important;
+}
+
+/* Tabs */
+.baixas-live-actions {
+  min-height: 54px !important;
+  border-bottom: 1px solid var(--eleva-border) !important;
+  background: #fff !important;
+}
+
+.baixas-live-actions > button {
+  min-height: 54px !important;
+  border: 0 !important;
+  border-right: 1px solid #e5ebf4 !important;
+  background: #fff !important;
+  color: #5d6a82 !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  letter-spacing: .15px !important;
+  transition: all .18s ease !important;
+}
+
+.baixas-live-actions > button:hover {
+  background: #f6f9ff !important;
+  color: var(--eleva-blue) !important;
+}
+
+.baixas-live-actions > button.active {
+  background:
+    linear-gradient(135deg, #1557e8 0%, #2465f4 100%) !important;
+  color: #fff !important;
+  box-shadow: inset 0 -3px 0 rgba(255,255,255,.12) !important;
+}
+
+/* Selecionados */
+.baixas-live-selected {
+  color: #243653 !important;
+  font-size: 9px !important;
+  font-weight: 900 !important;
+}
+
+.baixas-live-selected > span {
+  min-width: 25px !important;
+  height: 25px !important;
+  border-radius: 8px !important;
+  background: var(--eleva-orange) !important;
+  color: #fff !important;
+}
+
+/* Linha com total */
+.baixas-live-total {
+  min-height: 58px !important;
+  border-bottom: 1px solid #e6ecf5 !important;
+  background: #fbfcff !important;
+}
+
+.baixas-live-total-principal > span {
+  color: #687790 !important;
+  font-size: 10px !important;
+  font-weight: 750 !important;
+}
+
+.baixas-live-total-principal > strong {
+  color: var(--eleva-blue-dark) !important;
+  font-size: 15px !important;
+  font-weight: 950 !important;
+}
+
+/* Botão selecionar tudo */
+.baixas-live-selection-actions button {
+  min-height: 35px !important;
+  border: 1px solid #c6d7ff !important;
+  border-radius: 9px !important;
+  background: #f8faff !important;
+  color: var(--eleva-blue) !important;
+  font-weight: 850 !important;
+}
+
+/* =========================================================
+   3. FILTROS
+   ========================================================= */
+
+.baixas-live-filtros {
+  gap: 10px !important;
+  padding: 16px !important;
+  border-bottom: 1px solid #e6ecf5 !important;
+  background: #fff !important;
+}
+
+.baixas-live-filtros label > span {
+  margin-bottom: 7px !important;
+  color: #60708a !important;
+  font-size: 8.5px !important;
+  font-weight: 900 !important;
+  letter-spacing: .3px !important;
+}
+
+.baixas-live-filtros input,
+.baixas-live-filtros select {
+  min-height: 42px !important;
+  border: 1px solid #d5dfed !important;
+  border-radius: 9px !important;
+  background: #fff !important;
+  color: #233652 !important;
+  font-size: 11px !important;
+  transition:
+    border-color .15s ease,
+    box-shadow .15s ease !important;
+}
+
+.baixas-live-filtros input:focus,
+.baixas-live-filtros select:focus {
+  border-color: #7da3ff !important;
+  box-shadow: 0 0 0 3px rgba(21, 87, 232, .08) !important;
+  outline: none !important;
+}
+
+/* =========================================================
+   4. TABELA
+   ========================================================= */
+
+.baixas-live-table {
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+}
+
+.baixas-live-table thead th {
+  height: 43px !important;
+  padding: 0 10px !important;
+  border-bottom: 1px solid #dfe7f2 !important;
+  background: #f8faff !important;
+  color: #5b6a83 !important;
+  font-size: 8px !important;
+  font-weight: 950 !important;
+  letter-spacing: .18px !important;
+  white-space: nowrap !important;
+}
+
+.baixas-live-table tbody td {
+  padding: 11px 10px !important;
+  border-bottom: 1px solid #edf1f7 !important;
+  color: #18304f !important;
+  font-size: 9.5px !important;
+  vertical-align: middle !important;
+}
+
+.baixas-live-table tbody tr {
+  transition: background .14s ease !important;
+}
+
+.baixas-live-table tbody tr:hover {
+  background: #f8fbff !important;
+}
+
+.baixas-live-table tbody td strong {
+  color: #112e58 !important;
+  font-weight: 850 !important;
+}
+
+.baixas-live-table tbody td small {
+  margin-top: 3px !important;
+  color: #8995aa !important;
+  font-size: 8px !important;
+}
+
+/* Comissão líquida */
+.comissao-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  min-height: 28px !important;
+  padding: 0 9px !important;
+  border-radius: 7px !important;
+  background: #eef4ff !important;
+  color: var(--eleva-blue) !important;
+  font-weight: 950 !important;
+}
+
+/* Situações */
+.baixas-live-status {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 27px !important;
+  padding: 0 10px !important;
+  border-radius: 8px !important;
+  font-size: 8px !important;
+  font-weight: 950 !important;
+  white-space: nowrap !important;
+}
+
+.baixas-live-status.situacao-receber {
+  background: #edf4ff !important;
+  color: var(--eleva-blue) !important;
+}
+
+.baixas-live-status.situacao-parcial {
+  background: #fff3e5 !important;
+  color: #dc7000 !important;
+}
+
+.baixas-live-status.situacao-finalizado {
+  background: #eaf9f0 !important;
+  color: #078545 !important;
+}
+
+/* Esteira */
+.baixas-live-esteira {
+  color: #078545 !important;
+  font-size: 9px !important;
+  font-weight: 850 !important;
+  white-space: nowrap !important;
+}
+
+/* Ação */
+.baixas-live-action {
+  min-height: 31px !important;
+  padding: 0 13px !important;
+  border: 1px solid #bad0ff !important;
+  border-radius: 8px !important;
+  background: #f8faff !important;
+  color: var(--eleva-blue) !important;
+  font-size: 8px !important;
+  font-weight: 900 !important;
+}
+
+.baixas-live-action:hover {
+  background: var(--eleva-blue) !important;
+  border-color: var(--eleva-blue) !important;
+  color: #fff !important;
+}
+
+/* =========================================================
+   5. RESPONSIVO
+   ========================================================= */
+
+@media (max-width: 1350px) {
+  .baixas-resumo-live {
+    flex-wrap: wrap !important;
+  }
+
+  .baixas-resumo-live > article {
+    flex: 1 1 calc(33.333% - 14px) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .baixas-resumo-live > article {
+    flex: 1 1 calc(50% - 14px) !important;
+  }
+}
+
+@media (max-width: 620px) {
+  .baixas-resumo-live > article {
+    flex: 1 1 100% !important;
+  }
+}
+/* =========================================================
+   BAIXA DE PAGAMENTOS — VISUAL DA ARTE APROVADA
+   Cole no FINAL de components/baixas.css
+   ========================================================= */
+
+.baixas-livecred-eleva {
+  --bx-blue: #155eef;
+  --bx-blue-dark: #12315d;
+  --bx-orange: #f27a0a;
+  --bx-green: #0a9951;
+  --bx-purple: #5b4ee8;
+  --bx-border: #dbe4f2;
+  --bx-muted: #75829a;
+}
+
+/* reduz o “vazio” superior e deixa o conteúdo mais próximo do cabeçalho */
+.baixas-livecred-eleva {
+  padding-top: 28px !important;
+}
+
+/* ===== CARDS EXECUTIVOS ===== */
+.baixas-resumo-executivo {
+  display: grid !important;
+  grid-template-columns: 1.15fr 1.15fr 1.25fr .95fr .95fr !important;
+  gap: 14px !important;
+  margin-bottom: 20px !important;
+}
+
+.baixas-resumo-executivo > article {
+  position: relative !important;
+  min-width: 0 !important;
+  min-height: 150px !important;
+  padding: 20px 20px 18px !important;
+  border: 1px solid var(--bx-border) !important;
+  border-radius: 14px !important;
+  background: #fff !important;
+  box-shadow: 0 6px 20px rgba(18, 49, 93, .045) !important;
+  overflow: hidden !important;
+}
+
+.baixas-resumo-executivo > article::after {
+  position: absolute;
+  top: 24px;
+  right: 18px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  font-size: 19px;
+  font-weight: 900;
+}
+
+.baixas-resumo-executivo > article > span {
+  display: block !important;
+  max-width: calc(100% - 48px);
+  margin-bottom: 10px !important;
+  color: #34445f !important;
+  font-size: 10px !important;
+  font-weight: 950 !important;
+  letter-spacing: .15px !important;
+}
+
+.baixas-resumo-executivo > article > strong {
+  display: block !important;
+  margin: 0 0 8px !important;
+  color: var(--bx-blue-dark) !important;
+  font-size: clamp(23px, 1.65vw, 30px) !important;
+  font-weight: 950 !important;
+  line-height: 1.05 !important;
+  letter-spacing: -.7px !important;
+}
+
+.baixas-resumo-executivo > article > b {
+  display: block !important;
+  margin-bottom: 13px !important;
+  color: #3b5f98 !important;
+  font-size: 10px !important;
+  font-weight: 850 !important;
+}
+
+.baixas-resumo-executivo > article > small {
+  display: block !important;
+  color: var(--bx-muted) !important;
+  font-size: 9.5px !important;
+  font-weight: 650 !important;
+  line-height: 1.35 !important;
+}
+
+/* azul — comissões à receber */
+.baixas-resumo-executivo .resumo-a-receber-valor {
+  border-color: #bcd0ff !important;
+  background: linear-gradient(145deg,#fff 0%,#f4f7ff 100%) !important;
+}
+.baixas-resumo-executivo .resumo-a-receber-valor strong {
+  color: var(--bx-blue) !important;
+}
+.baixas-resumo-executivo .resumo-a-receber-valor::after {
+  content: "▣";
+  color: var(--bx-blue);
+  background: #e8efff;
+}
+
+/* laranja — parcial */
+.baixas-resumo-executivo .resumo-parcial {
+  border-color: #ffc789 !important;
+  background: linear-gradient(145deg,#fff 0%,#fff8ef 100%) !important;
+}
+.baixas-resumo-executivo .resumo-parcial strong {
+  color: var(--bx-orange) !important;
+}
+.baixas-resumo-executivo .resumo-parcial b {
+  color: #ba690c !important;
+}
+.baixas-resumo-executivo .resumo-parcial::after {
+  content: "◔";
+  color: var(--bx-orange);
+  background: #fff0df;
+}
+
+/* verde — total recebido */
+.baixas-resumo-executivo .resumo-total-recebido {
+  border-color: #b7e3c9 !important;
+  background: linear-gradient(145deg,#fff 0%,#f2fbf6 100%) !important;
+}
+.baixas-resumo-executivo .resumo-total-recebido strong {
+  color: var(--bx-green) !important;
+}
+.baixas-resumo-executivo .resumo-total-recebido b {
+  color: #34835c !important;
+}
+.baixas-resumo-executivo .resumo-total-recebido::after {
+  content: "$";
+  color: var(--bx-green);
+  background: #dcf5e7;
+}
+
+/* roxo/azul — finalizados */
+.baixas-resumo-executivo .resumo-finalizado {
+  border-color: #d0d3ff !important;
+  background: linear-gradient(145deg,#fff 0%,#f7f7ff 100%) !important;
+}
+.baixas-resumo-executivo .resumo-finalizado strong {
+  color: #4d4ed8 !important;
+}
+.baixas-resumo-executivo .resumo-finalizado b {
+  color: #6768b3 !important;
+}
+.baixas-resumo-executivo .resumo-finalizado::after {
+  content: "✓";
+  color: #564de0;
+  background: #eeedff;
+}
+
+/* neutro — quantidade */
+.baixas-resumo-executivo .resumo-a-receber-qtd {
+  background: linear-gradient(145deg,#fff 0%,#fafbfd 100%) !important;
+}
+.baixas-resumo-executivo .resumo-a-receber-qtd::after {
+  content: "⌁";
+  color: #66758e;
+  background: #f1f3f7;
+}
+
+/* ===== CARD PRINCIPAL ===== */
+.baixas-live-card {
+  border: 1px solid #dce5f2 !important;
+  border-radius: 14px !important;
+  background: #fff !important;
+  box-shadow: 0 8px 24px rgba(21, 48, 91, .045) !important;
+  overflow: hidden !important;
+}
+
+/* tabs mais elegantes */
+.baixas-live-actions {
+  min-height: 52px !important;
+  border-bottom: 1px solid #dfe6f1 !important;
+  background: #fff !important;
+}
+
+.baixas-live-actions > button {
+  min-height: 52px !important;
+  border: 0 !important;
+  border-right: 1px solid #e4eaf3 !important;
+  background: #fff !important;
+  color: #606d84 !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+}
+
+.baixas-live-actions > button.active {
+  background: linear-gradient(135deg,#155eef 0%,#0f52dc 100%) !important;
+  color: #fff !important;
+}
+
+.baixas-live-selected > span {
+  border-radius: 7px !important;
+  background: var(--bx-orange) !important;
+  color: #fff !important;
+}
+
+/* total central */
+.baixas-live-total {
+  min-height: 60px !important;
+  background: #fbfcff !important;
+  border-bottom: 1px solid #e5ebf3 !important;
+}
+
+.baixas-live-total-principal strong {
+  color: var(--bx-blue-dark) !important;
+  font-size: 15px !important;
+  font-weight: 950 !important;
+}
+
+/* filtros */
+.baixas-live-filtros {
+  padding: 16px !important;
+  gap: 10px !important;
+  background: #fff !important;
+  border-bottom: 1px solid #e5ebf3 !important;
+}
+
+.baixas-live-filtros label > span {
+  color: #5f6e87 !important;
+  font-size: 8px !important;
+  font-weight: 950 !important;
+  letter-spacing: .2px !important;
+}
+
+.baixas-live-filtros input,
+.baixas-live-filtros select {
+  min-height: 42px !important;
+  border: 1px solid #d3ddea !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  color: #273a58 !important;
+  font-size: 10.5px !important;
+}
+
+.baixas-live-filtros input:focus,
+.baixas-live-filtros select:focus {
+  border-color: #7aa1ff !important;
+  box-shadow: 0 0 0 3px rgba(21,94,239,.07) !important;
+  outline: none !important;
+}
+
+/* tabela com acabamento mais “SaaS” */
+.baixas-live-table thead th {
+  height: 43px !important;
+  padding: 0 10px !important;
+  background: #f8faff !important;
+  border-bottom: 1px solid #dfe6f1 !important;
+  color: #5c6b84 !important;
+  font-size: 8px !important;
+  font-weight: 950 !important;
+}
+
+.baixas-live-table tbody td {
+  padding: 11px 10px !important;
+  border-bottom: 1px solid #edf1f6 !important;
+  color: #1b3152 !important;
+  font-size: 9.3px !important;
+}
+
+.baixas-live-table tbody tr:hover {
+  background: #f8fbff !important;
+}
+
+.comissao-pill {
+  min-height: 27px !important;
+  padding: 0 9px !important;
+  border-radius: 7px !important;
+  background: #eaf2ff !important;
+  color: var(--bx-blue) !important;
+  font-weight: 950 !important;
+}
+
+.baixas-live-action {
+  min-height: 31px !important;
+  padding: 0 13px !important;
+  border: 1px solid #bad0ff !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  color: var(--bx-blue) !important;
+  font-size: 8px !important;
+  font-weight: 900 !important;
+}
+
+.baixas-live-action:hover {
+  background: var(--bx-blue) !important;
+  border-color: var(--bx-blue) !important;
+  color: #fff !important;
+}
+
+.baixas-live-status.situacao-receber {
+  background: #eaf2ff !important;
+  color: var(--bx-blue) !important;
+}
+
+.baixas-live-status.situacao-parcial {
+  background: #fff0df !important;
+  color: #d76d00 !important;
+}
+
+.baixas-live-status.situacao-finalizado {
+  background: #e7f8ee !important;
+  color: #078345 !important;
+}
+
+/* responsivo */
+@media (max-width: 1350px) {
+  .baixas-resumo-executivo {
+    grid-template-columns: repeat(3, minmax(0,1fr)) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .baixas-resumo-executivo {
+    grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+  }
+}
+
+@media (max-width: 620px) {
+  .baixas-resumo-executivo {
+    grid-template-columns: 1fr !important;
+  }
+}

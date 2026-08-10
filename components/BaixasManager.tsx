@@ -429,6 +429,20 @@ export default function BaixasManager() {
       0,
     );
 
+    const recebidoFinalizados = finalizadas.reduce(
+      (total, item) =>
+        total +
+        Number(item.valor_recebido || 0),
+      0,
+    );
+
+    const totalPrevisto = linhas.reduce(
+      (total, item) =>
+        total +
+        Number(item.comissao_prevista || 0),
+      0,
+    );
+
     return {
       quantidade: linhas.length,
       aReceber: aReceber.length,
@@ -437,6 +451,8 @@ export default function BaixasManager() {
       comissoesAReceber,
       saldoParcial,
       recebido,
+      recebidoFinalizados,
+      totalPrevisto,
     };
   }, [linhas]);
 
@@ -458,6 +474,34 @@ export default function BaixasManager() {
       ),
     [selecionadas],
   );
+
+  const resumoAbaAtual = useMemo(() => {
+    if (filtroSituacao === "PARCIAL") {
+      return {
+        titulo: "SALDO REC. PARCIAL",
+        valor: resumo.saldoParcial,
+      };
+    }
+
+    if (filtroSituacao === "FINALIZADO") {
+      return {
+        titulo: "TOTAL FINALIZADO",
+        valor: resumo.recebidoFinalizados,
+      };
+    }
+
+    if (filtroSituacao === "TODOS") {
+      return {
+        titulo: "TOTAL EM COMISSÕES",
+        valor: resumo.totalPrevisto,
+      };
+    }
+
+    return {
+      titulo: "COMISSÕES À RECEBER",
+      valor: resumo.comissoesAReceber,
+    };
+  }, [filtroSituacao, resumo]);
 
   const todasFiltradasSelecionadas =
     filtradas.length > 0 &&
@@ -678,52 +722,41 @@ export default function BaixasManager() {
 
   return (
     <div className="baixas-page baixas-livecred-eleva">
-      <section className="baixas-resumo-live">
-        <article>
+      <section className="baixas-resumo-live baixas-resumo-executivo">
+        <article className="resumo-a-receber-valor">
           <span>COMISSÕES À RECEBER</span>
-          <strong>
-            {moeda(
-              resumo.comissoesAReceber +
-                resumo.saldoParcial,
-            )}
-          </strong>
-          <small>
-            À receber + saldo dos parciais
-          </small>
-        </article>
-
-        <article>
-          <span>À RECEBER</span>
-          <strong>{resumo.aReceber}</strong>
-          <small>Contratos sem recebimento</small>
+          <strong>{moeda(resumo.comissoesAReceber)}</strong>
+          <b>{resumo.aReceber} contratos</b>
+          <small>Aguardando primeiro recebimento</small>
         </article>
 
         <article className="resumo-parcial">
-          <span>REC. PARCIAL</span>
-          <strong>{resumo.parciais}</strong>
-          <small>
-            Saldo: {moeda(resumo.saldoParcial)}
-          </small>
+          <span>REC. PARCIAL (SALDO RESTANTE)</span>
+          <strong>{moeda(resumo.saldoParcial)}</strong>
+          <b>{resumo.parciais} contratos</b>
+          <small>Saldo pendente dos pagamentos parciais</small>
+        </article>
+
+        <article className="resumo-total-recebido">
+          <span>TOTAL JÁ RECEBIDO</span>
+          <strong>{moeda(resumo.recebido)}</strong>
+          <b>{resumo.finalizadas} finalizados</b>
+          <small>Total efetivamente recebido em comissões</small>
         </article>
 
         <article className="resumo-finalizado">
           <span>FINALIZADOS</span>
           <strong>{resumo.finalizadas}</strong>
-          <small>
-            Recebido: {moeda(resumo.recebido)}
-          </small>
+          <b>100% recebidos</b>
+          <small>Contratos com comissão totalmente recebida</small>
         </article>
-        <article className="resumo-total-recebido">
-  <span>TOTAL JÁ RECEBIDO</span>
 
-  <strong>
-    {moeda(resumo.recebido)}
-  </strong>
-
-  <small>
-    Total efetivamente recebido em comissões
-  </small>
-</article>
+        <article className="resumo-a-receber-qtd">
+          <span>À RECEBER</span>
+          <strong>{resumo.aReceber}</strong>
+          <b>Em aberto</b>
+          <small>Contratos sem recebimento ainda</small>
+        </article>
       </section>
 
       <section className="baixas-live-card">
@@ -805,16 +838,13 @@ export default function BaixasManager() {
             <span>
               {selecionadasIds.size > 0
                 ? "COMISSÕES SELECIONADAS"
-                : "COMISSÕES À RECEBER"}
+                : resumoAbaAtual.titulo}
             </span>
 
             <strong>
               {selecionadasIds.size > 0
                 ? moeda(totalSelecionado)
-                : moeda(
-                    resumo.comissoesAReceber +
-                      resumo.saldoParcial,
-                  )}
+                : moeda(resumoAbaAtual.valor)}
             </strong>
           </div>
 
