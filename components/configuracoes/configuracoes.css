@@ -526,3 +526,12 @@
 .settings-row-actions .save-edit{border-color:#bde5cf;background:#effbf4;color:#087d43}
 @media(max-width:1250px){.settings-grid-tabelas{grid-template-columns:1fr}}
 @media(max-width:900px){.settings-table-head{display:none}.settings-table-grid{grid-template-columns:1fr 1fr}.settings-row-actions{grid-column:1/-1}}
+.settings-grid-tabelas .settings-table-grid {
+  grid-template-columns: minmax(190px,1.55fr) minmax(90px,.7fr) minmax(135px,1fr) minmax(70px,.55fr) minmax(85px,.65fr) minmax(70px,.55fr) minmax(190px,1.25fr) !important;
+}
+.settings-grid-tabelas .settings-form-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+@media (max-width:1250px){
+  .settings-grid-tabelas .settings-table-list,.settings-grid-tabelas .settings-table-head{min-width:980px}
+  .settings-grid-tabelas .settings-card:last-child{overflow-x:auto}
+}
+@media (max-width:700px){.settings-grid-tabelas .settings-form-grid{grid-template-columns:1fr}}

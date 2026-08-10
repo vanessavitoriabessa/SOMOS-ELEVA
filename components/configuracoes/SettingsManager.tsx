@@ -13,6 +13,7 @@ type Banco = {
 type Tabela = {
   id: string;
   banco: string;
+  orgaoConvenio: string;
   nome: string;
   codigo: string;
   percentual: number;
@@ -50,12 +51,12 @@ const bancosPadrao: Banco[] = [
 ];
 
 const tabelasPadrao: Tabela[] = [
-  { id: "neo-normal-399", banco: "NEO", nome: "NORMAL", codigo: "399", percentual: 100, ativo: true },
-  { id: "neo-flex-1-379", banco: "NEO", nome: "FLEX 1", codigo: "379", percentual: 75, ativo: true },
-  { id: "neo-flex-2-359", banco: "NEO", nome: "FLEX 2", codigo: "359", percentual: 50, ativo: true },
-  { id: "neo-flex-3-339", banco: "NEO", nome: "FLEX 3", codigo: "339", percentual: 40, ativo: true },
-  { id: "neo-flex-4-319", banco: "NEO", nome: "FLEX 4", codigo: "319", percentual: 20, ativo: true },
-  { id: "neo-flex-5-299", banco: "NEO", nome: "FLEX 5", codigo: "299", percentual: 8, ativo: true },
+  { id: "neo-normal-399", banco: "NEO", orgaoConvenio: "", nome: "NORMAL", codigo: "399", percentual: 100, ativo: true },
+  { id: "neo-flex-1-379", banco: "NEO", orgaoConvenio: "", nome: "FLEX 1", codigo: "379", percentual: 75, ativo: true },
+  { id: "neo-flex-2-359", banco: "NEO", orgaoConvenio: "", nome: "FLEX 2", codigo: "359", percentual: 50, ativo: true },
+  { id: "neo-flex-3-339", banco: "NEO", orgaoConvenio: "", nome: "FLEX 3", codigo: "339", percentual: 40, ativo: true },
+  { id: "neo-flex-4-319", banco: "NEO", orgaoConvenio: "", nome: "FLEX 4", codigo: "319", percentual: 20, ativo: true },
+  { id: "neo-flex-5-299", banco: "NEO", orgaoConvenio: "", nome: "FLEX 5", codigo: "299", percentual: 8, ativo: true },
 ];
 
 const configPadrao: ConfiguracaoGeral = {
@@ -106,6 +107,7 @@ export default function SettingsManager() {
   const [novoBanco, setNovoBanco] = useState("");
   const [novaTabela, setNovaTabela] = useState({
     banco: "NEO",
+    orgaoConvenio: "",
     nome: "",
     codigo: "",
     percentual: "",
@@ -114,6 +116,7 @@ export default function SettingsManager() {
   const [editandoTabelaId, setEditandoTabelaId] = useState<string | null>(null);
   const [edicaoTabela, setEdicaoTabela] = useState({
     banco: "NEO",
+    orgaoConvenio: "",
     nome: "",
     codigo: "",
     percentual: "",
@@ -189,6 +192,7 @@ export default function SettingsManager() {
         ? conteudo.tabelas.map((item: Record<string, unknown>) => ({
             id: String(item.id || ""),
             banco: String(item.banco || ""),
+            orgaoConvenio: String(item.orgao_convenio || ""),
             nome: String(item.nome || ""),
             codigo: String(item.codigo || ""),
             percentual: Number(item.percentual || 0),
@@ -365,6 +369,7 @@ export default function SettingsManager() {
         acao: "criar_tabela",
         tabela: {
           banco: novaTabela.banco,
+          orgaoConvenio: novaTabela.orgaoConvenio,
           nome,
           codigo,
           percentual,
@@ -373,6 +378,7 @@ export default function SettingsManager() {
 
       setNovaTabela({
         banco: bancos.find((item) => item.ativo)?.nome || "",
+        orgaoConvenio: "",
         nome: "",
         codigo: "",
         percentual: "",
@@ -399,6 +405,7 @@ export default function SettingsManager() {
     setEditandoTabelaId(tabela.id);
     setEdicaoTabela({
       banco: tabela.banco,
+      orgaoConvenio: tabela.orgaoConvenio || "",
       nome: tabela.nome,
       codigo: tabela.codigo,
       percentual: String(tabela.percentual).replace(".", ","),
@@ -410,6 +417,7 @@ export default function SettingsManager() {
     setEditandoTabelaId(null);
     setEdicaoTabela({
       banco: "NEO",
+      orgaoConvenio: "",
       nome: "",
       codigo: "",
       percentual: "",
@@ -439,6 +447,7 @@ export default function SettingsManager() {
         tabela: {
           id: editandoTabelaId,
           banco: edicaoTabela.banco,
+          orgaoConvenio: edicaoTabela.orgaoConvenio,
           nome,
           codigo,
           percentual,
@@ -688,6 +697,24 @@ export default function SettingsManager() {
               </label>
 
               <label>
+                Órgão / Convênio
+                <select
+                  value={novaTabela.orgaoConvenio}
+                  onChange={(e) =>
+                    setNovaTabela({
+                      ...novaTabela,
+                      orgaoConvenio: e.target.value,
+                    })
+                  }
+                  disabled={processando}
+                >
+                  <option value="">Sem órgão específico</option>
+                  <option value="GOVERNO DE SP">GOVERNO DE SP</option>
+                  <option value="GOVERNO MA">GOVERNO MA</option>
+                </select>
+              </label>
+
+              <label>
                 Nome da tabela
                 <input
                   value={novaTabela.nome}
@@ -757,6 +784,7 @@ export default function SettingsManager() {
             <div className="settings-table-head settings-table-grid">
               <span>Tabela</span>
               <span>Banco</span>
+              <span>Órgão / Convênio</span>
               <span>Código</span>
               <span>% Produção</span>
               <span>Status</span>
@@ -805,6 +833,23 @@ export default function SettingsManager() {
                                   {banco.nome}
                                 </option>
                               ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <select
+                            value={edicaoTabela.orgaoConvenio}
+                            onChange={(e) =>
+                              setEdicaoTabela({
+                                ...edicaoTabela,
+                                orgaoConvenio: e.target.value,
+                              })
+                            }
+                            disabled={processando}
+                          >
+                            <option value="">Sem órgão específico</option>
+                            <option value="GOVERNO DE SP">GOVERNO DE SP</option>
+                            <option value="GOVERNO MA">GOVERNO MA</option>
                           </select>
                         </div>
 
@@ -876,6 +921,10 @@ export default function SettingsManager() {
 
                         <div>
                           <strong>{tabela.banco}</strong>
+                        </div>
+
+                        <div>
+                          <strong>{tabela.orgaoConvenio || "—"}</strong>
                         </div>
 
                         <div>

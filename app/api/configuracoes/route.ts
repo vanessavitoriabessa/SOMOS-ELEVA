@@ -20,6 +20,7 @@ type BancoPayload = {
 type TabelaPayload = {
   id?: string;
   banco?: string;
+  orgaoConvenio?: string;
   nome?: string;
   codigo?: string;
   percentual?: number | string;
@@ -157,7 +158,7 @@ export async function GET(
       supabase
         .from("config_tabelas")
         .select(
-          "id, banco, nome, codigo, percentual, ativo, criado_em, atualizado_em",
+          "id, banco, orgao_convenio, nome, codigo, percentual, ativo, criado_em, atualizado_em",
         )
         .order("banco", {
           ascending: true,
@@ -285,6 +286,12 @@ export async function POST(
         .trim()
         .toUpperCase();
 
+      const orgaoConvenio = String(
+        body.tabela?.orgaoConvenio || "",
+      )
+        .trim()
+        .toUpperCase();
+
       const nome = String(
         body.tabela?.nome || "",
       )
@@ -358,6 +365,7 @@ export async function POST(
         .from("config_tabelas")
         .insert({
           banco,
+          orgao_convenio: orgaoConvenio || null,
           nome,
           codigo,
           percentual,
@@ -375,7 +383,7 @@ export async function POST(
           return NextResponse.json(
             {
               erro:
-                "Já existe uma tabela desse banco com esse código.",
+                "Já existe uma tabela com esse mesmo banco, órgão/convênio e nome.",
             },
             {
               status: 409,
@@ -535,6 +543,16 @@ export async function PATCH(
           )
             .trim()
             .toUpperCase();
+      }
+
+      if (body.tabela?.orgaoConvenio !== undefined) {
+        const orgaoConvenio = String(
+          body.tabela.orgaoConvenio || "",
+        )
+          .trim()
+          .toUpperCase();
+
+        atualizacao.orgao_convenio = orgaoConvenio || null;
       }
 
       if (body.tabela?.nome) {
