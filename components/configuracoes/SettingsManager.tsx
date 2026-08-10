@@ -20,6 +20,12 @@ type Tabela = {
   ativo: boolean;
 };
 
+type OrgaoConvenio = {
+  id: string;
+  nome: string;
+  ativo: boolean;
+};
+
 type Meta = {
   id: string;
   nome: string;
@@ -98,6 +104,7 @@ export default function SettingsManager() {
 
   const [aba, setAba] = useState<"geral" | "bancos" | "tabelas" | "metas">("geral");
   const [bancos, setBancos] = useState<Banco[]>([]);
+  const [orgaosConvenios, setOrgaosConvenios] = useState<OrgaoConvenio[]>([]);
   const [tabelas, setTabelas] = useState<Tabela[]>([]);
   const [metas, setMetas] = useState<Meta[]>([]);
   const [geral, setGeral] = useState<ConfiguracaoGeral>(configPadrao);
@@ -105,6 +112,7 @@ export default function SettingsManager() {
   const [processando, setProcessando] = useState(false);
 
   const [novoBanco, setNovoBanco] = useState("");
+  const [novoOrgaoConvenio, setNovoOrgaoConvenio] = useState("");
   const [novaTabela, setNovaTabela] = useState({
     banco: "NEO",
     orgaoConvenio: "",
@@ -188,6 +196,14 @@ export default function SettingsManager() {
           }))
         : [];
 
+      const orgaosApi = Array.isArray(conteudo.orgaosConvenios)
+        ? conteudo.orgaosConvenios.map((item: Record<string, unknown>) => ({
+            id: String(item.id || ""),
+            nome: String(item.nome || ""),
+            ativo: item.ativo !== false,
+          }))
+        : [];
+
       const tabelasApi = Array.isArray(conteudo.tabelas)
         ? conteudo.tabelas.map((item: Record<string, unknown>) => ({
             id: String(item.id || ""),
@@ -201,6 +217,7 @@ export default function SettingsManager() {
         : [];
 
       setBancos(bancosApi);
+      setOrgaosConvenios(orgaosApi);
       setTabelas(tabelasApi);
 
       // Metas e geral permanecem locais por enquanto.
@@ -341,6 +358,102 @@ export default function SettingsManager() {
         erro instanceof Error
           ? erro.message
           : "Não foi possível excluir o banco.",
+      );
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  async function adicionarOrgaoConvenio(event: FormEvent) {
+    event.preventDefault();
+
+    const nome = novoOrgaoConvenio.trim().toUpperCase();
+
+    if (!nome) {
+      setMensagem("Informe o nome do órgão / convênio.");
+      return;
+    }
+
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const conteudo = await chamarApi("POST", {
+        acao: "criar_orgao_convenio",
+        orgaoConvenio: { nome },
+      });
+
+      setNovoOrgaoConvenio("");
+      setMensagem(
+        conteudo.mensagem || "Órgão / convênio cadastrado com sucesso.",
+      );
+
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível cadastrar o órgão / convênio.",
+      );
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  async function alternarOrgaoConvenio(id: string) {
+    const orgao = orgaosConvenios.find((item) => item.id === id);
+    if (!orgao) return;
+
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const conteudo = await chamarApi("PATCH", {
+        acao: "editar_orgao_convenio",
+        orgaoConvenio: {
+          id,
+          ativo: !orgao.ativo,
+        },
+      });
+
+      setMensagem(
+        conteudo.mensagem || "Órgão / convênio atualizado com sucesso.",
+      );
+
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível atualizar o órgão / convênio.",
+      );
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  async function excluirOrgaoConvenio(id: string) {
+    if (!window.confirm("Deseja excluir este órgão / convênio?")) return;
+
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const conteudo = await chamarApi("DELETE", {
+        tipo: "orgao_convenio",
+        id,
+      });
+
+      setMensagem(
+        conteudo.mensagem || "Órgão / convênio excluído com sucesso.",
+      );
+
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível excluir o órgão / convênio.",
       );
     } finally {
       setProcessando(false);
@@ -660,7 +773,79 @@ export default function SettingsManager() {
       )}
 
       {aba === "tabelas" && (
-        <section className="settings-grid settings-grid-tabelas">
+        <>
+          <section className="settings-grid settings-grid-orgaos">
+            <form className="settings-card" onSubmit={adicionarOrgaoConvenio}>
+              <div className="settings-heading">
+                <div>
+                  <span>ÓRGÃOS / CONVÊNIOS</span>
+                  <h2>Cadastrar órgão / convênio</h2>
+                  <p>Cadastre aqui Governo, Prefeitura ou qualquer novo convênio que liberar.</p>
+                </div>
+                <b>+</b>
+              </div>
+
+              <label className="settings-single-label">
+                Nome do órgão / convênio
+                <input
+                  value={novoOrgaoConvenio}
+                  onChange={(e) => setNovoOrgaoConvenio(e.target.value)}
+                  placeholder="Ex.: GOVERNO DE GO"
+                  disabled={processando}
+                />
+              </label>
+
+              <div className="settings-actions">
+                <button type="submit" disabled={processando}>
+                  {processando ? "Salvando..." : "Adicionar órgão / convênio"}
+                </button>
+              </div>
+            </form>
+
+            <section className="settings-card">
+              <div className="settings-list-heading">
+                <div>
+                  <span>CADASTRADOS</span>
+                  <h2>Órgãos e convênios disponíveis</h2>
+                </div>
+                <b>{orgaosConvenios.length}</b>
+              </div>
+
+              <div className="settings-list">
+                {orgaosConvenios.map((orgao) => (
+                  <article key={orgao.id}>
+                    <div className="settings-icon">O</div>
+                    <div>
+                      <strong>{orgao.nome}</strong>
+                      <span>{orgao.ativo ? "Disponível no sistema" : "Desativado"}</span>
+                    </div>
+                    <span className={orgao.ativo ? "status-active" : "status-inactive"}>
+                      {orgao.ativo ? "Ativo" : "Inativo"}
+                    </span>
+                    <div className="settings-row-actions">
+                      <button
+                        type="button"
+                        onClick={() => void alternarOrgaoConvenio(orgao.id)}
+                        disabled={processando}
+                      >
+                        {orgao.ativo ? "Desativar" : "Ativar"}
+                      </button>
+                      <button
+                        type="button"
+                        className="delete"
+                        onClick={() => void excluirOrgaoConvenio(orgao.id)}
+                        disabled={processando}
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          </section>
+
+          <section className="settings-grid settings-grid-tabelas">
           <form className="settings-card" onSubmit={adicionarTabela}>
             <div className="settings-heading">
               <div>
@@ -709,9 +894,8 @@ export default function SettingsManager() {
                   disabled={processando}
                 >
                   <option value="">Sem órgão específico</option>
-<option value="GOVERNO DE SP">GOVERNO DE SP</option>
-<option value="GOVERNO MA">GOVERNO MA</option>
-<option value="PREFEITURA">PREFEITURA</option>
+                  <option value="GOVERNO DE SP">GOVERNO DE SP</option>
+                  <option value="GOVERNO MA">GOVERNO MA</option>
                 </select>
               </label>
 
@@ -981,7 +1165,8 @@ export default function SettingsManager() {
               })}
             </div>
           </section>
-        </section>
+          </section>
+        </>
       )}
 
       {aba === "metas" && (

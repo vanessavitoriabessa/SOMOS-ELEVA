@@ -71,6 +71,22 @@ senhaConsignacao: string;
 protocolo?: string;
 };
 
+type TabelaConfigurada = {
+  id: string;
+  banco: string;
+  orgaoConvenio: string;
+  nome: string;
+  codigo: string;
+  percentual: number;
+  ativo: boolean;
+};
+
+type OrgaoConvenio = {
+  id: string;
+  nome: string;
+  ativo: boolean;
+};
+
 type RespostaApi = {
   perfil?: {
     id: string;
@@ -80,15 +96,6 @@ type RespostaApi = {
   propostas?: Proposta[];
   proposta?: Proposta;
   erro?: string;
-};
-
-type TabelaConfiguracao = {
-  id: string;
-  banco: string;
-  nome: string;
-  codigo: string;
-  percentual: number;
-  ativo: boolean;
 };
 
 type Formulario = {
@@ -138,78 +145,8 @@ const STATUS: StatusProposta[] = [
   "CANCELADA",
 ];
 
-const TABELAS_PADRAO: TabelaConfiguracao[] = [
-  {
-    id: "neo-normal-399",
-    banco: "NEO",
-    nome: "NORMAL",
-    codigo: "399",
-    percentual: 100,
-    ativo: true,
-  },
-  {
-    id: "neo-flex-1-379",
-    banco: "NEO",
-    nome: "FLEX 1",
-    codigo: "379",
-    percentual: 75,
-    ativo: true,
-  },
-  {
-    id: "neo-flex-2-359",
-    banco: "NEO",
-    nome: "FLEX 2",
-    codigo: "359",
-    percentual: 50,
-    ativo: true,
-  },
-  {
-    id: "neo-flex-3-339",
-    banco: "NEO",
-    nome: "FLEX 3",
-    codigo: "339",
-    percentual: 40,
-    ativo: true,
-  },
-  {
-    id: "neo-flex-4-319",
-    banco: "NEO",
-    nome: "FLEX 4",
-    codigo: "319",
-    percentual: 20,
-    ativo: true,
-  },
-  {
-    id: "neo-flex-5-299",
-    banco: "NEO",
-    nome: "FLEX 5",
-    codigo: "299",
-    percentual: 8,
-    ativo: true,
-  },
-];
-
 function hojeIso() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function nomeCompletoTabela(tabela: TabelaConfiguracao) {
-  const banco = String(tabela.banco || "").trim().toUpperCase();
-  const nome = String(tabela.nome || "").trim().toUpperCase();
-
-  if (!nome) return "";
-
-  return nome.startsWith(`${banco} `)
-    ? nome
-    : `${banco} ${nome}`.trim();
-}
-
-function normalizarTabela(valor: string) {
-  return String(valor || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toUpperCase();
 }
 
 const FORMULARIO_VAZIO: Formulario = {
@@ -281,9 +218,25 @@ function converterValor(valor: string) {
   let normalizado = texto;
 
   if (texto.includes(",") && texto.includes(".")) {
-    normalizado = texto.replace(/\./g, "").replace(",", ".");
+    // Ex.: 25.832,20
+    normalizado = texto
+      .replace(/\./g, "")
+      .replace(",", ".");
   } else if (texto.includes(",")) {
+    // Ex.: 25832,20
     normalizado = texto.replace(",", ".");
+  } else if (texto.includes(".")) {
+    // Se houver apenas um ponto e 1 ou 2 casas depois dele,
+    // tratamos como decimal vindo do banco: 25832.2 / 25832.20.
+    const partes = texto.split(".");
+    const ultimo = partes[partes.length - 1];
+
+    if (partes.length === 2 && /^\d{1,2}$/.test(ultimo)) {
+      normalizado = texto;
+    } else {
+      // Ex.: 25.832 ou 1.234.567
+      normalizado = texto.replace(/\./g, "");
+    }
   }
 
   const convertido = Number(normalizado);
@@ -339,34 +292,16 @@ export default function EsteiraPropostas() {
   const [propostas, setPropostas] = useState<Proposta[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [consultoras, setConsultoras] = useState<string[]>([]);
-  const [tabelas, setTabelas] =
-    useState<TabelaConfiguracao[]>(TABELAS_PADRAO);
+  const [tabelasConfiguradas, setTabelasConfiguradas] = useState<TabelaConfigurada[]>([]);
+  const [orgaosConvenios, setOrgaosConvenios] = useState<OrgaoConvenio[]>([]);
+  const [orgaoConvenio, setOrgaoConvenio] = useState("");
   const [perfilAtual, setPerfilAtual] = useState("");
 
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("Todos");
   const [filtroConsultora, setFiltroConsultora] = useState("Todas");
-  const hoje = new Date();
-
-const primeiroDiaMes = new Date(
-  hoje.getFullYear(),
-  hoje.getMonth(),
-  1
-);
-
-const ultimoDiaMes = new Date(
-  hoje.getFullYear(),
-  hoje.getMonth() + 1,
-  0
-);
-
-const [dataInicial, setDataInicial] = useState(
-  primeiroDiaMes.toISOString().slice(0, 10)
-);
-
-const [dataFinal, setDataFinal] = useState(
-  ultimoDiaMes.toISOString().slice(0, 10)
-);
+  const [dataInicial, setDataInicial] = useState("");
+  const [dataFinal, setDataFinal] = useState("");
   function selecionarMesAtual() {
   const agora = new Date();
   const ano = agora.getFullYear();
@@ -412,6 +347,59 @@ const [arquivos, setArquivos] = useState({
 
     return data.session.access_token;
   }, [supabase]);
+
+  const carregarTabelasConfiguradas = useCallback(async () => {
+    try {
+      const token = await obterToken();
+
+      const resposta = await fetch("/api/configuracoes", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+
+      const conteudo = (await resposta.json()) as {
+        orgaosConvenios?: Array<Record<string, unknown>>;
+        tabelas?: Array<Record<string, unknown>>;
+        erro?: string;
+      };
+
+      if (!resposta.ok) {
+        throw new Error(
+          conteudo.erro || "Não foi possível carregar as tabelas configuradas."
+        );
+      }
+
+      const listaOrgaos = Array.isArray(conteudo.orgaosConvenios)
+        ? conteudo.orgaosConvenios.map((item) => ({
+            id: String(item.id || ""),
+            nome: String(item.nome || "").trim().toUpperCase(),
+            ativo: item.ativo !== false,
+          }))
+        : [];
+
+      const lista = Array.isArray(conteudo.tabelas)
+        ? conteudo.tabelas.map((item) => ({
+            id: String(item.id || ""),
+            banco: String(item.banco || "").trim().toUpperCase(),
+            orgaoConvenio: String(item.orgao_convenio || "").trim().toUpperCase(),
+            nome: String(item.nome || "").trim(),
+            codigo: String(item.codigo || "").trim(),
+            percentual: Number(item.percentual || 0),
+            ativo: item.ativo !== false,
+          }))
+        : [];
+
+      setOrgaosConvenios(listaOrgaos);
+      setTabelasConfiguradas(lista);
+    } catch (erro) {
+      console.error(erro);
+      setOrgaosConvenios([]);
+      setTabelasConfiguradas([]);
+    }
+  }, [obterToken]);
 
   const carregarPropostas = useCallback(async () => {
     setCarregando(true);
@@ -546,70 +534,15 @@ const [arquivos, setArquivos] = useState({
     }
   }, [obterToken]);
 
-  const carregarTabelas = useCallback(async () => {
-    try {
-      const token = await obterToken();
-
-      const resposta = await fetch("/api/configuracoes", {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-      });
-
-      const conteudo = (await resposta.json()) as {
-        tabelas?: Array<Record<string, unknown>>;
-        erro?: string;
-      };
-
-      if (!resposta.ok) {
-        throw new Error(
-          conteudo.erro ||
-            "Não foi possível carregar as tabelas.",
-        );
-      }
-
-      const lista: TabelaConfiguracao[] = Array.isArray(conteudo.tabelas)
-        ? conteudo.tabelas
-            .map((item) => ({
-              id: String(item.id || crypto.randomUUID()),
-              banco: String(item.banco || "NEO")
-                .trim()
-                .toUpperCase(),
-              nome: String(item.nome || "")
-                .trim()
-                .toUpperCase(),
-              codigo: String(item.codigo || "").trim(),
-              percentual: Number(item.percentual || 0),
-              ativo: item.ativo !== false,
-            }))
-            .filter(
-              (item) =>
-                item.ativo &&
-                Boolean(item.nome) &&
-                item.percentual > 0,
-            )
-        : [];
-
-      setTabelas(lista.length ? lista : TABELAS_PADRAO);
-    } catch (erro) {
-      console.error("Erro ao carregar tabelas:", erro);
-      setTabelas(TABELAS_PADRAO);
-    }
-  }, [obterToken]);
+  useEffect(() => {
+    void carregarTabelasConfiguradas();
+  }, [carregarTabelasConfiguradas]);
 
   useEffect(() => {
     void carregarPropostas();
     void carregarClientes();
     void carregarConsultoras();
-    void carregarTabelas();
-  }, [
-    carregarPropostas,
-    carregarClientes,
-    carregarConsultoras,
-    carregarTabelas,
-  ]);
+  }, [carregarPropostas, carregarClientes, carregarConsultoras]);
 
   const propostasFiltradas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -712,10 +645,6 @@ const [arquivos, setArquivos] = useState({
       (item) => item.status === "AG. BOLETO"
     ).length,
 
-    canceladas: propostasFiltradas.filter(
-      (item) => item.status === "CANCELADA"
-    ).length,
-
     valorPago,
     producaoDigitada,
     producaoPaga,
@@ -727,22 +656,59 @@ const [arquivos, setArquivos] = useState({
     [clientes, form.clienteId]
   );
 
+  const orgaosDisponiveis = useMemo(
+    () =>
+      orgaosConvenios
+        .filter((item) => item.ativo)
+        .map((item) => item.nome)
+        .sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [orgaosConvenios],
+  );
+
+  const tabelasFiltradas = useMemo(() => {
+    if (!orgaoConvenio) return [];
+
+    return tabelasConfiguradas
+      .filter((tabela) => {
+        if (!tabela.ativo) return false;
+        if (tabela.banco !== String(form.banco || "").trim().toUpperCase()) {
+          return false;
+        }
+
+        if (orgaoConvenio === "__SEM_ORGAO__") {
+          return !tabela.orgaoConvenio;
+        }
+
+        return tabela.orgaoConvenio === orgaoConvenio;
+      })
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [tabelasConfiguradas, form.banco, orgaoConvenio]);
+
   const tabelaSelecionada = useMemo(() => {
-    const procurada = normalizarTabela(form.tabela);
+    const configurada = tabelasConfiguradas.find(
+      (tabela) =>
+        tabela.ativo &&
+        tabela.banco === String(form.banco || "").trim().toUpperCase() &&
+        tabela.nome === form.tabela
+    );
 
-    return tabelas.find((tabela) => {
-      const nomeCompleto = normalizarTabela(
-        nomeCompletoTabela(tabela),
-      );
+    if (configurada) return configurada;
 
-      const nomeSimples = normalizarTabela(tabela.nome);
+    // Mantém propostas antigas/históricas exatamente como foram gravadas.
+    if (editando && form.tabela === editando.tabela) {
+      return {
+        id: `historica-${editando.id}`,
+        banco: editando.banco,
+        orgaoConvenio: "",
+        nome: editando.tabela,
+        codigo: "",
+        percentual: Number(editando.percentualTabela || 0),
+        ativo: true,
+      } satisfies TabelaConfigurada;
+    }
 
-      return (
-        procurada === nomeCompleto ||
-        procurada === nomeSimples
-      );
-    });
-  }, [form.tabela, tabelas]);
+    return undefined;
+  }, [form.banco, form.tabela, tabelasConfiguradas, editando]);
 
   const valorContrato = converterValor(form.valorContrato);
 
@@ -901,6 +867,7 @@ function preencherClienteNoFormulario(cliente: Cliente) {
 
   function abrirNovaProposta() {
   setEditando(null);
+  setOrgaoConvenio("");
   setForm({
     ...FORMULARIO_VAZIO,
     dataSolicitacao: hojeIso(),
@@ -921,6 +888,18 @@ function preencherClienteNoFormulario(cliente: Cliente) {
 
   function abrirEdicaoProposta(proposta: Proposta) {
     const cliente = clientes.find((item) => item.id === proposta.clienteId);
+
+    const tabelaAtual = tabelasConfiguradas.find(
+      (tabela) =>
+        tabela.banco === String(proposta.banco || "").trim().toUpperCase() &&
+        tabela.nome === proposta.tabela
+    );
+
+    setOrgaoConvenio(
+      tabelaAtual
+        ? tabelaAtual.orgaoConvenio || "__SEM_ORGAO__"
+        : "__HISTORICA__"
+    );
 
     setEditando(proposta);
     setForm({
@@ -945,7 +924,9 @@ function preencherClienteNoFormulario(cliente: Cliente) {
       vendedora: proposta.vendedora || "",
       banco: proposta.banco || "NEO",
       tabela: proposta.tabela || "",
-      valorContrato: String(proposta.valorContrato || ""),
+      valorContrato: Number(proposta.valorContrato || 0)
+        .toFixed(2)
+        .replace(".", ","),
       status: proposta.status || "AG. BOLETO",
       dataSolicitacao: proposta.dataSolicitacao || proposta.dataCadastro || hojeIso(),
       dataDigitacao: proposta.dataCadastro || hojeIso(),
@@ -985,6 +966,11 @@ if (!form.telefoneCliente.trim()) {
 
     if (!form.banco.trim()) {
       setMensagem("Informe o banco.");
+      return;
+    }
+
+    if (!orgaoConvenio) {
+      setMensagem("Selecione o órgão / convênio.");
       return;
     }
 
@@ -1063,7 +1049,7 @@ cpf: apenasNumeros(form.cpfCliente),
 telefone: form.telefoneCliente.trim(),
         vendedora: form.vendedora,
         banco: form.banco.trim(),
-        tabela: nomeCompletoTabela(tabelaSelecionada),
+        tabela: tabelaSelecionada.nome,
         percentualTabela: tabelaSelecionada.percentual,
         valorContrato,
         valorMeta,
@@ -1138,6 +1124,7 @@ for (const documento of documentos) {
 
       setModalAberto(false);
       setEditando(null);
+      setOrgaoConvenio("");
       setForm(FORMULARIO_VAZIO);
       setArquivos({
   rgFrente: null,
@@ -1156,11 +1143,11 @@ for (const documento of documentos) {
     }
   }
 
-  async function excluirProposta(proposta: Proposta) {
-    const confirmar = window.confirm(
-      `Deseja excluir definitivamente a proposta de ${proposta.cliente}?
+  async function excluirPropostaDigitada(proposta: Proposta) {
+    if (proposta.status !== "PROPOSTA DIGITADA") return;
 
-Essa ação não poderá ser desfeita.`,
+    const confirmar = window.confirm(
+      `Deseja excluir definitivamente a proposta de ${proposta.cliente}?\n\nEssa ação não poderá ser desfeita.`,
     );
 
     if (!confirmar) return;
@@ -1194,10 +1181,6 @@ Essa ação não poderá ser desfeita.`,
         setModalAberto(false);
         setEditando(null);
         setForm(FORMULARIO_VAZIO);
-      }
-
-      if (selecionada?.id === proposta.id) {
-        setSelecionada(null);
       }
 
       setMensagem("Proposta excluída com sucesso.");
@@ -1235,13 +1218,8 @@ Essa ação não poderá ser desfeita.`,
         telefone: form.telefoneCliente.trim(),
         vendedora: form.vendedora,
         banco: form.banco.trim(),
-        tabela: tabelaSelecionada
-          ? nomeCompletoTabela(tabelaSelecionada)
-          : form.tabela,
-        percentualTabela:
-          tabelaSelecionada?.percentual ||
-          editando.percentualTabela ||
-          0,
+        tabela: form.tabela,
+        percentualTabela: tabelaSelecionada?.percentual || 0,
         valorContrato,
         valorMeta,
         status: "CANCELADA",
@@ -1294,62 +1272,36 @@ Essa ação não poderá ser desfeita.`,
     <div className="esteira-profissional">
       <section className="esteira-stats">
         <article>
-          <span style={{ fontWeight: 900 }}>TOTAL DE PROPOSTAS</span>
+          <span>Total de propostas</span>
           <strong>{resumo.total}</strong>
         </article>
 
         <article>
-          <span style={{ fontWeight: 900 }}>EM ANDAMENTO</span>
+          <span>Em andamento</span>
           <strong>{resumo.andamento}</strong>
         </article>
 
         <article>
-          <span style={{ fontWeight: 900 }}>CONTRATOS PAGOS</span>
+          <span>Contratos pagos</span>
           <strong>{resumo.pagas}</strong>
         </article>
 
         <article>
-          <span style={{ fontWeight: 900 }}>AGUARDANDO BOLETO</span>
+          <span>Aguardando boleto</span>
           <strong>{resumo.aguardando}</strong>
         </article>
 
         <article>
-          <span style={{ fontWeight: 900 }}>
-            VALOR BRUTO PAGO
-          </span>
+          <span>Valor pago</span>
           <strong>{moeda(resumo.valorPago)}</strong>
         </article>
-
-        <article>
-          <span style={{ fontWeight: 900 }}>
-            VALOR LÍQUIDO PAGO
-          </span>
-          <strong>{moeda(resumo.producaoPaga)}</strong>
-        </article>
-
-        <article
-          role="button"
-          tabIndex={0}
-          title="Mostrar somente propostas canceladas"
-          onClick={() => setFiltroStatus("CANCELADA")}
-          onKeyDown={(evento) => {
-            if (evento.key === "Enter" || evento.key === " ") {
-              setFiltroStatus("CANCELADA");
-            }
-          }}
-          style={{ cursor: "pointer" }}
-        >
-          <span style={{ fontWeight: 900 }}>
-            CANCELADAS
-          </span>
-          <strong>{resumo.canceladas}</strong>
-        </article>
-
+<article>
+  <span>Produção paga</span>
+  <strong>{moeda(resumo.producaoPaga)}</strong>
+</article>
         <article className="destaque">
-          <span style={{ fontWeight: 900 }}>
-            PRODUÇÃO DIGITADA
-          </span>
-          <strong>{moeda(resumo.producaoDigitada)}</strong>
+          <span>Produção digitada</span>
+<strong>{moeda(resumo.producaoDigitada)}</strong>
         </article>
       </section>
 
@@ -1422,15 +1374,12 @@ Essa ação não poderá ser desfeita.`,
     }
   >
     <option value="Todos">Todos os status</option>
-    <option value="CANCELADA">CANCELADAS</option>
 
-    {STATUS
-      .filter((status) => status !== "CANCELADA")
-      .map((status) => (
-        <option key={status} value={status}>
-          {status}
-        </option>
-      ))}
+    {STATUS.map((status) => (
+      <option key={status} value={status}>
+        {status}
+      </option>
+    ))}
   </select>
 
   <button
@@ -1473,15 +1422,15 @@ Essa ação não poderá ser desfeita.`,
               <thead>
                 <tr>
                   <th>Nº</th>
-                  <th>CONSULTORA</th>
-                  <th>CLIENTE</th>
-                  <th>PRODUTO</th>
-                  <th>BANCO / TABELA</th>
-                  <th>VALOR</th>
-                  <th>VALOR FINAL</th>
-                  <th>DATA / DIGITAÇÃO</th>
-                  <th>STATUS</th>
-                  <th>AÇÕES</th>
+                  <th>Consultora</th>
+                  <th>Cliente</th>
+                  <th>Produto</th>
+                  <th>Banco / Tabela</th>
+                  <th>Valor</th>
+                  <th>Valor final</th>
+                  <th>Data / Digitação</th>
+                  <th>Status</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
 
@@ -1583,14 +1532,14 @@ Essa ação não poderá ser desfeita.`,
                             </button>
                           )}
 
-                        {podeCancelarProposta && (
+                        {proposta.status === "PROPOSTA DIGITADA" && (
                           <button
                             type="button"
-                            title="Excluir proposta"
+                            title="Excluir proposta digitada"
                             aria-label={`Excluir proposta de ${proposta.cliente}`}
                             disabled={salvando}
                             onClick={() =>
-                              void excluirProposta(proposta)
+                              void excluirPropostaDigitada(proposta)
                             }
                             style={{
                               color: "#b42318",
@@ -2091,9 +2040,52 @@ Essa ação não poderá ser desfeita.`,
         </label>
 
         <label>
+          Órgão / Convênio
+          <select
+            value={orgaoConvenio}
+            onChange={(evento) => {
+              const valor = evento.target.value;
+
+              setOrgaoConvenio(valor);
+              setForm({
+                ...form,
+                tabela: "",
+              });
+            }}
+          >
+            <option value="">Selecione o órgão / convênio</option>
+
+            {editando &&
+              orgaoConvenio === "__HISTORICA__" && (
+                <option value="__HISTORICA__">
+                  Tabela histórica
+                </option>
+              )}
+
+            {tabelasConfiguradas.some(
+              (tabela) =>
+                tabela.ativo &&
+                tabela.banco === String(form.banco || "").trim().toUpperCase() &&
+                !tabela.orgaoConvenio
+            ) && (
+              <option value="__SEM_ORGAO__">
+                Sem órgão específico
+              </option>
+            )}
+
+            {orgaosDisponiveis.map((orgao) => (
+              <option key={orgao} value={orgao}>
+                {orgao}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
           Tabela
           <select
             value={form.tabela}
+            disabled={!orgaoConvenio}
             onChange={(evento) =>
               setForm({
                 ...form,
@@ -2102,38 +2094,30 @@ Essa ação não poderá ser desfeita.`,
             }
           >
             <option value="">
-              Selecione a tabela
+              {orgaoConvenio
+                ? "Selecione a tabela"
+                : "Escolha primeiro o órgão / convênio"}
             </option>
 
-            {form.tabela &&
-              !tabelas.some(
-                (tabela) =>
-                  normalizarTabela(
-                    nomeCompletoTabela(tabela),
-                  ) === normalizarTabela(form.tabela),
-              ) && (
+            {editando &&
+              orgaoConvenio === "__HISTORICA__" &&
+              form.tabela && (
                 <option value={form.tabela}>
-                  {form.tabela} — {editando?.percentualTabela || 0}% (histórica)
+                  {form.tabela} — {editando.percentualTabela}% (histórica)
                 </option>
               )}
 
-            {tabelas.map((tabela) => {
-              const nomeTabela =
-                nomeCompletoTabela(tabela);
-
-              return (
-                <option
-                  key={tabela.id}
-                  value={nomeTabela}
-                >
-                  {nomeTabela}
-                  {tabela.codigo
-                    ? ` ${tabela.codigo}`
-                    : ""}{" "}
-                  — {tabela.percentual}%
-                </option>
-              );
-            })}
+            {tabelasFiltradas.map((tabela) => (
+              <option
+                key={tabela.id}
+                value={tabela.nome}
+              >
+                {tabela.nome}
+                {tabela.codigo ? ` • ${tabela.codigo}` : ""}
+                {" — "}
+                {tabela.percentual}%
+              </option>
+            ))}
           </select>
         </label>
 

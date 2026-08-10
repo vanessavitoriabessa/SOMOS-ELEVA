@@ -17,6 +17,12 @@ type BancoPayload = {
   ativo?: boolean;
 };
 
+type OrgaoConvenioPayload = {
+  id?: string;
+  nome?: string;
+  ativo?: boolean;
+};
+
 type TabelaPayload = {
   id?: string;
   banco?: string;
@@ -144,6 +150,7 @@ export async function GET(
 
     const [
       bancosResposta,
+      orgaosResposta,
       tabelasResposta,
     ] = await Promise.all([
       supabase
@@ -154,6 +161,11 @@ export async function GET(
         .order("nome", {
           ascending: true,
         }),
+
+      supabase
+        .from("config_orgaos_convenios")
+        .select("id, nome, ativo, criado_em, atualizado_em")
+        .order("nome", { ascending: true }),
 
       supabase
         .from("config_tabelas")
@@ -174,6 +186,10 @@ export async function GET(
       );
     }
 
+    if (orgaosResposta.error) {
+      throw new Error(orgaosResposta.error.message);
+    }
+
     if (tabelasResposta.error) {
       throw new Error(
         tabelasResposta.error.message,
@@ -182,6 +198,7 @@ export async function GET(
 
     return NextResponse.json({
       bancos: bancosResposta.data || [],
+      orgaosConvenios: orgaosResposta.data || [],
       tabelas: tabelasResposta.data || [],
     });
   } catch (erro) {
@@ -212,11 +229,12 @@ export async function POST(
     }
 
     const body =
-      (await request.json()) as {
-        acao?: string;
-        banco?: BancoPayload;
-        tabela?: TabelaPayload;
-      };
+  (await request.json()) as {
+    acao?: string;
+    banco?: BancoPayload;
+    orgaoConvenio?: OrgaoConvenioPayload;
+    tabela?: TabelaPayload;
+  };
 
     const supabase =
       createAdminClient();
@@ -276,6 +294,45 @@ export async function POST(
         banco: data,
         mensagem:
           "Banco cadastrado com sucesso.",
+      });
+    }
+
+    if (body.acao === "criar_orgao_convenio") {
+      const nome = String(body.orgaoConvenio?.nome || "")
+        .trim()
+        .toUpperCase();
+
+      if (!nome) {
+        return NextResponse.json(
+          { erro: "Informe o nome do órgão / convênio." },
+          { status: 400 },
+        );
+      }
+
+      const { data, error } = await supabase
+        .from("config_orgaos_convenios")
+        .insert({
+          nome,
+          ativo: true,
+          atualizado_em: new Date().toISOString(),
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        if (error.code === "23505") {
+          return NextResponse.json(
+            { erro: "Esse órgão / convênio já está cadastrado." },
+            { status: 409 },
+          );
+        }
+
+        throw new Error(error.message);
+      }
+
+      return NextResponse.json({
+        orgaoConvenio: data,
+        mensagem: "Órgão / convênio cadastrado com sucesso.",
       });
     }
 
@@ -441,6 +498,7 @@ export async function PATCH(
       (await request.json()) as {
         acao?: string;
         banco?: BancoPayload;
+        orgaoConvenio?: OrgaoConvenioPayload;
         tabela?: TabelaPayload;
       };
 
@@ -508,6 +566,47 @@ export async function PATCH(
         banco: data,
         mensagem:
           "Banco atualizado com sucesso.",
+      });
+    }
+
+    if (body.acao === "editar_orgao_convenio") {
+      const id = String(body.orgaoConvenio?.id || "");
+
+      if (!id) {
+        return NextResponse.json(
+          { erro: "Órgão / convênio não informado." },
+          { status: 400 },
+        );
+      }
+
+      const atualizacao: Record<string, unknown> = {
+        atualizado_em: new Date().toISOString(),
+      };
+
+      if (body.orgaoConvenio?.nome) {
+        atualizacao.nome = String(body.orgaoConvenio.nome)
+          .trim()
+          .toUpperCase();
+      }
+
+      if (typeof body.orgaoConvenio?.ativo === "boolean") {
+        atualizacao.ativo = body.orgaoConvenio.ativo;
+      }
+
+      const { data, error } = await supabase
+        .from("config_orgaos_convenios")
+        .update(atualizacao)
+        .eq("id", id)
+        .select("*")
+        .single();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return NextResponse.json({
+        orgaoConvenio: data,
+        mensagem: "Órgão / convênio atualizado com sucesso.",
       });
     }
 
@@ -668,10 +767,10 @@ export async function DELETE(
     }
 
     const body =
-      (await request.json()) as {
-        tipo?: "banco" | "tabela";
-        id?: string;
-      };
+  (await request.json()) as {
+    tipo?: "banco" | "tabela" | "orgao_convenio";
+    id?: string;
+  };
 
     const id = String(
       body.id || "",
@@ -735,6 +834,21 @@ export async function DELETE(
       return NextResponse.json({
         mensagem:
           "Banco excluído com sucesso.",
+      });
+    }
+
+    if (body.tipo === "orgao_convenio") {
+      const { error } = await supabase
+        .from("config_orgaos_convenios")
+        .delete()
+        .eq("id", id);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return NextResponse.json({
+        mensagem: "Órgão / convênio excluído com sucesso.",
       });
     }
 

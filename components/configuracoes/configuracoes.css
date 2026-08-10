@@ -535,3 +535,12 @@
   .settings-grid-tabelas .settings-card:last-child{overflow-x:auto}
 }
 @media (max-width:700px){.settings-grid-tabelas .settings-form-grid{grid-template-columns:1fr}}
+/* ÓRGÃOS / CONVÊNIOS — área administrativa */
+.settings-grid-orgaos {
+  margin-bottom: 16px;
+}
+
+.settings-grid-orgaos .settings-list {
+  max-height: 320px;
+  overflow: auto;
+}
