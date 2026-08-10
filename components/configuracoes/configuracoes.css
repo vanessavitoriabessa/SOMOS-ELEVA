@@ -586,3 +586,88 @@
     grid-template-columns: 1fr !important;
   }
 }
+/* =========================================================
+   CONFIGURAÇÕES — PESQUISA DE TABELAS
+   Cole no FINAL de components/configuracoes/configuracoes.css
+   ========================================================= */
+
+.settings-table-search {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 14px 0 12px;
+}
+
+.settings-table-search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: min(620px, 100%);
+}
+
+.settings-table-search-field > span {
+  position: absolute;
+  left: 13px;
+  z-index: 1;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.settings-table-search-field input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 42px 0 38px;
+  border: 1px solid #d7e0ef;
+  border-radius: 10px;
+  background: #fff;
+  color: #102a56;
+  font-size: 12px;
+  font-weight: 700;
+  outline: none;
+}
+
+.settings-table-search-field input:focus {
+  border-color: #245cf2;
+  box-shadow: 0 0 0 3px rgba(36, 92, 242, .08);
+}
+
+.settings-table-search-field button {
+  position: absolute;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 7px;
+  background: #eef3ff;
+  color: #245cf2;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.settings-table-search > small {
+  color: #78859a;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.settings-table-empty {
+  padding: 28px 18px;
+  text-align: center;
+  color: #78859a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+@media (max-width: 760px) {
+  .settings-table-search {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-table-search-field {
+    width: 100%;
+  }
+}

@@ -114,6 +114,7 @@ export default function SettingsManager() {
 
   const [novoBanco, setNovoBanco] = useState("");
   const [novoOrgaoConvenio, setNovoOrgaoConvenio] = useState("");
+  const [buscaTabela, setBuscaTabela] = useState("");
   const [novaTabela, setNovaTabela] = useState({
     banco: "NEO",
     orgaoConvenio: "",
@@ -746,6 +747,30 @@ export default function SettingsManager() {
     localStorage.setItem("somos-eleva-config-metas", JSON.stringify(lista));
   }
 
+  const tabelasFiltradas = useMemo(() => {
+    const termo = buscaTabela.trim().toLowerCase();
+
+    if (!termo) return tabelas;
+
+    return tabelas.filter((tabela) => {
+      const campos = [
+        tabela.nome,
+        tabela.banco,
+        tabela.orgaoConvenio,
+        tabela.codigo,
+        String(tabela.percentual),
+        tabela.percentualComissaoBanco === null
+          ? ""
+          : String(tabela.percentualComissaoBanco),
+        tabela.ativo ? "ativa" : "inativa",
+      ];
+
+      return campos.some((campo) =>
+        String(campo || "").toLowerCase().includes(termo),
+      );
+    });
+  }, [tabelas, buscaTabela]);
+
   const resumo = useMemo(
     () => ({
       bancosAtivos: bancos.filter((item) => item.ativo).length,
@@ -1031,6 +1056,33 @@ export default function SettingsManager() {
               <b>{tabelas.length}</b>
             </div>
 
+            <div className="settings-table-search">
+              <div className="settings-table-search-field">
+                <span>🔎</span>
+                <input
+                  type="search"
+                  value={buscaTabela}
+                  onChange={(e) => setBuscaTabela(e.target.value)}
+                  placeholder="Pesquisar tabela, código, banco ou órgão / convênio..."
+                />
+                {buscaTabela && (
+                  <button
+                    type="button"
+                    onClick={() => setBuscaTabela("")}
+                    title="Limpar pesquisa"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+
+              <small>
+                {buscaTabela
+                  ? `${tabelasFiltradas.length} de ${tabelas.length} tabela(s) encontrada(s)`
+                  : `${tabelas.length} tabela(s) cadastrada(s)`}
+              </small>
+            </div>
+
             <div className="settings-table-head settings-table-grid">
               <span>Tabela</span>
               <span>Banco</span>
@@ -1043,7 +1095,7 @@ export default function SettingsManager() {
             </div>
 
             <div className="settings-table-list">
-              {tabelas.map((tabela) => {
+              {tabelasFiltradas.map((tabela) => {
                 const editando = editandoTabelaId === tabela.id;
 
                 return (
@@ -1257,6 +1309,11 @@ export default function SettingsManager() {
                   </article>
                 );
               })}
+              {tabelasFiltradas.length === 0 && (
+                <div className="settings-table-empty">
+                  Nenhuma tabela encontrada para “{buscaTabela}”.
+                </div>
+              )}
             </div>
           </section>
           </section>
