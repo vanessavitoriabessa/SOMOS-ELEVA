@@ -709,8 +709,9 @@ export default function SettingsManager() {
                   disabled={processando}
                 >
                   <option value="">Sem órgão específico</option>
-                  <option value="GOVERNO DE SP">GOVERNO DE SP</option>
-                  <option value="GOVERNO MA">GOVERNO MA</option>
+<option value="GOVERNO DE SP">GOVERNO DE SP</option>
+<option value="GOVERNO MA">GOVERNO MA</option>
+<option value="PREFEITURA">PREFEITURA</option>
                 </select>
               </label>
 
