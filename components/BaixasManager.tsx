@@ -337,6 +337,17 @@ export default function BaixasManager() {
           termo,
         );
 
+      // Número exato da proposta ignora os demais filtros.
+      const numeroPesquisado = somenteNumeros(busca);
+      const numeroDaProposta = somenteNumeros(item.numero_proposta);
+
+      if (
+        numeroPesquisado.length > 0 &&
+        numeroDaProposta === numeroPesquisado
+      ) {
+        return true;
+      }
+
       const correspondeBanco =
         filtroBanco === "TODOS" ||
         item.banco === filtroBanco;
@@ -702,6 +713,17 @@ export default function BaixasManager() {
             Recebido: {moeda(resumo.recebido)}
           </small>
         </article>
+        <article className="resumo-total-recebido">
+  <span>TOTAL JÁ RECEBIDO</span>
+
+  <strong>
+    {moeda(resumo.recebido)}
+  </strong>
+
+  <small>
+    Total efetivamente recebido em comissões
+  </small>
+</article>
       </section>
 
       <section className="baixas-live-card">
