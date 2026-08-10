@@ -166,23 +166,87 @@ function podeCancelarProposta(perfil: string) {
   return ["administradora", "operacional"].includes(normalizarTexto(perfil));
 }
 
-const COMISSAO_BANCO_POR_TABELA: Record<string, number> = {
-  "neo normal": 28.5,
-  "neo flex 1": 24.5,
-  "neo flex 2": 20.5,
-  "neo flex 3": 16.5,
-  "neo flex 4": 10.5,
-  "neo flex 5": 4.5,
+type TabelaComissaoBanco = {
+  id: string;
+  banco: string;
+  nome: string;
+  codigo: string | null;
+  percentual: number | string | null;
+  percentual_comissao_banco: number | string | null;
+  ativo: boolean;
 };
 
-function percentualComissaoBanco(tabela: string) {
-  const nome = normalizarTexto(tabela);
+async function percentualComissaoBanco(
+  supabase: ReturnType<typeof createAdminClient>,
+  linha: LinhaProposta,
+) {
+  const tabelaBancoId = String(linha.tabela_banco_id || "").trim();
 
-  const chave = Object.keys(COMISSAO_BANCO_POR_TABELA).find(
-    (item) => nome === item || nome.startsWith(item),
+  // 1) Propostas novas: usa o ID exato da tabela selecionada.
+  if (tabelaBancoId) {
+    const { data, error } = await supabase
+      .from("config_tabelas")
+      .select(
+        "id, banco, nome, codigo, percentual, percentual_comissao_banco, ativo",
+      )
+      .eq("id", tabelaBancoId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(
+        `Não foi possível consultar a comissão bancária da tabela: ${error.message}`,
+      );
+    }
+
+    if (data) {
+      return numeroSeguro(data.percentual_comissao_banco);
+    }
+  }
+
+  // 2) Propostas antigas: tenta localizar pela combinação banco + nome.
+  const { data, error } = await supabase
+    .from("config_tabelas")
+    .select(
+      "id, banco, nome, codigo, percentual, percentual_comissao_banco, ativo",
+    )
+    .eq("ativo", true);
+
+  if (error) {
+    throw new Error(
+      `Não foi possível consultar as tabelas configuradas: ${error.message}`,
+    );
+  }
+
+  const bancoProposta = normalizarTexto(linha.banco);
+  const nomeProposta = normalizarTexto(linha.tabela);
+  const percentualProducao = numeroSeguro(linha.percentual_tabela);
+
+  const candidatas = ((data || []) as TabelaComissaoBanco[]).filter(
+    (tabela) => {
+      if (normalizarTexto(tabela.banco) !== bancoProposta) return false;
+
+      const nomeConfigurado = normalizarTexto(tabela.nome);
+
+      return (
+        nomeConfigurado === nomeProposta ||
+        nomeConfigurado.startsWith(nomeProposta) ||
+        nomeProposta.startsWith(nomeConfigurado)
+      );
+    },
   );
 
-  return chave ? COMISSAO_BANCO_POR_TABELA[chave] : 0;
+  if (!candidatas.length) return 0;
+
+  // Se houver nomes iguais em mais de um órgão/convênio,
+  // usa também o percentual de produção salvo na proposta para desempatar.
+  const porPercentual = candidatas.find(
+    (tabela) =>
+      Math.abs(numeroSeguro(tabela.percentual) - percentualProducao) < 0.0001,
+  );
+
+  const escolhida = porPercentual || candidatas[0];
+
+  return numeroSeguro(escolhida.percentual_comissao_banco);
 }
 
 /**
@@ -229,11 +293,14 @@ async function sincronizarPrevisaoComissao(
 
   if (linha.status !== "PAGO" || !linha.data_pagamento) return;
 
-  const percentual = percentualComissaoBanco(linha.tabela);
+  const percentual = await percentualComissaoBanco(
+    supabase,
+    linha,
+  );
 
   if (percentual <= 0) {
     throw new Error(
-      `A tabela "${linha.tabela}" não possui percentual de comissão bancária configurado.`,
+      `A tabela "${linha.tabela}" não possui % de comissão banco configurada em Administração > Configurações > Tabelas.`,
     );
   }
 

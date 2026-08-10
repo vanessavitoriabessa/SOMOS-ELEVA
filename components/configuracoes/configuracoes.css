@@ -544,3 +544,45 @@
   max-height: 320px;
   overflow: auto;
 }
+/* =========================================================
+   CONFIGURAÇÕES — % COMISSÃO DO BANCO
+   Cole no FINAL de components/configuracoes/configuracoes.css
+   ========================================================= */
+
+.settings-grid-tabelas .settings-table-grid {
+  grid-template-columns:
+    minmax(180px, 1.45fr)
+    minmax(85px, .65fr)
+    minmax(125px, .95fr)
+    minmax(65px, .5fr)
+    minmax(85px, .65fr)
+    minmax(105px, .82fr)
+    minmax(70px, .55fr)
+    minmax(175px, 1.2fr) !important;
+}
+
+.settings-grid-tabelas .settings-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.settings-grid-tabelas label small {
+  display: block;
+  margin-top: 5px;
+  color: #7a879d;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+@media (max-width: 1250px) {
+  .settings-grid-tabelas .settings-table-head,
+  .settings-grid-tabelas .settings-table-list {
+    min-width: 1080px;
+  }
+}
+
+@media (max-width: 700px) {
+  .settings-grid-tabelas .settings-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

@@ -30,6 +30,7 @@ type TabelaPayload = {
   nome?: string;
   codigo?: string;
   percentual?: number | string;
+  percentualComissaoBanco?: number | string | null;
   ativo?: boolean;
 };
 
@@ -170,7 +171,7 @@ export async function GET(
       supabase
         .from("config_tabelas")
         .select(
-          "id, banco, orgao_convenio, nome, codigo, percentual, ativo, criado_em, atualizado_em",
+          "id, banco, orgao_convenio, nome, codigo, percentual, percentual_comissao_banco, ativo, criado_em, atualizado_em",
         )
         .order("banco", {
           ascending: true,
@@ -229,12 +230,12 @@ export async function POST(
     }
 
     const body =
-  (await request.json()) as {
-    acao?: string;
-    banco?: BancoPayload;
-    orgaoConvenio?: OrgaoConvenioPayload;
-    tabela?: TabelaPayload;
-  };
+      (await request.json()) as {
+        acao?: string;
+        banco?: BancoPayload;
+        orgaoConvenio?: OrgaoConvenioPayload;
+        tabela?: TabelaPayload;
+      };
 
     const supabase =
       createAdminClient();
@@ -364,6 +365,16 @@ export async function POST(
           body.tabela?.percentual,
         );
 
+      const percentualComissaoBancoRaw =
+        body.tabela?.percentualComissaoBanco;
+
+      const percentualComissaoBanco =
+        percentualComissaoBancoRaw === null ||
+        percentualComissaoBancoRaw === undefined ||
+        String(percentualComissaoBancoRaw).trim() === ""
+          ? null
+          : numero(percentualComissaoBancoRaw);
+
       if (!banco) {
         return NextResponse.json(
           {
@@ -407,7 +418,25 @@ export async function POST(
         return NextResponse.json(
           {
             erro:
-              "Informe um percentual entre 0,01% e 100%.",
+              "Informe um percentual de produção entre 0,01% e 100%.",
+          },
+          {
+            status: 400,
+          },
+        );
+      }
+
+      if (
+        percentualComissaoBanco !== null &&
+        (
+          percentualComissaoBanco <= 0 ||
+          percentualComissaoBanco > 100
+        )
+      ) {
+        return NextResponse.json(
+          {
+            erro:
+              "Informe a comissão bancária entre 0,01% e 100%, ou deixe em branco.",
           },
           {
             status: 400,
@@ -426,6 +455,7 @@ export async function POST(
           nome,
           codigo,
           percentual,
+          percentual_comissao_banco: percentualComissaoBanco,
           ativo: true,
           atualizado_em:
             new Date().toISOString(),
@@ -699,6 +729,41 @@ export async function PATCH(
 
         atualizacao.percentual =
           percentual;
+      }
+
+      if (
+        body.tabela?.percentualComissaoBanco !==
+        undefined
+      ) {
+        const percentualComissaoBancoRaw =
+          body.tabela.percentualComissaoBanco;
+
+        const percentualComissaoBanco =
+          percentualComissaoBancoRaw === null ||
+          String(percentualComissaoBancoRaw).trim() === ""
+            ? null
+            : numero(percentualComissaoBancoRaw);
+
+        if (
+          percentualComissaoBanco !== null &&
+          (
+            percentualComissaoBanco <= 0 ||
+            percentualComissaoBanco > 100
+          )
+        ) {
+          return NextResponse.json(
+            {
+              erro:
+                "Informe a comissão bancária entre 0,01% e 100%, ou deixe em branco.",
+            },
+            {
+              status: 400,
+            },
+          );
+        }
+
+        atualizacao.percentual_comissao_banco =
+          percentualComissaoBanco;
       }
 
       if (

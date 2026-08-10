@@ -17,6 +17,7 @@ type Tabela = {
   nome: string;
   codigo: string;
   percentual: number;
+  percentualComissaoBanco: number | null;
   ativo: boolean;
 };
 
@@ -57,12 +58,12 @@ const bancosPadrao: Banco[] = [
 ];
 
 const tabelasPadrao: Tabela[] = [
-  { id: "neo-normal-399", banco: "NEO", orgaoConvenio: "", nome: "NORMAL", codigo: "399", percentual: 100, ativo: true },
-  { id: "neo-flex-1-379", banco: "NEO", orgaoConvenio: "", nome: "FLEX 1", codigo: "379", percentual: 75, ativo: true },
-  { id: "neo-flex-2-359", banco: "NEO", orgaoConvenio: "", nome: "FLEX 2", codigo: "359", percentual: 50, ativo: true },
-  { id: "neo-flex-3-339", banco: "NEO", orgaoConvenio: "", nome: "FLEX 3", codigo: "339", percentual: 40, ativo: true },
-  { id: "neo-flex-4-319", banco: "NEO", orgaoConvenio: "", nome: "FLEX 4", codigo: "319", percentual: 20, ativo: true },
-  { id: "neo-flex-5-299", banco: "NEO", orgaoConvenio: "", nome: "FLEX 5", codigo: "299", percentual: 8, ativo: true },
+  { id: "neo-normal-399", banco: "NEO", orgaoConvenio: "", nome: "NORMAL", codigo: "399", percentual: 100, percentualComissaoBanco: null, ativo: true },
+  { id: "neo-flex-1-379", banco: "NEO", orgaoConvenio: "", nome: "FLEX 1", codigo: "379", percentual: 75, percentualComissaoBanco: null, ativo: true },
+  { id: "neo-flex-2-359", banco: "NEO", orgaoConvenio: "", nome: "FLEX 2", codigo: "359", percentual: 50, percentualComissaoBanco: null, ativo: true },
+  { id: "neo-flex-3-339", banco: "NEO", orgaoConvenio: "", nome: "FLEX 3", codigo: "339", percentual: 40, percentualComissaoBanco: null, ativo: true },
+  { id: "neo-flex-4-319", banco: "NEO", orgaoConvenio: "", nome: "FLEX 4", codigo: "319", percentual: 20, percentualComissaoBanco: null, ativo: true },
+  { id: "neo-flex-5-299", banco: "NEO", orgaoConvenio: "", nome: "FLEX 5", codigo: "299", percentual: 8, percentualComissaoBanco: null, ativo: true },
 ];
 
 const configPadrao: ConfiguracaoGeral = {
@@ -119,6 +120,7 @@ export default function SettingsManager() {
     nome: "",
     codigo: "",
     percentual: "",
+    percentualComissaoBanco: "",
   });
 
   const [editandoTabelaId, setEditandoTabelaId] = useState<string | null>(null);
@@ -128,6 +130,7 @@ export default function SettingsManager() {
     nome: "",
     codigo: "",
     percentual: "",
+    percentualComissaoBanco: "",
   });
   const [novaMeta, setNovaMeta] = useState({
     nome: "",
@@ -212,6 +215,11 @@ export default function SettingsManager() {
             nome: String(item.nome || ""),
             codigo: String(item.codigo || ""),
             percentual: Number(item.percentual || 0),
+            percentualComissaoBanco:
+              item.percentual_comissao_banco === null ||
+              item.percentual_comissao_banco === undefined
+                ? null
+                : Number(item.percentual_comissao_banco),
             ativo: item.ativo !== false,
           }))
         : [];
@@ -466,12 +474,27 @@ export default function SettingsManager() {
     const nome = novaTabela.nome.trim().toUpperCase();
     const codigo = novaTabela.codigo.trim();
     const percentual = numero(novaTabela.percentual);
+    const percentualComissaoBancoTexto =
+      novaTabela.percentualComissaoBanco.trim();
+    const percentualComissaoBanco =
+      percentualComissaoBancoTexto === ""
+        ? null
+        : numero(percentualComissaoBancoTexto);
 
     if (!novaTabela.banco) return setMensagem("Selecione o banco.");
     if (!nome) return setMensagem("Informe o nome da tabela.");
     if (!codigo) return setMensagem("Informe o código da tabela.");
     if (percentual <= 0 || percentual > 100) {
-      return setMensagem("Informe um percentual entre 0,01% e 100%.");
+      return setMensagem("Informe um percentual de produção entre 0,01% e 100%.");
+    }
+
+    if (
+      percentualComissaoBanco !== null &&
+      (percentualComissaoBanco <= 0 || percentualComissaoBanco > 100)
+    ) {
+      return setMensagem(
+        "Informe a comissão bancária entre 0,01% e 100%, ou deixe em branco.",
+      );
     }
 
     setProcessando(true);
@@ -486,6 +509,7 @@ export default function SettingsManager() {
           nome,
           codigo,
           percentual,
+          percentualComissaoBanco,
         },
       });
 
@@ -495,6 +519,7 @@ export default function SettingsManager() {
         nome: "",
         codigo: "",
         percentual: "",
+        percentualComissaoBanco: "",
       });
 
       setMensagem(
@@ -522,6 +547,10 @@ export default function SettingsManager() {
       nome: tabela.nome,
       codigo: tabela.codigo,
       percentual: String(tabela.percentual).replace(".", ","),
+      percentualComissaoBanco:
+        tabela.percentualComissaoBanco === null
+          ? ""
+          : String(tabela.percentualComissaoBanco).replace(".", ","),
     });
     setMensagem("");
   }
@@ -534,6 +563,7 @@ export default function SettingsManager() {
       nome: "",
       codigo: "",
       percentual: "",
+      percentualComissaoBanco: "",
     });
   }
 
@@ -543,12 +573,27 @@ export default function SettingsManager() {
     const nome = edicaoTabela.nome.trim().toUpperCase();
     const codigo = edicaoTabela.codigo.trim();
     const percentual = numero(edicaoTabela.percentual);
+    const percentualComissaoBancoTexto =
+      edicaoTabela.percentualComissaoBanco.trim();
+    const percentualComissaoBanco =
+      percentualComissaoBancoTexto === ""
+        ? null
+        : numero(percentualComissaoBancoTexto);
 
     if (!edicaoTabela.banco) return setMensagem("Selecione o banco.");
     if (!nome) return setMensagem("Informe o nome da tabela.");
     if (!codigo) return setMensagem("Informe o código da tabela.");
     if (percentual <= 0 || percentual > 100) {
-      return setMensagem("Informe um percentual entre 0,01% e 100%.");
+      return setMensagem("Informe um percentual de produção entre 0,01% e 100%.");
+    }
+
+    if (
+      percentualComissaoBanco !== null &&
+      (percentualComissaoBanco <= 0 || percentualComissaoBanco > 100)
+    ) {
+      return setMensagem(
+        "Informe a comissão bancária entre 0,01% e 100%, ou deixe em branco.",
+      );
     }
 
     setProcessando(true);
@@ -564,6 +609,7 @@ export default function SettingsManager() {
           nome,
           codigo,
           percentual,
+          percentualComissaoBanco,
         },
       });
 
@@ -945,6 +991,25 @@ export default function SettingsManager() {
                   disabled={processando}
                 />
               </label>
+
+              <label>
+                % comissão banco
+                <input
+                  value={novaTabela.percentualComissaoBanco}
+                  onChange={(e) =>
+                    setNovaTabela({
+                      ...novaTabela,
+                      percentualComissaoBanco: e.target.value,
+                    })
+                  }
+                  placeholder="Ex.: 28,5"
+                  inputMode="decimal"
+                  disabled={processando}
+                />
+                <small>
+                  Quanto a Eleva recebe do banco. Pode deixar em branco e preencher depois.
+                </small>
+              </label>
             </div>
 
             <div className="settings-actions">
@@ -972,6 +1037,7 @@ export default function SettingsManager() {
               <span>Órgão / Convênio</span>
               <span>Código</span>
               <span>% Produção</span>
+              <span>% Comissão banco</span>
               <span>Status</span>
               <span>Ações</span>
             </div>
@@ -1033,8 +1099,13 @@ export default function SettingsManager() {
                             disabled={processando}
                           >
                             <option value="">Sem órgão específico</option>
-                            <option value="GOVERNO DE SP">GOVERNO DE SP</option>
-                            <option value="GOVERNO MA">GOVERNO MA</option>
+                            {orgaosConvenios
+                              .filter((item) => item.ativo)
+                              .map((item) => (
+                                <option key={item.id} value={item.nome}>
+                                  {item.nome}
+                                </option>
+                              ))}
                           </select>
                         </div>
 
@@ -1062,6 +1133,21 @@ export default function SettingsManager() {
                               })
                             }
                             inputMode="decimal"
+                            disabled={processando}
+                          />
+                        </div>
+
+                        <div>
+                          <input
+                            value={edicaoTabela.percentualComissaoBanco}
+                            onChange={(e) =>
+                              setEdicaoTabela({
+                                ...edicaoTabela,
+                                percentualComissaoBanco: e.target.value,
+                              })
+                            }
+                            inputMode="decimal"
+                            placeholder="Ex.: 28,5"
                             disabled={processando}
                           />
                         </div>
@@ -1119,6 +1205,14 @@ export default function SettingsManager() {
                         <div>
                           <b className="settings-percent-value">
                             {String(tabela.percentual).replace(".", ",")}%
+                          </b>
+                        </div>
+
+                        <div>
+                          <b className="settings-percent-value">
+                            {tabela.percentualComissaoBanco === null
+                              ? "Não informado"
+                              : `${String(tabela.percentualComissaoBanco).replace(".", ",")}%`}
                           </b>
                         </div>
 
