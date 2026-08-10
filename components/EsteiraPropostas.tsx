@@ -1143,8 +1143,7 @@ for (const documento of documentos) {
     }
   }
 
-  async function excluirPropostaDigitada(proposta: Proposta) {
-    if (proposta.status !== "PROPOSTA DIGITADA") return;
+  async function excluirProposta(proposta: Proposta) {
 
     const confirmar = window.confirm(
       `Deseja excluir definitivamente a proposta de ${proposta.cliente}?\n\nEssa ação não poderá ser desfeita.`,
@@ -1532,24 +1531,20 @@ for (const documento of documentos) {
                             </button>
                           )}
 
-                        {proposta.status === "PROPOSTA DIGITADA" && (
-                          <button
-                            type="button"
-                            title="Excluir proposta digitada"
-                            aria-label={`Excluir proposta de ${proposta.cliente}`}
-                            disabled={salvando}
-                            onClick={() =>
-                              void excluirPropostaDigitada(proposta)
-                            }
-                            style={{
-                              color: "#b42318",
-                              borderColor: "#f0b4ae",
-                              background: "#fff5f4",
-                            }}
-                          >
-                            🗑
-                          </button>
-                        )}
+                        <button
+  type="button"
+  title="Excluir proposta"
+  aria-label={`Excluir proposta de ${proposta.cliente}`}
+  disabled={salvando}
+  onClick={() => void excluirProposta(proposta)}
+  style={{
+    color: "#b42318",
+    borderColor: "#f0b4ae",
+    background: "#fff5f4",
+  }}
+>
+  🗑
+</button>
                       </div>
                     </td>
                   </tr>
