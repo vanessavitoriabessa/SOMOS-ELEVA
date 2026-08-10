@@ -1,18 +1,34 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import PainelDoDia from "./PainelDoDia";
-import "./dashboard-backup.css";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-type PropostaCompraDivida = {
+import { createClient } from "@/lib/supabase/client";
+
+import "./dashboard.css";
+
+type PerfilAtual = {
   id?: string;
+  nome?: string;
+  perfil?: string;
+};
+
+type PropostaCompra = {
+  id?: string;
+  numeroProposta?: string;
   cliente?: string;
+  cpf?: string;
   vendedora?: string;
+  consultora?: string;
+  banco?: string;
   tabela?: string;
+  percentualTabela?: number;
   valorContrato?: number;
   valorMeta?: number;
-  percentualTabela?: number;
+  parcela?: number;
   status?: string;
   dataCadastro?: string;
   dataPagamento?: string;
@@ -21,838 +37,2284 @@ type PropostaCompraDivida = {
 type RegistroClt = {
   id?: string;
   nome?: string;
+  cpf?: string;
   consultora?: string;
+  valorAprovado?: number;
   parcela?: number;
+  prazo?: number;
   status?: string;
   criadoEm?: string;
   atualizadoEm?: string;
   dataPagamento?: string;
 };
 
-type Atividade = {
-  id: string;
-  tipo: "compra" | "clt";
-  titulo: string;
-  cliente: string;
-  valor: number;
-  data: Date;
+type RespostaApi = {
+  erro?: string;
+  perfil?: PerfilAtual;
+  propostas?: PropostaCompra[];
+  registros?: RegistroClt[];
 };
 
-const META_INDIVIDUAL = 30000;
-const META_EMPRESA = 350000;
+type Periodo =
+  | "Hoje"
+  | "Esta semana"
+  | "Este mês"
+  | "Este ano"
+  | "Tudo"
+  | "Personalizado";
 
-const TABELAS_COMPRA_DIVIDA = [
-  { nome: "NEO NORMAL", percentual: 100 },
-  { nome: "NEO FLEX 1", percentual: 82 },
-  { nome: "NEO FLEX 2", percentual: 67 },
-  { nome: "NEO FLEX 4", percentual: 37 },
-  { nome: "NEO FLEX 5", percentual: 17 },
+type LinhaEquipe = {
+  nome: string;
+  propostasCompra: number;
+  propostasClt: number;
+  propostas: number;
+  compraBruta: number;
+  compraFinal: number;
+  cltBruto: number;
+  cltFinal: number;
+  valorBruto: number;
+  valorFinal: number;
+  percentual: number;
+};
+
+const TABELAS = [
+  {
+    nome: "NEO NORMAL",
+    percentual: 100,
+  },
+  {
+    nome: "NEO FLEX 1",
+    percentual: 82,
+  },
+  {
+    nome: "NEO FLEX 2",
+    percentual: 67,
+  },
+  {
+    nome: "NEO FLEX 3",
+    percentual: 52,
+  },
+  {
+    nome: "NEO FLEX 4",
+    percentual: 37,
+  },
+  {
+    nome: "NEO FLEX 5",
+    percentual: 17,
+  },
 ];
 
-function normalizarTexto(valor: string) {
+function normalizarTexto(
+  valor: unknown,
+) {
   return String(valor || "")
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(
+      /[\u0300-\u036f]/g,
+      "",
+    )
     .trim()
     .toLowerCase();
 }
 
-function nomeBonito(valor: string) {
-  if (!valor) return "Colaboradora";
-  if (valor === "0001") return "Vanessa";
-
-  const base = valor.includes("@") ? valor.split("@")[0] : valor;
-  const nome = base.split(/[._-]/)[0];
-
-  return nome.charAt(0).toUpperCase() + nome.slice(1).toLowerCase();
-}
-
-function perfilEhConsultora(perfil: string) {
-  const texto = normalizarTexto(perfil);
+function perfilEhConsultora(
+  perfil: string,
+) {
+  const texto =
+    normalizarTexto(perfil);
 
   return (
     texto.includes("consultor") ||
-    texto.includes("consultora") ||
-    texto.includes("vendedor") ||
-    texto.includes("vendedora")
+    texto.includes("vendedor")
   );
 }
 
-function moeda(valor: number) {
-  return Number(valor || 0).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  });
+function moeda(
+  valor: number,
+) {
+  return Number(valor || 0)
+    .toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    });
 }
 
-function numero(valor: number) {
-  return Number(valor || 0).toLocaleString("pt-BR", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  });
+function numero(
+  valor: number,
+) {
+  return Number(valor || 0)
+    .toLocaleString("pt-BR", {
+      maximumFractionDigits: 0,
+    });
 }
 
-function converterData(valor?: string) {
-  if (!valor) return null;
+function hojeIso() {
+  return new Date()
+    .toISOString()
+    .slice(0, 10);
+}
 
-  const texto = String(valor).trim();
+function primeiroDiaMes() {
+  const hoje = new Date();
 
-  const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (iso) {
-    return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  return new Date(
+    hoje.getFullYear(),
+    hoje.getMonth(),
+    1,
+  )
+    .toISOString()
+    .slice(0, 10);
+}
+
+function converterData(
+  valor?: string,
+) {
+  if (!valor) {
+    return null;
   }
 
-  const brasileira = texto.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  const texto =
+    String(valor).trim();
+
+  const iso = texto.match(
+    /^(\d{4})-(\d{2})-(\d{2})/,
+  );
+
+  if (iso) {
+    return new Date(
+      Number(iso[1]),
+      Number(iso[2]) - 1,
+      Number(iso[3]),
+    );
+  }
+
+  const brasileira =
+    texto.match(
+      /(\d{2})\/(\d{2})\/(\d{4})/,
+    );
+
   if (brasileira) {
     return new Date(
       Number(brasileira[3]),
       Number(brasileira[2]) - 1,
-      Number(brasileira[1])
+      Number(brasileira[1]),
     );
   }
 
-  const tentativa = new Date(texto);
+  const tentativa =
+    new Date(texto);
 
-  return Number.isNaN(tentativa.getTime()) ? null : tentativa;
+  return Number.isNaN(
+    tentativa.getTime(),
+  )
+    ? null
+    : tentativa;
 }
 
-function mesmaData(data: Date, referencia: Date) {
+function mesmaData(
+  data: Date,
+  referencia: Date,
+) {
   return (
-    data.getFullYear() === referencia.getFullYear() &&
-    data.getMonth() === referencia.getMonth() &&
-    data.getDate() === referencia.getDate()
+    data.getFullYear() ===
+      referencia.getFullYear() &&
+    data.getMonth() ===
+      referencia.getMonth() &&
+    data.getDate() ===
+      referencia.getDate()
   );
 }
 
-function mesmoMes(data: Date, referencia: Date) {
+function inicioSemana(data: Date) {
+  const copia = new Date(data);
+  copia.setHours(0, 0, 0, 0);
+
+  const diaSemana = copia.getDay();
+  const diferenca = diaSemana === 0 ? -6 : 1 - diaSemana;
+
+  copia.setDate(copia.getDate() + diferenca);
+
+  return copia;
+}
+
+function fimSemana(data: Date) {
+  const inicio = inicioSemana(data);
+  const fim = new Date(inicio);
+
+  fim.setDate(fim.getDate() + 6);
+  fim.setHours(23, 59, 59, 999);
+
+  return fim;
+}
+
+function statusNormalizado(valor?: string) {
+  return normalizarTexto(valor).replace(/\s+/g, " ");
+}
+
+function propostaCompraPaga(status?: string) {
+  return statusNormalizado(status) === "pago";
+}
+
+function propostaCompraCancelada(status?: string) {
+  const texto = statusNormalizado(status);
+
+  return texto === "cancelada" || texto === "cancelado";
+}
+
+function propostaCltPaga(status?: string) {
+  return statusNormalizado(status) === "pago";
+}
+
+function propostaCltCancelada(status?: string) {
+  const texto = statusNormalizado(status);
+
   return (
-    data.getFullYear() === referencia.getFullYear() &&
-    data.getMonth() === referencia.getMonth()
+    texto === "cancelada" ||
+    texto === "cancelado" ||
+    texto === "recusada" ||
+    texto === "recusado"
   );
 }
 
-function tabelaPeloNome(nome?: string) {
-  const nomeNormalizado = normalizarTexto(nome || "");
+function estaNoPeriodo(
+  data: Date | null,
+  periodo: Periodo,
+  inicio: string,
+  fim: string,
+) {
+  if (!data) {
+    return false;
+  }
 
-  return TABELAS_COMPRA_DIVIDA.find((item) => {
-    const tabelaNormalizada = normalizarTexto(item.nome);
+  const hoje = new Date();
 
+  if (periodo === "Hoje") {
+    return mesmaData(data, hoje);
+  }
+
+  if (periodo === "Esta semana") {
+    return data >= inicioSemana(hoje) && data <= fimSemana(hoje);
+  }
+
+  if (periodo === "Este mês") {
     return (
-      nomeNormalizado === tabelaNormalizada ||
-      nomeNormalizado.startsWith(tabelaNormalizada)
+      data.getFullYear() ===
+        hoje.getFullYear() &&
+      data.getMonth() ===
+        hoje.getMonth()
     );
-  });
-}
+  }
 
-function percentualDaTabela(proposta: PropostaCompraDivida) {
-  const tabela = tabelaPeloNome(proposta.tabela);
+  if (periodo === "Este ano") {
+    return (
+      data.getFullYear() ===
+      hoje.getFullYear()
+    );
+  }
 
-  if (tabela) return tabela.percentual;
+  if (periodo === "Tudo") {
+    return true;
+  }
 
-  const percentualSalvo = Number(proposta.percentualTabela || 0);
+  const dataInicial =
+    converterData(inicio);
 
-  const permitido = TABELAS_COMPRA_DIVIDA.some(
-    (item) => Math.abs(item.percentual - percentualSalvo) < 0.01
+  const dataFinal =
+    converterData(fim);
+
+  if (!dataInicial || !dataFinal) {
+    return true;
+  }
+
+  dataInicial.setHours(
+    0,
+    0,
+    0,
+    0,
   );
 
-  return permitido ? percentualSalvo : 0;
-}
-
-function valorValidoCompra(proposta: PropostaCompraDivida) {
-  const salvo = Number(proposta.valorMeta || 0);
-
-  if (salvo > 0) return salvo;
-
-  return (
-    Number(proposta.valorContrato || 0) *
-    (percentualDaTabela(proposta) / 100)
-  );
-}
-
-function competenciaCompra(proposta: PropostaCompraDivida) {
-  const digitacao = converterData(proposta.dataCadastro);
-  const pagamento = converterData(proposta.dataPagamento);
-
-  if (!pagamento) return null;
-  if (!digitacao) return pagamento;
-
-  const limite = new Date(
-    digitacao.getFullYear(),
-    digitacao.getMonth() + 1,
-    19,
+  dataFinal.setHours(
     23,
     59,
-    59
+    59,
+    999,
   );
 
-  return pagamento <= limite ? digitacao : pagamento;
+  return (
+    data >= dataInicial &&
+    data <= dataFinal
+  );
 }
 
-function dataClt(registro: RegistroClt) {
+function dataBR(valor?: string) {
+  const data = converterData(valor);
+
+  if (!data) return "—";
+
+  return data.toLocaleDateString("pt-BR");
+}
+
+function percentualTabela(
+  proposta: PropostaCompra,
+) {
+  const nome =
+    normalizarTexto(
+      proposta.tabela,
+    );
+
+  const encontrada =
+    TABELAS.find((tabela) =>
+      nome.startsWith(
+        normalizarTexto(
+          tabela.nome,
+        ),
+      ),
+    );
+
+  if (encontrada) {
+    return encontrada.percentual;
+  }
+
+  return Number(
+    proposta.percentualTabela ||
+      0,
+  );
+}
+
+function valorFinalCompra(
+  proposta: PropostaCompra,
+) {
+  const valorSalvo =
+    Number(
+      proposta.valorMeta || 0,
+    );
+
+  if (valorSalvo > 0) {
+    return valorSalvo;
+  }
+
+  return (
+    Number(
+      proposta.valorContrato || 0,
+    ) *
+    (percentualTabela(proposta) /
+      100)
+  );
+}
+
+function dataCompra(
+  proposta: PropostaCompra,
+) {
+  return converterData(
+    proposta.dataPagamento ||
+      proposta.dataCadastro,
+  );
+}
+
+function dataClt(
+  registro: RegistroClt,
+) {
   return converterData(
     registro.dataPagamento ||
       registro.atualizadoEm ||
-      registro.criadoEm
+      registro.criadoEm,
   );
 }
 
-function pontosDoGrafico(valores: number[]) {
-  const larguraInicial = 35;
-  const larguraFinal = 740;
-  const alturaSuperior = 20;
-  const alturaInferior = 205;
-
-  const maior = Math.max(...valores, 1);
-  const quantidade = Math.max(valores.length - 1, 1);
-
-  return valores
-    .map((valor, indice) => {
-      const x =
-        larguraInicial +
-        ((larguraFinal - larguraInicial) * indice) / quantidade;
-
-      const y =
-        alturaInferior -
-        ((alturaInferior - alturaSuperior) * valor) / maior;
-
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
+function nomeResponsavelCompra(
+  proposta: PropostaCompra,
+) {
+  return (
+    proposta.vendedora ||
+    proposta.consultora ||
+    "Sem consultora"
+  ).trim();
 }
 
-function horarioOuData(data: Date) {
-  const hoje = new Date();
-
-  if (mesmaData(data, hoje)) {
-    return data.toLocaleTimeString("pt-BR", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }
-
-  return data.toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-  });
+function nomeResponsavelClt(
+  registro: RegistroClt,
+) {
+  return (
+    registro.consultora ||
+    "Sem consultora"
+  ).trim();
 }
 
 export default function DashboardClient() {
-  const router = useRouter();
+  const supabase = useMemo(
+    () => createClient(),
+    [],
+  );
 
-  const [nome, setNome] = useState("Colaboradora");
-  const [perfil, setPerfil] = useState("Consultora");
-  const [propostas, setPropostas] = useState<PropostaCompraDivida[]>([]);
-  const [registrosClt, setRegistrosClt] = useState<RegistroClt[]>([]);
-const [painelDiaAberto, setPainelDiaAberto] = useState(false);
+  const [
+    perfilAtual,
+    setPerfilAtual,
+  ] = useState<PerfilAtual | null>(
+    null,
+  );
 
-  useEffect(() => {
-  let componenteAtivo = true;
+  const [
+    propostas,
+    setPropostas,
+  ] = useState<PropostaCompra[]>(
+    [],
+  );
 
-  function carregarCltLocal() {
-    try {
-      const listaClt = JSON.parse(
-        localStorage.getItem("somos-eleva-clt") || "[]"
+  const [
+    registrosClt,
+    setRegistrosClt,
+  ] = useState<RegistroClt[]>(
+    [],
+  );
+
+  const [
+    carregando,
+    setCarregando,
+  ] = useState(true);
+
+  const [
+    mensagem,
+    setMensagem,
+  ] = useState("");
+
+  const [
+    periodo,
+    setPeriodo,
+  ] = useState<Periodo>(
+    "Este mês",
+  );
+
+  const [
+    dataInicial,
+    setDataInicial,
+  ] = useState(
+    primeiroDiaMes(),
+  );
+
+  const [
+    dataFinal,
+    setDataFinal,
+  ] = useState(
+    hojeIso(),
+  );
+
+  const [
+    status,
+    setStatus,
+  ] = useState("Todas");
+
+  const [
+    busca,
+    setBusca,
+  ] = useState("");
+
+  const [
+    consultoraDetalhe,
+    setConsultoraDetalhe,
+  ] = useState<string | null>(null);
+
+  const [
+    detalheAberto,
+    setDetalheAberto,
+  ] = useState(false);
+
+  const [
+    detalheSomenteCanceladas,
+    setDetalheSomenteCanceladas,
+  ] = useState(false);
+
+  async function obterSessao() {
+    const {
+      data,
+      error,
+    } =
+      await supabase.auth.getSession();
+
+    if (
+      error ||
+      !data.session?.access_token
+    ) {
+      throw new Error(
+        "Sua sessão expirou. Entre novamente no sistema.",
       );
-
-      if (componenteAtivo) {
-        setRegistrosClt(Array.isArray(listaClt) ? listaClt : []);
-      }
-    } catch {
-      if (componenteAtivo) {
-        setRegistrosClt([]);
-      }
-    }
-  }
-
-  function normalizarProposta(item: any): PropostaCompraDivida {
-    return {
-      id: String(item?.id || ""),
-
-      cliente: String(
-        item?.cliente ||
-          item?.clienteNome ||
-          item?.cliente_nome ||
-          ""
-      ),
-
-      vendedora: String(
-        item?.vendedora ||
-          item?.consultora ||
-          item?.consultoraNome ||
-          item?.consultora_nome ||
-          ""
-      ),
-
-      tabela: String(
-        item?.tabela ||
-          item?.tabelaNome ||
-          item?.tabela_nome ||
-          item?.tabelaBanco ||
-          item?.tabela_banco ||
-          ""
-      ),
-
-      valorContrato: Number(
-        item?.valorContrato ??
-          item?.valor_contrato ??
-          item?.valorOperacao ??
-          item?.valor_operacao ??
-          item?.valorLiquido ??
-          item?.valor_liquido ??
-          0
-      ),
-
-      valorMeta: Number(
-        item?.valorMeta ??
-          item?.valor_meta ??
-          item?.producaoMeta ??
-          item?.producao_meta ??
-          0
-      ),
-
-      percentualTabela: Number(
-        item?.percentualTabela ??
-          item?.percentual_tabela ??
-          item?.percentual ??
-          0
-      ),
-
-      status: String(item?.status || ""),
-
-      dataCadastro: String(
-        item?.dataCadastro ||
-          item?.data_cadastro ||
-          item?.dataDigitacao ||
-          item?.data_digitacao ||
-          item?.created_at ||
-          ""
-      ),
-
-      dataPagamento: String(
-        item?.dataPagamento ||
-          item?.data_pagamento ||
-          item?.pagoEm ||
-          item?.pago_em ||
-          ""
-      ),
-    };
-  }
-
-  async function carregar() {
-    const nomeSalvo = localStorage.getItem("somos-eleva-nome");
-
-    const usuario =
-      localStorage.getItem("somos-eleva-usuario") || "0001";
-
-    const perfilSalvo =
-      localStorage.getItem("somos-eleva-cargo") || "Consultora";
-
-    if (componenteAtivo) {
-      setNome(nomeSalvo?.trim() || nomeBonito(usuario));
-      setPerfil(perfilSalvo);
     }
 
-    try {
-      const resposta = await fetch("/api/propostas", {
-        method: "GET",
+    return data.session;
+  }
+
+  async function consultarApi(
+    url: string,
+    token: string,
+  ): Promise<RespostaApi> {
+    const resposta =
+      await fetch(url, {
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
         cache: "no-store",
-        credentials: "include",
       });
 
-      if (!resposta.ok) {
-        const respostaErro = await resposta.text();
+    let conteudo: RespostaApi;
 
-        throw new Error(
-          respostaErro ||
-            `Erro ${resposta.status} ao carregar as propostas.`
-        );
-      }
-
-      const resultado = await resposta.json();
-
-      const lista = Array.isArray(resultado)
-        ? resultado
-        : Array.isArray(resultado?.propostas)
-          ? resultado.propostas
-          : Array.isArray(resultado?.data)
-            ? resultado.data
-            : [];
-
-      const propostasNormalizadas = lista.map(normalizarProposta);
-
-      if (componenteAtivo) {
-        setPropostas(propostasNormalizadas);
-      }
-
-      localStorage.setItem(
-        "somos-eleva-propostas",
-        JSON.stringify(propostasNormalizadas)
+    try {
+      conteudo =
+        (await resposta.json()) as RespostaApi;
+    } catch {
+      throw new Error(
+        "O servidor retornou uma resposta inválida.",
       );
-    } catch (error) {
-      console.error(
-        "Erro ao carregar propostas no Dashboard:",
-        error
-      );
-
-      try {
-        const listaLocal = JSON.parse(
-          localStorage.getItem("somos-eleva-propostas") || "[]"
-        );
-
-        if (componenteAtivo) {
-          setPropostas(
-            Array.isArray(listaLocal) ? listaLocal : []
-          );
-        }
-      } catch {
-        if (componenteAtivo) {
-          setPropostas([]);
-        }
-      }
     }
 
-    carregarCltLocal();
+    if (!resposta.ok) {
+      throw new Error(
+        conteudo.erro ||
+          "Não foi possível carregar os dados.",
+      );
+    }
+
+    return conteudo;
   }
 
-  carregar();
+  async function carregarDados() {
+    setCarregando(true);
+    setMensagem("");
 
-  function atualizarDashboard() {
-    carregar();
+    try {
+      const sessao =
+        await obterSessao();
+
+      const token =
+        sessao.access_token;
+
+      const [
+        respostaPropostas,
+        respostaClt,
+      ] = await Promise.all([
+        consultarApi(
+          "/api/propostas",
+          token,
+        ),
+        consultarApi(
+          "/api/clt",
+          token,
+        ),
+      ]);
+
+      setPerfilAtual(
+        respostaPropostas.perfil ||
+          respostaClt.perfil ||
+          null,
+      );
+
+      setPropostas(
+        Array.isArray(
+          respostaPropostas.propostas,
+        )
+          ? respostaPropostas.propostas
+          : [],
+      );
+
+      setRegistrosClt(
+        Array.isArray(
+          respostaClt.registros,
+        )
+          ? respostaClt.registros
+          : [],
+      );
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível carregar o Dashboard.",
+      );
+    } finally {
+      setCarregando(false);
+    }
   }
 
-  window.addEventListener("focus", atualizarDashboard);
-  window.addEventListener("storage", atualizarDashboard);
+  useEffect(() => {
+    void carregarDados();
+  }, [supabase]);
 
-  return () => {
-    componenteAtivo = false;
-
-    window.removeEventListener("focus", atualizarDashboard);
-    window.removeEventListener("storage", atualizarDashboard);
-  };
-}, []);
-
-  const ehConsultora = perfilEhConsultora(perfil);
-  const hoje = useMemo(() => new Date(), []);
-  const metaDoMes = ehConsultora ? META_INDIVIDUAL : META_EMPRESA;
-
-  const dados = useMemo(() => {
-    const nomeNormalizado = normalizarTexto(nome);
-
-    const propostasFiltradas = propostas.filter((proposta) => {
-      if (proposta.status !== "Pago") return false;
-
-      if (!ehConsultora) return true;
-
-      return normalizarTexto(proposta.vendedora || "") === nomeNormalizado;
-    });
-
-    const cltFiltrados = registrosClt.filter((registro) => {
-      if (registro.status !== "Pago") return false;
-
-      if (!ehConsultora) return true;
-
-      return normalizarTexto(registro.consultora || "") === nomeNormalizado;
-    });
-
-    const comprasMes = propostasFiltradas.filter((proposta) => {
-      const competencia = competenciaCompra(proposta);
-      return Boolean(competencia) && mesmoMes(competencia as Date, hoje);
-    });
-
-    const cltMes = cltFiltrados.filter((registro) => {
-      const data = dataClt(registro);
-      return Boolean(data) && mesmoMes(data as Date, hoje);
-    });
-
-    const comprasHoje = propostasFiltradas.filter((proposta) => {
-      const pagamento = converterData(proposta.dataPagamento);
-      return Boolean(pagamento) && mesmaData(pagamento as Date, hoje);
-    });
-
-    const cltHoje = cltFiltrados.filter((registro) => {
-      const data = dataClt(registro);
-      return Boolean(data) && mesmaData(data as Date, hoje);
-    });
-
-    const producaoCompraMes = comprasMes.reduce(
-      (total, proposta) => total + valorValidoCompra(proposta),
-      0
+  const ehConsultora =
+    Boolean(
+      perfilAtual &&
+        perfilEhConsultora(
+          perfilAtual.perfil ||
+            "",
+        ),
     );
 
-    const producaoCltMes = cltMes.reduce(
-      (total, registro) => total + Number(registro.parcela || 0),
-      0
-    );
+  const nomeUsuario =
+    perfilAtual?.nome ||
+    "Equipe Eleva";
 
-    const producaoCompraHoje = comprasHoje.reduce(
-      (total, proposta) => total + valorValidoCompra(proposta),
-      0
-    );
+  const cancelamentosPeriodo = useMemo(() => {
+    const nomeUsuarioNormalizado =
+      normalizarTexto(perfilAtual?.nome);
 
-    const producaoCltHoje = cltHoje.reduce(
-      (total, registro) => total + Number(registro.parcela || 0),
-      0
-    );
+    const porConsultora = new Map<string, number>();
 
-    const producaoMes = producaoCompraMes + producaoCltMes;
-    const producaoHoje = producaoCompraHoje + producaoCltHoje;
-    const vendasMes = comprasMes.length + cltMes.length;
-    const vendasHoje = comprasHoje.length + cltHoje.length;
-    const ticketMedio = vendasMes > 0 ? producaoMes / vendasMes : 0;
+    let total = 0;
 
-    const atividadesCompra: Atividade[] = comprasMes.map(
-      (proposta, indice) => ({
-        id: `compra-${proposta.id || indice}`,
-        tipo: "compra",
-        titulo: "Compra de Dívida paga",
-        cliente: proposta.cliente || "Cliente não informado",
-        valor: valorValidoCompra(proposta),
-        data:
-          converterData(proposta.dataPagamento) ||
-          converterData(proposta.dataCadastro) ||
-          hoje,
-      })
-    );
+    propostas.forEach((proposta) => {
+      const nome = nomeResponsavelCompra(proposta);
 
-    const atividadesClt: Atividade[] = cltMes.map((registro, indice) => ({
-      id: `clt-${registro.id || indice}`,
-      tipo: "clt",
-      titulo: "Contrato CLT pago",
-      cliente: registro.nome || "Cliente não informado",
-      valor: Number(registro.parcela || 0),
-      data: dataClt(registro) || hoje,
-    }));
-
-    const atividades = [...atividadesCompra, ...atividadesClt]
-      .sort((a, b) => b.data.getTime() - a.data.getTime())
-      .slice(0, 5);
-
-    const quantidadeDias = new Date(
-      hoje.getFullYear(),
-      hoje.getMonth() + 1,
-      0
-    ).getDate();
-
-    const diarioCompra = Array.from(
-      { length: quantidadeDias },
-      () => 0
-    );
-
-    const diarioClt = Array.from({ length: quantidadeDias }, () => 0);
-
-    comprasMes.forEach((proposta) => {
-  const data = competenciaCompra(proposta);
-
-      if (data && mesmoMes(data, hoje)) {
-        diarioCompra[data.getDate() - 1] += valorValidoCompra(proposta);
+      if (
+        ehConsultora &&
+        normalizarTexto(nome) !== nomeUsuarioNormalizado
+      ) {
+        return;
       }
-    });
 
-    cltMes.forEach((registro) => {
-      const data = dataClt(registro);
-
-      if (data && mesmoMes(data, hoje)) {
-        diarioClt[data.getDate() - 1] += Number(registro.parcela || 0);
+      if (!propostaCompraCancelada(proposta.status)) {
+        return;
       }
+
+      if (
+        !estaNoPeriodo(
+          converterData(
+            proposta.dataCadastro ||
+              proposta.dataPagamento,
+          ),
+          periodo,
+          dataInicial,
+          dataFinal,
+        )
+      ) {
+        return;
+      }
+
+      total += 1;
+
+      porConsultora.set(
+        nome,
+        (porConsultora.get(nome) || 0) + 1,
+      );
     });
 
-    const acumuladoCompra: number[] = [];
-    const acumuladoClt: number[] = [];
-    const acumuladoTotal: number[] = [];
+    registrosClt.forEach((registro) => {
+      const nome = nomeResponsavelClt(registro);
 
-    diarioCompra.forEach((valor, indice) => {
-      acumuladoCompra[indice] =
-        valor + (acumuladoCompra[indice - 1] || 0);
+      if (
+        ehConsultora &&
+        normalizarTexto(nome) !== nomeUsuarioNormalizado
+      ) {
+        return;
+      }
 
-      acumuladoClt[indice] =
-        diarioClt[indice] + (acumuladoClt[indice - 1] || 0);
+      if (!propostaCltCancelada(registro.status)) {
+        return;
+      }
 
-      acumuladoTotal[indice] =
-        acumuladoCompra[indice] + acumuladoClt[indice];
+      if (
+        !estaNoPeriodo(
+          converterData(
+            registro.atualizadoEm ||
+              registro.criadoEm ||
+              registro.dataPagamento,
+          ),
+          periodo,
+          dataInicial,
+          dataFinal,
+        )
+      ) {
+        return;
+      }
+
+      total += 1;
+
+      porConsultora.set(
+        nome,
+        (porConsultora.get(nome) || 0) + 1,
+      );
     });
 
     return {
-  producaoCompraMes,
-  producaoCltMes,
-  producaoCompraHoje,
-  producaoCltHoje,
-  producaoMes,
-      producaoHoje,
-      vendasMes,
-      vendasHoje,
-      ticketMedio,
-      atividades,
-      pontosCompra: pontosDoGrafico(acumuladoCompra),
-      pontosClt: pontosDoGrafico(acumuladoClt),
-      pontosTotal: pontosDoGrafico(acumuladoTotal),
+      total,
+      porConsultora,
     };
-  }, [propostas, registrosClt, nome, ehConsultora, hoje]);
+  }, [
+    propostas,
+    registrosClt,
+    perfilAtual,
+    ehConsultora,
+    periodo,
+    dataInicial,
+    dataFinal,
+  ]);
 
-  const percentualMeta =
-    metaDoMes > 0 ? (dados.producaoMes / metaDoMes) * 100 : 0;
+  const resultado =
+    useMemo(() => {
+      const nomeUsuarioNormalizado =
+        normalizarTexto(
+          perfilAtual?.nome,
+        );
 
-  const percentualExibido = Math.round(percentualMeta);
-  const percentualBarra = Math.min(Math.max(percentualMeta, 0), 100);
-  const faltaParaMeta = Math.max(metaDoMes - dados.producaoMes, 0);
+      const compraFiltrada =
+        propostas.filter(
+          (proposta) => {
+            if (
+              ehConsultora &&
+              normalizarTexto(
+                nomeResponsavelCompra(
+                  proposta,
+                ),
+              ) !==
+                nomeUsuarioNormalizado
+            ) {
+              return false;
+            }
 
-  const mesAtual = hoje.toLocaleDateString("pt-BR", {
-    month: "long",
-    year: "numeric",
-  });
+            if (status === "Pagas" && !propostaCompraPaga(proposta.status)) {
+              return false;
+            }
+
+            if (status === "Canceladas" && !propostaCompraCancelada(proposta.status)) {
+              return false;
+            }
+
+            if (
+              status === "Em andamento" &&
+              (propostaCompraPaga(proposta.status) ||
+                propostaCompraCancelada(proposta.status))
+            ) {
+              return false;
+            }
+
+            return estaNoPeriodo(
+              dataCompra(proposta),
+              periodo,
+              dataInicial,
+              dataFinal,
+            );
+          },
+        );
+
+      const cltFiltrado =
+        registrosClt.filter(
+          (registro) => {
+            if (
+              ehConsultora &&
+              normalizarTexto(
+                nomeResponsavelClt(
+                  registro,
+                ),
+              ) !==
+                nomeUsuarioNormalizado
+            ) {
+              return false;
+            }
+
+            if (status === "Pagas" && !propostaCltPaga(registro.status)) {
+              return false;
+            }
+
+            if (status === "Canceladas" && !propostaCltCancelada(registro.status)) {
+              return false;
+            }
+
+            if (
+              status === "Em andamento" &&
+              (propostaCltPaga(registro.status) ||
+                propostaCltCancelada(registro.status))
+            ) {
+              return false;
+            }
+
+            return estaNoPeriodo(
+              dataClt(registro),
+              periodo,
+              dataInicial,
+              dataFinal,
+            );
+          },
+        );
+
+      const linhas =
+        new Map<
+          string,
+          LinhaEquipe
+        >();
+
+      compraFiltrada.forEach(
+        (proposta) => {
+          const nome =
+            nomeResponsavelCompra(
+              proposta,
+            );
+
+          const atual =
+            linhas.get(nome) || {
+              nome,
+              propostasCompra: 0,
+              propostasClt: 0,
+              propostas: 0,
+              compraBruta: 0,
+              compraFinal: 0,
+              cltBruto: 0,
+              cltFinal: 0,
+              valorBruto: 0,
+              valorFinal: 0,
+              percentual: 0,
+            };
+
+          atual.propostasCompra +=
+            1;
+
+          atual.propostas += 1;
+
+          atual.compraBruta +=
+            Number(
+              proposta.valorContrato ||
+                0,
+            );
+
+          atual.compraFinal +=
+            valorFinalCompra(
+              proposta,
+            );
+
+          linhas.set(nome, atual);
+        },
+      );
+
+      cltFiltrado.forEach(
+        (registro) => {
+          const nome =
+            nomeResponsavelClt(
+              registro,
+            );
+
+          const atual =
+            linhas.get(nome) || {
+              nome,
+              propostasCompra: 0,
+              propostasClt: 0,
+              propostas: 0,
+              compraBruta: 0,
+              compraFinal: 0,
+              cltBruto: 0,
+              cltFinal: 0,
+              valorBruto: 0,
+              valorFinal: 0,
+              percentual: 0,
+            };
+
+          atual.propostasClt +=
+            1;
+
+          atual.propostas += 1;
+
+          atual.cltBruto +=
+            Number(
+              registro.valorAprovado ||
+                0,
+            );
+
+          atual.cltFinal +=
+            Number(
+              registro.parcela || 0,
+            );
+
+          linhas.set(nome, atual);
+        },
+      );
+
+      const lista =
+        Array.from(
+          linhas.values(),
+        ).map((linha) => ({
+          ...linha,
+          valorBruto:
+            linha.compraBruta +
+            linha.cltBruto,
+          valorFinal:
+            linha.compraFinal +
+            linha.cltFinal,
+        }));
+
+      const termo =
+        normalizarTexto(busca);
+
+      const listaFiltrada =
+        lista
+          .filter(
+            (linha) =>
+              !termo ||
+              normalizarTexto(
+                linha.nome,
+              ).includes(termo),
+          )
+          .sort(
+            (a, b) =>
+              b.valorFinal -
+              a.valorFinal,
+          );
+
+      const totalFinal =
+        listaFiltrada.reduce(
+          (total, linha) =>
+            total +
+            linha.valorFinal,
+          0,
+        );
+
+      const linhasComPercentual =
+        listaFiltrada.map(
+          (linha) => ({
+            ...linha,
+            percentual:
+              totalFinal > 0
+                ? (linha.valorFinal /
+                    totalFinal) *
+                  100
+                : 0,
+          }),
+        );
+
+      const totalBruto =
+        linhasComPercentual.reduce(
+          (total, linha) =>
+            total +
+            linha.valorBruto,
+          0,
+        );
+
+      const totalPropostas =
+        linhasComPercentual.reduce(
+          (total, linha) =>
+            total +
+            linha.propostas,
+          0,
+        );
+
+      const totalCompra =
+        linhasComPercentual.reduce(
+          (total, linha) =>
+            total +
+            linha.compraFinal,
+          0,
+        );
+
+      const totalClt =
+        linhasComPercentual.reduce(
+          (total, linha) =>
+            total +
+            linha.cltFinal,
+          0,
+        );
+
+      return {
+        linhas:
+          linhasComPercentual,
+        totalFinal,
+        totalBruto,
+        totalPropostas,
+        totalCompra,
+        totalClt,
+        equipesAtivas:
+          linhasComPercentual.length,
+      };
+    }, [
+      propostas,
+      registrosClt,
+      perfilAtual,
+      ehConsultora,
+      status,
+      periodo,
+      dataInicial,
+      dataFinal,
+      busca,
+    ]);
+
+  const maiorValor =
+    Math.max(
+      ...resultado.linhas.map(
+        (linha) =>
+          linha.valorFinal,
+      ),
+      1,
+    );
+
+  const maiorQuantidade =
+    Math.max(
+      ...resultado.linhas.map(
+        (linha) =>
+          linha.propostas,
+      ),
+      1,
+    );
+
+  const linhasGrafico =
+    resultado.linhas.slice(
+      0,
+      8,
+    );
+
+  const graficoExecutivo = useMemo(() => {
+    const largura = 1000;
+    const altura = 430;
+    const margemEsquerda = 78;
+    const margemDireita = 72;
+    const topo = 82;
+    const base = 340;
+    const areaLargura =
+      largura - margemEsquerda - margemDireita;
+    const quantidade =
+      Math.max(linhasGrafico.length, 1);
+    const passo = areaLargura / quantidade;
+    const larguraBarra =
+      Math.min(76, passo * 0.46);
+
+    const maiorLiquido =
+      Math.max(
+        ...linhasGrafico.map(
+          (linha) => linha.valorFinal,
+        ),
+        1,
+      );
+
+    const maiorContratos =
+      Math.max(
+        ...linhasGrafico.map(
+          (linha) => linha.propostas,
+        ),
+        1,
+      );
+
+    const pontosQuantidade =
+      linhasGrafico
+        .map((linha, indice) => {
+          const x =
+            margemEsquerda +
+            passo * indice +
+            passo / 2;
+
+          const y =
+            base -
+            (linha.propostas /
+              maiorContratos) *
+              (base - topo);
+
+          return `${x.toFixed(1)},${y.toFixed(1)}`;
+        })
+        .join(" ");
+
+    return {
+      largura,
+      altura,
+      margemEsquerda,
+      margemDireita,
+      topo,
+      base,
+      passo,
+      larguraBarra,
+      maiorLiquido,
+      maiorContratos,
+      pontosQuantidade,
+    };
+  }, [linhasGrafico]);
+
+  const propostasDetalhe = useMemo(() => {
+    const nomeNormalizado =
+      consultoraDetalhe
+        ? normalizarTexto(consultoraDetalhe)
+        : "";
+
+    const compra = propostas.filter((proposta) => {
+      if (
+        nomeNormalizado &&
+        normalizarTexto(
+          nomeResponsavelCompra(proposta),
+        ) !== nomeNormalizado
+      ) {
+        return false;
+      }
+
+      if (
+        detalheSomenteCanceladas &&
+        !propostaCompraCancelada(proposta.status)
+      ) {
+        return false;
+      }
+
+      if (!detalheSomenteCanceladas) {
+        if (
+          status === "Pagas" &&
+          !propostaCompraPaga(proposta.status)
+        ) {
+          return false;
+        }
+
+        if (
+          status === "Canceladas" &&
+          !propostaCompraCancelada(proposta.status)
+        ) {
+          return false;
+        }
+
+        if (
+          status === "Em andamento" &&
+          (propostaCompraPaga(proposta.status) ||
+            propostaCompraCancelada(proposta.status))
+        ) {
+          return false;
+        }
+      }
+
+      return estaNoPeriodo(
+        detalheSomenteCanceladas
+          ? converterData(
+              proposta.dataCadastro ||
+                proposta.dataPagamento,
+            )
+          : dataCompra(proposta),
+        periodo,
+        dataInicial,
+        dataFinal,
+      );
+    });
+
+    const clt = registrosClt.filter((registro) => {
+      if (
+        nomeNormalizado &&
+        normalizarTexto(
+          nomeResponsavelClt(registro),
+        ) !== nomeNormalizado
+      ) {
+        return false;
+      }
+
+      if (
+        detalheSomenteCanceladas &&
+        !propostaCltCancelada(registro.status)
+      ) {
+        return false;
+      }
+
+      if (!detalheSomenteCanceladas) {
+        if (
+          status === "Pagas" &&
+          !propostaCltPaga(registro.status)
+        ) {
+          return false;
+        }
+
+        if (
+          status === "Canceladas" &&
+          !propostaCltCancelada(registro.status)
+        ) {
+          return false;
+        }
+
+        if (
+          status === "Em andamento" &&
+          (propostaCltPaga(registro.status) ||
+            propostaCltCancelada(registro.status))
+        ) {
+          return false;
+        }
+      }
+
+      return estaNoPeriodo(
+        detalheSomenteCanceladas
+          ? converterData(
+              registro.atualizadoEm ||
+                registro.criadoEm ||
+                registro.dataPagamento,
+            )
+          : dataClt(registro),
+        periodo,
+        dataInicial,
+        dataFinal,
+      );
+    });
+
+    return { compra, clt };
+  }, [
+    consultoraDetalhe,
+    detalheSomenteCanceladas,
+    propostas,
+    registrosClt,
+    status,
+    periodo,
+    dataInicial,
+    dataFinal,
+  ]);
+
+  const resumoDetalhe = useMemo(() => {
+    const quantidade =
+      propostasDetalhe.compra.length +
+      propostasDetalhe.clt.length;
+
+    const brutoCompra =
+      propostasDetalhe.compra.reduce(
+        (total, proposta) =>
+          total +
+          Number(
+            proposta.valorContrato || 0,
+          ),
+        0,
+      );
+
+    const liquidoCompra =
+      propostasDetalhe.compra.reduce(
+        (total, proposta) =>
+          total +
+          valorFinalCompra(proposta),
+        0,
+      );
+
+    const brutoClt =
+      propostasDetalhe.clt.reduce(
+        (total, registro) =>
+          total +
+          Number(
+            registro.valorAprovado || 0,
+          ),
+        0,
+      );
+
+    const liquidoClt =
+      propostasDetalhe.clt.reduce(
+        (total, registro) =>
+          total +
+          Number(
+            registro.parcela || 0,
+          ),
+        0,
+      );
+
+    const canceladas =
+      propostasDetalhe.compra.filter(
+        (proposta) =>
+          propostaCompraCancelada(
+            proposta.status,
+          ),
+      ).length +
+      propostasDetalhe.clt.filter(
+        (registro) =>
+          propostaCltCancelada(
+            registro.status,
+          ),
+      ).length;
+
+    return {
+      quantidade,
+      bruto:
+        brutoCompra + brutoClt,
+      liquido:
+        liquidoCompra + liquidoClt,
+      canceladas,
+    };
+  }, [propostasDetalhe]);
+
+  function abrirDetalhes(
+    consultora: string | null = null,
+    somenteCanceladas = false,
+  ) {
+    setConsultoraDetalhe(consultora);
+    setDetalheSomenteCanceladas(somenteCanceladas);
+    setDetalheAberto(true);
+  }
+
+  function fecharDetalhes() {
+    setDetalheAberto(false);
+    setConsultoraDetalhe(null);
+    setDetalheSomenteCanceladas(false);
+  }
 
   return (
-    <div className="dash-final">
-      <section className="dash-welcome">
+    <div className="eleva-dashboard">
+      <section className="eleva-dashboard-title">
         <div>
-          <h2>Olá, {nome.toUpperCase()}! 👋</h2>
+          <span>
+            VISÃO GERAL
+          </span>
+
+          <h2>
+            Dashboard Eleva
+          </h2>
+
           <p>
             {ehConsultora
-              ? "Acompanhe somente a sua produção"
-              : "Visão geral da operação SOMOS ELEVA"}
+              ? `Olá, ${nomeUsuario}. Acompanhe seus resultados.`
+              : "Acompanhe a produção e o desempenho de toda a equipe."}
           </p>
         </div>
 
         <button
-  type="button"
-  onClick={() => setPainelDiaAberto(true)}
->
-  ▦&nbsp;&nbsp; Painel do dia
-</button>
+          type="button"
+          onClick={() =>
+            void carregarDados()
+          }
+          disabled={carregando}
+        >
+          ↻{" "}
+          {carregando
+            ? "Atualizando"
+            : "Atualizar dados"}
+        </button>
       </section>
 
-      <section className="dash-banner">
-        <img src="/dashboard-banner-final.jpg" alt="" />
-
-        <div className="dash-banner-copy">
-          <h3>
-            Somos Eleva,
-            <br />
-            vamos <strong>mais longe!</strong>
-          </h3>
-
-          <p>
-            Foco, disciplina e atitude constroem
-            <br />
-            resultados extraordinários.
-          </p>
+      {mensagem && (
+        <div className="eleva-dashboard-message">
+          {mensagem}
         </div>
-      </section>
+      )}
 
-      <section className="dash-kpis">
-        <article>
-          <div className="kpi-icon blue">✓</div>
+      <section className="eleva-dashboard-kpis">
+        <article className="eleva-kpi-clickable">
+          <div className="eleva-kpi-icon blue">
+            ◫
+          </div>
 
           <div>
             <span>
-              {ehConsultora ? "Minhas vendas hoje" : "Vendas pagas hoje"}
+              Propostas
             </span>
-            <strong>{dados.vendasHoje}</strong>
-            <small>Contratos pagos hoje</small>
+
+            <strong>
+              {numero(
+                resultado.totalPropostas,
+              )}
+            </strong>
+
+            <small>
+              Período e status selecionados
+            </small>
           </div>
+
+          <button
+            type="button"
+            className="eleva-kpi-link"
+            onClick={() =>
+              abrirDetalhes(null, false)
+            }
+          >
+            Ver propostas
+          </button>
         </article>
 
         <article>
-          <div className="kpi-icon green">R$</div>
+          <div className="eleva-kpi-icon orange">
+            R$
+          </div>
 
           <div>
-            <span>Produção hoje</span>
-            <strong>{moeda(dados.producaoHoje)}</strong>
+            <span>
+              Valor bruto pago
+            </span>
+
+            <strong>
+              {moeda(
+                resultado.totalBruto,
+              )}
+            </strong>
+
             <small>
-              {ehConsultora ? "Somente a sua produção" : "Produção da equipe"}
+              Valor total dos contratos
             </small>
           </div>
         </article>
 
         <article>
-          <div className="kpi-icon orange">◆</div>
+          <div className="eleva-kpi-icon green">
+            $
+          </div>
 
           <div>
             <span>
-              {ehConsultora ? "Minha produção no mês" : "Produção no mês"}
+              Produção líquida
             </span>
-            <strong>{moeda(dados.producaoMes)}</strong>
-            <small>{dados.vendasMes} contratos pagos</small>
+
+            <strong>
+              {moeda(
+                resultado.totalFinal,
+              )}
+            </strong>
+
+            <small>
+              Compra líquida + CLT
+            </small>
           </div>
         </article>
 
-        <article>
-          <div className="kpi-icon purple">▥</div>
+        <article className="eleva-kpi-highlight eleva-kpi-clickable">
+          <div className="eleva-kpi-icon red">
+            ×
+          </div>
 
-          <div className="kpi-wide">
+          <div>
             <span>
-              {ehConsultora ? "Minha meta do mês" : "Meta da empresa"}
+              Canceladas
             </span>
 
-            <strong>{moeda(metaDoMes)}</strong>
+            <strong>
+              {numero(
+                cancelamentosPeriodo.total,
+              )}
+            </strong>
 
-            <div className="kpi-progress">
-              <i style={{ width: `${percentualBarra}%` }} />
-              <b>{percentualExibido}%</b>
-            </div>
+            <small>
+              Cancelamentos no período
+            </small>
           </div>
-        </article>
-      </section>
-
-      <section className="dash-grid">
-        <article className="dash-panel">
-          <div className="dash-panel-head">
-            <h3>
-              {ehConsultora ? "Minha produção do mês" : "Resumo do mês"}
-            </h3>
-
-            <select value={mesAtual} onChange={() => {}}>
-              <option>{mesAtual}</option>
-            </select>
-          </div>
-
-          <div className="dash-summary">
-            <div>
-              <span>Compra de Dívida</span>
-              <strong>{moeda(dados.producaoCompraMes)}</strong>
-              <small>Produção válida</small>
-            </div>
-
-            <div>
-              <span>CLT</span>
-              <strong>{moeda(dados.producaoCltMes)}</strong>
-              <small>Total das parcelas</small>
-            </div>
-
-            <div>
-              <span>Produção total</span>
-              <strong>{moeda(dados.producaoMes)}</strong>
-              <small>{dados.vendasMes} vendas pagas</small>
-            </div>
-
-            <div>
-              <span>
-                {faltaParaMeta > 0 ? "Falta para a meta" : "Meta superada"}
-              </span>
-              <strong>
-                {faltaParaMeta > 0
-                  ? moeda(faltaParaMeta)
-                  : `${numero(percentualMeta - 100)}%`}
-              </strong>
-              <small>
-                {faltaParaMeta > 0
-                  ? `Meta de ${moeda(metaDoMes)}`
-                  : "Parabéns pelo resultado"}
-              </small>
-            </div>
-          </div>
-
-          <div className="dash-chart-title">
-            <b>Desempenho no mês</b>
-            <span>
-              — Compra de Dívida &nbsp;&nbsp; — CLT &nbsp;&nbsp; — Total
-            </span>
-          </div>
-
-          <svg className="dash-chart" viewBox="0 0 760 220">
-            <g className="grid">
-              <line x1="35" y1="30" x2="740" y2="30" />
-              <line x1="35" y1="75" x2="740" y2="75" />
-              <line x1="35" y1="120" x2="740" y2="120" />
-              <line x1="35" y1="165" x2="740" y2="165" />
-              <line x1="35" y1="205" x2="740" y2="205" />
-            </g>
-
-            <polyline className="p-blue" points={dados.pontosCompra} />
-            <polyline className="p-green" points={dados.pontosClt} />
-            <polyline className="p-orange" points={dados.pontosTotal} />
-          </svg>
 
           <button
-            className="dash-report"
+            type="button"
+            className="eleva-kpi-link danger"
             onClick={() =>
-              router.push(ehConsultora ? "/loja-premios" : "/ranking")
+              abrirDetalhes(null, true)
             }
           >
-            {ehConsultora
-              ? "Ver meus pontos e premiação →"
-              : "Ver relatório completo →"}
+            Ver canceladas
           </button>
         </article>
+      </section>
 
-        <article className="dash-panel">
-          <div className="dash-panel-head">
+      <section className="eleva-performance">
+        <div className="eleva-performance-head">
+          <div>
+            <span>
+              DESEMPENHO
+            </span>
+
             <h3>
-              {ehConsultora
-                ? "Minhas atividades recentes"
-                : "Atividades recentes"}
+              Produção Financeira
             </h3>
-
-            <button
-              onClick={() =>
-                router.push(ehConsultora ? "/loja-premios" : "/propostas")
-              }
-            >
-              {ehConsultora ? "Ver meus pontos" : "Ver todas"}
-            </button>
           </div>
 
-          {dados.atividades.length === 0 ? (
-            <div
-              style={{
-                padding: "35px 15px",
-                color: "#8a91a1",
-                textAlign: "center",
-                fontSize: 12,
-              }}
-            >
-              Nenhuma venda paga encontrada neste mês.
-            </div>
-          ) : (
-            <ul className="dash-activity">
-              {dados.atividades.map((atividade) => (
-                <li key={atividade.id}>
-                  <i className={atividade.tipo === "clt" ? "money" : "ok"}>
-                    {atividade.tipo === "clt" ? "CLT" : "✓"}
-                  </i>
+          <div className="eleva-performance-total">
+            <small>
+              Valor bruto
+            </small>
 
-                  <div>
-                    <strong>{atividade.titulo}</strong>
-                    <span>
-                      {atividade.cliente} • {moeda(atividade.valor)}
-                    </span>
-                  </div>
+            <strong>
+              {moeda(
+                resultado.totalBruto,
+              )}
+            </strong>
+          </div>
+        </div>
 
-                  <time>{horarioOuData(atividade.data)}</time>
-                </li>
+        <div className="eleva-filter-area">
+          <div className="eleva-filter-group">
+            <span>
+              Período
+            </span>
+
+            <div className="eleva-period-buttons">
+              {(
+                [
+                  "Hoje",
+                  "Esta semana",
+                  "Este mês",
+                  "Este ano",
+                  "Tudo",
+                ] as Periodo[]
+              ).map((item) => (
+                <button
+                  type="button"
+                  key={item}
+                  className={
+                    periodo === item
+                      ? "active"
+                      : ""
+                  }
+                  onClick={() =>
+                    setPeriodo(item)
+                  }
+                >
+                  {item}
+                </button>
               ))}
-            </ul>
-          )}
-        </article>
+            </div>
+          </div>
+
+          <label>
+            <span>
+              Data inicial
+            </span>
+
+            <input
+              type="date"
+              value={dataInicial}
+              onChange={(event) => {
+                setDataInicial(
+                  event.target.value,
+                );
+
+                setPeriodo(
+                  "Personalizado",
+                );
+              }}
+            />
+          </label>
+
+          <label>
+            <span>
+              Data final
+            </span>
+
+            <input
+              type="date"
+              value={dataFinal}
+              onChange={(event) => {
+                setDataFinal(
+                  event.target.value,
+                );
+
+                setPeriodo(
+                  "Personalizado",
+                );
+              }}
+            />
+          </label>
+
+          <label>
+            <span>
+              Status
+            </span>
+
+            <select
+              value={status}
+              onChange={(event) =>
+                setStatus(
+                  event.target.value,
+                )
+              }
+            >
+              <option>
+                Pagas
+              </option>
+
+              <option>
+                Em andamento
+              </option>
+
+              <option>
+                Todas
+              </option>
+
+              <option>
+                Canceladas
+              </option>
+            </select>
+          </label>
+        </div>
+
+        <div className="eleva-filter-summary">
+          <article>
+            <span>
+              Compra de Dívida
+            </span>
+
+            <strong>
+              {moeda(
+                resultado.totalCompra,
+              )}
+            </strong>
+          </article>
+
+          <article>
+            <span>
+              Produção CLT
+            </span>
+
+            <strong>
+              {moeda(
+                resultado.totalClt,
+              )}
+            </strong>
+          </article>
+
+          <article>
+            <span>
+              Valor bruto
+            </span>
+
+            <strong>
+              {moeda(
+                resultado.totalBruto,
+              )}
+            </strong>
+          </article>
+
+          <article>
+            <span>
+              Consultoras ativas
+            </span>
+
+            <strong>
+              {resultado.equipesAtivas}
+            </strong>
+          </article>
+        </div>
+
+        <div style={{ margin: "14px 0 18px", padding: "12px 14px", border: "1px solid #dfe6f2", borderRadius: 12, background: "#f8fafc", color: "#526077", fontSize: 13 }}>
+          <strong style={{ color: "#183b73" }}>Como os valores são calculados:</strong>{" "}
+          Compra de Dívida usa o valor bruto do contrato e o valor líquido conforme a tabela.
+          No CLT, o valor bruto é o aprovado e a produção líquida considerada é a parcela.
+        </div>
+
+        {carregando ? (
+          <div className="eleva-dashboard-empty">
+            Carregando os dados do Dashboard...
+          </div>
+        ) : linhasGrafico.length === 0 ? (
+          <div className="eleva-dashboard-empty">
+            Nenhuma produção encontrada no período selecionado.
+          </div>
+        ) : (
+          <div className="eleva-executive-chart-card">
+            <div className="eleva-executive-chart-head">
+              <div>
+                <span>DESEMPENHO POR CONSULTORA</span>
+                <h4>
+                  Valor bruto, valor líquido e contratos
+                </h4>
+                <p>
+                  As barras representam o valor líquido. O valor bruto
+                  aparece acima de cada barra e a linha mostra a quantidade
+                  de contratos.
+                </p>
+              </div>
+
+              <div className="eleva-executive-chart-totals">
+                <div>
+                  <span>Bruto</span>
+                  <strong>{moeda(resultado.totalBruto)}</strong>
+                </div>
+
+                <div>
+                  <span>Líquido</span>
+                  <strong>{moeda(resultado.totalFinal)}</strong>
+                </div>
+
+                <div>
+                  <span>Contratos</span>
+                  <strong>{numero(resultado.totalPropostas)}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div className="eleva-executive-legend">
+              <span>
+                <i className="legend-bar" />
+                Valor líquido
+              </span>
+
+              <span>
+                <i className="legend-line" />
+                Contratos
+              </span>
+
+              <span>
+                <i className="legend-gross" />
+                Valor bruto
+              </span>
+            </div>
+
+            <div className="eleva-executive-chart-scroll">
+              <svg
+                className="eleva-executive-chart-svg"
+                viewBox={`0 0 ${graficoExecutivo.largura} ${graficoExecutivo.altura}`}
+                role="img"
+                aria-label="Gráfico de valor bruto, valor líquido e quantidade de contratos por consultora"
+              >
+                {[0, 0.25, 0.5, 0.75, 1].map((fracao) => {
+                  const y =
+                    graficoExecutivo.base -
+                    fracao *
+                      (graficoExecutivo.base -
+                        graficoExecutivo.topo);
+
+                  return (
+                    <line
+                      key={`grid-${fracao}`}
+                      x1={graficoExecutivo.margemEsquerda}
+                      y1={y}
+                      x2={
+                        graficoExecutivo.largura -
+                        graficoExecutivo.margemDireita
+                      }
+                      y2={y}
+                      className="exec-grid-line"
+                    />
+                  );
+                })}
+
+                <polyline
+                  className="exec-contract-line"
+                  points={graficoExecutivo.pontosQuantidade}
+                />
+
+                {linhasGrafico.map((linha, indice) => {
+                  const centro =
+                    graficoExecutivo.margemEsquerda +
+                    graficoExecutivo.passo * indice +
+                    graficoExecutivo.passo / 2;
+
+                  const alturaBarra =
+                    Math.max(
+                      12,
+                      (linha.valorFinal /
+                        graficoExecutivo.maiorLiquido) *
+                        (graficoExecutivo.base -
+                          graficoExecutivo.topo),
+                    );
+
+                  const yBarra =
+                    graficoExecutivo.base -
+                    alturaBarra;
+
+                  const yLinha =
+                    graficoExecutivo.base -
+                    (linha.propostas /
+                      graficoExecutivo.maiorContratos) *
+                      (graficoExecutivo.base -
+                        graficoExecutivo.topo);
+
+                  const nomeCurto =
+                    linha.nome.length > 18
+                      ? `${linha.nome.slice(0, 17)}…`
+                      : linha.nome;
+
+                  return (
+                    <g key={`exec-${linha.nome}`}>
+                      <text
+                        x={centro}
+                        y={Math.max(24, yBarra - 31)}
+                        textAnchor="middle"
+                        className="exec-gross-label"
+                      >
+                        Bruto {moeda(linha.valorBruto)}
+                      </text>
+
+                      <text
+                        x={centro}
+                        y={Math.max(43, yBarra - 13)}
+                        textAnchor="middle"
+                        className="exec-net-label"
+                      >
+                        {moeda(linha.valorFinal)}
+                      </text>
+
+                      <rect
+                        x={
+                          centro -
+                          graficoExecutivo.larguraBarra / 2
+                        }
+                        y={yBarra}
+                        width={graficoExecutivo.larguraBarra}
+                        height={alturaBarra}
+                        rx="10"
+                        className={`exec-bar color-${
+                          (indice % 5) + 1
+                        }`}
+                      />
+
+                      <circle
+                        cx={centro}
+                        cy={yLinha}
+                        r="6"
+                        className="exec-contract-point"
+                      />
+
+                      <text
+                        x={centro}
+                        y={yLinha - 13}
+                        textAnchor="middle"
+                        className="exec-contract-label"
+                      >
+                        {linha.propostas}
+                      </text>
+
+                      <text
+                        x={centro}
+                        y={graficoExecutivo.base + 31}
+                        textAnchor="middle"
+                        className="exec-name-label"
+                      >
+                        {nomeCurto.toUpperCase()}
+                      </text>
+                    </g>
+                  );
+                })}
+
+                <text
+                  x={graficoExecutivo.largura - 14}
+                  y={graficoExecutivo.topo - 18}
+                  textAnchor="end"
+                  className="exec-axis-title"
+                >
+                  CONTRATOS
+                </text>
+              </svg>
+            </div>
+          </div>
+        )}
+
+        <div className="eleva-table-title">
+          <div>
+            <span>
+              DETALHAMENTO
+            </span>
+
+            <h3>
+              Produção por consultora
+            </h3>
+          </div>
+
+          <input
+            value={busca}
+            placeholder="Pesquisar consultora"
+            onChange={(event) =>
+              setBusca(
+                event.target.value,
+              )
+            }
+          />
+        </div>
+
+        <div className="eleva-table-wrapper">
+          <table className="eleva-dashboard-table">
+            <thead>
+              <tr>
+                <th>
+                  #
+                </th>
+
+                <th>
+                  Consultora
+                </th>
+
+                <th>
+                  Compra líquida
+                </th>
+
+                <th>
+                  CLT
+                </th>
+
+                <th>
+                  Canceladas
+                </th>
+
+                <th>
+                  Propostas
+                </th>
+
+                <th>
+                  Valor líquido
+                </th>
+
+                <th>
+                  Valor bruto
+                </th>
+
+                <th>
+                  % do total
+                </th>
+
+                <th>
+                  Ação
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {resultado.linhas.map(
+                (linha, indice) => (
+                  <tr key={linha.nome}>
+                    <td>
+                      <b className="eleva-rank-position">
+                        {indice === 0
+                          ? "🥇"
+                          : indice === 1
+                            ? "🥈"
+                            : indice === 2
+                              ? "🥉"
+                              : `#${indice + 1}`}
+                      </b>
+                    </td>
+
+                    <td>
+                      <strong>
+                        {linha.nome}
+                      </strong>
+
+                      <small>
+                        {
+                          linha.propostasCompra
+                        }{" "}
+                        Compra de Dívida •{" "}
+                        {
+                          linha.propostasClt
+                        }{" "}
+                        CLT
+                      </small>
+                    </td>
+
+                    <td>
+                      {moeda(
+                        linha.compraFinal,
+                      )}
+                    </td>
+
+                    <td>
+                      {moeda(
+                        linha.cltFinal,
+                      )}
+                    </td>
+
+                    <td>
+                      <strong className="eleva-cancel-count">
+                        {cancelamentosPeriodo.porConsultora.get(
+                          linha.nome,
+                        ) || 0}
+                      </strong>
+                    </td>
+
+                    <td>
+                      <strong>
+                        {linha.propostas}
+                      </strong>
+                    </td>
+
+                    <td className="final-value">
+                      {moeda(
+                        linha.valorFinal,
+                      )}
+                    </td>
+
+                    <td>
+                      {moeda(
+                        linha.valorBruto,
+                      )}
+                    </td>
+
+                    <td>
+                      <div className="eleva-percent">
+                        <div>
+                          <i
+                            style={{
+                              width:
+                                `${Math.min(
+                                  linha.percentual,
+                                  100,
+                                )}%`,
+                            }}
+                          />
+                        </div>
+
+                        <span>
+                          {linha.percentual.toFixed(
+                            0,
+                          )}
+                          %
+                        </span>
+                      </div>
+                    </td>
+
+                    <td>
+                      <button
+                        type="button"
+                        className="eleva-table-view-button"
+                        onClick={() =>
+                          abrirDetalhes(
+                            linha.nome,
+                            false,
+                          )
+                        }
+                      >
+                        Ver propostas
+                      </button>
+                    </td>
+                  </tr>
+                ),
+              )}
+            </tbody>
+
+            <tfoot>
+              <tr>
+                <td colSpan={4}>
+                  TOTAL GERAL
+                </td>
+
+                <td>
+                  {cancelamentosPeriodo.total}
+                </td>
+
+                <td>
+                  {
+                    resultado.totalPropostas
+                  }
+                </td>
+
+                <td>
+                  {moeda(
+                    resultado.totalFinal,
+                  )}
+                </td>
+
+                <td>
+                  {moeda(
+                    resultado.totalBruto,
+                  )}
+                </td>
+
+                <td>
+                  100%
+                </td>
+
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </section>
-            <PainelDoDia
-        aberto={painelDiaAberto}
-        aoFechar={() => setPainelDiaAberto(false)}
-        ehConsultora={ehConsultora}
-        dataHoje={hoje.toLocaleDateString("pt-BR", {
-          weekday: "long",
-          day: "2-digit",
-          month: "long",
-          year: "numeric",
-        })}
-        vendasHoje={dados.vendasHoje}
-        producaoHoje={dados.producaoHoje}
-        producaoCompraHoje={dados.producaoCompraHoje}
-        producaoCltHoje={dados.producaoCltHoje}
-        producaoMes={dados.producaoMes}
-        metaDoMes={metaDoMes}
-        percentualMeta={percentualMeta}
-        percentualExibido={percentualExibido}
-        percentualBarra={percentualBarra}
-        faltaParaMeta={faltaParaMeta}
-        aoVerPropostas={() => {
-          setPainelDiaAberto(false);
-          router.push("/propostas");
-        }}
-        aoVerRanking={() => {
-          setPainelDiaAberto(false);
-          router.push("/ranking");
-        }}
-      />
+
+      {detalheAberto && (
+        <div
+          className="eleva-detail-overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={fecharDetalhes}
+        >
+          <div
+            className="eleva-detail-modal"
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+            <div className="eleva-detail-head">
+              <div>
+                <span>
+                  {detalheSomenteCanceladas
+                    ? "PROPOSTAS CANCELADAS"
+                    : consultoraDetalhe
+                      ? "PROPOSTAS DA CONSULTORA"
+                      : "PROPOSTAS DO PERÍODO"}
+                </span>
+
+                <h3>
+                  {consultoraDetalhe ||
+                    (detalheSomenteCanceladas
+                      ? "Canceladas"
+                      : "Todas as propostas")}
+                </h3>
+
+                <p>
+                  {propostasDetalhe.compra.length +
+                    propostasDetalhe.clt.length}{" "}
+                  registro(s) no período e status selecionados.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={fecharDetalhes}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="eleva-detail-summary">
+              <article>
+                <span>
+                  Quantidade
+                </span>
+                <strong>
+                  {resumoDetalhe.quantidade}
+                </strong>
+              </article>
+
+              <article>
+                <span>
+                  Valor bruto
+                </span>
+                <strong>
+                  {moeda(
+                    resumoDetalhe.bruto,
+                  )}
+                </strong>
+              </article>
+
+              <article>
+                <span>
+                  Valor líquido
+                </span>
+                <strong>
+                  {moeda(
+                    resumoDetalhe.liquido,
+                  )}
+                </strong>
+              </article>
+
+              <article className="danger">
+                <span>
+                  Canceladas
+                </span>
+                <strong>
+                  {resumoDetalhe.canceladas}
+                </strong>
+              </article>
+            </div>
+
+            <div className="eleva-detail-table-wrap">
+              <table className="eleva-detail-table">
+                <thead>
+                  <tr>
+                    <th>Cliente</th>
+                    <th>Produto</th>
+                    <th>Banco / tabela</th>
+                    <th>Status</th>
+                    <th>Data</th>
+                    <th>Valor bruto</th>
+                    <th>Valor líquido</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {propostasDetalhe.compra.map(
+                    (proposta, indice) => (
+                      <tr
+                        key={`compra-${
+                          proposta.id ||
+                          proposta.numeroProposta ||
+                          indice
+                        }`}
+                      >
+                        <td>
+                          <strong>
+                            {proposta.cliente ||
+                              "Cliente não informado"}
+                          </strong>
+                          <small>
+                            {proposta.cpf || "—"}
+                          </small>
+                        </td>
+
+                        <td>
+                          Compra de Dívida
+                        </td>
+
+                        <td>
+                          <strong>
+                            {proposta.banco || "—"}
+                          </strong>
+                          <small>
+                            {proposta.tabela || "—"}
+                          </small>
+                        </td>
+
+                        <td>
+                          {proposta.status || "—"}
+                        </td>
+
+                        <td>
+                          {dataBR(
+                            proposta.dataPagamento ||
+                              proposta.dataCadastro,
+                          )}
+                        </td>
+
+                        <td>
+                          {moeda(
+                            Number(
+                              proposta.valorContrato ||
+                                0,
+                            ),
+                          )}
+                        </td>
+
+                        <td className="final-value">
+                          {moeda(
+                            valorFinalCompra(
+                              proposta,
+                            ),
+                          )}
+                        </td>
+                      </tr>
+                    ),
+                  )}
+
+                  {propostasDetalhe.clt.map(
+                    (registro, indice) => (
+                      <tr
+                        key={`clt-${
+                          registro.id || indice
+                        }`}
+                      >
+                        <td>
+                          <strong>
+                            {registro.nome ||
+                              "Cliente não informado"}
+                          </strong>
+                          <small>
+                            {registro.cpf || "—"}
+                          </small>
+                        </td>
+
+                        <td>CLT</td>
+
+                        <td>CLT</td>
+
+                        <td>
+                          {registro.status || "—"}
+                        </td>
+
+                        <td>
+                          {dataBR(
+                            registro.dataPagamento ||
+                              registro.atualizadoEm ||
+                              registro.criadoEm,
+                          )}
+                        </td>
+
+                        <td>
+                          {moeda(
+                            Number(
+                              registro.valorAprovado ||
+                                0,
+                            ),
+                          )}
+                        </td>
+
+                        <td className="final-value">
+                          {moeda(
+                            Number(
+                              registro.parcela || 0,
+                            ),
+                          )}
+                        </td>
+                      </tr>
+                    ),
+                  )}
+
+                  {propostasDetalhe.compra.length ===
+                    0 &&
+                    propostasDetalhe.clt.length ===
+                      0 && (
+                      <tr>
+                        <td
+                          colSpan={7}
+                          className="eleva-detail-empty"
+                        >
+                          Nenhuma proposta encontrada.
+                        </td>
+                      </tr>
+                    )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

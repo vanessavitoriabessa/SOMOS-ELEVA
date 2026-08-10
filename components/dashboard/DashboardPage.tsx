@@ -63,6 +63,11 @@ type Periodo =
   | "Tudo"
   | "Personalizado";
 
+type ProdutoFiltro =
+  | "Todos"
+  | "Compra de Dívida"
+  | "CLT";
+
 type LinhaEquipe = {
   nome: string;
   propostasCompra: number;
@@ -504,6 +509,11 @@ export default function DashboardClient() {
   ] = useState("Todas");
 
   const [
+    produto,
+    setProduto,
+  ] = useState<ProdutoFiltro>("Todos");
+
+  const [
     busca,
     setBusca,
   ] = useState("");
@@ -753,7 +763,9 @@ export default function DashboardClient() {
         );
 
       const compraFiltrada =
-        propostas.filter(
+        produto === "CLT"
+          ? []
+          : propostas.filter(
           (proposta) => {
             if (
               ehConsultora &&
@@ -793,7 +805,9 @@ export default function DashboardClient() {
         );
 
       const cltFiltrado =
-        registrosClt.filter(
+        produto === "Compra de Dívida"
+          ? []
+          : registrosClt.filter(
           (registro) => {
             if (
               ehConsultora &&
@@ -1027,6 +1041,7 @@ export default function DashboardClient() {
       dataInicial,
       dataFinal,
       busca,
+      produto,
     ]);
 
   const maiorValor =
@@ -1053,13 +1068,49 @@ export default function DashboardClient() {
       8,
     );
 
+  const rotulosProduto = useMemo(() => {
+    if (produto === "CLT") {
+      return {
+        tituloPrimario: "Valor liberado",
+        tituloSecundario: "Valor de parcela",
+        resumoPrimario: "Liberado total",
+        resumoSecundario: "Parcelas",
+        descricao:
+          "Comparativo entre valor liberado, valor de parcela e quantidade de contratos CLT no período selecionado.",
+      };
+    }
+
+    if (produto === "Compra de Dívida") {
+      return {
+        tituloPrimario: "Valor bruto",
+        tituloSecundario: "Valor líquido",
+        resumoPrimario: "Bruto total",
+        resumoSecundario: "Líquido total",
+        descricao:
+          "Comparativo entre valor bruto, valor líquido e quantidade de contratos de Compra de Dívida no período selecionado.",
+      };
+    }
+
+    return {
+      tituloPrimario: "Valor bruto",
+      tituloSecundario: "Produção líquida",
+      resumoPrimario: "Bruto total",
+      resumoSecundario: "Líquido total",
+      descricao:
+        "Comparativo entre valor bruto, produção líquida e quantidade de contratos no período selecionado.",
+    };
+  }, [produto]);
+
   const propostasDetalhe = useMemo(() => {
     const nomeNormalizado =
       consultoraDetalhe
         ? normalizarTexto(consultoraDetalhe)
         : "";
 
-    const compra = propostas.filter((proposta) => {
+    const compra =
+      produto === "CLT"
+        ? []
+        : propostas.filter((proposta) => {
       if (
         nomeNormalizado &&
         normalizarTexto(
@@ -1113,7 +1164,10 @@ export default function DashboardClient() {
       );
     });
 
-    const clt = registrosClt.filter((registro) => {
+    const clt =
+      produto === "Compra de Dívida"
+        ? []
+        : registrosClt.filter((registro) => {
       if (
         nomeNormalizado &&
         normalizarTexto(
@@ -1178,6 +1232,7 @@ export default function DashboardClient() {
     periodo,
     dataInicial,
     dataFinal,
+    produto,
   ]);
 
   const resumoDetalhe = useMemo(() => {
@@ -1341,7 +1396,9 @@ export default function DashboardClient() {
 
           <div>
             <span>
-              Valor bruto pago
+              {produto === "CLT"
+                ? "Valor liberado"
+                : "Valor bruto pago"}
             </span>
 
             <strong>
@@ -1363,7 +1420,9 @@ export default function DashboardClient() {
 
           <div>
             <span>
-              Produção líquida
+              {produto === "CLT"
+                ? "Valor de parcela"
+                : "Produção líquida"}
             </span>
 
             <strong>
@@ -1512,6 +1571,33 @@ export default function DashboardClient() {
 
           <label>
             <span>
+              Produto
+            </span>
+
+            <select
+              value={produto}
+              onChange={(event) =>
+                setProduto(
+                  event.target.value as ProdutoFiltro,
+                )
+              }
+            >
+              <option value="Todos">
+                Todos
+              </option>
+
+              <option value="Compra de Dívida">
+                Compra de Dívida
+              </option>
+
+              <option value="CLT">
+                CLT
+              </option>
+            </select>
+          </label>
+
+          <label>
+            <span>
               Status
             </span>
 
@@ -1592,8 +1678,11 @@ export default function DashboardClient() {
 
         <div style={{ margin: "14px 0 18px", padding: "12px 14px", border: "1px solid #dfe6f2", borderRadius: 12, background: "#f8fafc", color: "#526077", fontSize: 13 }}>
           <strong style={{ color: "#183b73" }}>Como os valores são calculados:</strong>{" "}
-          Compra de Dívida usa o valor bruto do contrato e o valor líquido conforme a tabela.
-          No CLT, o valor bruto é o aprovado e a produção líquida considerada é a parcela.
+          {produto === "CLT"
+            ? "No CLT, o valor liberado é o valor aprovado e o valor de parcela é a parcela cadastrada."
+            : produto === "Compra de Dívida"
+              ? "Na Compra de Dívida, o valor bruto é o valor do contrato e o valor líquido é calculado conforme a tabela."
+              : "Compra de Dívida usa o valor bruto do contrato e o valor líquido conforme a tabela. No CLT, o valor liberado é o aprovado e o valor de parcela é a parcela cadastrada."}
         </div>
 
         {carregando ? (
@@ -1605,133 +1694,179 @@ export default function DashboardClient() {
             Nenhuma produção encontrada no período selecionado.
           </div>
         ) : (
-          <div className="eleva-dual-charts">
-            <div className="eleva-mini-chart-card">
-              <div className="eleva-mini-chart-head">
-                <div>
-                  <span>PRODUÇÃO</span>
-                  <h4>Produção líquida por consultora</h4>
-                </div>
-
-                <strong>
-                  {moeda(
-                    resultado.totalFinal,
-                  )}
-                </strong>
+          <section className="crm-combo-card">
+            <div className="crm-combo-head">
+              <div>
+                <span className="crm-combo-eyebrow">PERFORMANCE COMERCIAL</span>
+                <h3>Produção por consultora</h3>
+                <p>
+                  {rotulosProduto.descricao}
+                </p>
               </div>
 
-              <div className="eleva-chart eleva-chart-compact">
-                <div className="eleva-chart-area">
-                  {linhasGrafico.map(
-                    (linha, indice) => {
-                      const altura =
-                        Math.max(
-                          (linha.valorFinal /
-                            maiorValor) *
-                            100,
-                          5,
-                        );
+              <div className="crm-combo-summary">
+                <article>
+                  <span>{rotulosProduto.resumoPrimario}</span>
+                  <strong>{moeda(resultado.totalBruto)}</strong>
+                </article>
 
-                      return (
-                        <div
-                          className="eleva-chart-column"
-                          key={`valor-${linha.nome}`}
-                        >
-                          <div className="eleva-chart-values">
-                            <strong>
-                              {moeda(
-                                linha.valorFinal,
-                              )}
-                            </strong>
-                          </div>
+                <article>
+                  <span>{rotulosProduto.resumoSecundario}</span>
+                  <strong>{moeda(resultado.totalFinal)}</strong>
+                </article>
 
-                          <div className="eleva-chart-track">
-                            <div
-                              className={`eleva-chart-bar color-${
-                                (indice % 5) + 1
-                              }`}
-                              style={{
-                                height:
-                                  `${altura}%`,
-                              }}
-                            />
-                          </div>
-
-                          <div className="eleva-chart-name">
-                            <strong>
-                              {linha.nome}
-                            </strong>
-                          </div>
-                        </div>
-                      );
-                    },
-                  )}
-                </div>
+                <article>
+                  <span>Contratos</span>
+                  <strong>{numero(resultado.totalPropostas)}</strong>
+                </article>
               </div>
             </div>
 
-            <div className="eleva-mini-chart-card">
-              <div className="eleva-mini-chart-head">
-                <div>
-                  <span>QUANTIDADE</span>
-                  <h4>Contratos por consultora</h4>
-                </div>
+            <div className="crm-combo-legend">
+              <span>
+                <i className="legend-bruto" />
+                {rotulosProduto.tituloPrimario}
+              </span>
 
-                <strong>
-                  {numero(
-                    resultado.totalPropostas,
-                  )}
-                </strong>
-              </div>
+              <span>
+                <i className="legend-liquido" />
+                {rotulosProduto.tituloSecundario}
+              </span>
 
-              <div className="eleva-chart eleva-chart-compact">
-                <div className="eleva-chart-area">
-                  {linhasGrafico.map(
-                    (linha, indice) => {
-                      const altura =
-                        Math.max(
-                          (linha.propostas /
-                            maiorQuantidade) *
-                            100,
-                          5,
-                        );
+              <span>
+                <i className="legend-contratos" />
+                Contratos
+              </span>
+            </div>
 
-                      return (
-                        <div
-                          className="eleva-chart-column"
-                          key={`quantidade-${linha.nome}`}
-                        >
-                          <div className="eleva-chart-values">
-                            <strong>
-                              {linha.propostas}
-                            </strong>
-                          </div>
+            <div className="crm-combo-scroll">
+              <div
+                className="crm-combo-chart"
+                style={{
+                  minWidth: `${Math.max(
+                    1050,
+                    linhasGrafico.length * 175,
+                  )}px`,
+                }}
+              >
+                {(() => {
+                  const maiorValor = Math.max(
+                    ...linhasGrafico.map((linha) =>
+                      Math.max(linha.valorBruto, linha.valorFinal),
+                    ),
+                    1,
+                  );
 
-                          <div className="eleva-chart-track">
-                            <div
-                              className={`eleva-chart-bar color-${
-                                (indice % 5) + 1
-                              }`}
-                              style={{
-                                height:
-                                  `${altura}%`,
-                              }}
-                            />
-                          </div>
+                  const maiorContratos = Math.max(
+                    ...linhasGrafico.map((linha) => linha.propostas),
+                    1,
+                  );
 
-                          <div className="eleva-chart-name">
-                            <strong>
-                              {linha.nome}
-                            </strong>
-                          </div>
-                        </div>
-                      );
-                    },
-                  )}
-                </div>
+                  const pontos = linhasGrafico
+                    .map((linha, indice) => {
+                      const passo = 100 / linhasGrafico.length;
+                      const x = passo * indice + passo / 2;
+                      const y = 88 - (linha.propostas / maiorContratos) * 62;
+                      return `${x},${y}`;
+                    })
+                    .join(" ");
+
+                  return (
+                    <>
+                      <div className="crm-combo-gridlines">
+                        <span />
+                        <span />
+                        <span />
+                        <span />
+                      </div>
+
+                      <svg
+                        className="crm-combo-line-layer"
+                        viewBox="0 0 100 100"
+                        preserveAspectRatio="none"
+                        aria-hidden="true"
+                      >
+                        <polyline
+                          points={pontos}
+                          className="crm-combo-line"
+                        />
+                      </svg>
+
+                      <div className="crm-combo-columns">
+                        {linhasGrafico.map((linha, indice) => {
+                          const alturaBruto = Math.max(
+                            5,
+                            (linha.valorBruto / maiorValor) * 100,
+                          );
+
+                          const alturaLiquido = Math.max(
+                            5,
+                            (linha.valorFinal / maiorValor) * 100,
+                          );
+
+                          const alturaContrato =
+                            88 -
+                            (linha.propostas / maiorContratos) * 62;
+
+                          return (
+                            <article
+                              className="crm-combo-column"
+                              key={`combo-${linha.nome}`}
+                            >
+                              <div
+                                className="crm-contract-point"
+                                style={{
+                                  top: `${alturaContrato}%`,
+                                }}
+                              >
+                                <span>{linha.propostas}</span>
+                              </div>
+
+                              <div className="crm-combo-value-labels">
+                                <span>
+                                  {rotulosProduto.tituloPrimario.toUpperCase()}
+                                </span>
+                                <strong>{moeda(linha.valorBruto)}</strong>
+
+                                <span>
+                                  {rotulosProduto.tituloSecundario.toUpperCase()}
+                                </span>
+                                <strong className="liquido">
+                                  {moeda(linha.valorFinal)}
+                                </strong>
+                              </div>
+
+                              <div className="crm-combo-bars">
+                                <div
+                                  className="crm-bar crm-bar-bruto"
+                                  style={{
+                                    height: `${alturaBruto}%`,
+                                  }}
+                                  title={`${rotulosProduto.tituloPrimario}: ${moeda(linha.valorBruto)}`}
+                                />
+
+                                <div
+                                  className="crm-bar crm-bar-liquido"
+                                  style={{
+                                    height: `${alturaLiquido}%`,
+                                  }}
+                                  title={`${rotulosProduto.tituloSecundario}: ${moeda(linha.valorFinal)}`}
+                                />
+                              </div>
+
+                              <div className="crm-combo-name">
+                                {linha.nome}
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
-          </div>
+          </section>
         )}
 
         <div className="eleva-table-title">
