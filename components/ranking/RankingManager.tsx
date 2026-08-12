@@ -5,9 +5,39 @@ import { useEffect, useMemo, useState } from "react";
 import "./ranking.css";
 
 import {
+  compraValidaNaCompetencia,
+} from "@/lib/premiacao/competenciaCompra";
+
+import {
   calcularPremiacaoCompra,
   calcularPremiacaoClt,
 } from "@/lib/premiacao/premiacaoService";
+type Periodo = "Hoje" | "Semana" | "Mês" | "Todos";
+type ProdutoRanking = "Todos" | "Compra de Dívida" | "CLT";
+
+type UsuarioRanking = {
+  nome?: string;
+  foto?: string;
+  foto_url?: string;
+  time_id?: string | null;
+};
+
+type TimeRanking = {
+  id: string;
+  nome: string;
+  ativo?: boolean;
+  membros?: Array<{
+    id?: string;
+    nome?: string;
+    time_id?: string | null;
+  }>;
+};
+
+type RespostaTimesRanking = {
+  erro?: string;
+  times?: TimeRanking[];
+};
+
 type PropostaCompraDivida = {
   id: string;
   cliente: string;
@@ -313,14 +343,12 @@ function inicioDoMes(data: Date) {
 function converterData(valor: string) {
   if (!valor) return null;
 
-  const valorLimpo = String(valor).trim().slice(0, 10);
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(valorLimpo)) {
-    const [ano, mes, dia] = valorLimpo.split("-").map(Number);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(valor)) {
+    const [ano, mes, dia] = valor.split("-").map(Number);
     return new Date(ano, mes - 1, dia);
   }
 
-  const parteData = String(valor).split(",")[0].trim();
+  const parteData = valor.split(",")[0].trim();
   const partes = parteData.split("/").map(Number);
 
   if (partes.length === 3 && partes.every(Number.isFinite)) {
@@ -330,63 +358,41 @@ function converterData(valor: string) {
   return null;
 }
 
-function dataDentroDoIntervalo(
-  data: Date | null,
-  dataInicial: string,
-  dataFinal: string
-) {
-  if (!data) return false;
-
-  const inicio = converterData(dataInicial);
-  const fim = converterData(dataFinal);
-
-  if (inicio && data < inicio) return false;
-
-  if (fim) {
-    fim.setHours(23, 59, 59, 999);
-
-    if (data > fim) return false;
-  }
-
-  return true;
-}
-
-function compraValidaNoIntervalo(
-  proposta: PropostaCompraDivida,
-  dataInicial: string,
-  dataFinal: string
-) {
-  if (normalizarTexto(proposta.status) !== "pago") {
-    return false;
-  }
-
-  const digitacao = converterData(proposta.dataCadastro);
-  const pagamento = converterData(proposta.dataPagamento);
-
-  if (!digitacao || !pagamento) return false;
-
-  if (!dataDentroDoIntervalo(digitacao, dataInicial, dataFinal)) {
-    return false;
-  }
-
-  const limitePagamento = new Date(
-    digitacao.getFullYear(),
-    digitacao.getMonth() + 1,
-    19,
-    23,
-    59,
-    59,
-    999
-  );
-
-  return pagamento <= limitePagamento;
-}
-
 function mesmaCompetencia(data: Date, referencia: Date) {
   return (
     data.getFullYear() === referencia.getFullYear() &&
     data.getMonth() === referencia.getMonth()
   );
+}
+
+function estaNoPeriodo(
+  data: Date | null,
+  periodo: Periodo,
+  usarCompetenciaMensal = false
+) {
+  if (periodo === "Todos") return true;
+  if (!data) return false;
+
+  const hoje = new Date();
+  const alvo = inicioDoDia(data);
+
+  if (periodo === "Hoje") {
+    return alvo.getTime() === inicioDoDia(hoje).getTime();
+  }
+
+  if (periodo === "Semana") {
+    return alvo >= inicioDaSemana(hoje);
+  }
+
+  if (periodo === "Mês") {
+    if (usarCompetenciaMensal) {
+      return mesmaCompetencia(alvo, hoje);
+    }
+
+    return alvo >= inicioDoMes(hoje);
+  }
+
+  return true;
 }
 
 function tabelaPeloNome(nome: string) {
@@ -497,6 +503,7 @@ export default function RankingManager() {
 
   const [registrosClt, setRegistrosClt] =
     useState<RegistroClt[]>([]);
+
   const hoje = new Date();
 
 const primeiroDiaMes = new Date(
@@ -519,7 +526,21 @@ const [dataFinal, setDataFinal] = useState(
   ultimoDiaMes.toISOString().slice(0, 10)
 );
 
+  const [periodo, setPeriodo] =
+    useState<Periodo>("Mês");
+
   const [busca, setBusca] = useState("");
+  const [produto, setProduto] =
+    useState<ProdutoRanking>("Todos");
+
+  const [timesRanking, setTimesRanking] =
+    useState<TimeRanking[]>([]);
+
+  const [timeSelecionado, setTimeSelecionado] =
+    useState("Todos");
+
+  const [usuariosRanking, setUsuariosRanking] =
+    useState<UsuarioRanking[]>([]);
 
   const [podeVerPremiacao, setPodeVerPremiacao] =
     useState(false);
@@ -528,6 +549,21 @@ const [dataFinal, setDataFinal] = useState(
 
   useEffect(() => {
     identificarPermissao();
+
+    try {
+      const usuariosSalvos = JSON.parse(
+        localStorage.getItem("somos-eleva-usuarios") || "[]"
+      );
+
+      setUsuariosRanking(
+        Array.isArray(usuariosSalvos)
+          ? usuariosSalvos
+          : []
+      );
+    } catch {
+      setUsuariosRanking([]);
+    }
+
     void carregar();
 
     const atualizarAoVoltar = () => {
@@ -603,14 +639,40 @@ const [dataFinal, setDataFinal] = useState(
       );
     }
 
-    const resposta = await fetch("/api/propostas", {
-      method: "GET",
-      headers: {
-        Authorization:
-          `Bearer ${data.session.access_token}`,
-      },
-      cache: "no-store",
-    });
+    const [resposta, respostaTimes] =
+      await Promise.all([
+        fetch("/api/propostas", {
+          method: "GET",
+          headers: {
+            Authorization:
+              `Bearer ${data.session.access_token}`,
+          },
+          cache: "no-store",
+        }),
+        fetch("/api/times", {
+          method: "GET",
+          headers: {
+            Authorization:
+              `Bearer ${data.session.access_token}`,
+          },
+          cache: "no-store",
+        }),
+      ]);
+
+    try {
+      const conteudoTimes =
+        (await respostaTimes.json()) as RespostaTimesRanking;
+
+      if (respostaTimes.ok) {
+        setTimesRanking(
+          Array.isArray(conteudoTimes.times)
+            ? conteudoTimes.times
+            : []
+        );
+      }
+    } catch {
+      setTimesRanking([]);
+    }
 
     const conteudo = (await resposta.json()) as {
       propostas?: PropostaCompraDivida[];
@@ -655,18 +717,85 @@ const [dataFinal, setDataFinal] = useState(
     setAtualizando(false);
   }
 }
+  const nomesPermitidosTime = useMemo(() => {
+    if (timeSelecionado === "Todos") {
+      return null;
+    }
+
+    const time = timesRanking.find(
+      (item) => item.id === timeSelecionado
+    );
+
+    return new Set(
+      (time?.membros || [])
+        .map((membro) =>
+          normalizarTexto(membro.nome || "")
+        )
+        .filter(Boolean)
+    );
+  }, [timesRanking, timeSelecionado]);
+
   const ranking = useMemo(() => {
     const agrupado = new Map<string, RankingItem>();
 
     propostas
-      .filter((proposta) =>
-        compraValidaNoIntervalo(
-          proposta,
-          dataInicial,
-          dataFinal
-        )
+  .filter((proposta) => {
+    if (produto === "CLT") return false;
+
+    if (
+      nomesPermitidosTime &&
+      !nomesPermitidosTime.has(
+        normalizarTexto(proposta.vendedora || "")
       )
-      .forEach((proposta) => {
+    ) {
+      return false;
+    }
+
+    const statusPago =
+      normalizarTexto(proposta.status) === "pago";
+
+    if (!statusPago) {
+      return false;
+    }
+
+    /*
+     * Para o filtro mensal, aplica a regra oficial:
+     * digitado no mês e pago até o dia 19 do mês seguinte.
+     */
+    if (periodo === "Mês") {
+      const hoje = new Date();
+
+      const competenciaTexto =
+        `${hoje.getFullYear()}-${String(
+          hoje.getMonth() + 1
+        ).padStart(2, "0")}`;
+
+      return compraValidaNaCompetencia(
+        {
+          ...proposta,
+          produto: "Compra de Dívida",
+        },
+        competenciaTexto
+      );
+    }
+
+    /*
+     * Hoje, Semana e Todos continuam sendo tratados
+     * pela data do pagamento logo abaixo.
+     */
+    return true;
+  })
+  .forEach((proposta) => {
+        const pagamento =
+  converterData(proposta.dataPagamento);
+
+if (
+  periodo !== "Mês" &&
+  !estaNoPeriodo(pagamento, periodo)
+) {
+  return;
+}
+
         const nome =
           proposta.vendedora?.trim() || "Sem consultora";
 
@@ -694,21 +823,24 @@ const [dataFinal, setDataFinal] = useState(
       });
 
     registrosClt
-      .filter(
-        (registro) => normalizarTexto(registro.status) === "pago"
-      )
+      .filter((registro) => {
+        if (produto === "Compra de Dívida") return false;
+
+        if (
+          nomesPermitidosTime &&
+          !nomesPermitidosTime.has(
+            normalizarTexto(registro.consultora || "")
+          )
+        ) {
+          return false;
+        }
+
+        return normalizarTexto(registro.status) === "pago";
+      })
       .forEach((registro) => {
         const data = dataClt(registro);
 
-        if (
-  !dataDentroDoIntervalo(
-    data,
-    dataInicial,
-    dataFinal
-  )
-) {
-  return;
-}
+        if (!estaNoPeriodo(data, periodo)) return;
 
         const nome =
           registro.consultora?.trim() || "Sem consultora";
@@ -804,12 +936,14 @@ faixa: faixaCompra
       )
       .sort((a, b) => b.producaoTotal - a.producaoTotal);
   }, [
-  propostas,
-  registrosClt,
-  dataInicial,
-  dataFinal,
-  busca,
-]);
+    propostas,
+    registrosClt,
+    periodo,
+    busca,
+    produto,
+    nomesPermitidosTime,
+    timeSelecionado,
+  ]);
 
   const resumo = useMemo(() => {
     return {
@@ -840,322 +974,538 @@ faixa: faixaCompra
   const podium = ranking.slice(0, 3);
   const maiorValor = ranking[0]?.producaoTotal || 1;
 
+  function fotoDaConsultora(nome: string) {
+    const usuario = usuariosRanking.find(
+      (item) =>
+        normalizarTexto(item.nome || "") ===
+        normalizarTexto(nome)
+    );
+
+    return String(
+      usuario?.foto ||
+      usuario?.foto_url ||
+      ""
+    );
+  }
+
+  function proximaMeta(producao: number) {
+    const proxima = FAIXAS_PREMIACAO.find(
+      (faixa) => producao < faixa.meta
+    );
+
+    const meta = proxima?.meta || Math.max(producao, 1);
+
+    return {
+      meta,
+      progresso: Math.min(100, Math.max(0, (producao / meta) * 100)),
+      falta: Math.max(meta - producao, 0),
+    };
+  }
+
+  const primeiroLugar = podium[0] || null;
+  const segundoLugar = podium[1] || null;
+  const terceiroLugar = podium[2] || null;
+
   const colunasTabela = podeVerPremiacao
     ? "70px minmax(145px, 1.1fr) 75px 125px 100px 125px 100px 115px 115px minmax(130px, 1fr)"
     : "80px minmax(170px, 1.2fr) 90px 145px 125px 145px 120px minmax(145px, 1fr)";
 
   return (
-    <div className="ranking-page">
-      <section className="ranking-summary">
-        <article>
-          <span>Consultoras no ranking</span>
-          <strong>{resumo.consultoras}</strong>
-        </article>
-
-        <article>
-          <span>Contratos pagos</span>
-          <strong>{resumo.contratos}</strong>
-        </article>
-
-        <article>
-          <span>Compra de Dívida válida</span>
-          <strong>{moeda(resumo.compraDivida)}</strong>
-        </article>
-
-        <article>
-          <span>Parcelas CLT</span>
-          <strong>{moeda(resumo.clt)}</strong>
-        </article>
-
-        <article className="ranking-summary-highlight">
-          <span>Produção válida total</span>
-          <strong>{moeda(resumo.total)}</strong>
-        </article>
-
-        {podeVerPremiacao && (
-          <article className="ranking-summary-highlight">
-            <span>Premiação total prevista</span>
-            <strong>{moeda(resumo.premiacao)}</strong>
-          </article>
-        )}
-      </section>
-
-      <section className="ranking-toolbar">
-        <div>
-          <span>DESEMPENHO DA EQUIPE</span>
-          <h2>Ranking de produção válida</h2>
+    <div className="ranking-page ranking-reference-page">
+      <section className="ranking-reference-header">
+        <div className="ranking-reference-title">
+          <h2>Ranking de Vendas</h2>
           <p>
-            A produção dos dois produtos ativa a faixa. A premiação da
-            Compra de Dívida e a premiação do CLT são calculadas
-            separadamente e depois somadas.
+            Acompanhe a disputa do mês, evolução das metas e
+            desempenho individual da equipe.
           </p>
         </div>
 
-        <div className="ranking-filters">
-          <input
-            value={busca}
-            onChange={(event) => setBusca(event.target.value)}
-            placeholder="Pesquisar consultora"
-          />
+        <div className="ranking-reference-filters">
+          <label>
+            Produto
+            <select
+              value={produto}
+              onChange={(event) =>
+                setProduto(
+                  event.target.value as ProdutoRanking
+                )
+              }
+            >
+              <option>Todos</option>
+              <option>Compra de Dívida</option>
+              <option>CLT</option>
+            </select>
+          </label>
 
-        <input
-  type="date"
-  value={dataInicial}
-  onChange={(event) =>
-    setDataInicial(event.target.value)
-  }
-/>
+          <label>
+            Time
+            <select
+              value={timeSelecionado}
+              onChange={(event) =>
+                setTimeSelecionado(
+                  event.target.value
+                )
+              }
+            >
+              <option value="Todos">
+                Todos os times
+              </option>
 
-<input
-  type="date"
-  value={dataFinal}
-  onChange={(event) =>
-    setDataFinal(event.target.value)
-  }
-/>
+              {timesRanking
+                .filter(
+                  (time) =>
+                    time.ativo !== false
+                )
+                .map((time) => (
+                  <option
+                    key={time.id}
+                    value={time.id}
+                  >
+                    {time.nome}
+                  </option>
+                ))}
+            </select>
+          </label>
+
+          <label>
+            Período
+            <select
+              value={periodo}
+              onChange={(event) =>
+                setPeriodo(
+                  event.target.value as Periodo
+                )
+              }
+            >
+              <option>Hoje</option>
+              <option>Semana</option>
+              <option>Mês</option>
+              <option>Todos</option>
+            </select>
+          </label>
+
+          <label className="ranking-reference-search">
+            Consultora
+            <input
+              value={busca}
+              onChange={(event) =>
+                setBusca(
+                  event.target.value
+                )
+              }
+              placeholder="Pesquisar consultora"
+            />
+          </label>
 
           <button
-  type="button"
-  onClick={() => void carregar()}
-  disabled={atualizando}
->
-  {atualizando ? "Atualizando..." : "Atualizar"}
-</button>
+            type="button"
+            className="ranking-reference-refresh"
+            onClick={() => void carregar()}
+            disabled={atualizando}
+          >
+            {atualizando
+              ? "Atualizando..."
+              : "↻ Atualizar"}
+          </button>
         </div>
+      </section>
+
+      <section className="ranking-reference-metrics">
+        <article>
+          <div className="ranking-metric-icon metric-blue">↗</div>
+          <div>
+            <span>Produção total</span>
+            <strong>{moeda(resumo.total)}</strong>
+            <small>Compra + CLT no período</small>
+          </div>
+        </article>
+
+        <article>
+          <div className="ranking-metric-icon metric-orange">♜</div>
+          <div>
+            <span>Top 3</span>
+            <strong>
+              {moeda(
+                podium.reduce(
+                  (total, item) =>
+                    total + item.producaoTotal,
+                  0
+                )
+              )}
+            </strong>
+            <small>Soma dos três primeiros</small>
+          </div>
+        </article>
+
+        <article>
+          <div className="ranking-metric-icon metric-green">◎</div>
+          <div>
+            <span>Contratos pagos</span>
+            <strong>{resumo.contratos}</strong>
+            <small>Produção efetivada</small>
+          </div>
+        </article>
+
+        <article>
+          <div className="ranking-metric-icon metric-purple">●</div>
+          <div>
+            <span>Consultoras</span>
+            <strong>{resumo.consultoras}</strong>
+            <small>No ranking atual</small>
+          </div>
+        </article>
       </section>
 
       {ranking.length === 0 ? (
-        <section className="ranking-empty">
+        <section className="ranking-reference-empty">
           <div>🏆</div>
-          <strong>Nenhuma produção paga neste período</strong>
+          <strong>
+            Nenhuma produção paga neste período
+          </strong>
           <p>
-            O ranking considera propostas pagas de Compra de Dívida dentro
-            da competência e registros CLT com status Pago.
+            Ajuste os filtros ou aguarde novas propostas pagas.
           </p>
         </section>
       ) : (
-        <>
-          <section className="ranking-podium">
-            {podium.map((item, index) => (
-              <article
-                key={item.nome}
-                className={`podium-card podium-${index + 1}`}
-              >
-                <div className="podium-position">
-                  {index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉"}
-                </div>
-
-                <div className="podium-avatar">
-                  {iniciais(item.nome)}
-                </div>
-
-                <strong className="podium-name">
-                  {item.nome}
-                </strong>
-
-                <span className="podium-label">
-                  {index === 0
-                    ? "1º lugar"
-                    : index === 1
-                      ? "2º lugar"
-                      : "3º lugar"}
-                </span>
-
-                <div className="podium-value">
-                  {moeda(item.producaoTotal)}
-                </div>
-
-                <div className="podium-details">
-                  <div>
-                    <span>Compra de Dívida</span>
-                    <strong>{moeda(item.producaoCompra)}</strong>
-                  </div>
-
-                  <div>
-                    <span>CLT</span>
-                    <strong>{moeda(item.producaoClt)}</strong>
-                  </div>
-                </div>
-
-                {podeVerPremiacao && (
-                  <div
-                    style={{
-                      marginTop: 10,
-                      padding: "10px",
-                      borderRadius: 10,
-                      background: "#f2f5ff",
-                      color: "#263d9d",
-                      fontSize: 10,
-                      fontWeight: 800,
-                    }}
-                  >
-                    <div>
-                      Compra: {moeda(item.premiacaoCompra)}
-                    </div>
-                    <div>
-                      CLT: {moeda(item.premiacaoClt)}
-                    </div>
-                    <div style={{ marginTop: 4, fontSize: 12 }}>
-                      Total: {moeda(item.premiacaoTotal)}
-                    </div>
-                  </div>
-                )}
-
-                <div
-                  style={{
-                    marginTop: 10,
-                    padding: "8px 10px",
-                    borderRadius: 9,
-                    background: item.metaAtivada
-                      ? "#e7f8ef"
-                      : "#fff6e8",
-                    color: item.metaAtivada
-                      ? "#15804d"
-                      : "#a66a12",
-                    fontSize: 10,
-                    fontWeight: 800,
-                  }}
-                >
-                  {item.metaAtivada
-                    ? `${item.faixa?.nome} ativada`
-                    : `Faltam ${moeda(
-                        Math.max(
-                          META_MINIMA - item.producaoTotal,
-                          0
-                        )
-                      )}`}
-                </div>
-              </article>
-            ))}
-          </section>
-
-          <section className="ranking-table-card">
-            <div className="ranking-table-heading">
-              <div>
-                <span>CLASSIFICAÇÃO COMPLETA</span>
-                <h3>Resultados por consultora</h3>
-              </div>
-
-              <b>
-  {dataInicial && dataFinal
-    ? `${dataInicial.split("-").reverse().join("/")} até ${
-        dataFinal.split("-").reverse().join("/")
-      }`
-    : "Todos os períodos"}
-</b>
+        <section className="ranking-reference-arena">
+          <div className="ranking-reference-arena-head">
+            <div>
+              <span>TOP PERFORMANCE</span>
+              <h3>Pódio de vendas</h3>
+              <p>
+                Destaques do período com produção, contratos e
+                avanço de meta.
+              </p>
             </div>
 
-            <div className="ranking-table">
-              <div
-                className="ranking-row ranking-head"
-                style={{ gridTemplateColumns: colunasTabela }}
-              >
-                <span>Posição</span>
-                <span>Consultora</span>
-                <span>Contratos</span>
-                <span>Compra</span>
-                <span>CLT</span>
-                <span>Produção total</span>
-                <span>Faixa</span>
+            <div className="ranking-reference-live">
+              <i />
+              Atualizado agora
+            </div>
+          </div>
 
-                {podeVerPremiacao && (
-                  <>
-                    <span>Prêmio Compra</span>
-                    <span>Prêmio CLT</span>
-                  </>
-                )}
-
-                <span>
-                  {podeVerPremiacao
-                    ? "Premiação total"
-                    : "Desempenho"}
-                </span>
-              </div>
-
-              {ranking.map((item, index) => {
-                const progresso = Math.max(
-                  4,
-                  Math.round(
-                    (item.producaoTotal / maiorValor) * 100
-                  )
+          <div className="ranking-reference-main">
+            <div className="ranking-reference-podium">
+              {segundoLugar && (() => {
+                const meta = proximaMeta(
+                  segundoLugar.producaoTotal
                 );
+                const foto =
+                  fotoDaConsultora(
+                    segundoLugar.nome
+                  );
 
                 return (
-                  <div
-                    className="ranking-row"
-                    key={item.nome}
-                    style={{ gridTemplateColumns: colunasTabela }}
-                  >
-                    <span className="ranking-position">
-                      {index + 1}º
-                    </span>
-
-                    <div className="ranking-person">
-                      <div className="ranking-avatar">
-                        {iniciais(item.nome)}
-                      </div>
-                      <strong>{item.nome}</strong>
+                  <article className="reference-podium-card reference-second">
+                    <div className="reference-medal medal-silver">
+                      2
                     </div>
 
-                    <strong>{item.contratosTotal}</strong>
-                    <strong>{moeda(item.producaoCompra)}</strong>
-                    <span>{moeda(item.producaoClt)}</span>
-                    <strong>{moeda(item.producaoTotal)}</strong>
+                    <div className="reference-avatar">
+                      {foto ? (
+                        <img
+                          src={foto}
+                          alt={segundoLugar.nome}
+                        />
+                      ) : (
+                        iniciais(
+                          segundoLugar.nome
+                        )
+                      )}
+                    </div>
 
-                    <span
-                      style={{
-                        color: item.metaAtivada
-                          ? "#16824d"
-                          : "#a66a12",
-                        fontWeight: 800,
-                      }}
-                    >
-                      {item.faixa
-                        ? `${item.faixa.nome} • ${formatarPercentual(
-                            item.faixa.percentualCompra
-                          )}`
-                        : "Pendente"}
+                    <strong className="reference-name">
+                      {segundoLugar.nome}
+                    </strong>
+
+                    <span className="reference-value">
+                      {moeda(
+                        segundoLugar.producaoTotal
+                      )}
                     </span>
 
-                    {podeVerPremiacao && (
-                      <>
-                        <span className="ranking-commission">
-                          {moeda(item.premiacaoCompra)}
-                        </span>
+                    <small>
+                      {segundoLugar.contratosTotal} contratos
+                    </small>
 
-                        <span className="ranking-commission">
-                          {moeda(item.premiacaoClt)}
-                        </span>
-                      </>
-                    )}
-
-                    {podeVerPremiacao ? (
-                      <span className="ranking-commission">
-                        {moeda(item.premiacaoTotal)}
+                    <div className="reference-goal-line">
+                      <strong>
+                        {meta.progresso.toFixed(0)}%
+                      </strong>
+                      <span>
+                        {meta.falta > 0
+                          ? `Faltam ${moeda(meta.falta)}`
+                          : "Meta atingida"}
                       </span>
-                    ) : (
-                      <div className="ranking-progress">
-                        <div>
-                          <i style={{ width: `${progresso}%` }} />
-                        </div>
-                        <b>{progresso}%</b>
-                      </div>
-                    )}
-                  </div>
+                    </div>
+
+                    <div className="reference-progress">
+                      <i
+                        style={{
+                          width: `${Math.max(
+                            4,
+                            meta.progresso
+                          )}%`,
+                        }}
+                      />
+                    </div>
+
+                    <div className="reference-base reference-base-blue" />
+                  </article>
                 );
-              })}
+              })()}
+
+              {primeiroLugar && (() => {
+                const meta = proximaMeta(
+                  primeiroLugar.producaoTotal
+                );
+                const foto =
+                  fotoDaConsultora(
+                    primeiroLugar.nome
+                  );
+
+                return (
+                  <article className="reference-podium-card reference-first">
+                    <div className="reference-crown">
+                      ♛
+                    </div>
+
+                    <div className="reference-medal medal-gold">
+                      1
+                    </div>
+
+                    <div className="reference-avatar">
+                      {foto ? (
+                        <img
+                          src={foto}
+                          alt={primeiroLugar.nome}
+                        />
+                      ) : (
+                        iniciais(
+                          primeiroLugar.nome
+                        )
+                      )}
+                    </div>
+
+                    <strong className="reference-name">
+                      {primeiroLugar.nome}
+                    </strong>
+
+                    <span className="reference-value">
+                      {moeda(
+                        primeiroLugar.producaoTotal
+                      )}
+                    </span>
+
+                    <small>
+                      {primeiroLugar.contratosTotal} contratos
+                    </small>
+
+                    <div className="reference-goal-line">
+                      <strong>
+                        {meta.progresso.toFixed(0)}%
+                      </strong>
+                      <span>
+                        {meta.falta > 0
+                          ? `Faltam ${moeda(meta.falta)}`
+                          : "Meta atingida"}
+                      </span>
+                    </div>
+
+                    <div className="reference-progress">
+                      <i
+                        style={{
+                          width: `${Math.max(
+                            4,
+                            meta.progresso
+                          )}%`,
+                        }}
+                      />
+                    </div>
+
+                    <div className="reference-base reference-base-gold" />
+                  </article>
+                );
+              })()}
+
+              {terceiroLugar && (() => {
+                const meta = proximaMeta(
+                  terceiroLugar.producaoTotal
+                );
+                const foto =
+                  fotoDaConsultora(
+                    terceiroLugar.nome
+                  );
+
+                return (
+                  <article className="reference-podium-card reference-third">
+                    <div className="reference-medal medal-bronze">
+                      3
+                    </div>
+
+                    <div className="reference-avatar">
+                      {foto ? (
+                        <img
+                          src={foto}
+                          alt={terceiroLugar.nome}
+                        />
+                      ) : (
+                        iniciais(
+                          terceiroLugar.nome
+                        )
+                      )}
+                    </div>
+
+                    <strong className="reference-name">
+                      {terceiroLugar.nome}
+                    </strong>
+
+                    <span className="reference-value">
+                      {moeda(
+                        terceiroLugar.producaoTotal
+                      )}
+                    </span>
+
+                    <small>
+                      {terceiroLugar.contratosTotal} contratos
+                    </small>
+
+                    <div className="reference-goal-line">
+                      <strong>
+                        {meta.progresso.toFixed(0)}%
+                      </strong>
+                      <span>
+                        {meta.falta > 0
+                          ? `Faltam ${moeda(meta.falta)}`
+                          : "Meta atingida"}
+                      </span>
+                    </div>
+
+                    <div className="reference-progress">
+                      <i
+                        style={{
+                          width: `${Math.max(
+                            4,
+                            meta.progresso
+                          )}%`,
+                        }}
+                      />
+                    </div>
+
+                    <div className="reference-base reference-base-orange" />
+                  </article>
+                );
+              })()}
             </div>
-          </section>
-        </>
+
+            <div className="ranking-reference-list">
+              <h4>CLASSIFICAÇÃO GERAL</h4>
+
+              <div className="reference-list-head">
+                <span>#</span>
+                <span>Consultora</span>
+                <span>Produção</span>
+                <span>Contratos</span>
+                <span>Meta</span>
+              </div>
+
+              {ranking.slice(3, 7).map(
+                (item, index) => {
+                  const meta = proximaMeta(
+                    item.producaoTotal
+                  );
+                  const foto =
+                    fotoDaConsultora(
+                      item.nome
+                    );
+                  const posicao = index + 4;
+
+                  return (
+                    <article
+                      className="reference-list-row"
+                      key={item.nome}
+                    >
+                      <div className="reference-list-position">
+                        {posicao}
+                      </div>
+
+                      <div className="reference-list-person">
+                        <div className="reference-list-avatar">
+                          {foto ? (
+                            <img
+                              src={foto}
+                              alt={item.nome}
+                            />
+                          ) : (
+                            iniciais(item.nome)
+                          )}
+                        </div>
+
+                        <div>
+                          <strong>
+                            {item.nome}
+                          </strong>
+                          <span>
+                            {item.contratosTotal} contratos
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="reference-list-production">
+                        <strong>
+                          {moeda(
+                            item.producaoTotal
+                          )}
+                        </strong>
+                        <span>
+                          CD {moeda(item.producaoCompra)}
+                          {" + "}
+                          CLT {moeda(item.producaoClt)}
+                        </span>
+                      </div>
+
+                      <strong className="reference-contracts">
+                        {item.contratosTotal}
+                      </strong>
+
+                      <div className="reference-list-meta">
+                        <strong>
+                          {meta.progresso.toFixed(0)}%
+                        </strong>
+
+                        <div>
+                          <i
+                            style={{
+                              width: `${Math.max(
+                                4,
+                                meta.progresso
+                              )}%`,
+                            }}
+                          />
+                        </div>
+
+                        <span>
+                          {meta.falta > 0
+                            ? `Faltam ${moeda(meta.falta)}`
+                            : "Meta atingida"}
+                        </span>
+                      </div>
+                    </article>
+                  );
+                }
+              )}
+            </div>
+          </div>
+        </section>
       )}
 
-      <section className="ranking-help">
-        <strong>Exemplo:</strong>
+      <section className="ranking-reference-note">
+        <b>ⓘ</b>
         <span>
-          R$ 20.000,00 válidos em Compra de Dívida + R$ 10.000,00 em
-          parcelas CLT ativam a primeira faixa. A Compra gera R$ 300,00
-          (1,50% de R$ 20.000,00), o CLT gera R$ 300,00 e a premiação
-          total fica em R$ 600,00.
+          <strong>Sobre o ranking:</strong>{" "}
+          Os valores consideram a produção total
+          (Compra de Dívida + CLT) no período selecionado.
         </span>
       </section>
     </div>

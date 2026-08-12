@@ -1,394 +1,896 @@
-.ranking-page {
-  padding: 26px;
-  background: #f5f7fb;
-  color: #0d1b4f;
+/* =========================================================
+   RANKING ELEVA — CSS LIMPO FINAL
+   IMPORTANTE: SUBSTITUA TODO O ranking.css POR ESTE ARQUIVO
+   ========================================================= */
+
+.ranking-reference-page{
+  min-height:100%;
+  padding:18px;
+  display:grid;
+  gap:14px;
+  border-radius:18px;
+  background:
+    radial-gradient(circle at 70% 10%,rgba(31,105,255,.05),transparent 28%),
+    linear-gradient(180deg,#061426 0%,#07182c 100%);
+  color:#fff;
 }
 
-.ranking-summary {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin-bottom: 18px;
+.ranking-reference-header{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:24px;
+  padding:22px 22px;
+  border:1px solid #1c4162;
+  border-radius:15px;
+  background:linear-gradient(135deg,#0b223b,#091b31);
 }
 
-.ranking-summary article {
-  min-height: 100px;
-  padding: 18px;
-  border: 1px solid #e4e8f1;
-  border-radius: 15px;
-  background: #ffffff;
-  box-shadow: 0 9px 25px rgba(26, 43, 90, 0.06);
+.ranking-reference-title h2{
+  margin:0;
+  color:#fff;
+  font-size:27px;
+  font-weight:950;
+  letter-spacing:-.45px;
 }
 
-.ranking-summary span,
-.ranking-summary strong {
-  display: block;
+.ranking-reference-title p{
+  margin:7px 0 0;
+  color:#b5c2d4;
+  font-size:10px;
 }
 
-.ranking-summary span {
-  color: #65708b;
-  font-size: 12px;
+.ranking-reference-filters{
+  display:flex;
+  align-items:flex-end;
+  justify-content:flex-end;
+  gap:9px;
+  flex-wrap:wrap;
 }
 
-.ranking-summary strong {
-  margin-top: 11px;
-  font-size: 22px;
-  white-space: nowrap;
+.ranking-reference-filters label{
+  display:grid;
+  gap:5px;
+  color:#c2ccda;
+  font-size:7px;
+  font-weight:900;
+  letter-spacing:.25px;
+  text-transform:uppercase;
 }
 
-.ranking-summary-highlight {
-  border-color: #ffd9b8 !important;
-  background: linear-gradient(135deg, #fff7ef, #ffffff) !important;
+.ranking-reference-filters select,
+.ranking-reference-filters input{
+  min-width:145px;
+  height:40px;
+  padding:0 11px;
+  border:1px solid #294a68;
+  border-radius:9px;
+  background:#091a30;
+  color:#fff;
+  font-size:9px;
+  outline:none;
 }
 
-.ranking-summary-highlight strong {
-  color: #e45d00;
+.ranking-reference-search input{
+  min-width:175px;
 }
 
-.ranking-toolbar,
-.ranking-table-card,
-.ranking-empty,
-.ranking-help {
-  border: 1px solid #e4e8f1;
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 10px 28px rgba(26, 43, 90, 0.07);
+.ranking-reference-refresh{
+  height:40px;
+  padding:0 16px;
+  border:0;
+  border-radius:9px;
+  background:#145ed9;
+  color:#fff;
+  font-size:9px;
+  font-weight:900;
+  cursor:pointer;
 }
 
-.ranking-toolbar {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 21px;
+.ranking-reference-metrics{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px;
 }
 
-.ranking-toolbar > div:first-child > span,
-.ranking-table-heading span {
-  color: #1756ef;
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 1.2px;
+.ranking-reference-metrics article{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  min-height:100px;
+  padding:18px 20px;
+  border:1px solid #1b4163;
+  border-radius:14px;
+  background:linear-gradient(135deg,#0b223b,#091c32);
 }
 
-.ranking-toolbar h2,
-.ranking-table-heading h3 {
-  margin: 6px 0 0;
-  font-size: 24px;
+.ranking-metric-icon{
+  display:grid;
+  place-items:center;
+  flex:0 0 50px;
+  width:50px;
+  height:50px;
+  border-radius:50%;
+  font-size:22px;
+  font-weight:950;
 }
 
-.ranking-toolbar p {
-  margin: 7px 0 0;
-  color: #68738e;
+.metric-blue{background:#103c85;color:#5e9eff}
+.metric-orange{background:#563114;color:#ff8d21}
+.metric-green{background:#0e4d3b;color:#2be19f}
+.metric-purple{background:#33236c;color:#b482ff}
+
+.ranking-reference-metrics span{
+  display:block;
+  color:#b8c4d4;
+  font-size:8px;
+  font-weight:900;
+  text-transform:uppercase;
 }
 
-.ranking-filters {
-  display: grid;
-  grid-template-columns: 220px 130px auto;
-  gap: 9px;
+.ranking-reference-metrics strong{
+  display:block;
+  margin-top:6px;
+  color:#fff;
+  font-size:21px;
+  font-weight:950;
 }
 
-.ranking-filters input,
-.ranking-filters select {
-  height: 43px;
-  padding: 0 13px;
-  border: 1px solid #dce2ec;
-  border-radius: 10px;
-  outline: none;
-  background: #f8f9fc;
-  color: #162142;
+.ranking-reference-metrics small{
+  display:block;
+  margin-top:5px;
+  color:#a3b2c8;
+  font-size:8px;
 }
 
-.ranking-filters button {
-  padding: 0 16px;
-  border: 0;
-  border-radius: 10px;
-  background: #0c4be8;
-  color: #ffffff;
-  font-weight: 900;
-  cursor: pointer;
+.ranking-reference-arena{
+  overflow:hidden;
+  border:1px solid #1e4567;
+  border-radius:17px;
+  background:
+    radial-gradient(circle at 28% 69%,rgba(25,107,255,.12),transparent 28%),
+    radial-gradient(circle at 45% 75%,rgba(255,174,38,.09),transparent 22%),
+    linear-gradient(145deg,#061426 0%,#07172b 55%,#061527 100%);
 }
 
-.ranking-empty {
-  min-height: 420px;
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 9px;
-  margin-top: 18px;
-  color: #737d94;
-  text-align: center;
+.ranking-reference-arena-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:20px;
+  padding:18px 20px 12px;
 }
 
-.ranking-empty div {
-  font-size: 54px;
+.ranking-reference-arena-head span{
+  display:block;
+  color:#ff871a;
+  font-size:8px;
+  font-weight:950;
+  letter-spacing:.55px;
 }
 
-.ranking-empty strong {
-  color: #26334f;
-  font-size: 18px;
+.ranking-reference-arena-head h3{
+  margin:4px 0 0;
+  color:#fff;
+  font-size:21px;
+  font-weight:950;
 }
 
-.ranking-empty p {
-  max-width: 470px;
-  margin: 0;
-  line-height: 1.45;
+.ranking-reference-arena-head p{
+  margin:5px 0 0;
+  color:#9fb0c7;
+  font-size:8px;
 }
 
-.ranking-podium {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin-top: 18px;
+.ranking-reference-live{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-top:6px;
+  color:#bdc8d8;
+  font-size:8px;
+  font-weight:800;
 }
 
-.podium-card {
-  position: relative;
-  min-height: 290px;
-  padding: 25px;
-  overflow: hidden;
-  border: 1px solid #e2e6ef;
-  border-radius: 18px;
-  background: #ffffff;
-  text-align: center;
-  box-shadow: 0 12px 30px rgba(26, 43, 90, 0.08);
+.ranking-reference-live i{
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:#22d38c;
+  box-shadow:0 0 0 5px rgba(34,211,140,.1);
 }
 
-.podium-1 {
-  border-color: #ffd07b;
-  background: linear-gradient(145deg, #fffaf0, #ffffff);
+.ranking-reference-main{
+  display:grid;
+  grid-template-columns:minmax(620px,.95fr) minmax(590px,1.05fr);
+  min-height:480px;
 }
 
-.podium-2 {
-  border-color: #d6dce8;
-  background: linear-gradient(145deg, #f7f9fc, #ffffff);
+.ranking-reference-podium{
+  display:grid;
+  grid-template-columns:1fr 1.18fr 1fr;
+  align-items:end;
+  gap:12px;
+  padding:50px 18px 28px;
+  border-right:1px solid #173955;
 }
 
-.podium-3 {
-  border-color: #e8c4a8;
-  background: linear-gradient(145deg, #fff7f1, #ffffff);
+.reference-podium-card{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-end;
+  min-height:330px;
+  padding:24px 16px 24px;
+  border-radius:17px;
+  background:linear-gradient(180deg,#0d223d,#09192e);
+  box-shadow:0 16px 28px rgba(0,0,0,.2);
 }
 
-.podium-position {
-  position: absolute;
-  top: 17px;
-  right: 18px;
-  font-size: 28px;
+.reference-second{
+  min-height:350px;
+  border:1px solid #2f8cf0;
+  box-shadow:0 0 24px rgba(44,141,255,.18);
 }
 
-.podium-avatar {
-  width: 76px;
-  height: 76px;
-  display: grid;
-  place-items: center;
-  margin: 8px auto 15px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #174fe8, #6479ff);
-  color: #ffffff;
-  font-size: 22px;
-  font-weight: 900;
-  box-shadow: 0 12px 25px rgba(31, 75, 225, 0.25);
+.reference-first{
+  min-height:405px;
+  border:1px solid #ffb11f;
+  background:linear-gradient(180deg,#112844,#0b1d33);
+  box-shadow:0 0 32px rgba(255,173,24,.18);
 }
 
-.podium-name,
-.podium-label {
-  display: block;
+.reference-third{
+  min-height:350px;
+  border:1px solid #dd6b2c;
+  box-shadow:0 0 22px rgba(255,105,38,.14);
 }
 
-.podium-name {
-  font-size: 18px;
+.reference-medal{
+  position:absolute;
+  top:18px;
+  left:18px;
+  display:grid;
+  place-items:center;
+  width:48px;
+  height:48px;
+  border-radius:50%;
+  font-size:19px;
+  font-weight:950;
+  box-shadow:0 6px 15px rgba(0,0,0,.22);
 }
 
-.podium-label {
-  margin-top: 5px;
-  color: #7c8599;
-  font-size: 12px;
+.medal-silver{
+  background:linear-gradient(145deg,#e4e9ef,#8f9ca9);
+  color:#27323f;
 }
 
-.podium-value {
-  margin: 18px 0;
-  color: #114bd9;
-  font-size: 25px;
-  font-weight: 900;
+.medal-gold{
+  background:linear-gradient(145deg,#ffd563,#c88a09);
+  color:#4a2d00;
 }
 
-.podium-details {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+.medal-bronze{
+  background:linear-gradient(145deg,#e09a66,#8f471f);
+  color:#321606;
 }
 
-.podium-details div {
-  padding: 12px;
-  border-radius: 11px;
-  background: #f5f7fb;
+.reference-crown{
+  position:absolute;
+  top:-35px;
+  color:#ffb51f;
+  font-size:39px;
+  filter:drop-shadow(0 5px 10px rgba(255,181,31,.25));
 }
 
-.podium-details span,
-.podium-details strong {
-  display: block;
+.reference-avatar{
+  display:grid;
+  place-items:center;
+  width:105px;
+  height:105px;
+  overflow:hidden;
+  border:3px solid #65a9f4;
+  border-radius:50%;
+  background:#153b6e;
+  color:#fff;
+  font-size:24px;
+  font-weight:950;
+  box-shadow:0 10px 22px rgba(0,0,0,.25);
 }
 
-.podium-details span {
-  color: #7a8398;
-  font-size: 10px;
+.reference-first .reference-avatar{
+  width:126px;
+  height:126px;
+  border-color:#ffad13;
 }
 
-.podium-details strong {
-  margin-top: 5px;
-  font-size: 13px;
+.reference-third .reference-avatar{
+  border-color:#dc6a2d;
 }
 
-.ranking-table-card {
-  margin-top: 18px;
-  padding: 22px;
+.reference-avatar img,
+.reference-list-avatar img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
 }
 
-.ranking-table-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  margin-bottom: 18px;
+.reference-name{
+  max-width:190px;
+  margin-top:16px;
+  overflow:hidden;
+  color:#fff;
+  font-size:14px;
+  font-weight:950;
+  text-overflow:ellipsis;
+  white-space:nowrap;
 }
 
-.ranking-table-heading b {
-  padding: 8px 12px;
-  border-radius: 20px;
-  background: #e9efff;
-  color: #1454ed;
-  font-size: 11px;
+.reference-value{
+  margin-top:9px;
+  font-size:21px;
+  font-weight:950;
 }
 
-.ranking-table {
-  overflow-x: auto;
+.reference-second .reference-value{color:#3193ff}
+.reference-first .reference-value{color:#ffb51e;font-size:26px}
+.reference-third .reference-value{color:#ff762e}
+
+.reference-podium-card small{
+  margin-top:8px;
+  color:#fff;
+  font-size:9px;
+  font-weight:800;
 }
 
-.ranking-row {
-  display: grid;
-  grid-template-columns: 80px minmax(180px, 1.3fr) 100px 145px 140px 140px minmax(170px, 1fr);
-  gap: 13px;
-  align-items: center;
-  min-width: 980px;
-  min-height: 70px;
-  padding: 0 13px;
-  border-bottom: 1px solid #e7eaf0;
+.reference-goal-line{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  width:100%;
+  margin-top:21px;
+  gap:8px;
 }
 
-.ranking-row:last-child {
-  border-bottom: 0;
+.reference-goal-line strong{
+  color:#fff;
+  font-size:10px;
 }
 
-.ranking-head {
-  min-height: 45px;
-  border-radius: 10px;
-  background: #f5f7fb;
-  color: #68738c;
-  font-size: 10px;
-  font-weight: 900;
-  text-transform: uppercase;
+.reference-goal-line span{
+  color:#a9b8ca;
+  font-size:7.5px;
+  text-align:right;
 }
 
-.ranking-position {
-  color: #164fdb;
-  font-size: 17px;
-  font-weight: 900;
+.reference-progress{
+  width:100%;
+  height:7px;
+  margin-top:7px;
+  overflow:hidden;
+  border-radius:999px;
+  background:#1c3048;
 }
 
-.ranking-person {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.reference-progress i{
+  display:block;
+  height:100%;
+  border-radius:inherit;
 }
 
-.ranking-avatar {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 40px;
-  border-radius: 50%;
-  background: #e8efff;
-  color: #1851d7;
-  font-size: 12px;
-  font-weight: 900;
+.reference-second .reference-progress i{background:#2c91ff}
+.reference-first .reference-progress i{background:#ffb21b}
+.reference-third .reference-progress i{background:#ff7130}
+
+.reference-base{
+  position:absolute;
+  left:-4px;
+  right:-4px;
+  bottom:-16px;
+  height:20px;
+  border-radius:50%;
+  filter:blur(.15px);
+  opacity:.9;
 }
 
-.ranking-commission {
-  color: #e25c00;
-  font-weight: 800;
+.reference-base-blue{
+  border-bottom:3px solid #2b90ff;
+  box-shadow:0 12px 20px rgba(43,144,255,.45);
 }
 
-.ranking-progress {
-  display: flex;
-  align-items: center;
-  gap: 9px;
+.reference-base-gold{
+  border-bottom:3px solid #ffb11c;
+  box-shadow:0 12px 20px rgba(255,177,28,.45);
 }
 
-.ranking-progress > div {
-  height: 8px;
-  flex: 1;
-  overflow: hidden;
-  border-radius: 20px;
-  background: #e8ebf1;
+.reference-base-orange{
+  border-bottom:3px solid #ff7130;
+  box-shadow:0 12px 20px rgba(255,113,48,.38);
 }
 
-.ranking-progress i {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #1456ef, #6c7cff);
+.ranking-reference-list{
+  padding:12px 16px 20px;
 }
 
-.ranking-progress b {
-  width: 38px;
-  font-size: 11px;
+.ranking-reference-list h4{
+  margin:0 0 12px;
+  color:#2b8cff;
+  font-size:17px;
+  font-weight:950;
 }
 
-.ranking-help {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 18px;
-  padding: 15px 18px;
-  border-color: #cfe0ff;
-  background: #f3f7ff;
-  color: #43516d;
-  font-size: 13px;
+.reference-list-head,
+.reference-list-row{
+  display:grid;
+  grid-template-columns:40px minmax(165px,1.05fr) minmax(150px,.92fr) 74px minmax(145px,.9fr);
+  align-items:center;
+  gap:9px;
 }
 
-.ranking-help strong {
-  color: #1651db;
+.reference-list-head{
+  min-height:32px;
+  padding:0 10px;
+  color:#90a4bd;
+  font-size:7px;
+  font-weight:900;
+  text-transform:uppercase;
 }
 
-@media (max-width: 1050px) {
-  .ranking-summary {
-    grid-template-columns: repeat(2, 1fr);
+.reference-list-row{
+  min-height:76px;
+  margin-top:8px;
+  padding:10px 10px;
+  border:1px solid #173b58;
+  border-radius:11px;
+  background:linear-gradient(135deg,#0b2038,#0a1b31);
+}
+
+.reference-list-position{
+  display:grid;
+  place-items:center;
+  width:31px;
+  height:31px;
+  border-radius:8px;
+  background:#132b48;
+  color:#fff;
+  font-size:10px;
+  font-weight:950;
+}
+
+.reference-list-person{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  min-width:0;
+}
+
+.reference-list-avatar{
+  display:grid;
+  place-items:center;
+  flex:0 0 38px;
+  width:38px;
+  height:38px;
+  overflow:hidden;
+  border:1px solid #2766a4;
+  border-radius:50%;
+  background:#0d3158;
+  color:#fff;
+  font-size:9px;
+  font-weight:950;
+}
+
+.reference-list-person strong,
+.reference-list-production strong{
+  display:block;
+  overflow:hidden;
+  color:#fff;
+  font-size:9px;
+  font-weight:900;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.reference-list-person span,
+.reference-list-production span{
+  display:block;
+  margin-top:3px;
+  color:#91a4bb;
+  font-size:7px;
+}
+
+.reference-contracts{
+  color:#fff;
+  font-size:11px;
+  text-align:center;
+}
+
+.reference-list-meta strong{
+  color:#fff;
+  font-size:10px;
+}
+
+.reference-list-meta>div{
+  height:6px;
+  margin-top:6px;
+  overflow:hidden;
+  border-radius:999px;
+  background:#17334d;
+}
+
+.reference-list-meta>div i{
+  display:block;
+  height:100%;
+  border-radius:inherit;
+  background:linear-gradient(90deg,#1c88ff,#19d0bd);
+}
+
+.reference-list-meta span{
+  display:block;
+  margin-top:5px;
+  color:#91a4bb;
+  font-size:7px;
+  text-align:right;
+}
+
+.ranking-reference-note{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-height:48px;
+  padding:0 14px;
+  border:1px solid #1c4162;
+  border-radius:12px;
+  background:#0a2038;
+  color:#aebdd0;
+  font-size:8px;
+}
+
+.ranking-reference-note>b{
+  display:grid;
+  place-items:center;
+  width:20px;
+  height:20px;
+  border-radius:50%;
+  background:#124e9b;
+  color:#fff;
+}
+
+.ranking-reference-note strong{
+  color:#fff;
+}
+
+.ranking-reference-empty{
+  padding:60px 20px;
+  border:1px solid #1c4162;
+  border-radius:14px;
+  background:#0a2038;
+  text-align:center;
+}
+
+.ranking-reference-empty div{font-size:30px}
+.ranking-reference-empty strong{display:block;margin-top:10px}
+.ranking-reference-empty p{color:#9dafc4}
+
+@media(max-width:1300px){
+  .ranking-reference-main{
+    grid-template-columns:1fr;
   }
 
-  .ranking-toolbar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .ranking-filters {
-    width: 100%;
+  .ranking-reference-podium{
+    border-right:0;
+    border-bottom:1px solid #173955;
   }
 }
 
-@media (max-width: 760px) {
-  .ranking-page {
-    padding: 15px;
+@media(max-width:900px){
+  .ranking-reference-header{
+    align-items:stretch;
+    flex-direction:column;
   }
 
-  .ranking-summary,
-  .ranking-podium,
-  .ranking-filters {
-    grid-template-columns: 1fr;
+  .ranking-reference-filters{
+    justify-content:flex-start;
   }
 
-  .ranking-help {
-    align-items: flex-start;
-    flex-direction: column;
+  .ranking-reference-metrics{
+    grid-template-columns:repeat(2,1fr);
+  }
+
+  .ranking-reference-podium{
+    min-width:700px;
+  }
+
+  .ranking-reference-list{
+    overflow-x:auto;
+  }
+
+  .reference-list-head,
+  .reference-list-row{
+    min-width:720px;
+  }
+}
+
+@media(max-width:600px){
+  .ranking-reference-metrics{
+    grid-template-columns:1fr;
+  }
+}
+/* =========================================================
+   RANKING ELEVA — AJUSTE FINAL PREMIUM
+   Objetivo:
+   1) manter o visual da referência aprovada;
+   2) deixar a barra de filtros mais profissional;
+   3) aumentar tipografia, campos e espaçamentos.
+   COLE NO FINAL do ranking.css atual.
+   ========================================================= */
+
+/* ---------- CABEÇALHO DOS FILTROS ---------- */
+
+.ranking-reference-header{
+  display:grid !important;
+  grid-template-columns:minmax(320px,1fr) auto !important;
+  align-items:center !important;
+  gap:32px !important;
+  min-height:108px !important;
+  padding:22px 26px !important;
+  border:1px solid #1c4162 !important;
+  border-radius:16px !important;
+  background:
+    linear-gradient(135deg,#0b223b 0%,#091a30 100%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.025),
+    0 10px 24px rgba(0,0,0,.08) !important;
+}
+
+.ranking-reference-title h2{
+  font-size:30px !important;
+  line-height:1.05 !important;
+  letter-spacing:-.6px !important;
+}
+
+.ranking-reference-title p{
+  margin-top:8px !important;
+  color:#b6c3d5 !important;
+  font-size:11px !important;
+  line-height:1.45 !important;
+}
+
+/* ---------- FILTROS ---------- */
+
+.ranking-reference-filters{
+  display:grid !important;
+  grid-template-columns:
+    minmax(145px,160px)
+    minmax(160px,180px)
+    minmax(135px,150px)
+    minmax(190px,220px)
+    auto !important;
+  align-items:end !important;
+  gap:12px !important;
+  width:auto !important;
+}
+
+.ranking-reference-filters label{
+  display:grid !important;
+  gap:7px !important;
+  color:#d2dbea !important;
+  font-size:9px !important;
+  font-weight:900 !important;
+  line-height:1 !important;
+  letter-spacing:.55px !important;
+  text-transform:uppercase !important;
+}
+
+.ranking-reference-filters select,
+.ranking-reference-filters input{
+  width:100% !important;
+  min-width:0 !important;
+  height:46px !important;
+  padding:0 14px !important;
+  border:1px solid #345674 !important;
+  border-radius:10px !important;
+  background:#081a30 !important;
+  color:#fff !important;
+  font-size:11px !important;
+  font-weight:800 !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.025) !important;
+  transition:
+    border-color .18s ease,
+    box-shadow .18s ease,
+    background .18s ease !important;
+}
+
+.ranking-reference-filters select:hover,
+.ranking-reference-filters input:hover{
+  border-color:#43749f !important;
+  background:#0a1e36 !important;
+}
+
+.ranking-reference-filters select:focus,
+.ranking-reference-filters input:focus{
+  border-color:#2e82ff !important;
+  box-shadow:
+    0 0 0 3px rgba(46,130,255,.12) !important;
+  outline:none !important;
+}
+
+.ranking-reference-filters input::placeholder{
+  color:#7f91aa !important;
+  font-size:10.5px !important;
+  font-weight:700 !important;
+}
+
+.ranking-reference-refresh{
+  height:46px !important;
+  min-width:108px !important;
+  padding:0 18px !important;
+  border-radius:10px !important;
+  background:
+    linear-gradient(180deg,#1768ea 0%,#1155c9 100%) !important;
+  color:#fff !important;
+  font-size:11px !important;
+  font-weight:950 !important;
+  box-shadow:
+    0 7px 16px rgba(18,91,214,.18),
+    inset 0 1px 0 rgba(255,255,255,.1) !important;
+}
+
+.ranking-reference-refresh:hover{
+  transform:translateY(-1px) !important;
+  filter:brightness(1.06) !important;
+}
+
+/* ---------- CARDS SUPERIORES MAIS PRÓXIMOS DA REFERÊNCIA ---------- */
+
+.ranking-reference-metrics{
+  gap:14px !important;
+}
+
+.ranking-reference-metrics article{
+  min-height:108px !important;
+  padding:18px 20px !important;
+  border-color:#1c4263 !important;
+}
+
+.ranking-metric-icon{
+  flex-basis:54px !important;
+  width:54px !important;
+  height:54px !important;
+  font-size:24px !important;
+}
+
+.ranking-reference-metrics span{
+  font-size:8.5px !important;
+}
+
+.ranking-reference-metrics strong{
+  font-size:23px !important;
+}
+
+.ranking-reference-metrics small{
+  font-size:8.5px !important;
+}
+
+/* ---------- PÓDIO: TAMANHO E PRESENÇA ---------- */
+
+.ranking-reference-main{
+  grid-template-columns:minmax(650px,.98fr) minmax(600px,1.02fr) !important;
+  min-height:500px !important;
+}
+
+.ranking-reference-podium{
+  grid-template-columns:1fr 1.2fr 1fr !important;
+  gap:13px !important;
+  padding:54px 20px 30px !important;
+}
+
+.reference-second,
+.reference-third{
+  min-height:365px !important;
+}
+
+.reference-first{
+  min-height:430px !important;
+}
+
+.reference-avatar{
+  width:112px !important;
+  height:112px !important;
+}
+
+.reference-first .reference-avatar{
+  width:134px !important;
+  height:134px !important;
+}
+
+.reference-name{
+  margin-top:18px !important;
+  font-size:15px !important;
+}
+
+.reference-value{
+  font-size:22px !important;
+}
+
+.reference-first .reference-value{
+  font-size:28px !important;
+}
+
+.reference-podium-card small{
+  font-size:9.5px !important;
+}
+
+/* ---------- CLASSIFICAÇÃO DIREITA MAIS PROFISSIONAL ---------- */
+
+.ranking-reference-list{
+  padding:14px 18px 20px !important;
+}
+
+.ranking-reference-list h4{
+  margin-bottom:14px !important;
+  font-size:18px !important;
+  letter-spacing:.1px !important;
+}
+
+.reference-list-head{
+  min-height:34px !important;
+  font-size:7.5px !important;
+}
+
+.reference-list-row{
+  min-height:80px !important;
+  padding:10px 12px !important;
+}
+
+.reference-list-avatar{
+  width:40px !important;
+  height:40px !important;
+  flex-basis:40px !important;
+}
+
+.reference-list-person strong,
+.reference-list-production strong{
+  font-size:9.5px !important;
+}
+
+.reference-contracts{
+  font-size:11.5px !important;
+}
+
+.reference-list-meta strong{
+  font-size:10.5px !important;
+}
+
+/* ---------- RESPONSIVO ---------- */
+
+@media(max-width:1450px){
+  .ranking-reference-header{
+    grid-template-columns:1fr !important;
+    align-items:stretch !important;
+  }
+
+  .ranking-reference-filters{
+    grid-template-columns:
+      repeat(4,minmax(140px,1fr))
+      auto !important;
+  }
+}
+
+@media(max-width:1100px){
+  .ranking-reference-filters{
+    grid-template-columns:
+      repeat(2,minmax(0,1fr)) !important;
+  }
+
+  .ranking-reference-refresh{
+    width:100% !important;
+  }
+}
+
+@media(max-width:650px){
+  .ranking-reference-filters{
+    grid-template-columns:1fr !important;
   }
 }
