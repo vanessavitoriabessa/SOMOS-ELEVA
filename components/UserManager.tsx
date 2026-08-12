@@ -121,7 +121,89 @@ function transformarUsuario(
   };
 }
 
-function compactarFoto(
+function recortarFoto(
+  origem: string,
+  focoX: number,
+  focoY: number
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const imagem = new Image();
+
+    imagem.onload = () => {
+      const tamanho = 320;
+
+      const canvas =
+        document.createElement("canvas");
+
+      canvas.width = tamanho;
+      canvas.height = tamanho;
+
+      const contexto =
+        canvas.getContext("2d");
+
+      if (!contexto) {
+        reject(
+          new Error(
+            "Não foi possível processar a imagem."
+          )
+        );
+        return;
+      }
+
+      const escala = Math.max(
+        tamanho / imagem.width,
+        tamanho / imagem.height
+      );
+
+      const largura =
+        imagem.width * escala;
+
+      const altura =
+        imagem.height * escala;
+
+      const sobraX =
+        Math.max(largura - tamanho, 0);
+
+      const sobraY =
+        Math.max(altura - tamanho, 0);
+
+      const posicaoX =
+        -(Math.min(100, Math.max(0, focoX)) / 100) *
+        sobraX;
+
+      const posicaoY =
+        -(Math.min(100, Math.max(0, focoY)) / 100) *
+        sobraY;
+
+      contexto.drawImage(
+        imagem,
+        posicaoX,
+        posicaoY,
+        largura,
+        altura
+      );
+
+      resolve(
+        canvas.toDataURL(
+          "image/jpeg",
+          0.84
+        )
+      );
+    };
+
+    imagem.onerror = () => {
+      reject(
+        new Error(
+          "Não foi possível abrir a imagem."
+        )
+      );
+    };
+
+    imagem.src = origem;
+  });
+}
+
+function lerFoto(
   arquivo: File
 ): Promise<string> {
   return new Promise(
@@ -154,86 +236,17 @@ function compactarFoto(
       const leitor =
         new FileReader();
 
-      leitor.onload = () => {
-        const imagem =
-          new Image();
-
-        imagem.onload = () => {
-          const tamanho = 320;
-
-          const canvas =
-            document.createElement(
-              "canvas"
-            );
-
-          canvas.width = tamanho;
-          canvas.height = tamanho;
-
-          const contexto =
-            canvas.getContext("2d");
-
-          if (!contexto) {
-            reject(
-              new Error(
-                "Não foi possível processar a imagem."
-              )
-            );
-            return;
-          }
-
-          const escala = Math.max(
-            tamanho / imagem.width,
-            tamanho / imagem.height
-          );
-
-          const largura =
-            imagem.width * escala;
-
-          const altura =
-            imagem.height * escala;
-
-          const posicaoX =
-            (tamanho - largura) / 2;
-
-          const posicaoY =
-            (tamanho - altura) / 2;
-
-          contexto.drawImage(
-            imagem,
-            posicaoX,
-            posicaoY,
-            largura,
-            altura
-          );
-
-          resolve(
-            canvas.toDataURL(
-              "image/jpeg",
-              0.82
-            )
-          );
-        };
-
-        imagem.onerror = () => {
-          reject(
-            new Error(
-              "Não foi possível abrir a imagem."
-            )
-          );
-        };
-
-        imagem.src = String(
-          leitor.result
+      leitor.onload = () =>
+        resolve(
+          String(leitor.result || "")
         );
-      };
 
-      leitor.onerror = () => {
+      leitor.onerror = () =>
         reject(
           new Error(
             "Não foi possível ler a imagem."
           )
         );
-      };
 
       leitor.readAsDataURL(
         arquivo
@@ -274,6 +287,22 @@ export default function UserManager() {
     processandoFoto,
     setProcessandoFoto,
   ] = useState(false);
+
+  const [
+    fotoOriginal,
+    setFotoOriginal,
+  ] = useState("");
+
+  const [
+    enquadramentoAberto,
+    setEnquadramentoAberto,
+  ] = useState(false);
+
+  const [fotoFocoX, setFotoFocoX] =
+    useState(50);
+
+  const [fotoFocoY, setFotoFocoY] =
+    useState(35);
 
   const [
     processando,
@@ -542,17 +571,13 @@ const [formularioAberto, setFormularioAberto] =
     setProcessandoFoto(true);
 
     try {
-      const fotoCompactada =
-        await compactarFoto(
-          arquivo
-        );
+      const origem =
+        await lerFoto(arquivo);
 
-      setForm(
-        (dadosAtuais) => ({
-          ...dadosAtuais,
-          foto: fotoCompactada,
-        })
-      );
+      setFotoOriginal(origem);
+      setFotoFocoX(50);
+      setFotoFocoY(35);
+      setEnquadramentoAberto(true);
     } catch (erro) {
       setMensagem(
         erro instanceof Error
@@ -563,6 +588,50 @@ const [formularioAberto, setFormularioAberto] =
       setProcessandoFoto(false);
       evento.target.value = "";
     }
+  }
+
+  async function confirmarEnquadramento() {
+    if (!fotoOriginal) return;
+
+    setMensagem("");
+    setProcessandoFoto(true);
+
+    try {
+      const fotoFinal =
+        await recortarFoto(
+          fotoOriginal,
+          fotoFocoX,
+          fotoFocoY
+        );
+
+      setForm(
+        (dadosAtuais) => ({
+          ...dadosAtuais,
+          foto: fotoFinal,
+        })
+      );
+
+      setEnquadramentoAberto(false);
+      setFotoOriginal("");
+      setMensagem(
+        "Enquadramento da foto aplicado."
+      );
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível aplicar o enquadramento."
+      );
+    } finally {
+      setProcessandoFoto(false);
+    }
+  }
+
+  function cancelarEnquadramento() {
+    setEnquadramentoAberto(false);
+    setFotoOriginal("");
+    setFotoFocoX(50);
+    setFotoFocoY(35);
   }
 
   function removerFoto() {
@@ -1049,6 +1118,152 @@ function editar(usuario: Usuario) {
               </div>
             </div>
           </div>
+
+          {enquadramentoAberto &&
+            fotoOriginal && (
+              <div className="users-crop-backdrop">
+                <div
+                  className="users-crop-modal"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Ajustar enquadramento da foto"
+                >
+                  <div className="users-crop-head">
+                    <div>
+                      <span>
+                        AJUSTAR FOTO
+                      </span>
+                      <h3>
+                        Escolha o enquadramento
+                      </h3>
+                      <p>
+                        Posicione o rosto da colaboradora
+                        dentro do círculo antes de salvar.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={
+                        cancelarEnquadramento
+                      }
+                      aria-label="Fechar"
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  <div className="users-crop-content">
+                    <div className="users-crop-preview-wrap">
+                      <div className="users-crop-preview">
+                        <img
+                          src={fotoOriginal}
+                          alt="Prévia do enquadramento"
+                          style={{
+                            objectPosition:
+                              `${fotoFocoX}% ${fotoFocoY}%`,
+                          }}
+                        />
+                      </div>
+
+                      <small>
+                        Esta é a área que aparecerá
+                        no perfil e no ranking.
+                      </small>
+                    </div>
+
+                    <div className="users-crop-controls">
+                      <label>
+                        <div>
+                          <strong>
+                            Posição horizontal
+                          </strong>
+                          <span>
+                            {fotoFocoX}%
+                          </span>
+                        </div>
+
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={fotoFocoX}
+                          onChange={(evento) =>
+                            setFotoFocoX(
+                              Number(
+                                evento.target.value
+                              )
+                            )
+                          }
+                        />
+                      </label>
+
+                      <label>
+                        <div>
+                          <strong>
+                            Posição vertical
+                          </strong>
+                          <span>
+                            {fotoFocoY}%
+                          </span>
+                        </div>
+
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={fotoFocoY}
+                          onChange={(evento) =>
+                            setFotoFocoY(
+                              Number(
+                                evento.target.value
+                              )
+                            )
+                          }
+                        />
+                      </label>
+
+                      <div className="users-crop-tip">
+                        Para fotos de corpo inteiro,
+                        normalmente deixe a posição
+                        vertical entre 15% e 35% para
+                        priorizar o rosto.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="users-crop-actions">
+                    <button
+                      type="button"
+                      className="crop-cancel"
+                      onClick={
+                        cancelarEnquadramento
+                      }
+                      disabled={
+                        processandoFoto
+                      }
+                    >
+                      Cancelar
+                    </button>
+
+                    <button
+                      type="button"
+                      className="crop-apply"
+                      onClick={() =>
+                        void confirmarEnquadramento()
+                      }
+                      disabled={
+                        processandoFoto
+                      }
+                    >
+                      {processandoFoto
+                        ? "Aplicando..."
+                        : "Usar este enquadramento"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
           <div className="users-form-grid">
             <label>
