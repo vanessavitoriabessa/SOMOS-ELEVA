@@ -31,6 +31,7 @@ type DadosUsuario = {
   senha?: string;
   perfil?: string;
   equipe?: string;
+  time_id?: string | null;
   ativo?: boolean;
   foto_url?: string;
 };
@@ -113,9 +114,6 @@ async function autenticarAdministradora(
   } = await verificador.auth.getUser(
     token
   );
-console.log("===== AUTH =====");
-console.log("USER ID:", dadosAutenticacao.user?.id);
-console.log("EMAIL:", dadosAutenticacao.user?.email);
 
   if (
     erroAutenticacao ||
@@ -133,17 +131,16 @@ console.log("EMAIL:", dadosAutenticacao.user?.email);
     createAdminClient();
 
   const {
-  data: perfilAdministradora,
-  error: erroPerfil,
-} = await supabase
-  .from("profiles")
-  .select("perfil, ativo")
-  .eq("id", dadosAutenticacao.user.id)
-  .single();
-
-console.log("===== PROFILE =====");
-console.log(perfilAdministradora);
-console.log(erroPerfil);
+    data: perfilAdministradora,
+    error: erroPerfil,
+  } = await supabase
+    .from("profiles")
+    .select("perfil, ativo")
+    .eq(
+      "id",
+      dadosAutenticacao.user.id
+    )
+    .single();
 
   if (erroPerfil) {
     return {
@@ -222,6 +219,7 @@ export async function GET(
         email,
         perfil,
         equipe,
+        time_id,
         ativo,
         foto_url,
         criado_em
@@ -288,6 +286,10 @@ export async function POST(
     const equipe = String(
       dados.equipe || ""
     ).trim();
+
+    const timeId = String(
+      dados.time_id || ""
+    ).trim() || null;
 
     const fotoUrl = String(
       dados.foto_url || ""
@@ -360,54 +362,49 @@ export async function POST(
       dados.ativo !== false;
 
     const {
-  data: perfilCriado,
-  error: erroPerfil,
-} = await supabase
-  .from("profiles")
-  .upsert(
-    {
-      id: usuarioCriado.user.id,
-      nome,
-      email,
-      perfil,
-      equipe,
-      ativo,
-      foto_url: fotoUrl,
-    },
-    {
-      onConflict: "id",
-    }
-  )
-  .select(`
-    id,
-    nome,
-    email,
-    perfil,
-    equipe,
-    ativo,
-    foto_url,
-    criado_em
-  `)
-  .single();
+      data: perfilCriado,
+      error: erroPerfil,
+    } = await supabase
+      .from("profiles")
+      .update({
+        nome,
+        email,
+        perfil,
+        equipe,
+        time_id: timeId,
+        ativo,
+        foto_url: fotoUrl,
+      })
+      .eq(
+        "id",
+        usuarioCriado.user.id
+      )
+      .select(`
+        id,
+        nome,
+        email,
+        perfil,
+        equipe,
+        time_id,
+        ativo,
+        foto_url,
+        criado_em
+      `)
+      .single();
 
     if (erroPerfil) {
-  console.error(
-    "ERRO AO SALVAR PERFIL:",
-    erroPerfil
-  );
+      await supabase
+        .auth
+        .admin
+        .deleteUser(
+          usuarioCriado.user.id
+        );
 
-  await supabase
-    .auth
-    .admin
-    .deleteUser(
-      usuarioCriado.user.id
-    );
-
-  return respostaErro(
-    `Não foi possível salvar o perfil: ${erroPerfil.message}`,
-    500
-  );
-}
+      return respostaErro(
+        "O acesso foi criado, mas não foi possível salvar o perfil. Tente novamente.",
+        500
+      );
+    }
 
     return NextResponse.json(
       {
@@ -471,6 +468,10 @@ export async function PATCH(
     const equipe = String(
       dados.equipe || ""
     ).trim();
+
+    const timeId = String(
+      dados.time_id || ""
+    ).trim() || null;
 
     const fotoUrl = String(
       dados.foto_url || ""
@@ -650,6 +651,7 @@ export async function PATCH(
         email,
         perfil,
         equipe,
+        time_id: timeId,
         ativo,
         foto_url: fotoUrl,
       })
@@ -660,6 +662,7 @@ export async function PATCH(
         email,
         perfil,
         equipe,
+        time_id,
         ativo,
         foto_url,
         criado_em

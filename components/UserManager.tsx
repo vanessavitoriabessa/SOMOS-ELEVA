@@ -25,6 +25,7 @@ type Usuario = {
   email: string;
   perfil: Perfil;
   equipe: string;
+  timeId: string;
   ativo: boolean;
   criadoEm: string;
   foto: string;
@@ -36,6 +37,7 @@ type FormularioUsuario = {
   senha: string;
   perfil: Perfil;
   equipe: string;
+  timeId: string;
   ativo: boolean;
   foto: string;
 };
@@ -46,6 +48,7 @@ type UsuarioRecebido = {
   email?: string;
   perfil?: Perfil;
   equipe?: string;
+  time_id?: string | null;
   ativo?: boolean;
   foto_url?: string;
   criado_em?: string;
@@ -56,6 +59,16 @@ type RespostaApi = {
   mensagem?: string;
   usuario?: UsuarioRecebido;
   usuarios?: UsuarioRecebido[];
+};
+
+type SupervisoraTime = { id: string; nome?: string; email?: string; ativo?: boolean };
+type TimeComercial = {
+  id: string; nome: string; supervisor_id?: string | null; ativo: boolean;
+  supervisora?: SupervisoraTime | null;
+  quantidade_membros?: number; quantidade_consultoras?: number;
+};
+type RespostaTimesApi = {
+  erro?: string; mensagem?: string; times?: TimeComercial[]; supervisoras?: SupervisoraTime[];
 };
 
 const PERFIS: Perfil[] = [
@@ -73,6 +86,7 @@ const formularioVazio: FormularioUsuario = {
   senha: "",
   perfil: "Consultora",
   equipe: "",
+  timeId: "",
   ativo: true,
   foto: "",
 };
@@ -93,6 +107,7 @@ function transformarUsuario(
     equipe: String(
       usuario.equipe || ""
     ).trim(),
+    timeId: String(usuario.time_id || "").trim(),
     ativo:
       usuario.ativo !== false,
     criadoEm: usuario.criado_em
@@ -271,6 +286,14 @@ export default function UserManager() {
 const [formularioAberto, setFormularioAberto] =
   useState(false);
 
+  const [times, setTimes] = useState<TimeComercial[]>([]);
+  const [supervisoras, setSupervisoras] = useState<SupervisoraTime[]>([]);
+  const [nomeTime, setNomeTime] = useState("");
+  const [supervisorTimeId, setSupervisorTimeId] = useState("");
+  const [timeEditandoId, setTimeEditandoId] = useState<string | null>(null);
+  const [mensagemTime, setMensagemTime] = useState("");
+  const [processandoTime, setProcessandoTime] = useState(false);
+
   function salvarCopiaLocal(
     lista: Usuario[]
   ) {
@@ -283,6 +306,7 @@ const [formularioAberto, setFormularioAberto] =
           perfil: usuario.perfil,
           cargo: usuario.perfil,
           equipe: usuario.equipe,
+          time_id: usuario.timeId,
           ativo: usuario.ativo,
           status: usuario.ativo
             ? "Ativo"
@@ -319,6 +343,78 @@ const [formularioAberto, setFormularioAberto] =
     }
 
     return data.session.access_token;
+  }
+
+  async function carregarTimes() {
+    try {
+      const token = await obterToken();
+      const resposta = await fetch("/api/times", {
+        headers: { Authorization: `Bearer ${token}` }, cache: "no-store",
+      });
+      const conteudo = (await resposta.json()) as RespostaTimesApi;
+      if (!resposta.ok) throw new Error(conteudo.erro || "Não foi possível carregar os times.");
+      setTimes(Array.isArray(conteudo.times) ? conteudo.times : []);
+      setSupervisoras(Array.isArray(conteudo.supervisoras) ? conteudo.supervisoras : []);
+    } catch (erro) {
+      setMensagemTime(erro instanceof Error ? erro.message : "Não foi possível carregar os times.");
+    }
+  }
+
+  async function enviarApiTimes(metodo: "POST" | "PATCH" | "DELETE", dados: Record<string, unknown>) {
+    const token = await obterToken();
+    const resposta = await fetch("/api/times", {
+      method: metodo,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(dados),
+    });
+    const conteudo = (await resposta.json()) as RespostaTimesApi;
+    if (!resposta.ok) throw new Error(conteudo.erro || "Não foi possível concluir a operação.");
+    return conteudo;
+  }
+
+  async function salvarTime(evento: FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    if (!nomeTime.trim()) { setMensagemTime("Informe o nome do time."); return; }
+    setProcessandoTime(true); setMensagemTime("");
+    try {
+      const conteudo = await enviarApiTimes(timeEditandoId ? "PATCH" : "POST", {
+        ...(timeEditandoId ? { id: timeEditandoId } : {}),
+        nome: nomeTime.trim(), supervisor_id: supervisorTimeId || null, ativo: true,
+      });
+      setMensagemTime(conteudo.mensagem || "Time salvo com sucesso.");
+      setNomeTime(""); setSupervisorTimeId(""); setTimeEditandoId(null);
+      await Promise.all([carregarTimes(), carregarUsuarios()]);
+    } catch (erro) {
+      setMensagemTime(erro instanceof Error ? erro.message : "Não foi possível salvar o time.");
+    } finally { setProcessandoTime(false); }
+  }
+
+  function editarTime(time: TimeComercial) {
+    setTimeEditandoId(time.id); setNomeTime(time.nome);
+    setSupervisorTimeId(String(time.supervisor_id || ""));
+  }
+
+  async function alternarStatusTime(time: TimeComercial) {
+    setProcessandoTime(true);
+    try {
+      await enviarApiTimes("PATCH", {
+        id: time.id, nome: time.nome, supervisor_id: time.supervisor_id || null, ativo: !time.ativo,
+      });
+      await carregarTimes();
+    } catch (erro) {
+      setMensagemTime(erro instanceof Error ? erro.message : "Não foi possível alterar o time.");
+    } finally { setProcessandoTime(false); }
+  }
+
+  async function excluirTime(time: TimeComercial) {
+    if (!window.confirm(`Deseja excluir o time ${time.nome}?`)) return;
+    setProcessandoTime(true);
+    try {
+      await enviarApiTimes("DELETE", { id: time.id });
+      await Promise.all([carregarTimes(), carregarUsuarios()]);
+    } catch (erro) {
+      setMensagemTime(erro instanceof Error ? erro.message : "Não foi possível excluir o time.");
+    } finally { setProcessandoTime(false); }
   }
 
   async function carregarUsuarios() {
@@ -374,6 +470,7 @@ const [formularioAberto, setFormularioAberto] =
 
   useEffect(() => {
     void carregarUsuarios();
+    void carregarTimes();
   }, []);
 
   const filtrados = useMemo(() => {
@@ -591,6 +688,7 @@ const [formularioAberto, setFormularioAberto] =
             senha: form.senha,
             perfil: form.perfil,
             equipe: form.equipe,
+            time_id: form.timeId || null,
             ativo: form.ativo,
             foto_url: form.foto,
           }
@@ -633,6 +731,7 @@ function editar(usuario: Usuario) {
     senha: "",
     perfil: usuario.perfil,
     equipe: usuario.equipe,
+    timeId: usuario.timeId,
     ativo: usuario.ativo,
     foto: usuario.foto,
   });
@@ -668,6 +767,7 @@ function editar(usuario: Usuario) {
             senha: "",
             perfil: usuario.perfil,
             equipe: usuario.equipe,
+            time_id: usuario.timeId || null,
             ativo: !usuario.ativo,
             foto_url: usuario.foto,
           }
@@ -772,6 +872,64 @@ function editar(usuario: Usuario) {
             {resumo.gestao}
           </strong>
         </article>
+      </section>
+
+      <section className="teams-management">
+        <div className="teams-management-head">
+          <div><span>GESTÃO COMERCIAL</span><h2>Times e supervisoras</h2>
+            <p>Organize as consultoras por time sem alterar produtos e acessos.</p></div>
+          <div className="teams-count"><strong>{times.length}</strong><span>times cadastrados</span></div>
+        </div>
+
+        <div className="teams-management-grid">
+          <form className="teams-create-card" onSubmit={salvarTime}>
+            <span>{timeEditandoId ? "EDITAR TIME" : "NOVO TIME"}</span>
+            <h3>{timeEditandoId ? "Atualizar time" : "Criar time comercial"}</h3>
+            <label>Nome do time
+              <input value={nomeTime} onChange={(e) => setNomeTime(e.target.value)}
+                placeholder="Ex.: Time Compra 01" disabled={processandoTime} />
+            </label>
+            <label>Supervisora
+              <select value={supervisorTimeId} onChange={(e) => setSupervisorTimeId(e.target.value)} disabled={processandoTime}>
+                <option value="">Sem supervisora definida</option>
+                {supervisoras.filter((s) => s.ativo !== false).map((s) => (
+                  <option key={s.id} value={s.id}>{s.nome || s.email || "Supervisora"}</option>
+                ))}
+              </select>
+            </label>
+            {mensagemTime && <div className="teams-message">{mensagemTime}</div>}
+            <div className="teams-form-actions">
+              {timeEditandoId && <button type="button" className="teams-cancel"
+                onClick={() => { setTimeEditandoId(null); setNomeTime(""); setSupervisorTimeId(""); }}>Cancelar</button>}
+              <button type="submit" className="teams-save" disabled={processandoTime}>
+                {processandoTime ? "Salvando..." : timeEditandoId ? "Atualizar time" : "+ Criar time"}
+              </button>
+            </div>
+          </form>
+
+          <div className="teams-list-card">
+            <div className="teams-list-title"><div><span>TIMES CADASTRADOS</span><h3>Estrutura comercial</h3></div><b>{times.length}</b></div>
+            <div className="teams-list">
+              {!times.length && <div className="teams-empty">Nenhum time cadastrado ainda.</div>}
+              {times.map((time) => (
+                <article key={time.id} className={time.ativo ? "" : "team-inactive"}>
+                  <div className="team-icon">{time.nome.charAt(0).toUpperCase()}</div>
+                  <div className="team-main">
+                    <strong>{time.nome}</strong>
+                    <span>Supervisora: {time.supervisora?.nome || "Não definida"}</span>
+                    <div><b>{time.quantidade_consultoras || 0} consultoras</b><b>{time.quantidade_membros || 0} membros</b></div>
+                  </div>
+                  <div className="team-status"><span className={time.ativo ? "active" : "inactive"}>{time.ativo ? "Ativo" : "Inativo"}</span></div>
+                  <div className="team-actions">
+                    <button type="button" onClick={() => editarTime(time)}>Editar</button>
+                    <button type="button" onClick={() => void alternarStatusTime(time)}>{time.ativo ? "Desativar" : "Ativar"}</button>
+                    <button type="button" className="delete" onClick={() => void excluirTime(time)}>Excluir</button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
       </section>
 
       <section className="users-layout">
@@ -1024,6 +1182,16 @@ function editar(usuario: Usuario) {
               </select>
             </label>
 
+            <label>
+              Time comercial
+              <select value={form.timeId} onChange={(e) => setForm({ ...form, timeId: e.target.value })} disabled={processando}>
+                <option value="">Sem time definido</option>
+                {times.filter((time) => time.ativo).map((time) => (
+                  <option key={time.id} value={time.id}>{time.nome}</option>
+                ))}
+              </select>
+            </label>
+
             <label className="users-switch">
               <input
                 type="checkbox"
@@ -1193,6 +1361,11 @@ function editar(usuario: Usuario) {
                           {
                             usuario.equipe
                           }
+                        </b>
+                      )}
+                      {usuario.timeId && (
+                        <b className="user-time-badge">
+                          {times.find((time) => time.id === usuario.timeId)?.nome || "Time"}
                         </b>
                       )}
                     </div>

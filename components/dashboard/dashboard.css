@@ -2736,3 +2736,45 @@
     grid-column: auto;
   }
 }
+/* DASHBOARD — FILTRO DE TIME
+   Cole no FINAL de components/dashboard/dashboard.css */
+
+.eleva-filter-area {
+  grid-template-columns:
+    minmax(350px, 1.35fr)
+    minmax(145px, .62fr)
+    minmax(145px, .62fr)
+    minmax(155px, .68fr)
+    minmax(155px, .68fr)
+    minmax(160px, .72fr) !important;
+}
+
+.eleva-filter-area select:disabled {
+  background: #f4f7fb !important;
+  color: #52647e !important;
+  cursor: not-allowed;
+}
+
+@media (max-width: 1380px) {
+  .eleva-filter-area {
+    grid-template-columns:
+      repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .eleva-filter-group {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 850px) {
+  .eleva-filter-area {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 580px) {
+  .eleva-filter-area {
+    grid-template-columns: 1fr !important;
+  }
+}

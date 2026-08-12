@@ -55,6 +55,27 @@ type RespostaApi = {
   registros?: RegistroClt[];
 };
 
+type MembroTimeDashboard = {
+  id?: string;
+  nome?: string;
+  perfil?: string;
+  time_id?: string | null;
+};
+
+type TimeDashboard = {
+  id: string;
+  nome: string;
+  supervisor_id?: string | null;
+  ativo?: boolean;
+  membros?: MembroTimeDashboard[];
+};
+
+type RespostaTimesDashboard = {
+  erro?: string;
+  perfil?: PerfilAtual;
+  times?: TimeDashboard[];
+};
+
 type Periodo =
   | "Hoje"
   | "Esta semana"
@@ -514,6 +535,16 @@ export default function DashboardClient() {
   ] = useState<ProdutoFiltro>("Todos");
 
   const [
+    times,
+    setTimes,
+  ] = useState<TimeDashboard[]>([]);
+
+  const [
+    timeSelecionado,
+    setTimeSelecionado,
+  ] = useState("Todos");
+
+  const [
     busca,
     setBusca,
   ] = useState("");
@@ -600,6 +631,7 @@ export default function DashboardClient() {
       const [
         respostaPropostas,
         respostaClt,
+        respostaTimesHttp,
       ] = await Promise.all([
         consultarApi(
           "/api/propostas",
@@ -609,11 +641,35 @@ export default function DashboardClient() {
           "/api/clt",
           token,
         ),
+        fetch("/api/times", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          cache: "no-store",
+        }),
       ]);
+
+      let respostaTimes:
+        RespostaTimesDashboard = {};
+
+      try {
+        respostaTimes =
+          (await respostaTimesHttp.json()) as RespostaTimesDashboard;
+      } catch {
+        respostaTimes = {};
+      }
+
+      if (!respostaTimesHttp.ok) {
+        throw new Error(
+          respostaTimes.erro ||
+            "Não foi possível carregar os times.",
+        );
+      }
 
       setPerfilAtual(
         respostaPropostas.perfil ||
           respostaClt.perfil ||
+          respostaTimes.perfil ||
           null,
       );
 
@@ -632,6 +688,29 @@ export default function DashboardClient() {
           ? respostaClt.registros
           : [],
       );
+
+      const listaTimes =
+        Array.isArray(respostaTimes.times)
+          ? respostaTimes.times
+          : [];
+
+      setTimes(listaTimes);
+
+      const perfilResolvido =
+        respostaPropostas.perfil ||
+        respostaClt.perfil ||
+        respostaTimes.perfil ||
+        null;
+
+      if (
+        perfilResolvido?.perfil ===
+          "Supervisora" &&
+        listaTimes.length === 1
+      ) {
+        setTimeSelecionado(
+          listaTimes[0].id,
+        );
+      }
     } catch (erro) {
       setMensagem(
         erro instanceof Error
@@ -660,6 +739,49 @@ export default function DashboardClient() {
     perfilAtual?.nome ||
     "Equipe Eleva";
 
+  const timeAtual = useMemo(
+    () =>
+      timeSelecionado === "Todos"
+        ? null
+        : times.find(
+            (time) =>
+              time.id ===
+              timeSelecionado,
+          ) || null,
+    [
+      times,
+      timeSelecionado,
+    ],
+  );
+
+  const nomesPermitidosTime = useMemo(() => {
+    if (!timeAtual) {
+      return null;
+    }
+
+    return new Set(
+      (timeAtual.membros || [])
+        .map((membro) =>
+          normalizarTexto(
+            membro.nome,
+          ),
+        )
+        .filter(Boolean),
+    );
+  }, [timeAtual]);
+
+  function pertenceAoTime(
+    nome?: string | null,
+  ) {
+    if (!nomesPermitidosTime) {
+      return true;
+    }
+
+    return nomesPermitidosTime.has(
+      normalizarTexto(nome),
+    );
+  }
+
   const cancelamentosPeriodo = useMemo(() => {
     const nomeUsuarioNormalizado =
       normalizarTexto(perfilAtual?.nome);
@@ -670,6 +792,10 @@ export default function DashboardClient() {
 
     propostas.forEach((proposta) => {
       const nome = nomeResponsavelCompra(proposta);
+
+      if (!pertenceAoTime(nome)) {
+        return;
+      }
 
       if (
         ehConsultora &&
@@ -706,6 +832,10 @@ export default function DashboardClient() {
 
     registrosClt.forEach((registro) => {
       const nome = nomeResponsavelClt(registro);
+
+      if (!pertenceAoTime(nome)) {
+        return;
+      }
 
       if (
         ehConsultora &&
@@ -753,6 +883,8 @@ export default function DashboardClient() {
     periodo,
     dataInicial,
     dataFinal,
+    timeSelecionado,
+    nomesPermitidosTime,
   ]);
 
   const resultado =
@@ -767,6 +899,16 @@ export default function DashboardClient() {
           ? []
           : propostas.filter(
           (proposta) => {
+            if (
+              !pertenceAoTime(
+                nomeResponsavelCompra(
+                  proposta,
+                ),
+              )
+            ) {
+              return false;
+            }
+
             if (
               ehConsultora &&
               normalizarTexto(
@@ -809,6 +951,16 @@ export default function DashboardClient() {
           ? []
           : registrosClt.filter(
           (registro) => {
+            if (
+              !pertenceAoTime(
+                nomeResponsavelClt(
+                  registro,
+                ),
+              )
+            ) {
+              return false;
+            }
+
             if (
               ehConsultora &&
               normalizarTexto(
@@ -1042,6 +1194,8 @@ export default function DashboardClient() {
       dataFinal,
       busca,
       produto,
+      timeSelecionado,
+      nomesPermitidosTime,
     ]);
 
   const maiorValor =
@@ -1112,6 +1266,16 @@ export default function DashboardClient() {
         ? []
         : propostas.filter((proposta) => {
       if (
+        !pertenceAoTime(
+          nomeResponsavelCompra(
+            proposta,
+          ),
+        )
+      ) {
+        return false;
+      }
+
+      if (
         nomeNormalizado &&
         normalizarTexto(
           nomeResponsavelCompra(proposta),
@@ -1168,6 +1332,16 @@ export default function DashboardClient() {
       produto === "Compra de Dívida"
         ? []
         : registrosClt.filter((registro) => {
+      if (
+        !pertenceAoTime(
+          nomeResponsavelClt(
+            registro,
+          ),
+        )
+      ) {
+        return false;
+      }
+
       if (
         nomeNormalizado &&
         normalizarTexto(
@@ -1233,6 +1407,8 @@ export default function DashboardClient() {
     dataInicial,
     dataFinal,
     produto,
+    timeSelecionado,
+    nomesPermitidosTime,
   ]);
 
   const resumoDetalhe = useMemo(() => {
@@ -1593,6 +1769,46 @@ export default function DashboardClient() {
               <option value="CLT">
                 CLT
               </option>
+            </select>
+          </label>
+
+          <label>
+            <span>
+              Time
+            </span>
+
+            <select
+              value={timeSelecionado}
+              onChange={(event) =>
+                setTimeSelecionado(
+                  event.target.value,
+                )
+              }
+              disabled={
+                perfilAtual?.perfil ===
+                  "Supervisora"
+              }
+            >
+              {perfilAtual?.perfil !==
+                "Supervisora" && (
+                <option value="Todos">
+                  Todos os times
+                </option>
+              )}
+
+              {times
+                .filter(
+                  (time) =>
+                    time.ativo !== false,
+                )
+                .map((time) => (
+                  <option
+                    key={time.id}
+                    value={time.id}
+                  >
+                    {time.nome}
+                  </option>
+                ))}
             </select>
           </label>
 

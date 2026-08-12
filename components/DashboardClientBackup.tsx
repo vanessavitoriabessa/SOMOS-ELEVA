@@ -55,6 +55,27 @@ type RespostaApi = {
   registros?: RegistroClt[];
 };
 
+type MembroTimeDashboard = {
+  id?: string;
+  nome?: string;
+  perfil?: string;
+  time_id?: string | null;
+};
+
+type TimeDashboard = {
+  id: string;
+  nome: string;
+  supervisor_id?: string | null;
+  ativo?: boolean;
+  membros?: MembroTimeDashboard[];
+};
+
+type RespostaTimesDashboard = {
+  erro?: string;
+  perfil?: PerfilAtual;
+  times?: TimeDashboard[];
+};
+
 type Periodo =
   | "Hoje"
   | "Esta semana"
@@ -62,6 +83,11 @@ type Periodo =
   | "Este ano"
   | "Tudo"
   | "Personalizado";
+
+type ProdutoFiltro =
+  | "Todos"
+  | "Compra de Dívida"
+  | "CLT";
 
 type LinhaEquipe = {
   nome: string;
@@ -504,6 +530,21 @@ export default function DashboardClient() {
   ] = useState("Todas");
 
   const [
+    produto,
+    setProduto,
+  ] = useState<ProdutoFiltro>("Todos");
+
+  const [
+    times,
+    setTimes,
+  ] = useState<TimeDashboard[]>([]);
+
+  const [
+    timeSelecionado,
+    setTimeSelecionado,
+  ] = useState("Todos");
+
+  const [
     busca,
     setBusca,
   ] = useState("");
@@ -590,6 +631,7 @@ export default function DashboardClient() {
       const [
         respostaPropostas,
         respostaClt,
+        respostaTimesHttp,
       ] = await Promise.all([
         consultarApi(
           "/api/propostas",
@@ -599,11 +641,35 @@ export default function DashboardClient() {
           "/api/clt",
           token,
         ),
+        fetch("/api/times", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          cache: "no-store",
+        }),
       ]);
+
+      let respostaTimes:
+        RespostaTimesDashboard = {};
+
+      try {
+        respostaTimes =
+          (await respostaTimesHttp.json()) as RespostaTimesDashboard;
+      } catch {
+        respostaTimes = {};
+      }
+
+      if (!respostaTimesHttp.ok) {
+        throw new Error(
+          respostaTimes.erro ||
+            "Não foi possível carregar os times.",
+        );
+      }
 
       setPerfilAtual(
         respostaPropostas.perfil ||
           respostaClt.perfil ||
+          respostaTimes.perfil ||
           null,
       );
 
@@ -622,6 +688,29 @@ export default function DashboardClient() {
           ? respostaClt.registros
           : [],
       );
+
+      const listaTimes =
+        Array.isArray(respostaTimes.times)
+          ? respostaTimes.times
+          : [];
+
+      setTimes(listaTimes);
+
+      const perfilResolvido =
+        respostaPropostas.perfil ||
+        respostaClt.perfil ||
+        respostaTimes.perfil ||
+        null;
+
+      if (
+        perfilResolvido?.perfil ===
+          "Supervisora" &&
+        listaTimes.length === 1
+      ) {
+        setTimeSelecionado(
+          listaTimes[0].id,
+        );
+      }
     } catch (erro) {
       setMensagem(
         erro instanceof Error
@@ -650,6 +739,49 @@ export default function DashboardClient() {
     perfilAtual?.nome ||
     "Equipe Eleva";
 
+  const timeAtual = useMemo(
+    () =>
+      timeSelecionado === "Todos"
+        ? null
+        : times.find(
+            (time) =>
+              time.id ===
+              timeSelecionado,
+          ) || null,
+    [
+      times,
+      timeSelecionado,
+    ],
+  );
+
+  const nomesPermitidosTime = useMemo(() => {
+    if (!timeAtual) {
+      return null;
+    }
+
+    return new Set(
+      (timeAtual.membros || [])
+        .map((membro) =>
+          normalizarTexto(
+            membro.nome,
+          ),
+        )
+        .filter(Boolean),
+    );
+  }, [timeAtual]);
+
+  function pertenceAoTime(
+    nome?: string | null,
+  ) {
+    if (!nomesPermitidosTime) {
+      return true;
+    }
+
+    return nomesPermitidosTime.has(
+      normalizarTexto(nome),
+    );
+  }
+
   const cancelamentosPeriodo = useMemo(() => {
     const nomeUsuarioNormalizado =
       normalizarTexto(perfilAtual?.nome);
@@ -660,6 +792,10 @@ export default function DashboardClient() {
 
     propostas.forEach((proposta) => {
       const nome = nomeResponsavelCompra(proposta);
+
+      if (!pertenceAoTime(nome)) {
+        return;
+      }
 
       if (
         ehConsultora &&
@@ -696,6 +832,10 @@ export default function DashboardClient() {
 
     registrosClt.forEach((registro) => {
       const nome = nomeResponsavelClt(registro);
+
+      if (!pertenceAoTime(nome)) {
+        return;
+      }
 
       if (
         ehConsultora &&
@@ -743,6 +883,8 @@ export default function DashboardClient() {
     periodo,
     dataInicial,
     dataFinal,
+    timeSelecionado,
+    nomesPermitidosTime,
   ]);
 
   const resultado =
@@ -753,8 +895,20 @@ export default function DashboardClient() {
         );
 
       const compraFiltrada =
-        propostas.filter(
+        produto === "CLT"
+          ? []
+          : propostas.filter(
           (proposta) => {
+            if (
+              !pertenceAoTime(
+                nomeResponsavelCompra(
+                  proposta,
+                ),
+              )
+            ) {
+              return false;
+            }
+
             if (
               ehConsultora &&
               normalizarTexto(
@@ -793,8 +947,20 @@ export default function DashboardClient() {
         );
 
       const cltFiltrado =
-        registrosClt.filter(
+        produto === "Compra de Dívida"
+          ? []
+          : registrosClt.filter(
           (registro) => {
+            if (
+              !pertenceAoTime(
+                nomeResponsavelClt(
+                  registro,
+                ),
+              )
+            ) {
+              return false;
+            }
+
             if (
               ehConsultora &&
               normalizarTexto(
@@ -1027,6 +1193,9 @@ export default function DashboardClient() {
       dataInicial,
       dataFinal,
       busca,
+      produto,
+      timeSelecionado,
+      nomesPermitidosTime,
     ]);
 
   const maiorValor =
@@ -1053,69 +1222,38 @@ export default function DashboardClient() {
       8,
     );
 
-  const graficoExecutivo = useMemo(() => {
-    const largura = 1000;
-    const altura = 430;
-    const margemEsquerda = 78;
-    const margemDireita = 72;
-    const topo = 82;
-    const base = 340;
-    const areaLargura =
-      largura - margemEsquerda - margemDireita;
-    const quantidade =
-      Math.max(linhasGrafico.length, 1);
-    const passo = areaLargura / quantidade;
-    const larguraBarra =
-      Math.min(76, passo * 0.46);
+  const rotulosProduto = useMemo(() => {
+    if (produto === "CLT") {
+      return {
+        tituloPrimario: "Valor liberado",
+        tituloSecundario: "Valor de parcela",
+        resumoPrimario: "Liberado total",
+        resumoSecundario: "Parcelas",
+        descricao:
+          "Comparativo entre valor liberado, valor de parcela e quantidade de contratos CLT no período selecionado.",
+      };
+    }
 
-    const maiorLiquido =
-      Math.max(
-        ...linhasGrafico.map(
-          (linha) => linha.valorFinal,
-        ),
-        1,
-      );
-
-    const maiorContratos =
-      Math.max(
-        ...linhasGrafico.map(
-          (linha) => linha.propostas,
-        ),
-        1,
-      );
-
-    const pontosQuantidade =
-      linhasGrafico
-        .map((linha, indice) => {
-          const x =
-            margemEsquerda +
-            passo * indice +
-            passo / 2;
-
-          const y =
-            base -
-            (linha.propostas /
-              maiorContratos) *
-              (base - topo);
-
-          return `${x.toFixed(1)},${y.toFixed(1)}`;
-        })
-        .join(" ");
+    if (produto === "Compra de Dívida") {
+      return {
+        tituloPrimario: "Valor bruto",
+        tituloSecundario: "Valor líquido",
+        resumoPrimario: "Bruto total",
+        resumoSecundario: "Líquido total",
+        descricao:
+          "Comparativo entre valor bruto, valor líquido e quantidade de contratos de Compra de Dívida no período selecionado.",
+      };
+    }
 
     return {
-      largura,
-      altura,
-      margemEsquerda,
-      margemDireita,
-      topo,
-      base,
-      passo,
-      larguraBarra,
-      maiorLiquido,
-      maiorContratos,
-      pontosQuantidade,
+      tituloPrimario: "Valor bruto",
+      tituloSecundario: "Produção líquida",
+      resumoPrimario: "Bruto total",
+      resumoSecundario: "Líquido total",
+      descricao:
+        "Comparativo entre valor bruto, produção líquida e quantidade de contratos no período selecionado.",
     };
-  }, [linhasGrafico]);
+  }, [produto]);
 
   const propostasDetalhe = useMemo(() => {
     const nomeNormalizado =
@@ -1123,7 +1261,20 @@ export default function DashboardClient() {
         ? normalizarTexto(consultoraDetalhe)
         : "";
 
-    const compra = propostas.filter((proposta) => {
+    const compra =
+      produto === "CLT"
+        ? []
+        : propostas.filter((proposta) => {
+      if (
+        !pertenceAoTime(
+          nomeResponsavelCompra(
+            proposta,
+          ),
+        )
+      ) {
+        return false;
+      }
+
       if (
         nomeNormalizado &&
         normalizarTexto(
@@ -1177,7 +1328,20 @@ export default function DashboardClient() {
       );
     });
 
-    const clt = registrosClt.filter((registro) => {
+    const clt =
+      produto === "Compra de Dívida"
+        ? []
+        : registrosClt.filter((registro) => {
+      if (
+        !pertenceAoTime(
+          nomeResponsavelClt(
+            registro,
+          ),
+        )
+      ) {
+        return false;
+      }
+
       if (
         nomeNormalizado &&
         normalizarTexto(
@@ -1242,6 +1406,9 @@ export default function DashboardClient() {
     periodo,
     dataInicial,
     dataFinal,
+    produto,
+    timeSelecionado,
+    nomesPermitidosTime,
   ]);
 
   const resumoDetalhe = useMemo(() => {
@@ -1405,7 +1572,9 @@ export default function DashboardClient() {
 
           <div>
             <span>
-              Valor bruto pago
+              {produto === "CLT"
+                ? "Valor liberado"
+                : "Valor bruto pago"}
             </span>
 
             <strong>
@@ -1427,7 +1596,9 @@ export default function DashboardClient() {
 
           <div>
             <span>
-              Produção líquida
+              {produto === "CLT"
+                ? "Valor de parcela"
+                : "Produção líquida"}
             </span>
 
             <strong>
@@ -1576,6 +1747,73 @@ export default function DashboardClient() {
 
           <label>
             <span>
+              Produto
+            </span>
+
+            <select
+              value={produto}
+              onChange={(event) =>
+                setProduto(
+                  event.target.value as ProdutoFiltro,
+                )
+              }
+            >
+              <option value="Todos">
+                Todos
+              </option>
+
+              <option value="Compra de Dívida">
+                Compra de Dívida
+              </option>
+
+              <option value="CLT">
+                CLT
+              </option>
+            </select>
+          </label>
+
+          <label>
+            <span>
+              Time
+            </span>
+
+            <select
+              value={timeSelecionado}
+              onChange={(event) =>
+                setTimeSelecionado(
+                  event.target.value,
+                )
+              }
+              disabled={
+                perfilAtual?.perfil ===
+                  "Supervisora"
+              }
+            >
+              {perfilAtual?.perfil !==
+                "Supervisora" && (
+                <option value="Todos">
+                  Todos os times
+                </option>
+              )}
+
+              {times
+                .filter(
+                  (time) =>
+                    time.ativo !== false,
+                )
+                .map((time) => (
+                  <option
+                    key={time.id}
+                    value={time.id}
+                  >
+                    {time.nome}
+                  </option>
+                ))}
+            </select>
+          </label>
+
+          <label>
+            <span>
               Status
             </span>
 
@@ -1656,8 +1894,11 @@ export default function DashboardClient() {
 
         <div style={{ margin: "14px 0 18px", padding: "12px 14px", border: "1px solid #dfe6f2", borderRadius: 12, background: "#f8fafc", color: "#526077", fontSize: 13 }}>
           <strong style={{ color: "#183b73" }}>Como os valores são calculados:</strong>{" "}
-          Compra de Dívida usa o valor bruto do contrato e o valor líquido conforme a tabela.
-          No CLT, o valor bruto é o aprovado e a produção líquida considerada é a parcela.
+          {produto === "CLT"
+            ? "No CLT, o valor liberado é o valor aprovado e o valor de parcela é a parcela cadastrada."
+            : produto === "Compra de Dívida"
+              ? "Na Compra de Dívida, o valor bruto é o valor do contrato e o valor líquido é calculado conforme a tabela."
+              : "Compra de Dívida usa o valor bruto do contrato e o valor líquido conforme a tabela. No CLT, o valor liberado é o aprovado e o valor de parcela é a parcela cadastrada."}
         </div>
 
         {carregando ? (
@@ -1669,193 +1910,179 @@ export default function DashboardClient() {
             Nenhuma produção encontrada no período selecionado.
           </div>
         ) : (
-          <div className="eleva-executive-chart-card">
-            <div className="eleva-executive-chart-head">
+          <section className="crm-combo-card">
+            <div className="crm-combo-head">
               <div>
-                <span>DESEMPENHO POR CONSULTORA</span>
-                <h4>
-                  Valor bruto, valor líquido e contratos
-                </h4>
+                <span className="crm-combo-eyebrow">PERFORMANCE COMERCIAL</span>
+                <h3>Produção por consultora</h3>
                 <p>
-                  As barras representam o valor líquido. O valor bruto
-                  aparece acima de cada barra e a linha mostra a quantidade
-                  de contratos.
+                  {rotulosProduto.descricao}
                 </p>
               </div>
 
-              <div className="eleva-executive-chart-totals">
-                <div>
-                  <span>Bruto</span>
+              <div className="crm-combo-summary">
+                <article>
+                  <span>{rotulosProduto.resumoPrimario}</span>
                   <strong>{moeda(resultado.totalBruto)}</strong>
-                </div>
+                </article>
 
-                <div>
-                  <span>Líquido</span>
+                <article>
+                  <span>{rotulosProduto.resumoSecundario}</span>
                   <strong>{moeda(resultado.totalFinal)}</strong>
-                </div>
+                </article>
 
-                <div>
+                <article>
                   <span>Contratos</span>
                   <strong>{numero(resultado.totalPropostas)}</strong>
-                </div>
+                </article>
               </div>
             </div>
 
-            <div className="eleva-executive-legend">
+            <div className="crm-combo-legend">
               <span>
-                <i className="legend-bar" />
-                Valor líquido
+                <i className="legend-bruto" />
+                {rotulosProduto.tituloPrimario}
               </span>
 
               <span>
-                <i className="legend-line" />
+                <i className="legend-liquido" />
+                {rotulosProduto.tituloSecundario}
+              </span>
+
+              <span>
+                <i className="legend-contratos" />
                 Contratos
               </span>
-
-              <span>
-                <i className="legend-gross" />
-                Valor bruto
-              </span>
             </div>
 
-            <div className="eleva-executive-chart-scroll">
-              <svg
-                className="eleva-executive-chart-svg"
-                viewBox={`0 0 ${graficoExecutivo.largura} ${graficoExecutivo.altura}`}
-                role="img"
-                aria-label="Gráfico de valor bruto, valor líquido e quantidade de contratos por consultora"
+            <div className="crm-combo-scroll">
+              <div
+                className="crm-combo-chart"
+                style={{
+                  minWidth: `${Math.max(
+                    1050,
+                    linhasGrafico.length * 175,
+                  )}px`,
+                }}
               >
-                {[0, 0.25, 0.5, 0.75, 1].map((fracao) => {
-                  const y =
-                    graficoExecutivo.base -
-                    fracao *
-                      (graficoExecutivo.base -
-                        graficoExecutivo.topo);
+                {(() => {
+                  const maiorValor = Math.max(
+                    ...linhasGrafico.map((linha) =>
+                      Math.max(linha.valorBruto, linha.valorFinal),
+                    ),
+                    1,
+                  );
+
+                  const maiorContratos = Math.max(
+                    ...linhasGrafico.map((linha) => linha.propostas),
+                    1,
+                  );
+
+                  const pontos = linhasGrafico
+                    .map((linha, indice) => {
+                      const passo = 100 / linhasGrafico.length;
+                      const x = passo * indice + passo / 2;
+                      const y = 88 - (linha.propostas / maiorContratos) * 62;
+                      return `${x},${y}`;
+                    })
+                    .join(" ");
 
                   return (
-                    <line
-                      key={`grid-${fracao}`}
-                      x1={graficoExecutivo.margemEsquerda}
-                      y1={y}
-                      x2={
-                        graficoExecutivo.largura -
-                        graficoExecutivo.margemDireita
-                      }
-                      y2={y}
-                      className="exec-grid-line"
-                    />
+                    <>
+                      <div className="crm-combo-gridlines">
+                        <span />
+                        <span />
+                        <span />
+                        <span />
+                      </div>
+
+                      <svg
+                        className="crm-combo-line-layer"
+                        viewBox="0 0 100 100"
+                        preserveAspectRatio="none"
+                        aria-hidden="true"
+                      >
+                        <polyline
+                          points={pontos}
+                          className="crm-combo-line"
+                        />
+                      </svg>
+
+                      <div className="crm-combo-columns">
+                        {linhasGrafico.map((linha, indice) => {
+                          const alturaBruto = Math.max(
+                            5,
+                            (linha.valorBruto / maiorValor) * 100,
+                          );
+
+                          const alturaLiquido = Math.max(
+                            5,
+                            (linha.valorFinal / maiorValor) * 100,
+                          );
+
+                          const alturaContrato =
+                            88 -
+                            (linha.propostas / maiorContratos) * 62;
+
+                          return (
+                            <article
+                              className="crm-combo-column"
+                              key={`combo-${linha.nome}`}
+                            >
+                              <div
+                                className="crm-contract-point"
+                                style={{
+                                  top: `${alturaContrato}%`,
+                                }}
+                              >
+                                <span>{linha.propostas}</span>
+                              </div>
+
+                              <div className="crm-combo-value-labels">
+                                <span>
+                                  {rotulosProduto.tituloPrimario.toUpperCase()}
+                                </span>
+                                <strong>{moeda(linha.valorBruto)}</strong>
+
+                                <span>
+                                  {rotulosProduto.tituloSecundario.toUpperCase()}
+                                </span>
+                                <strong className="liquido">
+                                  {moeda(linha.valorFinal)}
+                                </strong>
+                              </div>
+
+                              <div className="crm-combo-bars">
+                                <div
+                                  className="crm-bar crm-bar-bruto"
+                                  style={{
+                                    height: `${alturaBruto}%`,
+                                  }}
+                                  title={`${rotulosProduto.tituloPrimario}: ${moeda(linha.valorBruto)}`}
+                                />
+
+                                <div
+                                  className="crm-bar crm-bar-liquido"
+                                  style={{
+                                    height: `${alturaLiquido}%`,
+                                  }}
+                                  title={`${rotulosProduto.tituloSecundario}: ${moeda(linha.valorFinal)}`}
+                                />
+                              </div>
+
+                              <div className="crm-combo-name">
+                                {linha.nome}
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </>
                   );
-                })}
-
-                <polyline
-                  className="exec-contract-line"
-                  points={graficoExecutivo.pontosQuantidade}
-                />
-
-                {linhasGrafico.map((linha, indice) => {
-                  const centro =
-                    graficoExecutivo.margemEsquerda +
-                    graficoExecutivo.passo * indice +
-                    graficoExecutivo.passo / 2;
-
-                  const alturaBarra =
-                    Math.max(
-                      12,
-                      (linha.valorFinal /
-                        graficoExecutivo.maiorLiquido) *
-                        (graficoExecutivo.base -
-                          graficoExecutivo.topo),
-                    );
-
-                  const yBarra =
-                    graficoExecutivo.base -
-                    alturaBarra;
-
-                  const yLinha =
-                    graficoExecutivo.base -
-                    (linha.propostas /
-                      graficoExecutivo.maiorContratos) *
-                      (graficoExecutivo.base -
-                        graficoExecutivo.topo);
-
-                  const nomeCurto =
-                    linha.nome.length > 18
-                      ? `${linha.nome.slice(0, 17)}…`
-                      : linha.nome;
-
-                  return (
-                    <g key={`exec-${linha.nome}`}>
-                      <text
-                        x={centro}
-                        y={Math.max(24, yBarra - 31)}
-                        textAnchor="middle"
-                        className="exec-gross-label"
-                      >
-                        Bruto {moeda(linha.valorBruto)}
-                      </text>
-
-                      <text
-                        x={centro}
-                        y={Math.max(43, yBarra - 13)}
-                        textAnchor="middle"
-                        className="exec-net-label"
-                      >
-                        {moeda(linha.valorFinal)}
-                      </text>
-
-                      <rect
-                        x={
-                          centro -
-                          graficoExecutivo.larguraBarra / 2
-                        }
-                        y={yBarra}
-                        width={graficoExecutivo.larguraBarra}
-                        height={alturaBarra}
-                        rx="10"
-                        className={`exec-bar color-${
-                          (indice % 5) + 1
-                        }`}
-                      />
-
-                      <circle
-                        cx={centro}
-                        cy={yLinha}
-                        r="6"
-                        className="exec-contract-point"
-                      />
-
-                      <text
-                        x={centro}
-                        y={yLinha - 13}
-                        textAnchor="middle"
-                        className="exec-contract-label"
-                      >
-                        {linha.propostas}
-                      </text>
-
-                      <text
-                        x={centro}
-                        y={graficoExecutivo.base + 31}
-                        textAnchor="middle"
-                        className="exec-name-label"
-                      >
-                        {nomeCurto.toUpperCase()}
-                      </text>
-                    </g>
-                  );
-                })}
-
-                <text
-                  x={graficoExecutivo.largura - 14}
-                  y={graficoExecutivo.topo - 18}
-                  textAnchor="end"
-                  className="exec-axis-title"
-                >
-                  CONTRATOS
-                </text>
-              </svg>
+                })()}
+              </div>
             </div>
-          </div>
+          </section>
         )}
 
         <div className="eleva-table-title">
