@@ -622,36 +622,49 @@ export default function DashboardClient() {
     setMensagem("");
 
     try {
-      const sessao =
-        await obterSessao();
+      const sessao = await obterSessao();
+      const token = sessao.access_token;
 
-      const token =
-        sessao.access_token;
+      const [respostaPropostas, respostaClt] =
+        await Promise.all([
+          consultarApi("/api/propostas", token),
+          consultarApi("/api/clt", token),
+        ]);
 
-      const [
-        respostaPropostas,
-        respostaClt,
-        respostaTimesHttp,
-      ] = await Promise.all([
-        consultarApi(
-          "/api/propostas",
-          token,
-        ),
-        consultarApi(
-          "/api/clt",
-          token,
-        ),
-        fetch("/api/times", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          cache: "no-store",
-        }),
-      ]);
+      const perfilResolvido =
+        respostaPropostas.perfil ||
+        respostaClt.perfil ||
+        null;
 
-      let respostaTimes:
-        RespostaTimesDashboard = {};
+      setPerfilAtual(perfilResolvido);
+      setPropostas(
+        Array.isArray(respostaPropostas.propostas)
+          ? respostaPropostas.propostas
+          : [],
+      );
+      setRegistrosClt(
+        Array.isArray(respostaClt.registros)
+          ? respostaClt.registros
+          : [],
+      );
 
+      if (
+        perfilResolvido &&
+        perfilEhConsultora(perfilResolvido.perfil || "")
+      ) {
+        setTimes([]);
+        setTimeSelecionado("Todos");
+        return;
+      }
+
+      const respostaTimesHttp = await fetch("/api/times", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+
+      let respostaTimes: RespostaTimesDashboard = {};
       try {
         respostaTimes =
           (await respostaTimesHttp.json()) as RespostaTimesDashboard;
@@ -666,50 +679,17 @@ export default function DashboardClient() {
         );
       }
 
-      setPerfilAtual(
-        respostaPropostas.perfil ||
-          respostaClt.perfil ||
-          respostaTimes.perfil ||
-          null,
-      );
-
-      setPropostas(
-        Array.isArray(
-          respostaPropostas.propostas,
-        )
-          ? respostaPropostas.propostas
-          : [],
-      );
-
-      setRegistrosClt(
-        Array.isArray(
-          respostaClt.registros,
-        )
-          ? respostaClt.registros
-          : [],
-      );
-
-      const listaTimes =
-        Array.isArray(respostaTimes.times)
-          ? respostaTimes.times
-          : [];
+      const listaTimes = Array.isArray(respostaTimes.times)
+        ? respostaTimes.times
+        : [];
 
       setTimes(listaTimes);
 
-      const perfilResolvido =
-        respostaPropostas.perfil ||
-        respostaClt.perfil ||
-        respostaTimes.perfil ||
-        null;
-
       if (
-        perfilResolvido?.perfil ===
-          "Supervisora" &&
+        perfilResolvido?.perfil === "Supervisora" &&
         listaTimes.length === 1
       ) {
-        setTimeSelecionado(
-          listaTimes[0].id,
-        );
+        setTimeSelecionado(listaTimes[0].id);
       }
     } catch (erro) {
       setMensagem(

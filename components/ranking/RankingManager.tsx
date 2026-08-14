@@ -5,10 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import "./ranking.css";
 
 import {
-  compraValidaNaCompetencia,
-} from "@/lib/premiacao/competenciaCompra";
-
-import {
   calcularPremiacaoCompra,
   calcularPremiacaoClt,
 } from "@/lib/premiacao/premiacaoService";
@@ -739,63 +735,30 @@ const [dataFinal, setDataFinal] = useState(
     const agrupado = new Map<string, RankingItem>();
 
     propostas
-  .filter((proposta) => {
-    if (produto === "CLT") return false;
+      .filter((proposta) => {
+        if (produto === "CLT") return false;
 
-    if (
-      nomesPermitidosTime &&
-      !nomesPermitidosTime.has(
-        normalizarTexto(proposta.vendedora || "")
-      )
-    ) {
-      return false;
-    }
+        if (
+          nomesPermitidosTime &&
+          !nomesPermitidosTime.has(
+            normalizarTexto(proposta.vendedora || "")
+          )
+        ) {
+          return false;
+        }
 
-    const statusPago =
-      normalizarTexto(proposta.status) === "pago";
+        if (normalizarTexto(proposta.status) !== "pago") {
+          return false;
+        }
 
-    if (!statusPago) {
-      return false;
-    }
+        // O ranking considera o mês/período em que a proposta foi paga.
+        const pagamento = converterData(
+          proposta.dataPagamento
+        );
 
-    /*
-     * Para o filtro mensal, aplica a regra oficial:
-     * digitado no mês e pago até o dia 19 do mês seguinte.
-     */
-    if (periodo === "Mês") {
-      const hoje = new Date();
-
-      const competenciaTexto =
-        `${hoje.getFullYear()}-${String(
-          hoje.getMonth() + 1
-        ).padStart(2, "0")}`;
-
-      return compraValidaNaCompetencia(
-        {
-          ...proposta,
-          produto: "Compra de Dívida",
-        },
-        competenciaTexto
-      );
-    }
-
-    /*
-     * Hoje, Semana e Todos continuam sendo tratados
-     * pela data do pagamento logo abaixo.
-     */
-    return true;
-  })
-  .forEach((proposta) => {
-        const pagamento =
-  converterData(proposta.dataPagamento);
-
-if (
-  periodo !== "Mês" &&
-  !estaNoPeriodo(pagamento, periodo)
-) {
-  return;
-}
-
+        return estaNoPeriodo(pagamento, periodo);
+      })
+      .forEach((proposta) => {
         const nome =
           proposta.vendedora?.trim() || "Sem consultora";
 
