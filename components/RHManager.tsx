@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { createClient } from "@/lib/supabase/client";
 import "./rh.css";
 
 type StatusColaboradora =
@@ -174,6 +175,70 @@ function somenteNumeros(valor: string) {
   return valor.replace(/\D/g, "");
 }
 
+function proximaMatricula(
+  colaboradoras: ColaboradoraRH[]
+) {
+  const numeros = colaboradoras
+    .map((colaboradora) =>
+      Number(
+        somenteNumeros(
+          colaboradora.matricula || ""
+        )
+      )
+    )
+    .filter(
+      (numero) =>
+        Number.isFinite(numero) &&
+        numero > 0
+    );
+
+  const maior =
+    numeros.length > 0
+      ? Math.max(...numeros)
+      : 0;
+
+  return String(maior + 1).padStart(4, "0");
+}
+
+
+function garantirMatriculasUnicas(
+  lista: ColaboradoraRH[],
+  jaUsadas: string[] = []
+) {
+  const usadas = new Set(
+    jaUsadas
+      .map((valor) => somenteNumeros(valor))
+      .filter(Boolean)
+  );
+
+  let maior = Math.max(
+    0,
+    ...Array.from(usadas)
+      .map((valor) => Number(valor))
+      .filter((numero) => Number.isFinite(numero))
+  );
+
+  return lista.map((colaboradora) => {
+    let matricula = somenteNumeros(
+      colaboradora.matricula || ""
+    );
+
+    if (!matricula || usadas.has(matricula)) {
+      do {
+        maior += 1;
+        matricula = String(maior).padStart(4, "0");
+      } while (usadas.has(matricula));
+    }
+
+    usadas.add(matricula);
+
+    return {
+      ...colaboradora,
+      matricula,
+    };
+  });
+}
+
 function converterNumero(valor: string) {
   const convertido = Number(
     valor
@@ -237,6 +302,8 @@ function criarColaboradoraDoUsuario(
 }
 
 export default function RHManager() {
+  const supabase = useMemo(() => createClient(), []);
+
   const [usuarios, setUsuarios] =
     useState<UsuarioSistema[]>([]);
 
@@ -272,117 +339,404 @@ export default function RHManager() {
     useState("");
 
   useEffect(() => {
-    let listaUsuarios: UsuarioSistema[] = [];
-
-    try {
-      const usuariosSalvos = JSON.parse(
-        localStorage.getItem(
-          "somos-eleva-usuarios"
-        ) || "[]"
-      );
-
-      listaUsuarios = Array.isArray(usuariosSalvos)
-        ? usuariosSalvos
-        : [];
-    } catch {
-      listaUsuarios = [];
+    if (
+      editandoColaboradoraId ||
+      formColaboradora.matricula
+    ) {
+      return;
     }
 
-    setUsuarios(listaUsuarios);
+    setFormColaboradora((atual) => ({
+      ...atual,
+      matricula:
+        proximaMatricula(colaboradoras),
+    }));
+  }, [
+    colaboradoras,
+    editandoColaboradoraId,
+    formColaboradora.matricula,
+  ]);
 
-    try {
-      const rhSalvo = JSON.parse(
-        localStorage.getItem(
-          "somos-eleva-rh-colaboradoras"
-        ) || "[]"
-      );
+  useEffect(() => {
+    let cancelado = false;
 
-      const listaRH: ColaboradoraRH[] =
-        Array.isArray(rhSalvo) ? rhSalvo : [];
+    async function carregarRH() {
+      try {
+        const [
+          respostaUsuarios,
+          respostaColaboradoras,
+          respostaRegistros,
+        ] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select(`
+              id,
+              nome,
+              email,
+              perfil,
+              equipe,
+              ativo,
+              foto_url
+            `)
+            .order("nome", {
+              ascending: true,
+            }),
 
-      const usuariosNaoCadastrados =
-        listaUsuarios.filter(
+          supabase
+            .from("rh_colaboradoras")
+            .select("*")
+            .order("nome", {
+              ascending: true,
+            }),
+
+          supabase
+            .from("rh_registros")
+            .select("*")
+            .order("data", {
+              ascending: false,
+            }),
+        ]);
+
+        if (respostaUsuarios.error) {
+          throw respostaUsuarios.error;
+        }
+
+        if (respostaColaboradoras.error) {
+          throw respostaColaboradoras.error;
+        }
+
+        if (respostaRegistros.error) {
+          throw respostaRegistros.error;
+        }
+
+        let listaUsuarios: UsuarioSistema[] = (
+          Array.isArray(respostaUsuarios.data)
+            ? respostaUsuarios.data
+            : []
+        ).map((usuario) => ({
+          id: String(usuario.id),
+          nome: String(usuario.nome || ""),
+          email: String(usuario.email || ""),
+          matricula: "",
+          perfil: String(usuario.perfil || ""),
+          equipe: String(usuario.equipe || ""),
+          ativo: usuario.ativo !== false,
+          foto: String(usuario.foto_url || ""),
+        }));
+
+        let listaColaboradoras: ColaboradoraRH[] = (
+          Array.isArray(respostaColaboradoras.data)
+            ? respostaColaboradoras.data
+            : []
+        ).map((registro) => ({
+          id: String(registro.id),
+          usuarioId: String(registro.usuario_id || ""),
+          nome: String(registro.nome || ""),
+          foto: String(registro.foto || ""),
+          matricula: String(registro.matricula || ""),
+          cpf: String(registro.cpf || ""),
+          dataNascimento: String(
+            registro.data_nascimento || ""
+          ),
+          telefone: String(registro.telefone || ""),
+          email: String(registro.email || ""),
+          endereco: String(registro.endereco || ""),
+          cargo: String(registro.cargo || ""),
+          equipe: String(registro.equipe || ""),
+          dataAdmissao: String(
+            registro.data_admissao || ""
+          ),
+          tipoContrato:
+            (registro.tipo_contrato || "CLT") as TipoContrato,
+          salarioBase: Number(
+            registro.salario_base || 0
+          ),
+          jornada: String(registro.jornada || ""),
+          status:
+            (registro.status || "Ativa") as StatusColaboradora,
+          contatoEmergencia: String(
+            registro.contato_emergencia || ""
+          ),
+          telefoneEmergencia: String(
+            registro.telefone_emergencia || ""
+          ),
+          observacoes: String(
+            registro.observacoes || ""
+          ),
+          criadaEm: String(registro.criada_em || ""),
+        }));
+
+        let listaRegistros: RegistroRH[] = (
+          Array.isArray(respostaRegistros.data)
+            ? respostaRegistros.data
+            : []
+        ).map((registro) => ({
+          id: String(registro.id),
+          colaboradoraId: String(
+            registro.colaboradora_id || ""
+          ),
+          nome: String(registro.nome || ""),
+          matricula: String(registro.matricula || ""),
+          tipo: registro.tipo as TipoRegistro,
+          data: String(registro.data || ""),
+          competencia: String(
+            registro.competencia || ""
+          ),
+          valor: Number(registro.valor || 0),
+          quantidade: Number(registro.quantidade || 0),
+          unidade:
+            (registro.unidade || "Ocorrência") as
+              | "Dias"
+              | "Horas"
+              | "Ocorrência",
+          justificada: Boolean(registro.justificada),
+          descontarNaFolha: Boolean(
+            registro.descontar_na_folha
+          ),
+          cancelaAssiduidade: Boolean(
+            registro.cancela_assiduidade
+          ),
+          descricao: String(registro.descricao || ""),
+          criadoEm: String(registro.criado_em || ""),
+        }));
+
+        // Migra automaticamente o que já existia no navegador.
+        if (!listaColaboradoras.length) {
+          try {
+            const antigas = JSON.parse(
+              localStorage.getItem(
+                "somos-eleva-rh-colaboradoras"
+              ) || "[]"
+            );
+
+            if (Array.isArray(antigas) && antigas.length) {
+              const antigasComMatricula =
+                garantirMatriculasUnicas(
+                  antigas as ColaboradoraRH[]
+                );
+
+              const payload = antigasComMatricula.map(
+                (colaboradora) => ({
+                  id: colaboradora.id,
+                  usuario_id:
+                    colaboradora.usuarioId || null,
+                  nome: colaboradora.nome,
+                  foto: colaboradora.foto || "",
+                  matricula:
+                    colaboradora.matricula,
+                  cpf: colaboradora.cpf || "",
+                  data_nascimento:
+                    colaboradora.dataNascimento || null,
+                  telefone:
+                    colaboradora.telefone || "",
+                  email: colaboradora.email || "",
+                  endereco:
+                    colaboradora.endereco || "",
+                  cargo: colaboradora.cargo || "",
+                  equipe: colaboradora.equipe || "",
+                  data_admissao:
+                    colaboradora.dataAdmissao || null,
+                  tipo_contrato:
+                    colaboradora.tipoContrato || "CLT",
+                  salario_base: Number(
+                    colaboradora.salarioBase || 0
+                  ),
+                  jornada:
+                    colaboradora.jornada || "",
+                  status:
+                    colaboradora.status || "Ativa",
+                  contato_emergencia:
+                    colaboradora.contatoEmergencia || "",
+                  telefone_emergencia:
+                    colaboradora.telefoneEmergencia || "",
+                  observacoes:
+                    colaboradora.observacoes || "",
+                  // Datas antigas estavam em pt-BR (ex.: 13/08/2026, 10:00:34).
+                  // O Supabase espera timestamptz válido, então usamos ISO na migração.
+                  criada_em:
+                    new Date().toISOString(),
+                })
+              );
+
+              const { error } = await supabase
+                .from("rh_colaboradoras")
+                .upsert(payload, {
+                  onConflict: "id",
+                });
+
+              if (error) throw error;
+              listaColaboradoras =
+                antigasComMatricula;
+            }
+          } catch (erroMigracao) {
+            console.error(
+              "Não foi possível migrar as fichas antigas do RH:",
+              erroMigracao
+            );
+          }
+        }
+
+        if (!listaRegistros.length) {
+          try {
+            const antigos = JSON.parse(
+              localStorage.getItem(
+                "somos-eleva-rh-registros"
+              ) || "[]"
+            );
+
+            if (Array.isArray(antigos) && antigos.length) {
+              const payload = antigos.map(
+                (registro: RegistroRH) => ({
+                  id: registro.id,
+                  colaboradora_id:
+                    registro.colaboradoraId,
+                  nome: registro.nome,
+                  matricula: registro.matricula,
+                  tipo: registro.tipo,
+                  data: registro.data,
+                  competencia: registro.competencia,
+                  valor: Number(registro.valor || 0),
+                  quantidade: Number(
+                    registro.quantidade || 0
+                  ),
+                  unidade: registro.unidade,
+                  justificada: registro.justificada,
+                  descontar_na_folha:
+                    registro.descontarNaFolha,
+                  cancela_assiduidade:
+                    registro.cancelaAssiduidade,
+                  descricao: registro.descricao || "",
+                  criado_em:
+                    new Date().toISOString(),
+                })
+              );
+
+              const { error } = await supabase
+                .from("rh_registros")
+                .upsert(payload, {
+                  onConflict: "id",
+                });
+
+              if (error) throw error;
+              listaRegistros = antigos;
+            }
+          } catch (erroMigracao) {
+            console.error(
+              "Não foi possível migrar os registros antigos do RH:",
+              erroMigracao
+            );
+          }
+        }
+
+        // Garante que cada usuária do sistema tenha ficha-base no RH.
+        const usuariosSemFicha = listaUsuarios.filter(
           (usuario) =>
-            !listaRH.some(
+            !listaColaboradoras.some(
               (colaboradora) =>
-                colaboradora.usuarioId === usuario.id ||
-                (usuario.matricula &&
-                  colaboradora.matricula ===
-                    usuario.matricula)
+                colaboradora.usuarioId === usuario.id
             )
         );
 
-      const listaCompleta = [
-        ...listaRH,
-        ...usuariosNaoCadastrados.map(
-          criarColaboradoraDoUsuario
-        ),
-      ];
+        if (usuariosSemFicha.length) {
+          const novasSemMatricula =
+            usuariosSemFicha.map(
+              criarColaboradoraDoUsuario
+            );
 
-      setColaboradoras(listaCompleta);
+          const novas =
+            garantirMatriculasUnicas(
+              novasSemMatricula,
+              listaColaboradoras.map(
+                (colaboradora) =>
+                  colaboradora.matricula
+              )
+            );
 
-      localStorage.setItem(
-        "somos-eleva-rh-colaboradoras",
-        JSON.stringify(listaCompleta)
-      );
+          const payload = novas.map(
+            (colaboradora) => ({
+              id: colaboradora.id,
+              usuario_id: colaboradora.usuarioId,
+              nome: colaboradora.nome,
+              foto: colaboradora.foto,
+              matricula: colaboradora.matricula,
+              cpf: colaboradora.cpf,
+              data_nascimento: null,
+              telefone: colaboradora.telefone,
+              email: colaboradora.email,
+              endereco: colaboradora.endereco,
+              cargo: colaboradora.cargo,
+              equipe: colaboradora.equipe,
+              data_admissao: null,
+              tipo_contrato: colaboradora.tipoContrato,
+              salario_base: colaboradora.salarioBase,
+              jornada: colaboradora.jornada,
+              status: colaboradora.status,
+              contato_emergencia:
+                colaboradora.contatoEmergencia,
+              telefone_emergencia:
+                colaboradora.telefoneEmergencia,
+              observacoes: colaboradora.observacoes,
+              criada_em: new Date().toISOString(),
+            })
+          );
 
-      if (listaCompleta.length) {
-        setFormRegistro((dados) => ({
-          ...dados,
-          colaboradoraId: listaCompleta[0].id,
-        }));
+          const { error } = await supabase
+            .from("rh_colaboradoras")
+            .upsert(payload, {
+              onConflict: "id",
+            });
+
+          if (error) throw error;
+
+          listaColaboradoras = [
+            ...listaColaboradoras,
+            ...novas,
+          ];
+        }
+
+        listaUsuarios = listaUsuarios.map((usuario) => {
+          const ficha = listaColaboradoras.find(
+            (colaboradora) =>
+              colaboradora.usuarioId === usuario.id
+          );
+
+          return {
+            ...usuario,
+            matricula: ficha?.matricula || "",
+          };
+        });
+
+        if (cancelado) return;
+
+        setUsuarios(listaUsuarios);
+        setColaboradoras(listaColaboradoras);
+        setRegistros(listaRegistros);
+
+        if (listaColaboradoras.length) {
+          setFormRegistro((dados) => ({
+            ...dados,
+            colaboradoraId:
+              dados.colaboradoraId ||
+              listaColaboradoras[0].id,
+          }));
+        }
+      } catch (erro) {
+        console.error(
+          "Erro ao carregar RH do Supabase:",
+          erro
+        );
+        setMensagemColaboradora(
+          "Não foi possível carregar os dados do RH."
+        );
       }
-    } catch {
-      const listaInicial = listaUsuarios.map(
-        criarColaboradoraDoUsuario
-      );
-
-      setColaboradoras(listaInicial);
-
-      localStorage.setItem(
-        "somos-eleva-rh-colaboradoras",
-        JSON.stringify(listaInicial)
-      );
     }
 
-    try {
-      const registrosSalvos = JSON.parse(
-        localStorage.getItem(
-          "somos-eleva-rh-registros"
-        ) || "[]"
-      );
+    void carregarRH();
 
-      setRegistros(
-        Array.isArray(registrosSalvos)
-          ? registrosSalvos
-          : []
-      );
-    } catch {
-      setRegistros([]);
-    }
-  }, []);
-
-  function persistirColaboradoras(
-    lista: ColaboradoraRH[]
-  ) {
-    setColaboradoras(lista);
-
-    localStorage.setItem(
-      "somos-eleva-rh-colaboradoras",
-      JSON.stringify(lista)
-    );
-  }
-
-  function persistirRegistros(
-    lista: RegistroRH[]
-  ) {
-    setRegistros(lista);
-
-    localStorage.setItem(
-      "somos-eleva-rh-registros",
-      JSON.stringify(lista)
-    );
-  }
+    return () => {
+      cancelado = true;
+    };
+  }, [supabase]);
 
   const colaboradorasFiltradas = useMemo(() => {
     const termo = buscaColaboradora
@@ -478,7 +832,9 @@ export default function RHManager() {
       usuarioId: usuario.id,
       nome: usuario.nome,
       foto: usuario.foto || "",
-      matricula: usuario.matricula || "",
+      matricula:
+        usuario.matricula ||
+        proximaMatricula(colaboradoras),
       email: usuario.email || "",
       cargo: usuario.perfil || "",
       equipe: usuario.equipe || "",
@@ -489,7 +845,7 @@ export default function RHManager() {
     });
   }
 
-  function salvarColaboradora(
+  async function salvarColaboradora(
     evento: FormEvent<HTMLFormElement>
   ) {
     evento.preventDefault();
@@ -502,15 +858,9 @@ export default function RHManager() {
       return;
     }
 
-    if (!formColaboradora.matricula.trim()) {
-      setMensagemColaboradora(
-        "Informe a matrícula da colaboradora."
-      );
-      return;
-    }
-
     const matricula = somenteNumeros(
-      formColaboradora.matricula
+      formColaboradora.matricula ||
+        proximaMatricula(colaboradoras)
     );
 
     const matriculaDuplicada = colaboradoras.some(
@@ -565,29 +915,103 @@ export default function RHManager() {
         formColaboradora.observacoes.trim(),
       criadaEm:
         antiga?.criadaEm ||
-        new Date().toLocaleString("pt-BR"),
+        new Date().toISOString(),
     };
 
-    const listaAtualizada =
-      editandoColaboradoraId
-        ? colaboradoras.map((colaboradora) =>
-            colaboradora.id ===
-            editandoColaboradoraId
-              ? novaColaboradora
-              : colaboradora
-          )
-        : [novaColaboradora, ...colaboradoras];
+    try {
+      const { error } = await supabase
+        .from("rh_colaboradoras")
+        .upsert(
+          {
+            id: novaColaboradora.id,
+            usuario_id:
+              novaColaboradora.usuarioId || null,
+            nome: novaColaboradora.nome,
+            foto: novaColaboradora.foto || "",
+            matricula: novaColaboradora.matricula,
+            cpf: novaColaboradora.cpf || "",
+            data_nascimento:
+              novaColaboradora.dataNascimento || null,
+            telefone:
+              novaColaboradora.telefone || "",
+            email: novaColaboradora.email || "",
+            endereco:
+              novaColaboradora.endereco || "",
+            cargo: novaColaboradora.cargo || "",
+            equipe: novaColaboradora.equipe || "",
+            data_admissao:
+              novaColaboradora.dataAdmissao || null,
+            tipo_contrato:
+              novaColaboradora.tipoContrato,
+            salario_base:
+              novaColaboradora.salarioBase,
+            jornada: novaColaboradora.jornada,
+            status: novaColaboradora.status,
+            contato_emergencia:
+              novaColaboradora.contatoEmergencia,
+            telefone_emergencia:
+              novaColaboradora.telefoneEmergencia,
+            observacoes:
+              novaColaboradora.observacoes,
+            criada_em: novaColaboradora.criadaEm,
+            atualizado_em:
+              new Date().toISOString(),
+          },
+          {
+            onConflict: "id",
+          }
+        );
 
-    persistirColaboradoras(listaAtualizada);
+      if (error) throw error;
 
-    setFormColaboradora(colaboradoraVazia);
-    setEditandoColaboradoraId(null);
+      setColaboradoras((atuais) =>
+        editandoColaboradoraId
+          ? atuais.map((colaboradora) =>
+              colaboradora.id ===
+              editandoColaboradoraId
+                ? novaColaboradora
+                : colaboradora
+            )
+          : [novaColaboradora, ...atuais]
+      );
 
-    setMensagemColaboradora(
-      editandoColaboradoraId
-        ? "Ficha atualizada com sucesso."
-        : "Colaboradora cadastrada com sucesso."
-    );
+      setUsuarios((atuais) =>
+        atuais.map((usuario) =>
+          usuario.id === novaColaboradora.usuarioId
+            ? {
+                ...usuario,
+                matricula:
+                  novaColaboradora.matricula,
+              }
+            : usuario
+        )
+      );
+
+      setFormColaboradora({
+        ...colaboradoraVazia,
+        matricula: proximaMatricula([
+          ...colaboradoras,
+          novaColaboradora,
+        ]),
+      });
+      setEditandoColaboradoraId(null);
+
+      setMensagemColaboradora(
+        editandoColaboradoraId
+          ? "Ficha atualizada com sucesso."
+          : "Colaboradora cadastrada com sucesso."
+      );
+    } catch (erro) {
+      console.error(
+        "Erro ao salvar colaboradora no Supabase:",
+        erro
+      );
+      setMensagemColaboradora(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível salvar a colaboradora."
+      );
+    }
   }
 
   function editarColaboradora(
@@ -603,7 +1027,9 @@ export default function RHManager() {
     usuarioId: colaboradora.usuarioId || "",
     nome: colaboradora.nome || "",
     foto: colaboradora.foto || "",
-    matricula: colaboradora.matricula || "",
+    matricula:
+      colaboradora.matricula ||
+      proximaMatricula(colaboradoras),
     cpf: colaboradora.cpf || "",
     dataNascimento:
       colaboradora.dataNascimento || "",
@@ -640,12 +1066,15 @@ export default function RHManager() {
   });
 }
   function cancelarEdicao() {
-    setFormColaboradora(colaboradoraVazia);
+    setFormColaboradora({
+      ...colaboradoraVazia,
+      matricula: proximaMatricula(colaboradoras),
+    });
     setEditandoColaboradoraId(null);
     setMensagemColaboradora("");
   }
 
-  function excluirColaboradora(id: string) {
+  async function excluirColaboradora(id: string) {
     if (
       !window.confirm(
         "Deseja excluir esta ficha do RH?"
@@ -654,21 +1083,39 @@ export default function RHManager() {
       return;
     }
 
-    persistirColaboradoras(
-      colaboradoras.filter(
-        (colaboradora) => colaboradora.id !== id
-      )
-    );
+    try {
+      const { error } = await supabase
+        .from("rh_colaboradoras")
+        .delete()
+        .eq("id", id);
 
-    persistirRegistros(
-      registros.filter(
-        (registro) =>
-          registro.colaboradoraId !== id
-      )
-    );
+      if (error) throw error;
+
+      setColaboradoras((atuais) =>
+        atuais.filter(
+          (colaboradora) =>
+            colaboradora.id !== id
+        )
+      );
+
+      setRegistros((atuais) =>
+        atuais.filter(
+          (registro) =>
+            registro.colaboradoraId !== id
+        )
+      );
+    } catch (erro) {
+      console.error(
+        "Erro ao excluir ficha do RH:",
+        erro
+      );
+      setMensagemColaboradora(
+        "Não foi possível excluir esta ficha."
+      );
+    }
   }
 
-  function salvarRegistro(
+  async function salvarRegistro(
     evento: FormEvent<HTMLFormElement>
   ) {
     evento.preventDefault();
@@ -712,26 +1159,61 @@ export default function RHManager() {
       cancelaAssiduidade:
         formRegistro.cancelaAssiduidade,
       descricao: formRegistro.descricao.trim(),
-      criadoEm: new Date().toLocaleString("pt-BR"),
+      criadoEm: new Date().toISOString(),
     };
 
-    persistirRegistros([
-      novoRegistro,
-      ...registros,
-    ]);
+    try {
+      const { error } = await supabase
+        .from("rh_registros")
+        .insert({
+          id: novoRegistro.id,
+          colaboradora_id:
+            novoRegistro.colaboradoraId,
+          nome: novoRegistro.nome,
+          matricula: novoRegistro.matricula,
+          tipo: novoRegistro.tipo,
+          data: novoRegistro.data,
+          competencia: novoRegistro.competencia,
+          valor: novoRegistro.valor,
+          quantidade: novoRegistro.quantidade,
+          unidade: novoRegistro.unidade,
+          justificada: novoRegistro.justificada,
+          descontar_na_folha:
+            novoRegistro.descontarNaFolha,
+          cancela_assiduidade:
+            novoRegistro.cancelaAssiduidade,
+          descricao: novoRegistro.descricao,
+          criado_em: novoRegistro.criadoEm,
+        });
 
-    setFormRegistro({
-      ...registroVazio,
-      colaboradoraId: colaboradora.id,
-      tipo: formRegistro.tipo,
-    });
+      if (error) throw error;
 
-    setMensagemRegistro(
-      "Registro salvo com sucesso."
-    );
+      setRegistros((atuais) => [
+        novoRegistro,
+        ...atuais,
+      ]);
+
+      setFormRegistro({
+        ...registroVazio,
+        colaboradoraId: colaboradora.id,
+        tipo: formRegistro.tipo,
+      });
+
+      setMensagemRegistro(
+        "Registro salvo com sucesso."
+      );
+    } catch (erro) {
+      console.error(
+        "Erro ao salvar registro de RH:",
+        erro
+      );
+      setMensagemRegistro(
+        "Não foi possível salvar o registro."
+      );
+    }
   }
 
-  function excluirRegistro(id: string) {
+  async function excluirRegistro(id: string) {
     if (
       !window.confirm(
         "Deseja excluir este registro?"
@@ -740,11 +1222,28 @@ export default function RHManager() {
       return;
     }
 
-    persistirRegistros(
-      registros.filter(
-        (registro) => registro.id !== id
-      )
-    );
+    try {
+      const { error } = await supabase
+        .from("rh_registros")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
+      setRegistros((atuais) =>
+        atuais.filter(
+          (registro) => registro.id !== id
+        )
+      );
+    } catch (erro) {
+      console.error(
+        "Erro ao excluir registro do RH:",
+        erro
+      );
+      setMensagemRegistro(
+        "Não foi possível excluir o registro."
+      );
+    }
   }
 
   return (
@@ -853,15 +1352,8 @@ export default function RHManager() {
 
               <input
                 value={formColaboradora.matricula}
-                onChange={(evento) =>
-                  setFormColaboradora({
-                    ...formColaboradora,
-                    matricula: somenteNumeros(
-                      evento.target.value
-                    ),
-                  })
-                }
-                placeholder="Ex.: 0012"
+                readOnly
+                placeholder="Gerada automaticamente"
               />
             </label>
 

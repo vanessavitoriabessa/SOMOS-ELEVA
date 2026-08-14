@@ -309,48 +309,151 @@ const [mensagemFolha, setMensagemFolha] =
       setLancamentos([]);
     }
 
-    try {
-      const usuariosSalvos = JSON.parse(
-        localStorage.getItem(
-          "somos-eleva-usuarios"
-        ) || "[]"
-      );
+    void (async () => {
+      try {
+        const [
+          respostaUsuarios,
+          respostaFolhas,
+        ] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select(`
+              id,
+              nome,
+              email,
+              perfil,
+              equipe,
+              ativo
+            `)
+            .order("nome", {
+              ascending: true,
+            }),
 
-      const listaUsuarios: UsuarioFinanceiro[] =
-        Array.isArray(usuariosSalvos)
-          ? usuariosSalvos
-          : [];
+          supabase
+            .from("folha_pagamentos")
+            .select("*")
+            .order("competencia", {
+              ascending: false,
+            })
+            .order("atualizado_em", {
+              ascending: false,
+            }),
+        ]);
 
-      const usuariosAtivos = listaUsuarios.filter(
-        (usuario) => usuario.ativo !== false
-      );
+        if (respostaUsuarios.error) {
+          throw respostaUsuarios.error;
+        }
 
-      setUsuarios(usuariosAtivos);
+        if (respostaFolhas.error) {
+          throw respostaFolhas.error;
+        }
 
-      if (usuariosAtivos.length) {
-        setUsuarioFolhaId(
-          usuariosAtivos[0].id
+        const listaUsuarios: UsuarioFinanceiro[] =
+          (
+            Array.isArray(respostaUsuarios.data)
+              ? respostaUsuarios.data
+              : []
+          ).map((usuario) => ({
+            id: String(usuario.id),
+            nome: String(usuario.nome || ""),
+            email: String(usuario.email || ""),
+            matricula: "",
+            perfil: String(usuario.perfil || ""),
+            equipe: String(usuario.equipe || ""),
+            ativo: usuario.ativo !== false,
+          }));
+
+        const usuariosAtivos =
+          listaUsuarios.filter(
+            (usuario) =>
+              usuario.ativo !== false
+          );
+
+        setUsuarios(usuariosAtivos);
+
+        if (usuariosAtivos.length) {
+          setUsuarioFolhaId((atual) =>
+            atual || usuariosAtivos[0].id
+          );
+        }
+
+        const mapaUsuarios = new Map(
+          listaUsuarios.map((usuario) => [
+            usuario.id,
+            usuario,
+          ])
         );
+
+        const listaFolhas: RegistroFolha[] =
+          (
+            Array.isArray(respostaFolhas.data)
+              ? respostaFolhas.data
+              : []
+          ).map((registro) => {
+            const usuario = mapaUsuarios.get(
+              String(registro.usuario_id || "")
+            );
+
+            return {
+              id: String(registro.id),
+              usuarioId: String(
+                registro.usuario_id || ""
+              ),
+              nome: usuario?.nome || "Colaboradora",
+              matricula: usuario?.matricula || "",
+              competencia: String(
+                registro.competencia || ""
+              ),
+              salario: Number(registro.salario || 0),
+              premioVendas: Number(
+                registro.premio_vendas || 0
+              ),
+              assiduidadeAtiva: Boolean(
+                registro.assiduidade_ativa
+              ),
+              valorAssiduidade: Number(
+                registro.valor_assiduidade || 0
+              ),
+              descontoInss: Number(
+                registro.desconto_inss || 0
+              ),
+              descontoVale: Number(
+                registro.desconto_vale || 0
+              ),
+              descontoFaltas: Number(
+                registro.desconto_faltas || 0
+              ),
+              totalBrutoDia05: Number(
+                registro.total_bruto_dia05 || 0
+              ),
+              totalDescontosDia05: Number(
+                registro.total_descontos_dia05 || 0
+              ),
+              totalDia05: Number(
+                registro.total_dia05 || 0
+              ),
+              totalDia20: Number(
+                registro.total_dia20 || 0
+              ),
+              totalMensal: Number(
+                registro.total_mensal || 0
+              ),
+              atualizadoEm: String(
+                registro.atualizado_em || ""
+              ),
+            };
+          });
+
+        setFolhas(listaFolhas);
+      } catch (erro) {
+        console.error(
+          "Erro ao carregar colaboradoras e folha:",
+          erro
+        );
+        setUsuarios([]);
+        setFolhas([]);
       }
-    } catch {
-      setUsuarios([]);
-    }
-
-    try {
-      const folhasSalvas = JSON.parse(
-        localStorage.getItem(
-          "somos-eleva-folha"
-        ) || "[]"
-      );
-
-      setFolhas(
-        Array.isArray(folhasSalvas)
-          ? folhasSalvas
-          : []
-      );
-    } catch {
-      setFolhas([]);
-    }
+    })();
 
     try {
       const registrosRhSalvos = JSON.parse(
@@ -388,16 +491,6 @@ const [mensagemFolha, setMensagemFolha] =
     );
   }
 
-  function persistirFolhas(
-    lista: RegistroFolha[]
-  ) {
-    setFolhas(lista);
-
-    localStorage.setItem(
-      "somos-eleva-folha",
-      JSON.stringify(lista)
-    );
-  }
 
   const pagas = useMemo(
     () =>
@@ -814,7 +907,7 @@ const resumoRhDaFolha = useMemo(() => {
     );
   }
 
-  function salvarFolha(
+  async function salvarFolha(
     evento: FormEvent<HTMLFormElement>
   ) {
     evento.preventDefault();
@@ -851,53 +944,92 @@ const resumoRhDaFolha = useMemo(() => {
       return;
     }
 
-    const idRegistro =
-      `${usuarioSelecionado.id}-${competencia}`;
+    try {
+      const payload = {
+        usuario_id: usuarioSelecionado.id,
+        competencia,
+        salario: calculoFolha.salario,
+        premio_vendas: calculoFolha.premioVendas,
+        assiduidade_ativa: assiduidadeAtiva,
+        valor_assiduidade: calculoFolha.assiduidade,
+        desconto_inss: calculoFolha.descontoInss,
+        desconto_vale: calculoFolha.descontoVale,
+        desconto_faltas: calculoFolha.descontoFaltas,
+        total_bruto_dia05: calculoFolha.totalBrutoDia05,
+        total_descontos_dia05: calculoFolha.totalDescontosDia05,
+        total_dia05: calculoFolha.totalDia05,
+        total_dia20: calculoFolha.totalDia20,
+        total_mensal: calculoFolha.totalMensal,
+        atualizado_em: new Date().toISOString(),
+      };
 
-    const novoRegistro: RegistroFolha = {
-      id: idRegistro,
-      usuarioId: usuarioSelecionado.id,
-      nome: usuarioSelecionado.nome,
-      matricula: usuarioSelecionado.matricula || "",
-      competencia,
-      salario: calculoFolha.salario,
-      premioVendas: calculoFolha.premioVendas,
-      assiduidadeAtiva,
-      valorAssiduidade: calculoFolha.assiduidade,
-      descontoInss: calculoFolha.descontoInss,
-      descontoVale: calculoFolha.descontoVale,
-      descontoFaltas: calculoFolha.descontoFaltas,
-      totalBrutoDia05: calculoFolha.totalBrutoDia05,
-      totalDescontosDia05:
-        calculoFolha.totalDescontosDia05,
-      totalDia05: calculoFolha.totalDia05,
-      totalDia20: calculoFolha.totalDia20,
-      totalMensal: calculoFolha.totalMensal,
-      total: calculoFolha.totalMensal,
-      atualizadoEm:
-        new Date().toLocaleString("pt-BR"),
-    };
+      const { data: registroSalvo, error } =
+        await supabase
+          .from("folha_pagamentos")
+          .upsert(payload, {
+            onConflict: "usuario_id,competencia",
+          })
+          .select("*")
+          .single();
 
-    const registroExiste = folhas.some(
-      (registro) =>
-        registro.id === idRegistro
-    );
+      if (error || !registroSalvo) {
+        throw (
+          error ||
+          new Error(
+            "Não foi possível salvar a folha."
+          )
+        );
+      }
 
-    const listaAtualizada = registroExiste
-      ? folhas.map((registro) =>
-          registro.id === idRegistro
-            ? novoRegistro
-            : registro
-        )
-      : [novoRegistro, ...folhas];
+      const novoRegistro: RegistroFolha = {
+        id: String(registroSalvo.id),
+        usuarioId: usuarioSelecionado.id,
+        nome: usuarioSelecionado.nome,
+        matricula: usuarioSelecionado.matricula || "",
+        competencia: String(registroSalvo.competencia),
+        salario: Number(registroSalvo.salario || 0),
+        premioVendas: Number(registroSalvo.premio_vendas || 0),
+        assiduidadeAtiva: Boolean(registroSalvo.assiduidade_ativa),
+        valorAssiduidade: Number(registroSalvo.valor_assiduidade || 0),
+        descontoInss: Number(registroSalvo.desconto_inss || 0),
+        descontoVale: Number(registroSalvo.desconto_vale || 0),
+        descontoFaltas: Number(registroSalvo.desconto_faltas || 0),
+        totalBrutoDia05: Number(registroSalvo.total_bruto_dia05 || 0),
+        totalDescontosDia05: Number(registroSalvo.total_descontos_dia05 || 0),
+        totalDia05: Number(registroSalvo.total_dia05 || 0),
+        totalDia20: Number(registroSalvo.total_dia20 || 0),
+        totalMensal: Number(registroSalvo.total_mensal || 0),
+        total: Number(registroSalvo.total_mensal || 0),
+        atualizadoEm: String(registroSalvo.atualizado_em || ""),
+      };
 
-    persistirFolhas(listaAtualizada);
+      setFolhas((atuais) => {
+        const indice = atuais.findIndex(
+          (registro) =>
+            registro.usuarioId === novoRegistro.usuarioId &&
+            registro.competencia === novoRegistro.competencia
+        );
 
-    setMensagemFolha(
-      registroExiste
-        ? "Folha atualizada com sucesso."
-        : "Folha salva com sucesso."
-    );
+        if (indice === -1) {
+          return [novoRegistro, ...atuais];
+        }
+
+        return atuais.map((registro, atual) =>
+          atual === indice ? novoRegistro : registro
+        );
+      });
+
+      setMensagemFolha(
+        "Folha salva no sistema com sucesso."
+      );
+    } catch (erro) {
+      console.error("Erro ao salvar folha:", erro);
+      setMensagemFolha(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível salvar a folha."
+      );
+    }
   }
 
   function editarFolha(
@@ -912,7 +1044,9 @@ const resumoRhDaFolha = useMemo(() => {
     });
   }
 
-  function excluirFolha(id: string) {
+  async function excluirFolha(
+    id: string
+  ) {
     if (
       !window.confirm(
         "Deseja excluir este cálculo da folha?"
@@ -921,11 +1055,33 @@ const resumoRhDaFolha = useMemo(() => {
       return;
     }
 
-    persistirFolhas(
-      folhas.filter(
-        (registro) => registro.id !== id
-      )
-    );
+    try {
+      const { error } = await supabase
+        .from("folha_pagamentos")
+        .delete()
+        .eq("id", id);
+
+      if (error) {
+        throw error;
+      }
+
+      setFolhas((atuais) =>
+        atuais.filter(
+          (registro) => registro.id !== id
+        )
+      );
+
+      setMensagemFolha(
+        "Cálculo da folha excluído."
+      );
+    } catch (erro) {
+      console.error("Erro ao excluir folha:", erro);
+      setMensagemFolha(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível excluir a folha."
+      );
+    }
   }
 
   function mudarTipo(
@@ -1313,9 +1469,7 @@ const resumoRhDaFolha = useMemo(() => {
                       key={usuario.id}
                       value={usuario.id}
                     >
-                      {usuario.nome} —{" "}
-                      {usuario.matricula ||
-                        "Sem matrícula"}
+                      {usuario.nome}
                     </option>
                   ))}
                 </select>
@@ -1497,14 +1651,14 @@ const resumoRhDaFolha = useMemo(() => {
               </div>
 
               <div className="payroll-grand-total">
-                <span>Premiação das vendas — dia 20</span>
+                <span>Pagamento de comissão — dia 20</span>
                 <strong>
                   {moeda(calculoFolha.totalDia20)}
                 </strong>
               </div>
 
               <div className="payroll-grand-total">
-                <span>Total recebido no mês</span>
+                <span>Total geral do mês</span>
                 <strong>
                   {moeda(calculoFolha.totalMensal)}
                 </strong>

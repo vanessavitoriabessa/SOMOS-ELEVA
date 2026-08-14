@@ -338,11 +338,10 @@ export async function POST(
           password: senha,
           email_confirm: true,
           user_metadata: {
-            nome,
-            perfil,
-            equipe,
-            foto_url: fotoUrl,
-          },
+  nome,
+  perfil,
+  equipe,
+}
         }
       );
 
