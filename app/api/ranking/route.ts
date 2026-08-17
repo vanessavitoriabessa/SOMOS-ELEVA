@@ -48,6 +48,7 @@ type LinhaClt = {
   status?: string | null;
   criado_em?: string | null;
   atualizado_em?: string | null;
+  data_pagamento?: string | null;
 };
 
 type AcumuladoRanking = {
@@ -544,6 +545,7 @@ export async function GET(
         error: erroPropostas,
       } = await supabase
         .from("propostas")
+
         .select(`
           consultora_id,
           vendedora,
@@ -571,8 +573,7 @@ export async function GET(
         }
 
         const dataReferencia =
-          linha.data_pagamento ||
-          linha.data_cadastro;
+  linha.data_cadastro;
 
         if (
           !estaNoPeriodo(
@@ -616,14 +617,16 @@ export async function GET(
         error: erroClt,
       } = await supabase
         .from("clt_registros")
+
         .select(`
-          consultora_id,
-          consultora,
-          parcela,
-          status,
-          criado_em,
-          atualizado_em
-        `);
+  consultora_id,
+  consultora,
+  parcela,
+  status,
+  criado_em,
+  atualizado_em,
+  data_pagamento
+`)
 
       if (erroClt) {
         return respostaErro(
@@ -641,8 +644,7 @@ export async function GET(
         }
 
         const dataReferencia =
-          linha.atualizado_em ||
-          linha.criado_em;
+         linha.data_pagamento;
 
         if (
           !estaNoPeriodo(

@@ -935,15 +935,15 @@ const [dataFinal, setDataFinal] = useState(
           return false;
         }
 
-        const pagamento =
-          converterData(proposta.dataPagamento);
+        const digitacao =
+  converterData(proposta.dataCadastro);
 
-        return estaNoPeriodo(
-          pagamento,
-          periodo,
-          dataInicial,
-          dataFinal
-        );
+return estaNoPeriodo(
+  digitacao,
+  periodo,
+  dataInicial,
+  dataFinal
+);
       })
       .forEach((proposta) => {
         const nome = proposta.vendedora?.trim() || "";
