@@ -135,6 +135,7 @@ const ROTAS_PERMITIDAS_CONSULTORA = [
   "/esteira",
   "/clt",
   "/protocolos",
+  "/ranking",
   "/minha-premiacao",
   "/loja-premios",
   "/perfil",
@@ -429,7 +430,11 @@ export default function AppShell({
 
     if (ehConsultora) {
       return itensGestao.filter((item) =>
-        ["/minha-premiacao", "/loja-premios"].includes(item.href)
+        [
+          "/ranking",
+          "/minha-premiacao",
+          "/loja-premios",
+        ].includes(item.href)
       );
     }
 

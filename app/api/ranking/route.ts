@@ -773,6 +773,23 @@ export async function GET(
           };
         },
       );
+const contratosPagos = podeVerTodos
+  ? rankingCompleto.reduce(
+      (total, item) => total + item.contratos,
+      0
+    )
+  : rankingCompleto
+      .filter((item) => item.id === perfil.id)
+      .reduce(
+        (total, item) => total + item.contratos,
+        0
+      );
+
+const totalConsultoras = podeVerTodos
+  ? rankingCompleto.length
+  : rankingCompleto.some((item) => item.id === perfil.id)
+    ? 1
+    : 0;
 
     return NextResponse.json({
       perfil: {
@@ -787,13 +804,8 @@ export async function GET(
           dataFinal || null,
       },
       produto,
-      contratosPagos:
-        rankingCompleto.reduce(
-          (total, item) =>
-            total +
-            item.contratos,
-          0,
-        ),
+      contratosPagos,
+consultoras: totalConsultoras,
       ranking,
     });
   } catch (erro) {

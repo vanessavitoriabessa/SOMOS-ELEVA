@@ -8,7 +8,7 @@ import {
   calcularPremiacaoCompra,
   calcularPremiacaoClt,
 } from "@/lib/premiacao/premiacaoService";
-type Periodo = "Hoje" | "Semana" | "Mês" | "Todos";
+type Periodo = "Hoje" | "Semana" | "Mês" | "Todos" | "Personalizado";
 type ProdutoRanking = "Todos" | "Compra de Dívida" | "CLT";
 
 type UsuarioRanking = {
@@ -16,6 +16,9 @@ type UsuarioRanking = {
   foto?: string;
   foto_url?: string;
   time_id?: string | null;
+  perfil?: string;
+  cargo?: string;
+  ativo?: boolean;
 };
 
 type TimeRanking = {
@@ -65,8 +68,23 @@ type FaixaPremiacao = {
   nome: string;
 };
 
+type RankingServidorItem = {
+  posicao: number;
+  id?: string;
+  nome: string;
+  fotoUrl?: string;
+  timeId?: string | null;
+  contratosCompra?: number;
+  contratosClt?: number;
+  contratos: number;
+  producaoCompra?: number | null;
+  producaoClt?: number | null;
+  producao: number | null;
+};
+
 type RankingItem = {
   nome: string;
+  fotoUrl?: string;
   contratosCompra: number;
   contratosClt: number;
   contratosTotal: number;
@@ -364,7 +382,8 @@ function mesmaCompetencia(data: Date, referencia: Date) {
 function estaNoPeriodo(
   data: Date | null,
   periodo: Periodo,
-  usarCompetenciaMensal = false
+  dataInicial?: string,
+  dataFinal?: string
 ) {
   if (periodo === "Todos") return true;
   if (!data) return false;
@@ -381,11 +400,20 @@ function estaNoPeriodo(
   }
 
   if (periodo === "Mês") {
-    if (usarCompetenciaMensal) {
-      return mesmaCompetencia(alvo, hoje);
-    }
+    return mesmaCompetencia(alvo, hoje);
+  }
 
-    return alvo >= inicioDoMes(hoje);
+  if (periodo === "Personalizado") {
+    const inicio = dataInicial ? converterData(dataInicial) : null;
+    const fim = dataFinal ? converterData(dataFinal) : null;
+
+    if (inicio) inicio.setHours(0, 0, 0, 0);
+    if (fim) fim.setHours(23, 59, 59, 999);
+
+    if (inicio && alvo < inicio) return false;
+    if (fim && alvo > fim) return false;
+
+    return true;
   }
 
   return true;
@@ -497,6 +525,16 @@ export default function RankingManager() {
   const [propostas, setPropostas] =
     useState<PropostaCompraDivida[]>([]);
 
+  const [
+    rankingPagoServidor,
+    setRankingPagoServidor,
+  ] = useState<RankingServidorItem[]>([]);
+
+  const [
+    rankingServidorCarregado,
+    setRankingServidorCarregado,
+  ] = useState(false);
+
   const [registrosClt, setRegistrosClt] =
     useState<RegistroClt[]>([]);
 
@@ -539,6 +577,12 @@ const [dataFinal, setDataFinal] = useState(
     useState<UsuarioRanking[]>([]);
 
   const [podeVerPremiacao, setPodeVerPremiacao] =
+    useState(false);
+
+  const [nomeUsuarioAtual, setNomeUsuarioAtual] =
+    useState("");
+
+  const [ehConsultoraAtual, setEhConsultoraAtual] =
     useState(false);
     const [atualizando, setAtualizando] =
   useState(false);
@@ -618,8 +662,23 @@ const [dataFinal, setDataFinal] = useState(
           perfilAtual.includes("administradora") ||
           perfilAtual === "admin"
       );
+
+      const nomeAtual = String(
+        usuarioAtual?.nome ||
+          localStorage.getItem("somos-eleva-nome") ||
+          ""
+      ).trim();
+
+      setNomeUsuarioAtual(nomeAtual);
+
+      setEhConsultoraAtual(
+        perfilAtual.includes("consultor") ||
+          perfilAtual.includes("vendedor")
+      );
     } catch {
       setPodeVerPremiacao(false);
+      setNomeUsuarioAtual("");
+      setEhConsultoraAtual(false);
     }
   }
 
@@ -635,7 +694,20 @@ const [dataFinal, setDataFinal] = useState(
       );
     }
 
-    const [resposta, respostaTimes] =
+    const paramsRanking =
+      new URLSearchParams({
+        periodo,
+        dataInicial,
+        dataFinal,
+        produto,
+        timeId: timeSelecionado,
+      });
+
+    const [
+      resposta,
+      respostaTimes,
+      respostaRankingPago,
+    ] =
       await Promise.all([
         fetch("/api/propostas", {
           method: "GET",
@@ -644,6 +716,7 @@ const [dataFinal, setDataFinal] = useState(
               `Bearer ${data.session.access_token}`,
           },
           cache: "no-store",
+          credentials: "omit",
         }),
         fetch("/api/times", {
           method: "GET",
@@ -652,7 +725,20 @@ const [dataFinal, setDataFinal] = useState(
               `Bearer ${data.session.access_token}`,
           },
           cache: "no-store",
+          credentials: "omit",
         }),
+        fetch(
+          `/api/ranking?${paramsRanking.toString()}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization:
+                `Bearer ${data.session.access_token}`,
+            },
+            cache: "no-store",
+            credentials: "omit",
+          }
+        ),
       ]);
 
     try {
@@ -670,31 +756,81 @@ const [dataFinal, setDataFinal] = useState(
       setTimesRanking([]);
     }
 
-    const conteudo = (await resposta.json()) as {
-      propostas?: PropostaCompraDivida[];
-      erro?: string;
-    };
+    try {
+      const conteudoRankingPago =
+        (await respostaRankingPago.json()) as {
+          ranking?: RankingServidorItem[];
+          erro?: string;
+        };
 
-    if (!resposta.ok) {
-      throw new Error(
-        conteudo.erro ||
-          "Não foi possível carregar as propostas."
-      );
+      if (respostaRankingPago.ok) {
+        setRankingPagoServidor(
+          Array.isArray(
+            conteudoRankingPago.ranking
+          )
+            ? conteudoRankingPago.ranking
+            : []
+        );
+        setRankingServidorCarregado(true);
+      } else {
+        console.error(
+          "Erro no ranking pago:",
+          conteudoRankingPago.erro
+        );
+        setRankingPagoServidor([]);
+        setRankingServidorCarregado(false);
+      }
+    } catch {
+      setRankingPagoServidor([]);
+      setRankingServidorCarregado(false);
     }
 
-    const listaPropostas =
-      Array.isArray(conteudo.propostas)
-        ? conteudo.propostas
-        : [];
+    // A API /api/propostas é apenas complementar aqui.
+    // O ranking oficial de contratos pagos vem de /api/ranking.
+    // Se /api/propostas responder vazio/inválido, NÃO podemos zerar o ranking.
+    try {
+      const textoPropostas =
+        await resposta.text();
 
-    setPropostas(listaPropostas);
+      if (textoPropostas.trim()) {
+        const conteudo =
+          JSON.parse(textoPropostas) as {
+            propostas?: PropostaCompraDivida[];
+            erro?: string;
+          };
+
+        if (resposta.ok) {
+          setPropostas(
+            Array.isArray(conteudo.propostas)
+              ? conteudo.propostas
+              : []
+          );
+        } else {
+          console.warn(
+            "API de propostas não carregou:",
+            conteudo.erro
+          );
+          setPropostas([]);
+        }
+      } else {
+        setPropostas([]);
+      }
+    } catch (erroPropostas) {
+      console.warn(
+        "Resposta inválida de /api/propostas. O ranking pago continuará funcionando.",
+        erroPropostas
+      );
+      setPropostas([]);
+    }
   } catch (erro) {
     console.error(
-      "Erro ao carregar propostas no Ranking:",
+      "Erro ao carregar o Ranking:",
       erro
     );
 
+    // Mantém a tela utilizável mesmo se uma API complementar falhar.
     setPropostas([]);
+    setRankingServidorCarregado(false);
   }
 
     try {
@@ -731,17 +867,65 @@ const [dataFinal, setDataFinal] = useState(
     );
   }, [timesRanking, timeSelecionado]);
 
-  const ranking = useMemo(() => {
+  const consultorasDeVendas = useMemo(() => {
+    return usuariosRanking.filter((usuario) => {
+      const perfil = normalizarTexto(
+        String(
+          usuario.perfil ||
+          usuario.cargo ||
+          ""
+        )
+      );
+
+      return (
+        usuario.ativo !== false &&
+        (
+          perfil === "consultora" ||
+          perfil === "consultor" ||
+          perfil.includes("consultora de vendas") ||
+          perfil.includes("consultor de vendas")
+        )
+      );
+    });
+  }, [usuariosRanking]);
+
+  const nomesConsultorasDeVendas = useMemo(
+    () =>
+      new Set(
+        consultorasDeVendas
+          .map((usuario) =>
+            normalizarTexto(usuario.nome || "")
+          )
+          .filter(Boolean)
+      ),
+    [consultorasDeVendas]
+  );
+
+  const rankingLocal = useMemo(() => {
     const agrupado = new Map<string, RankingItem>();
 
     propostas
       .filter((proposta) => {
         if (produto === "CLT") return false;
 
+        const nomeVendedora =
+          normalizarTexto(
+            proposta.vendedora || ""
+          );
+
+        if (
+          nomesConsultorasDeVendas.size > 0 &&
+          !nomesConsultorasDeVendas.has(
+            nomeVendedora
+          )
+        ) {
+          return false;
+        }
+
         if (
           nomesPermitidosTime &&
           !nomesPermitidosTime.has(
-            normalizarTexto(proposta.vendedora || "")
+            nomeVendedora
           )
         ) {
           return false;
@@ -751,16 +935,20 @@ const [dataFinal, setDataFinal] = useState(
           return false;
         }
 
-        // O ranking considera o mês/período em que a proposta foi paga.
-        const pagamento = converterData(
-          proposta.dataPagamento
-        );
+        const pagamento =
+          converterData(proposta.dataPagamento);
 
-        return estaNoPeriodo(pagamento, periodo);
+        return estaNoPeriodo(
+          pagamento,
+          periodo,
+          dataInicial,
+          dataFinal
+        );
       })
       .forEach((proposta) => {
-        const nome =
-          proposta.vendedora?.trim() || "Sem consultora";
+        const nome = proposta.vendedora?.trim() || "";
+
+        if (!nome) return;
 
         const chave = normalizarTexto(nome);
 
@@ -789,10 +977,24 @@ const [dataFinal, setDataFinal] = useState(
       .filter((registro) => {
         if (produto === "Compra de Dívida") return false;
 
+        const nomeConsultora =
+          normalizarTexto(
+            registro.consultora || ""
+          );
+
+        if (
+          nomesConsultorasDeVendas.size > 0 &&
+          !nomesConsultorasDeVendas.has(
+            nomeConsultora
+          )
+        ) {
+          return false;
+        }
+
         if (
           nomesPermitidosTime &&
           !nomesPermitidosTime.has(
-            normalizarTexto(registro.consultora || "")
+            nomeConsultora
           )
         ) {
           return false;
@@ -803,10 +1005,11 @@ const [dataFinal, setDataFinal] = useState(
       .forEach((registro) => {
         const data = dataClt(registro);
 
-        if (!estaNoPeriodo(data, periodo)) return;
+        if (!estaNoPeriodo(data, periodo, dataInicial, dataFinal)) return;
 
-        const nome =
-          registro.consultora?.trim() || "Sem consultora";
+        const nome = registro.consultora?.trim() || "";
+
+        if (!nome) return;
 
         const chave = normalizarTexto(nome);
 
@@ -830,6 +1033,35 @@ const [dataFinal, setDataFinal] = useState(
 
         agrupado.set(chave, atual);
       });
+
+    // Garante que todas as consultoras conhecidas apareçam no ranking,
+    // mesmo sem produção paga no período selecionado.
+    consultorasDeVendas.forEach((usuario) => {
+      const nome = String(usuario.nome || "").trim();
+
+      if (!nome) {
+        return;
+      }
+
+      const chave = normalizarTexto(nome);
+
+      if (!agrupado.has(chave)) {
+        agrupado.set(chave, {
+          nome,
+          contratosCompra: 0,
+          contratosClt: 0,
+          contratosTotal: 0,
+          producaoCompra: 0,
+          producaoClt: 0,
+          producaoTotal: 0,
+          metaAtivada: false,
+          faixa: null,
+          premiacaoCompra: 0,
+          premiacaoClt: 0,
+          premiacaoTotal: 0,
+        });
+      }
+    });
 
     return Array.from(agrupado.values())
       .map((item) => {
@@ -906,6 +1138,120 @@ faixa: faixaCompra
     produto,
     nomesPermitidosTime,
     timeSelecionado,
+    dataInicial,
+    dataFinal,
+    usuariosRanking,
+    consultorasDeVendas,
+    nomesConsultorasDeVendas,
+  ]);
+
+  const ranking = useMemo(() => {
+    if (rankingServidorCarregado) {
+      return rankingPagoServidor
+        .filter((item) =>
+          normalizarTexto(item.nome).includes(
+            normalizarTexto(busca)
+          )
+        )
+        .map((item) => {
+          const producaoCompra = Number(
+            item.producaoCompra ??
+              (produto === "CLT"
+                ? 0
+                : item.producao) ??
+              0
+          );
+
+          const producaoClt = Number(
+            item.producaoClt ?? 0
+          );
+
+          const producaoTotal = Number(
+            item.producao ??
+              producaoCompra + producaoClt
+          );
+
+          const contratosCompra = Number(
+            item.contratosCompra ??
+              (produto === "CLT"
+                ? 0
+                : item.contratos) ??
+              0
+          );
+
+          const contratosClt = Number(
+            item.contratosClt ?? 0
+          );
+
+          const contratosTotal = Number(
+            item.contratos ??
+              contratosCompra + contratosClt
+          );
+
+          const resultadoCompra =
+            calcularPremiacaoCompra(
+              producaoCompra
+            );
+
+          const resultadoClt =
+            calcularPremiacaoClt(
+              producaoClt
+            );
+
+          const faixaCompra =
+            resultadoCompra.faixa;
+
+          const faixaClt =
+            resultadoClt.faixa;
+
+          return {
+            nome: item.nome,
+            fotoUrl: item.fotoUrl || "",
+            contratosCompra,
+            contratosClt,
+            contratosTotal,
+            producaoCompra,
+            producaoClt,
+            producaoTotal,
+            metaAtivada:
+              resultadoCompra.atingiuMetaMinima ||
+              resultadoClt.atingiuMetaMinima,
+            faixa: faixaCompra
+              ? {
+                  meta: faixaCompra.meta,
+                  percentualCompra:
+                    faixaCompra.percentual,
+                  premiacaoClt:
+                    faixaClt?.premioFixo || 0,
+                  nome: faixaCompra.nome,
+                }
+              : faixaClt
+                ? {
+                    meta: faixaClt.meta,
+                    percentualCompra: 0,
+                    premiacaoClt:
+                      faixaClt.premioFixo,
+                    nome: faixaClt.nome,
+                  }
+                : null,
+            premiacaoCompra:
+              resultadoCompra.premio,
+            premiacaoClt:
+              resultadoClt.premio,
+            premiacaoTotal:
+              resultadoCompra.premio +
+              resultadoClt.premio,
+          };
+        });
+    }
+
+    return rankingLocal;
+  }, [
+    rankingServidorCarregado,
+    rankingPagoServidor,
+    rankingLocal,
+    busca,
+    produto,
   ]);
 
   const resumo = useMemo(() => {
@@ -938,17 +1284,74 @@ faixa: faixaCompra
   const maiorValor = ranking[0]?.producaoTotal || 1;
 
   function fotoDaConsultora(nome: string) {
+    const itemRanking = ranking.find(
+      (item) =>
+        normalizarTexto(item.nome || "") ===
+        normalizarTexto(nome)
+    );
+
+    if (itemRanking?.fotoUrl) {
+      return String(itemRanking.fotoUrl);
+    }
+
     const usuario = usuariosRanking.find(
       (item) =>
         normalizarTexto(item.nome || "") ===
         normalizarTexto(nome)
     );
 
+    if (
+      normalizarTexto(nome) ===
+      normalizarTexto(nomeUsuarioAtual)
+    ) {
+      return String(
+        usuario?.foto ||
+        usuario?.foto_url ||
+        localStorage.getItem("somos-eleva-foto") ||
+        ""
+      );
+    }
+
     return String(
       usuario?.foto ||
       usuario?.foto_url ||
       ""
     );
+  }
+
+  function podeVerValoresDaConsultora(nome: string) {
+    // Administradora e Supervisora podem ver todos os valores.
+    if (!ehConsultoraAtual) {
+      return true;
+    }
+
+    // Consultora vê somente o próprio valor.
+    return (
+      normalizarTexto(nome) ===
+      normalizarTexto(nomeUsuarioAtual)
+    );
+  }
+
+  function valorRanking(
+    nome: string,
+    valor: number
+  ) {
+    return podeVerValoresDaConsultora(nome)
+      ? moeda(valor)
+      : "Valor privado";
+  }
+
+  function detalheMetaRanking(
+    nome: string,
+    falta: number
+  ) {
+    if (!podeVerValoresDaConsultora(nome)) {
+      return "Privado";
+    }
+
+    return falta > 0
+      ? `Faltam ${moeda(falta)}`
+      : "Meta atingida";
   }
 
   function proximaMeta(producao: number) {
@@ -1035,17 +1438,84 @@ faixa: faixaCompra
             Período
             <select
               value={periodo}
-              onChange={(event) =>
-                setPeriodo(
-                  event.target.value as Periodo
-                )
-              }
+              onChange={(event) => {
+                const novoPeriodo =
+                  event.target.value as Periodo;
+
+                setPeriodo(novoPeriodo);
+
+                const agora = new Date();
+
+                if (novoPeriodo === "Hoje") {
+                  const hojeIso =
+                    agora.toISOString().slice(0, 10);
+
+                  setDataInicial(hojeIso);
+                  setDataFinal(hojeIso);
+                }
+
+                if (novoPeriodo === "Semana") {
+                  const inicio =
+                    inicioDaSemana(agora);
+
+                  setDataInicial(
+                    inicio.toISOString().slice(0, 10)
+                  );
+                  setDataFinal(
+                    agora.toISOString().slice(0, 10)
+                  );
+                }
+
+                if (novoPeriodo === "Mês") {
+                  const inicio =
+                    inicioDoMes(agora);
+
+                  const fim =
+                    new Date(
+                      agora.getFullYear(),
+                      agora.getMonth() + 1,
+                      0
+                    );
+
+                  setDataInicial(
+                    inicio.toISOString().slice(0, 10)
+                  );
+                  setDataFinal(
+                    fim.toISOString().slice(0, 10)
+                  );
+                }
+              }}
             >
               <option>Hoje</option>
               <option>Semana</option>
               <option>Mês</option>
+              <option>Personalizado</option>
               <option>Todos</option>
             </select>
+          </label>
+
+          <label>
+            Data inicial
+            <input
+              type="date"
+              value={dataInicial}
+              onChange={(event) => {
+                setDataInicial(event.target.value);
+                setPeriodo("Personalizado");
+              }}
+            />
+          </label>
+
+          <label>
+            Data final
+            <input
+              type="date"
+              value={dataFinal}
+              onChange={(event) => {
+                setDataFinal(event.target.value);
+                setPeriodo("Personalizado");
+              }}
+            />
           </label>
 
           <label className="ranking-reference-search">
@@ -1079,7 +1549,23 @@ faixa: faixaCompra
           <div className="ranking-metric-icon metric-blue">↗</div>
           <div>
             <span>Produção total</span>
-            <strong>{moeda(resumo.total)}</strong>
+            <strong>
+              {ehConsultoraAtual
+                ? moeda(
+                    ranking
+                      .filter(
+                        (item) =>
+                          normalizarTexto(item.nome) ===
+                          normalizarTexto(nomeUsuarioAtual)
+                      )
+                      .reduce(
+                        (total, item) =>
+                          total + item.producaoTotal,
+                        0
+                      )
+                  )
+                : moeda(resumo.total)}
+            </strong>
             <small>Compra + CLT no período</small>
           </div>
         </article>
@@ -1089,13 +1575,15 @@ faixa: faixaCompra
           <div>
             <span>Top 3</span>
             <strong>
-              {moeda(
-                podium.reduce(
-                  (total, item) =>
-                    total + item.producaoTotal,
-                  0
-                )
-              )}
+              {ehConsultoraAtual
+                ? "Ranking visível"
+                : moeda(
+                    podium.reduce(
+                      (total, item) =>
+                        total + item.producaoTotal,
+                      0
+                    )
+                  )}
             </strong>
             <small>Soma dos três primeiros</small>
           </div>
@@ -1149,7 +1637,12 @@ faixa: faixaCompra
           </div>
 
           <div className="ranking-reference-main">
-            <div className="ranking-reference-podium">
+            <div
+              className="ranking-reference-podium"
+              style={{
+                transform: "translateY(-70px)",
+              }}
+            >
               {segundoLugar && (() => {
                 const meta = proximaMeta(
                   segundoLugar.producaoTotal
@@ -1183,7 +1676,8 @@ faixa: faixaCompra
                     </strong>
 
                     <span className="reference-value">
-                      {moeda(
+                      {valorRanking(
+                        segundoLugar.nome,
                         segundoLugar.producaoTotal
                       )}
                     </span>
@@ -1194,22 +1688,27 @@ faixa: faixaCompra
 
                     <div className="reference-goal-line">
                       <strong>
-                        {meta.progresso.toFixed(0)}%
+                        {podeVerValoresDaConsultora(segundoLugar.nome)
+                          ? `${meta.progresso.toFixed(0)}%`
+                          : "—"}
                       </strong>
                       <span>
-                        {meta.falta > 0
-                          ? `Faltam ${moeda(meta.falta)}`
-                          : "Meta atingida"}
+                        {detalheMetaRanking(
+                          segundoLugar.nome,
+                          meta.falta
+                        )}
                       </span>
                     </div>
 
                     <div className="reference-progress">
                       <i
                         style={{
-                          width: `${Math.max(
-                            4,
-                            meta.progresso
-                          )}%`,
+                          width: podeVerValoresDaConsultora(segundoLugar.nome)
+                            ? `${Math.max(
+                                4,
+                                meta.progresso
+                              )}%`
+                            : "0%",
                         }}
                       />
                     </div>
@@ -1256,7 +1755,8 @@ faixa: faixaCompra
                     </strong>
 
                     <span className="reference-value">
-                      {moeda(
+                      {valorRanking(
+                        primeiroLugar.nome,
                         primeiroLugar.producaoTotal
                       )}
                     </span>
@@ -1267,22 +1767,27 @@ faixa: faixaCompra
 
                     <div className="reference-goal-line">
                       <strong>
-                        {meta.progresso.toFixed(0)}%
+                        {podeVerValoresDaConsultora(primeiroLugar.nome)
+                          ? `${meta.progresso.toFixed(0)}%`
+                          : "—"}
                       </strong>
                       <span>
-                        {meta.falta > 0
-                          ? `Faltam ${moeda(meta.falta)}`
-                          : "Meta atingida"}
+                        {detalheMetaRanking(
+                          primeiroLugar.nome,
+                          meta.falta
+                        )}
                       </span>
                     </div>
 
                     <div className="reference-progress">
                       <i
                         style={{
-                          width: `${Math.max(
-                            4,
-                            meta.progresso
-                          )}%`,
+                          width: podeVerValoresDaConsultora(primeiroLugar.nome)
+                            ? `${Math.max(
+                                4,
+                                meta.progresso
+                              )}%`
+                            : "0%",
                         }}
                       />
                     </div>
@@ -1325,7 +1830,8 @@ faixa: faixaCompra
                     </strong>
 
                     <span className="reference-value">
-                      {moeda(
+                      {valorRanking(
+                        terceiroLugar.nome,
                         terceiroLugar.producaoTotal
                       )}
                     </span>
@@ -1336,22 +1842,27 @@ faixa: faixaCompra
 
                     <div className="reference-goal-line">
                       <strong>
-                        {meta.progresso.toFixed(0)}%
+                        {podeVerValoresDaConsultora(terceiroLugar.nome)
+                          ? `${meta.progresso.toFixed(0)}%`
+                          : "—"}
                       </strong>
                       <span>
-                        {meta.falta > 0
-                          ? `Faltam ${moeda(meta.falta)}`
-                          : "Meta atingida"}
+                        {detalheMetaRanking(
+                          terceiroLugar.nome,
+                          meta.falta
+                        )}
                       </span>
                     </div>
 
                     <div className="reference-progress">
                       <i
                         style={{
-                          width: `${Math.max(
-                            4,
-                            meta.progresso
-                          )}%`,
+                          width: podeVerValoresDaConsultora(terceiroLugar.nome)
+                            ? `${Math.max(
+                                4,
+                                meta.progresso
+                              )}%`
+                            : "0%",
                         }}
                       />
                     </div>
@@ -1362,7 +1873,14 @@ faixa: faixaCompra
               })()}
             </div>
 
-            <div className="ranking-reference-list">
+            <div
+              className="ranking-reference-list"
+              style={{
+                maxHeight: "590px",
+                overflowY: "auto",
+                alignSelf: "flex-start",
+              }}
+            >
               <h4>CLASSIFICAÇÃO GERAL</h4>
 
               <div className="reference-list-head">
@@ -1373,7 +1891,18 @@ faixa: faixaCompra
                 <span>Meta</span>
               </div>
 
-              {ranking.slice(3, 7).map(
+              {ranking.length <= 3 ? (
+                <div
+                  style={{
+                    padding: "28px 18px",
+                    textAlign: "center",
+                    color: "#93a4bd",
+                    fontSize: 13,
+                  }}
+                >
+                  Todas as posições atuais estão no pódio.
+                </div>
+              ) : ranking.slice(3).map(
                 (item, index) => {
                   const meta = proximaMeta(
                     item.producaoTotal
@@ -1417,14 +1946,15 @@ faixa: faixaCompra
 
                       <div className="reference-list-production">
                         <strong>
-                          {moeda(
+                          {valorRanking(
+                            item.nome,
                             item.producaoTotal
                           )}
                         </strong>
                         <span>
-                          CD {moeda(item.producaoCompra)}
-                          {" + "}
-                          CLT {moeda(item.producaoClt)}
+                          {podeVerValoresDaConsultora(item.nome)
+                            ? `CD ${moeda(item.producaoCompra)} + CLT ${moeda(item.producaoClt)}`
+                            : "Valores ocultos"}
                         </span>
                       </div>
 
@@ -1440,18 +1970,21 @@ faixa: faixaCompra
                         <div>
                           <i
                             style={{
-                              width: `${Math.max(
-                                4,
-                                meta.progresso
-                              )}%`,
+                              width: podeVerValoresDaConsultora(item.nome)
+                              ? `${Math.max(
+                                  4,
+                                  meta.progresso
+                                )}%`
+                              : "0%",
                             }}
                           />
                         </div>
 
                         <span>
-                          {meta.falta > 0
-                            ? `Faltam ${moeda(meta.falta)}`
-                            : "Meta atingida"}
+                          {detalheMetaRanking(
+                            item.nome,
+                            meta.falta
+                          )}
                         </span>
                       </div>
                     </article>

@@ -587,30 +587,41 @@ export default function DashboardClient() {
     url: string,
     token: string,
   ): Promise<RespostaApi> {
-    const resposta =
-      await fetch(url, {
-        headers: {
-          Authorization:
-            `Bearer ${token}`,
-        },
-        cache: "no-store",
-      });
+    const resposta = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      cache: "no-store",
+      // A autenticação desta API já é enviada no header Authorization.
+      // Não enviar cookies evita o HTTP 431 (Request Header Fields Too Large).
+      credentials: "omit",
+    });
+
+    // Lê primeiro como texto. Assim uma resposta vazia ou uma página HTML
+    // de erro não derruba todas as informações do Dashboard sem explicação.
+    const texto = await resposta.text();
+
+    if (!texto.trim()) {
+      throw new Error(
+        `${url} retornou uma resposta vazia (HTTP ${resposta.status}).`,
+      );
+    }
 
     let conteudo: RespostaApi;
 
     try {
-      conteudo =
-        (await resposta.json()) as RespostaApi;
+      conteudo = JSON.parse(texto) as RespostaApi;
     } catch {
       throw new Error(
-        "O servidor retornou uma resposta inválida.",
+        `${url} retornou uma resposta inválida (HTTP ${resposta.status}).`,
       );
     }
 
     if (!resposta.ok) {
       throw new Error(
         conteudo.erro ||
-          "Não foi possível carregar os dados.",
+          `Não foi possível carregar ${url} (HTTP ${resposta.status}).`,
       );
     }
 
@@ -625,28 +636,65 @@ export default function DashboardClient() {
       const sessao = await obterSessao();
       const token = sessao.access_token;
 
-      const [respostaPropostas, respostaClt] =
-        await Promise.all([
-          consultarApi("/api/propostas", token),
-          consultarApi("/api/clt", token),
-        ]);
+      let respostaPropostas: RespostaApi | null = null;
+      let respostaClt: RespostaApi | null = null;
+      let erroPropostas: Error | null = null;
+
+      // PROPOSTAS: carregamento principal e independente.
+      // Mesmo que a API de CLT apresente erro, as propostas continuam visíveis.
+      try {
+        respostaPropostas = await consultarApi(
+          "/api/propostas",
+          token,
+        );
+
+        setPropostas(
+          Array.isArray(respostaPropostas.propostas)
+            ? respostaPropostas.propostas
+            : [],
+        );
+      } catch (erro) {
+        erroPropostas =
+          erro instanceof Error
+            ? erro
+            : new Error("Não foi possível carregar as propostas.");
+
+        console.error(
+          "Erro ao carregar propostas no Dashboard:",
+          erro,
+        );
+        setPropostas([]);
+      }
+
+      // CLT: complementar. A falha desta API não pode mais zerar propostas.
+      try {
+        respostaClt = await consultarApi("/api/clt", token);
+
+        setRegistrosClt(
+          Array.isArray(respostaClt.registros)
+            ? respostaClt.registros
+            : [],
+        );
+      } catch (erro) {
+        console.warn(
+          "A API de CLT não carregou, mas as propostas continuarão visíveis:",
+          erro,
+        );
+        setRegistrosClt([]);
+      }
 
       const perfilResolvido =
-        respostaPropostas.perfil ||
-        respostaClt.perfil ||
+        respostaPropostas?.perfil ||
+        respostaClt?.perfil ||
         null;
 
       setPerfilAtual(perfilResolvido);
-      setPropostas(
-        Array.isArray(respostaPropostas.propostas)
-          ? respostaPropostas.propostas
-          : [],
-      );
-      setRegistrosClt(
-        Array.isArray(respostaClt.registros)
-          ? respostaClt.registros
-          : [],
-      );
+
+      if (erroPropostas) {
+        setMensagem(erroPropostas.message);
+      } else {
+        setMensagem("");
+      }
 
       if (
         perfilResolvido &&
@@ -657,39 +705,59 @@ export default function DashboardClient() {
         return;
       }
 
-      const respostaTimesHttp = await fetch("/api/times", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-      });
-
-      let respostaTimes: RespostaTimesDashboard = {};
+      // Times também são complementares e não podem apagar a produção.
       try {
-        respostaTimes =
-          (await respostaTimesHttp.json()) as RespostaTimesDashboard;
-      } catch {
-        respostaTimes = {};
-      }
+        const respostaTimesHttp = await fetch("/api/times", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          cache: "no-store",
+          // A autenticação já está no Bearer token; cookies não são necessários.
+          credentials: "omit",
+        });
 
-      if (!respostaTimesHttp.ok) {
-        throw new Error(
-          respostaTimes.erro ||
-            "Não foi possível carregar os times.",
+        const textoTimes = await respostaTimesHttp.text();
+        let respostaTimes: RespostaTimesDashboard = {};
+
+        if (textoTimes.trim()) {
+          try {
+            respostaTimes = JSON.parse(
+              textoTimes,
+            ) as RespostaTimesDashboard;
+          } catch {
+            throw new Error(
+              `/api/times retornou uma resposta inválida (HTTP ${respostaTimesHttp.status}).`,
+            );
+          }
+        }
+
+        if (!respostaTimesHttp.ok) {
+          throw new Error(
+            respostaTimes.erro ||
+              `Não foi possível carregar os times (HTTP ${respostaTimesHttp.status}).`,
+          );
+        }
+
+        const listaTimes = Array.isArray(respostaTimes.times)
+          ? respostaTimes.times
+          : [];
+
+        setTimes(listaTimes);
+
+        if (
+          perfilResolvido?.perfil === "Supervisora" &&
+          listaTimes.length === 1
+        ) {
+          setTimeSelecionado(listaTimes[0].id);
+        }
+      } catch (erro) {
+        console.warn(
+          "Os times não carregaram, mas a produção continuará visível:",
+          erro,
         );
-      }
-
-      const listaTimes = Array.isArray(respostaTimes.times)
-        ? respostaTimes.times
-        : [];
-
-      setTimes(listaTimes);
-
-      if (
-        perfilResolvido?.perfil === "Supervisora" &&
-        listaTimes.length === 1
-      ) {
-        setTimeSelecionado(listaTimes[0].id);
+        setTimes([]);
+        setTimeSelecionado("Todos");
       }
     } catch (erro) {
       setMensagem(
