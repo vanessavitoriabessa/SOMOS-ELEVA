@@ -596,3 +596,218 @@
     padding: 8px 0;
   }
 }
+/* FILTROS E FLUXO FINANCEIRO REORGANIZADO */
+.financial-filter-card {
+  padding: 16px;
+  border: 1px solid var(--fd-border);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(21,51,108,.045);
+}
+
+.financial-filter-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.financial-filter-buttons button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid #d7e0ed;
+  border-radius: 10px;
+  background: #fff;
+  color: #52657f;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.financial-filter-buttons button.active {
+  border-color: #155eef;
+  background: #155eef;
+  color: #fff;
+}
+
+.financial-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.financial-filter-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: #60718b;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.financial-filter-grid input,
+.financial-filter-grid select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid #d9e2ef;
+  border-radius: 10px;
+  background: #fff;
+  color: #163253;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.financial-dashboard-main-grid.single {
+  grid-template-columns: 1fr;
+}
+
+.financial-dashboard-main-grid.single .financial-flow-panel {
+  grid-column: auto;
+}
+
+.financial-dashboard-main-grid.single .financial-flow-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding: 8px 18px 0;
+}
+
+.financial-dashboard-main-grid.single .financial-flow-list > div {
+  min-height: 84px;
+  border-bottom: 0;
+  border-right: 1px solid #edf1f6;
+  grid-template-columns: 34px 1fr;
+  align-content: center;
+}
+
+.financial-dashboard-main-grid.single .financial-flow-list > div:last-child {
+  border-right: 0;
+}
+
+.financial-dashboard-main-grid.single .financial-flow-list > div > b {
+  grid-column: 2;
+  margin-top: 4px;
+  font-size: 15px;
+}
+
+.financial-dashboard-main-grid.single .financial-balance-box > b {
+  font-size: 22px;
+}
+
+@media (max-width: 1050px) {
+  .financial-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .financial-dashboard-main-grid.single .financial-flow-list {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .financial-filter-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .financial-dashboard-main-grid.single .financial-flow-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* FILTRO PRÓPRIO DO FLUXO FINANCEIRO */
+.financial-flow-filter {
+  padding: 14px 18px;
+  border-bottom: 1px solid #e7edf5;
+  background: #fbfcff;
+}
+
+.financial-flow-filter-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.financial-flow-filter-buttons button {
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid #d7e0ed;
+  border-radius: 9px;
+  background: #fff;
+  color: #52657f;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.financial-flow-filter-buttons button.active {
+  border-color: #155eef;
+  background: #155eef;
+  color: #fff;
+}
+
+.financial-flow-filter-dates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 240px));
+  gap: 12px;
+}
+
+.financial-flow-filter-dates label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #60718b;
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.financial-flow-filter-dates input {
+  min-height: 39px;
+  padding: 0 11px;
+  border: 1px solid #d9e2ef;
+  border-radius: 9px;
+  background: #fff;
+  color: #163253;
+  font-size: 11px;
+  font-weight: 700;
+  outline: none;
+}
+
+.financial-flow-filter-dates input:focus {
+  border-color: #155eef;
+  box-shadow: 0 0 0 3px rgba(21,94,239,.08);
+}
+
+@media (max-width: 700px) {
+  .financial-flow-filter-dates {
+    grid-template-columns: 1fr;
+  }
+
+  .financial-flow-filter-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+
+.financial-flow-filter-dates select {
+  min-height: 39px;
+  padding: 0 11px;
+  border: 1px solid #d9e2ef;
+  border-radius: 9px;
+  background: #fff;
+  color: #163253;
+  font-size: 11px;
+  font-weight: 700;
+  outline: none;
+}
+
+.financial-flow-filter-dates select:focus {
+  border-color: #155eef;
+  box-shadow: 0 0 0 3px rgba(21,94,239,.08);
+}

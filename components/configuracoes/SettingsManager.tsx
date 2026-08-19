@@ -27,6 +27,20 @@ type OrgaoConvenio = {
   ativo: boolean;
 };
 
+type TipoConfigFinanceiro =
+  | "produto"
+  | "banco"
+  | "categoria_entrada"
+  | "categoria_saida";
+
+type ConfigFinanceiroItem = {
+  id: string;
+  tipo: TipoConfigFinanceiro;
+  nome: string;
+  ativo: boolean;
+  ordem: number;
+};
+
 type Meta = {
   id: string;
   nome: string;
@@ -103,7 +117,9 @@ function moeda(valor: number) {
 export default function SettingsManager() {
   const supabase = useMemo(() => createClient(), []);
 
-  const [aba, setAba] = useState<"geral" | "bancos" | "tabelas" | "metas">("geral");
+  const [aba, setAba] = useState<
+    "geral" | "bancos" | "tabelas" | "financeiro" | "metas"
+  >("geral");
   const [bancos, setBancos] = useState<Banco[]>([]);
   const [orgaosConvenios, setOrgaosConvenios] = useState<OrgaoConvenio[]>([]);
   const [tabelas, setTabelas] = useState<Tabela[]>([]);
@@ -111,6 +127,13 @@ export default function SettingsManager() {
   const [geral, setGeral] = useState<ConfiguracaoGeral>(configPadrao);
   const [mensagem, setMensagem] = useState("");
   const [processando, setProcessando] = useState(false);
+
+  const [financeiroItens, setFinanceiroItens] =
+    useState<ConfigFinanceiroItem[]>([]);
+  const [novoFinanceiroTipo, setNovoFinanceiroTipo] =
+    useState<TipoConfigFinanceiro>("produto");
+  const [novoFinanceiroNome, setNovoFinanceiroNome] =
+    useState("");
 
   const [novoBanco, setNovoBanco] = useState("");
   const [novoOrgaoConvenio, setNovoOrgaoConvenio] = useState("");
@@ -228,6 +251,30 @@ export default function SettingsManager() {
       setBancos(bancosApi);
       setOrgaosConvenios(orgaosApi);
       setTabelas(tabelasApi);
+
+      const { data: financeiroData, error: financeiroErro } =
+        await supabase
+          .from("config_financeiro_itens")
+          .select("id, tipo, nome, ativo, ordem")
+          .order("tipo", { ascending: true })
+          .order("ordem", { ascending: true })
+          .order("nome", { ascending: true });
+
+      if (financeiroErro) {
+        throw new Error(financeiroErro.message);
+      }
+
+      setFinanceiroItens(
+        (Array.isArray(financeiroData) ? financeiroData : []).map(
+          (item) => ({
+            id: String(item.id),
+            tipo: String(item.tipo) as TipoConfigFinanceiro,
+            nome: String(item.nome || ""),
+            ativo: item.ativo !== false,
+            ordem: Number(item.ordem || 0),
+          }),
+        ),
+      );
 
       // Metas e geral permanecem locais por enquanto.
       try {
@@ -700,6 +747,151 @@ export default function SettingsManager() {
     }
   }
 
+  async function adicionarFinanceiroItem(
+    event: FormEvent,
+  ) {
+    event.preventDefault();
+
+    const nome = novoFinanceiroNome.trim();
+
+    if (!nome) {
+      setMensagem("Informe o nome do item financeiro.");
+      return;
+    }
+
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const maiorOrdem = financeiroItens
+        .filter((item) => item.tipo === novoFinanceiroTipo)
+        .reduce(
+          (maior, item) => Math.max(maior, item.ordem),
+          0,
+        );
+
+      const { error } = await supabase
+        .from("config_financeiro_itens")
+        .insert({
+          tipo: novoFinanceiroTipo,
+          nome,
+          ativo: true,
+          ordem: maiorOrdem + 1,
+          atualizado_em: new Date().toISOString(),
+        });
+
+      if (error) {
+        if (error.code === "23505") {
+          throw new Error(
+            "Esse item já está cadastrado nessa categoria.",
+          );
+        }
+
+        throw new Error(error.message);
+      }
+
+      setNovoFinanceiroNome("");
+      setMensagem("Item financeiro cadastrado com sucesso.");
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível cadastrar o item financeiro.",
+      );
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  async function alternarFinanceiroItem(
+    item: ConfigFinanceiroItem,
+  ) {
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const { error } = await supabase
+        .from("config_financeiro_itens")
+        .update({
+          ativo: !item.ativo,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("id", item.id);
+
+      if (error) throw new Error(error.message);
+
+      setMensagem(
+        item.ativo
+          ? "Item financeiro desativado."
+          : "Item financeiro ativado.",
+      );
+
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível atualizar o item financeiro.",
+      );
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  async function excluirFinanceiroItem(
+    item: ConfigFinanceiroItem,
+  ) {
+    if (
+      !window.confirm(
+        `Deseja excluir "${item.nome}" das configurações financeiras?`,
+      )
+    ) {
+      return;
+    }
+
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const { error } = await supabase
+        .from("config_financeiro_itens")
+        .delete()
+        .eq("id", item.id);
+
+      if (error) throw new Error(error.message);
+
+      setMensagem("Item financeiro excluído.");
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível excluir o item financeiro.",
+      );
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  const financeiroPorTipo = useMemo(() => {
+    const base: Record<
+      TipoConfigFinanceiro,
+      ConfigFinanceiroItem[]
+    > = {
+      produto: [],
+      banco: [],
+      categoria_entrada: [],
+      categoria_saida: [],
+    };
+
+    financeiroItens.forEach((item) => {
+      base[item.tipo].push(item);
+    });
+
+    return base;
+  }, [financeiroItens]);
+
   function adicionarMeta(event: FormEvent) {
     event.preventDefault();
 
@@ -793,6 +985,7 @@ export default function SettingsManager() {
         <button className={aba === "geral" ? "active" : ""} onClick={() => setAba("geral")}>Geral</button>
         <button className={aba === "bancos" ? "active" : ""} onClick={() => setAba("bancos")}>Bancos</button>
         <button className={aba === "tabelas" ? "active" : ""} onClick={() => setAba("tabelas")}>Tabelas</button>
+        <button className={aba === "financeiro" ? "active" : ""} onClick={() => setAba("financeiro")}>Financeiro</button>
         <button className={aba === "metas" ? "active" : ""} onClick={() => setAba("metas")}>Metas</button>
       </nav>
 
@@ -1317,6 +1510,229 @@ export default function SettingsManager() {
             </div>
           </section>
           </section>
+        </>
+      )}
+
+      {aba === "financeiro" && (
+        <>
+          <section className="settings-grid">
+            <form
+              className="settings-card"
+              onSubmit={adicionarFinanceiroItem}
+            >
+              <div className="settings-heading">
+                <div>
+                  <span>CONFIGURAÇÃO FINANCEIRA</span>
+                  <h2>Adicionar item</h2>
+                  <p>
+                    Produtos, bancos e categorias usados no Financeiro.
+                  </p>
+                </div>
+                <b>R$</b>
+              </div>
+
+              <div className="settings-form-grid">
+                <label>
+                  Tipo
+                  <select
+                    value={novoFinanceiroTipo}
+                    onChange={(e) =>
+                      setNovoFinanceiroTipo(
+                        e.target.value as TipoConfigFinanceiro,
+                      )
+                    }
+                    disabled={processando}
+                  >
+                    <option value="produto">Produto</option>
+                    <option value="banco">Banco</option>
+                    <option value="categoria_entrada">
+                      Categoria de entrada
+                    </option>
+                    <option value="categoria_saida">
+                      Categoria de saída
+                    </option>
+                  </select>
+                </label>
+
+                <label>
+                  Nome
+                  <input
+                    value={novoFinanceiroNome}
+                    onChange={(e) =>
+                      setNovoFinanceiroNome(e.target.value)
+                    }
+                    placeholder="Digite o nome"
+                    disabled={processando}
+                  />
+                </label>
+              </div>
+
+              <div className="settings-actions">
+                <button type="submit" disabled={processando}>
+                  {processando
+                    ? "Salvando..."
+                    : "Adicionar ao Financeiro"}
+                </button>
+              </div>
+            </form>
+
+            <section className="settings-card">
+              <div className="settings-list-heading">
+                <div>
+                  <span>RESUMO FINANCEIRO</span>
+                  <h2>Itens configurados</h2>
+                </div>
+                <b>{financeiroItens.length}</b>
+              </div>
+
+              <div className="settings-list">
+                <article>
+                  <div className="settings-icon">P</div>
+                  <div>
+                    <strong>Produtos</strong>
+                    <span>
+                      {
+                        financeiroPorTipo.produto.filter(
+                          (item) => item.ativo,
+                        ).length
+                      } ativos
+                    </span>
+                  </div>
+                </article>
+
+                <article>
+                  <div className="settings-icon">B</div>
+                  <div>
+                    <strong>Bancos</strong>
+                    <span>
+                      {
+                        financeiroPorTipo.banco.filter(
+                          (item) => item.ativo,
+                        ).length
+                      } ativos
+                    </span>
+                  </div>
+                </article>
+
+                <article>
+                  <div className="settings-icon">E</div>
+                  <div>
+                    <strong>Categorias de entrada</strong>
+                    <span>
+                      {
+                        financeiroPorTipo.categoria_entrada.filter(
+                          (item) => item.ativo,
+                        ).length
+                      } ativas
+                    </span>
+                  </div>
+                </article>
+
+                <article>
+                  <div className="settings-icon">S</div>
+                  <div>
+                    <strong>Categorias de saída</strong>
+                    <span>
+                      {
+                        financeiroPorTipo.categoria_saida.filter(
+                          (item) => item.ativo,
+                        ).length
+                      } ativas
+                    </span>
+                  </div>
+                </article>
+              </div>
+            </section>
+          </section>
+
+          {(
+            [
+              ["produto", "Produtos financeiros", "P"],
+              ["banco", "Bancos do financeiro", "B"],
+              [
+                "categoria_entrada",
+                "Categorias de entrada",
+                "E",
+              ],
+              [
+                "categoria_saida",
+                "Categorias de saída",
+                "S",
+              ],
+            ] as Array<
+              [TipoConfigFinanceiro, string, string]
+            >
+          ).map(([tipo, titulo, icone]) => (
+            <section className="settings-card" key={tipo}>
+              <div className="settings-list-heading">
+                <div>
+                  <span>FINANCEIRO</span>
+                  <h2>{titulo}</h2>
+                </div>
+                <b>{financeiroPorTipo[tipo].length}</b>
+              </div>
+
+              <div className="settings-list">
+                {financeiroPorTipo[tipo].length === 0 ? (
+                  <div className="settings-empty">
+                    Nenhum item cadastrado.
+                  </div>
+                ) : (
+                  financeiroPorTipo[tipo].map((item) => (
+                    <article key={item.id}>
+                      <div className="settings-icon">
+                        {icone}
+                      </div>
+
+                      <div>
+                        <strong>{item.nome}</strong>
+                        <span>
+                          {item.ativo
+                            ? "Disponível no Financeiro"
+                            : "Desativado"}
+                        </span>
+                      </div>
+
+                      <span
+                        className={
+                          item.ativo
+                            ? "status-active"
+                            : "status-inactive"
+                        }
+                      >
+                        {item.ativo ? "Ativo" : "Inativo"}
+                      </span>
+
+                      <div className="settings-row-actions">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void alternarFinanceiroItem(item)
+                          }
+                          disabled={processando}
+                        >
+                          {item.ativo
+                            ? "Desativar"
+                            : "Ativar"}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="delete"
+                          onClick={() =>
+                            void excluirFinanceiroItem(item)
+                          }
+                          disabled={processando}
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </article>
+                  ))
+                )}
+              </div>
+            </section>
+          ))}
         </>
       )}
 
