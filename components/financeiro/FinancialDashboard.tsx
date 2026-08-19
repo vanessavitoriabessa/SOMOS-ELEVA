@@ -26,6 +26,17 @@ type Proposta = {
   dataPagamento?: string;
 };
 
+type RegistroClt = {
+  id?: string;
+  consultora?: string;
+  valorAprovado?: number;
+  parcela?: number;
+  status?: string;
+  criadoEm?: string;
+  atualizadoEm?: string;
+  dataPagamento?: string;
+};
+
 type BaixaPagamento = {
   id: string;
   produto?: string;
@@ -122,9 +133,18 @@ function noPeriodo(valor: string | null | undefined, inicio: string, fim: string
   return true;
 }
 
-function produtoCorresponde(valor: string | undefined, produto: ProdutoFinanceiro) {
+function produtoCorresponde(
+  valor: string | undefined,
+  produto: ProdutoFinanceiro,
+  produtoPadrao?: Exclude<ProdutoFinanceiro, "Todos">,
+) {
   if (produto === "Todos") return true;
-  return normalizar(valor) === normalizar(produto);
+
+  const valorResolvido =
+    String(valor || "").trim() ||
+    String(produtoPadrao || "").trim();
+
+  return normalizar(valorResolvido) === normalizar(produto);
 }
 
 function lerListaLocal<T>(chave: string): T[] {
@@ -141,6 +161,7 @@ export default function FinancialDashboard() {
   const supabase = useMemo(() => createClient(), []);
 
   const [propostas, setPropostas] = useState<Proposta[]>([]);
+  const [registrosClt, setRegistrosClt] = useState<RegistroClt[]>([]);
   const [baixas, setBaixas] = useState<BaixaPagamento[]>([]);
   const [lancamentos, setLancamentos] = useState<LancamentoLocal[]>([]);
   const [folhas, setFolhas] = useState<FolhaPagamento[]>([]);
@@ -217,12 +238,19 @@ export default function FinancialDashboard() {
 
       const [
         respostaPropostas,
+        respostaClt,
         respostaBaixas,
         respostaFolhas,
         respostaComissoes,
         respostaLancamentos,
       ] = await Promise.all([
         fetch("/api/propostas", {
+          headers: {
+            Authorization: `Bearer ${sessao.session.access_token}`,
+          },
+          cache: "no-store",
+        }),
+        fetch("/api/clt", {
           headers: {
             Authorization: `Bearer ${sessao.session.access_token}`,
           },
@@ -242,8 +270,17 @@ export default function FinancialDashboard() {
         erro?: string;
       };
 
+      const conteudoClt = (await respostaClt.json()) as {
+        registros?: RegistroClt[];
+        erro?: string;
+      };
+
       if (!respostaPropostas.ok) {
         throw new Error(conteudo.erro || "Não foi possível carregar as propostas.");
+      }
+
+      if (!respostaClt.ok) {
+        throw new Error(conteudoClt.erro || "Não foi possível carregar os registros CLT.");
       }
 
       if (respostaBaixas.error) throw respostaBaixas.error;
@@ -252,6 +289,11 @@ export default function FinancialDashboard() {
       if (respostaLancamentos.error) throw respostaLancamentos.error;
 
       setPropostas(Array.isArray(conteudo.propostas) ? conteudo.propostas : []);
+      setRegistrosClt(
+        Array.isArray(conteudoClt.registros)
+          ? conteudoClt.registros
+          : [],
+      );
       setBaixas(Array.isArray(respostaBaixas.data) ? respostaBaixas.data : []);
       setFolhas(Array.isArray(respostaFolhas.data) ? respostaFolhas.data : []);
       setComissoes(
@@ -310,9 +352,24 @@ export default function FinancialDashboard() {
         (item) =>
           normalizar(item.status) === "pago" &&
           noPeriodo(item.dataPagamento, dataInicial, dataFinal) &&
-          produtoCorresponde(item.produto, produto),
+          produtoCorresponde(
+            item.produto,
+            produto,
+            "Compra de Dívida",
+          ),
       ),
     [propostas, dataInicial, dataFinal, produto],
+  );
+
+  const registrosCltFiltrados = useMemo(
+    () =>
+      registrosClt.filter(
+        (item) =>
+          normalizar(item.status) === "pago" &&
+          noPeriodo(item.dataPagamento, dataInicial, dataFinal) &&
+          (produto === "Todos" || produto === "CLT"),
+      ),
+    [registrosClt, dataInicial, dataFinal, produto],
   );
 
   const baixasFiltradas = useMemo(
@@ -325,7 +382,11 @@ export default function FinancialDashboard() {
 
         return (
           noPeriodo(dataReferencia, dataInicial, dataFinal) &&
-          produtoCorresponde(item.produto, produto)
+          produtoCorresponde(
+            item.produto,
+            produto,
+            "Compra de Dívida",
+          )
         );
       }),
     [baixas, dataInicial, dataFinal, produto],
@@ -427,15 +488,31 @@ export default function FinancialDashboard() {
   );
 
   const indicadores = useMemo(() => {
-    const producaoBruta = propostasFiltradas.reduce(
+    const compraBruta = propostasFiltradas.reduce(
       (total, item) => total + Number(item.valorContrato || 0),
       0,
     );
 
-    const valorLiquido = propostasFiltradas.reduce(
+    const compraLiquida = propostasFiltradas.reduce(
       (total, item) => total + Number(item.valorMeta || 0),
       0,
     );
+
+    const cltValorLiquido = registrosCltFiltrados.reduce(
+      (total, item) => total + Number(item.valorAprovado || 0),
+      0,
+    );
+
+    const cltParcela = registrosCltFiltrados.reduce(
+      (total, item) => total + Number(item.parcela || 0),
+      0,
+    );
+
+    const producaoBruta =
+      compraBruta + cltValorLiquido;
+
+    const valorLiquido =
+      compraLiquida + cltParcela;
 
     const comissaoPrevista = baixasFiltradas.reduce(
       (total, item) => total + Number(item.comissao_prevista || 0),
@@ -457,11 +534,19 @@ export default function FinancialDashboard() {
     return {
       producaoBruta,
       valorLiquido,
+      compraBruta,
+      compraLiquida,
+      cltValorLiquido,
+      cltParcela,
       comissaoPrevista,
       comissaoRecebida,
       aReceber,
     };
-  }, [propostasFiltradas, baixasFiltradas]);
+  }, [
+    propostasFiltradas,
+    registrosCltFiltrados,
+    baixasFiltradas,
+  ]);
 
   const fluxo = useMemo(() => {
     const entradas = lancamentosFluxo
@@ -601,18 +686,42 @@ export default function FinancialDashboard() {
         <article>
           <div className="financial-icon financial-icon-blue">▥</div>
           <div>
-            <span>Produção bruta</span>
+            <span>
+              {produto === "CLT"
+                ? "Produção Valor Líquido CLT"
+                : produto === "Compra de Dívida"
+                  ? "Produção bruta — Compra de Dívida"
+                  : "Produção bruta"}
+            </span>
             <strong>{moeda(indicadores.producaoBruta)}</strong>
-            <small>Contratos pagos no período</small>
+            <small>
+              {produto === "CLT"
+                ? "Soma dos valores aprovados/liberados CLT"
+                : produto === "Compra de Dívida"
+                  ? "Valor bruto dos contratos pagos"
+                  : "Compra bruta + valor aprovado CLT"}
+            </small>
           </div>
         </article>
 
         <article>
           <div className="financial-icon financial-icon-blue">▤</div>
           <div>
-            <span>Valor líquido</span>
+            <span>
+              {produto === "CLT"
+                ? "Produção de Parcela CLT"
+                : produto === "Compra de Dívida"
+                  ? "Valor líquido — Compra de Dívida"
+                  : "Produção líquida"}
+            </span>
             <strong>{moeda(indicadores.valorLiquido)}</strong>
-            <small>Base líquida das propostas pagas</small>
+            <small>
+              {produto === "CLT"
+                ? "Soma das parcelas dos contratos CLT pagos"
+                : produto === "Compra de Dívida"
+                  ? "Valor líquido conforme tabela"
+                  : "Compra líquida + parcelas CLT"}
+            </small>
           </div>
         </article>
 

@@ -30,6 +30,7 @@ type Lancamento = {
   tipo: "Entrada" | "Saída";
   produto: string;
   banco: string;
+  parceiro: string;
   categoria: string;
   descricao: string;
   valor: number;
@@ -39,6 +40,7 @@ type Lancamento = {
 type TipoConfigFinanceiro =
   | "produto"
   | "banco"
+  | "parceiro"
   | "categoria_entrada"
   | "categoria_saida";
 
@@ -141,6 +143,17 @@ const BANCOS_PADRAO = [
   "3RN",
   "C6",
 ];
+
+const PARCEIROS_PADRAO = [
+  "3RN",
+  "NEO",
+  "C6 / FINANBANK",
+  "BANCO MASTER",
+  "V8",
+  "MERCANTIL",
+  "CREDCRESTA",
+];
+
 
 const ENTRADAS_PADRAO = [
   "Comissão do banco",
@@ -259,6 +272,8 @@ const [tipo, setTipo] =
     useState(PRODUTOS_PADRAO[0]);
   const [bancoLancamento, setBancoLancamento] =
     useState(BANCOS_PADRAO[0]);
+  const [parceiroLancamento, setParceiroLancamento] =
+    useState(PARCEIROS_PADRAO[0]);
 
   const [descricao, setDescricao] = useState("");
   const [valor, setValor] = useState("");
@@ -600,6 +615,7 @@ const [mensagemFolha, setMensagemFolha] =
                 : "Entrada",
             produto: String(registro.produto || ""),
             banco: String(registro.banco || ""),
+            parceiro: String(registro.parceiro || ""),
             categoria: String(registro.categoria || ""),
             descricao: String(registro.descricao || ""),
             valor: Number(registro.valor || 0),
@@ -1090,6 +1106,22 @@ const resumoRhDaFolha = useMemo(() => {
     return lista.length ? lista : BANCOS_PADRAO;
   }, [configFinanceiro]);
 
+  const parceirosDisponiveis = useMemo(() => {
+    const lista = configFinanceiro
+      .filter(
+        (item) =>
+          item.tipo === "parceiro" &&
+          item.ativo
+      )
+      .sort(
+        (a: ConfigFinanceiroItem, b: ConfigFinanceiroItem) =>
+          a.ordem - b.ordem
+      )
+      .map((item: ConfigFinanceiroItem) => item.nome);
+
+    return lista.length ? lista : PARCEIROS_PADRAO;
+  }, [configFinanceiro]);
+
   const entradasDisponiveis = useMemo(() => {
     const lista = configFinanceiro
       .filter(
@@ -1133,6 +1165,12 @@ const resumoRhDaFolha = useMemo(() => {
       setBancoLancamento(bancosDisponiveis[0] || "");
     }
   }, [bancosDisponiveis, bancoLancamento]);
+
+  useEffect(() => {
+    if (!parceirosDisponiveis.includes(parceiroLancamento)) {
+      setParceiroLancamento(parceirosDisponiveis[0] || "");
+    }
+  }, [parceirosDisponiveis, parceiroLancamento]);
 
   useEffect(() => {
     const categoriasAtuais =
@@ -1224,11 +1262,6 @@ const resumoRhDaFolha = useMemo(() => {
 
     const valorConvertido = numero(valor);
 
-    if (!descricao.trim()) {
-      setMensagem("Informe a descrição.");
-      return;
-    }
-
     if (valorConvertido <= 0) {
       setMensagem("Informe um valor maior que zero.");
       return;
@@ -1239,10 +1272,11 @@ const resumoRhDaFolha = useMemo(() => {
 
       const payload = {
         tipo,
-        produto: produtoLancamento,
-        banco: bancoLancamento,
+        produto: tipo === "Entrada" ? produtoLancamento : "",
+        banco: tipo === "Entrada" ? bancoLancamento : null,
+        parceiro: tipo === "Entrada" ? parceiroLancamento : null,
         categoria,
-        descricao: descricao.trim(),
+        descricao: descricao.trim() || "",
         valor: valorConvertido,
         data,
         criado_por: sessao.session?.user.id || null,
@@ -1270,6 +1304,7 @@ const resumoRhDaFolha = useMemo(() => {
             : "Entrada",
         produto: String(salvo.produto || ""),
         banco: String(salvo.banco || ""),
+        parceiro: String(salvo.parceiro || ""),
         categoria: String(salvo.categoria || ""),
         descricao: String(salvo.descricao || ""),
         valor: Number(salvo.valor || 0),
@@ -1721,35 +1756,54 @@ const resumoRhDaFolha = useMemo(() => {
               </select>
             </label>
 
-            <label>
-              Produto
+            {tipo === "Entrada" && (
+              <>
+                <label>
+                  Produto
 
-              <select
-                value={produtoLancamento}
-                onChange={(evento) =>
-                  setProdutoLancamento(evento.target.value)
-                }
-              >
-                {produtosDisponiveis.map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-            </label>
+                  <select
+                    value={produtoLancamento}
+                    onChange={(evento) =>
+                      setProdutoLancamento(evento.target.value)
+                    }
+                  >
+                    {produtosDisponiveis.map((item) => (
+                      <option key={item}>{item}</option>
+                    ))}
+                  </select>
+                </label>
 
-            <label>
-              Banco
+                <label>
+                  Banco
 
-              <select
-                value={bancoLancamento}
-                onChange={(evento) =>
-                  setBancoLancamento(evento.target.value)
-                }
-              >
-                {bancosDisponiveis.map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-            </label>
+                  <select
+                    value={bancoLancamento}
+                    onChange={(evento) =>
+                      setBancoLancamento(evento.target.value)
+                    }
+                  >
+                    {bancosDisponiveis.map((item) => (
+                      <option key={item}>{item}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  Parceiro
+
+                  <select
+                    value={parceiroLancamento}
+                    onChange={(evento) =>
+                      setParceiroLancamento(evento.target.value)
+                    }
+                  >
+                    {parceirosDisponiveis.map((item) => (
+                      <option key={item}>{item}</option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
 
             <label>
               Categoria

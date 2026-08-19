@@ -431,20 +431,39 @@ function valorFinalCompra(
 function dataCompra(
   proposta: PropostaCompra,
 ) {
+  // No Dashboard, Compra de Dívida segue a mesma competência
+  // da Gestão de Propostas: data da digitação/cadastro.
   return converterData(
-    proposta.dataPagamento ||
-      proposta.dataCadastro,
+    proposta.dataCadastro,
   );
 }
 
 function dataClt(
   registro: RegistroClt,
 ) {
+  // CLT entra na produção somente pela data efetiva de pagamento.
   return converterData(
-    registro.dataPagamento ||
-      registro.atualizadoEm ||
-      registro.criadoEm,
+    registro.dataPagamento,
   );
+}
+
+function limitePagamentoCompra(dataFinal: string) {
+  if (!dataFinal) return null;
+
+  const partes = String(dataFinal).slice(0, 7).split("-");
+  if (partes.length !== 2) return null;
+
+  let ano = Number(partes[0]);
+  let mes = Number(partes[1]) + 1;
+
+  if (mes === 13) {
+    mes = 1;
+    ano += 1;
+  }
+
+  // Mesma regra da Gestão de Propostas:
+  // contratos digitados no período podem ser pagos até o dia 19 do mês seguinte.
+  return new Date(ano, mes - 1, 19, 23, 59, 59, 999);
 }
 
 function nomeResponsavelCompra(
@@ -527,7 +546,7 @@ export default function DashboardClient() {
   const [
     status,
     setStatus,
-  ] = useState("Todas");
+  ] = useState("Pagas");
 
   const [
     produto,
@@ -969,8 +988,38 @@ export default function DashboardClient() {
               return false;
             }
 
-            if (status === "Pagas" && !propostaCompraPaga(proposta.status)) {
-              return false;
+            if (status === "Pagas") {
+              if (!propostaCompraPaga(proposta.status)) {
+                return false;
+              }
+
+              // A Gestão de Propostas primeiro filtra pela DATA DE DIGITAÇÃO
+              // e depois aceita o pagamento até o dia 19 do mês seguinte.
+              if (
+                !estaNoPeriodo(
+                  dataCompra(proposta),
+                  periodo,
+                  dataInicial,
+                  dataFinal,
+                )
+              ) {
+                return false;
+              }
+
+              const limitePagamento =
+                limitePagamentoCompra(dataFinal);
+
+              const dataPagamento =
+                converterData(proposta.dataPagamento);
+
+              if (!dataPagamento) {
+                return false;
+              }
+
+              return (
+                !limitePagamento ||
+                dataPagamento <= limitePagamento
+              );
             }
 
             if (status === "Canceladas" && !propostaCompraCancelada(proposta.status)) {
@@ -1204,6 +1253,14 @@ export default function DashboardClient() {
           0,
         );
 
+      const totalCompraBruto =
+        linhasComPercentual.reduce(
+          (total, linha) =>
+            total +
+            linha.compraBruta,
+          0,
+        );
+
       const totalCompra =
         linhasComPercentual.reduce(
           (total, linha) =>
@@ -1220,14 +1277,24 @@ export default function DashboardClient() {
           0,
         );
 
+      const totalCltLiquido =
+        linhasComPercentual.reduce(
+          (total, linha) =>
+            total +
+            linha.cltBruto,
+          0,
+        );
+
       return {
         linhas:
           linhasComPercentual,
         totalFinal,
         totalBruto,
         totalPropostas,
+        totalCompraBruto,
         totalCompra,
         totalClt,
+        totalCltLiquido,
         equipesAtivas:
           linhasComPercentual.length,
       };
@@ -1245,6 +1312,11 @@ export default function DashboardClient() {
       timeSelecionado,
       nomesPermitidosTime,
     ]);
+
+  // Produção gerencial: Compra de Dívida líquida + parcelas CLT.
+  const producaoTotal =
+    resultado.totalCompra +
+    resultado.totalClt;
 
   const maiorValor =
     Math.max(
@@ -1588,7 +1660,7 @@ export default function DashboardClient() {
 
           <div>
             <span>
-              Propostas
+              Contratos pagos
             </span>
 
             <strong>
@@ -1598,7 +1670,7 @@ export default function DashboardClient() {
             </strong>
 
             <small>
-              Período e status selecionados
+              Contratos considerados no período
             </small>
           </div>
 
@@ -1620,19 +1692,29 @@ export default function DashboardClient() {
 
           <div>
             <span>
-              {produto === "CLT"
-                ? "Valor liberado"
-                : "Valor bruto pago"}
+              {produto === "Compra de Dívida"
+                ? "Produção bruta"
+                : produto === "CLT"
+                  ? "Valor líquido CLT"
+                  : "Produção total"}
             </span>
 
             <strong>
               {moeda(
-                resultado.totalBruto,
+                produto === "Compra de Dívida"
+                  ? resultado.totalCompraBruto
+                  : produto === "CLT"
+                    ? resultado.totalCltLiquido
+                    : producaoTotal,
               )}
             </strong>
 
             <small>
-              Valor total dos contratos
+              {produto === "Compra de Dívida"
+                ? "Valor bruto dos contratos pagos"
+                : produto === "CLT"
+                  ? "Valor aprovado/liberado dos contratos CLT pagos"
+                  : "Compra líquida + parcelas CLT"}
             </small>
           </div>
         </article>
@@ -1644,19 +1726,17 @@ export default function DashboardClient() {
 
           <div>
             <span>
-              {produto === "CLT"
-                ? "Valor de parcela"
-                : "Produção líquida"}
+              Compra de Dívida — Líquido
             </span>
 
             <strong>
               {moeda(
-                resultado.totalFinal,
+                resultado.totalCompra,
               )}
             </strong>
 
             <small>
-              Compra líquida + CLT
+              Produção líquida conforme tabela
             </small>
           </div>
         </article>
@@ -1708,12 +1788,20 @@ export default function DashboardClient() {
 
           <div className="eleva-performance-total">
             <small>
-              Valor bruto
+              {produto === "Compra de Dívida"
+                ? "Produção bruta"
+                : produto === "CLT"
+                  ? "Valor líquido CLT"
+                  : "Produção total"}
             </small>
 
             <strong>
               {moeda(
-                resultado.totalBruto,
+                produto === "Compra de Dívida"
+                  ? resultado.totalCompraBruto
+                  : produto === "CLT"
+                    ? resultado.totalCltLiquido
+                    : producaoTotal,
               )}
             </strong>
           </div>
@@ -1893,60 +1981,188 @@ export default function DashboardClient() {
         </div>
 
         <div className="eleva-filter-summary">
-          <article>
-            <span>
-              Compra de Dívida
-            </span>
+          {produto === "Todos" && (
+            <>
+              <article>
+                <span>
+                  Compra de Dívida — Bruto
+                </span>
 
-            <strong>
-              {moeda(
-                resultado.totalCompra,
-              )}
-            </strong>
-          </article>
+                <strong>
+                  {moeda(
+                    resultado.totalCompraBruto,
+                  )}
+                </strong>
+              </article>
 
-          <article>
-            <span>
-              Produção CLT
-            </span>
+              <article>
+                <span>
+                  Compra de Dívida — Líquido
+                </span>
 
-            <strong>
-              {moeda(
-                resultado.totalClt,
-              )}
-            </strong>
-          </article>
+                <strong>
+                  {moeda(
+                    resultado.totalCompra,
+                  )}
+                </strong>
+              </article>
 
-          <article>
-            <span>
-              Valor bruto
-            </span>
+              <article>
+                <span>
+                  Valor Líquido CLT
+                </span>
 
-            <strong>
-              {moeda(
-                resultado.totalBruto,
-              )}
-            </strong>
-          </article>
+                <strong>
+                  {moeda(
+                    resultado.totalCltLiquido,
+                  )}
+                </strong>
+              </article>
 
-          <article>
-            <span>
-              Consultoras ativas
-            </span>
+              <article>
+                <span>
+                  Produção de Parcela CLT
+                </span>
 
-            <strong>
-              {resultado.equipesAtivas}
-            </strong>
-          </article>
+                <strong>
+                  {moeda(
+                    resultado.totalClt,
+                  )}
+                </strong>
+              </article>
+
+              <article>
+                <span>
+                  Produção Total
+                </span>
+
+                <strong>
+                  {moeda(
+                    producaoTotal,
+                  )}
+                </strong>
+              </article>
+
+              <article>
+                <span>
+                  Consultoras ativas
+                </span>
+
+                <strong>
+                  {resultado.equipesAtivas}
+                </strong>
+              </article>
+            </>
+          )}
+
+          {produto === "Compra de Dívida" && (
+            <>
+              <article>
+                <span>
+                  Compra de Dívida — Bruto
+                </span>
+
+                <strong>
+                  {moeda(
+                    resultado.totalCompraBruto,
+                  )}
+                </strong>
+              </article>
+
+              <article>
+                <span>
+                  Compra de Dívida — Líquido
+                </span>
+
+                <strong>
+                  {moeda(
+                    resultado.totalCompra,
+                  )}
+                </strong>
+              </article>
+
+              <article>
+                <span>
+                  Produção Total
+                </span>
+
+                <strong>
+                  {moeda(
+                    producaoTotal,
+                  )}
+                </strong>
+              </article>
+
+              <article>
+                <span>
+                  Consultoras ativas
+                </span>
+
+                <strong>
+                  {resultado.equipesAtivas}
+                </strong>
+              </article>
+            </>
+          )}
+
+          {produto === "CLT" && (
+            <>
+              <article>
+                <span>
+                  Produção Valor Líquido CLT
+                </span>
+
+                <strong>
+                  {moeda(
+                    resultado.totalCltLiquido,
+                  )}
+                </strong>
+              </article>
+
+              <article>
+                <span>
+                  Produção de Parcela CLT
+                </span>
+
+                <strong>
+                  {moeda(
+                    resultado.totalClt,
+                  )}
+                </strong>
+              </article>
+
+              <article>
+                <span>
+                  Produção Total
+                </span>
+
+                <strong>
+                  {moeda(
+                    producaoTotal,
+                  )}
+                </strong>
+              </article>
+
+              <article>
+                <span>
+                  Consultoras ativas
+                </span>
+
+                <strong>
+                  {resultado.equipesAtivas}
+                </strong>
+              </article>
+            </>
+          )}
         </div>
 
         <div style={{ margin: "14px 0 18px", padding: "12px 14px", border: "1px solid #dfe6f2", borderRadius: 12, background: "#f8fafc", color: "#526077", fontSize: 13 }}>
           <strong style={{ color: "#183b73" }}>Como os valores são calculados:</strong>{" "}
           {produto === "CLT"
-            ? "No CLT, o valor liberado é o valor aprovado e o valor de parcela é a parcela cadastrada."
+            ? "No CLT, Produção Valor Líquido CLT é a soma dos valores aprovados/liberados dos contratos pagos; Produção de Parcela CLT é a soma das parcelas cadastradas."
             : produto === "Compra de Dívida"
               ? "Na Compra de Dívida, o valor bruto é o valor do contrato e o valor líquido é calculado conforme a tabela."
-              : "Compra de Dívida usa o valor bruto do contrato e o valor líquido conforme a tabela. No CLT, o valor liberado é o aprovado e o valor de parcela é a parcela cadastrada."}
+              : "Em Todos, o Valor Líquido CLT aparece para conferência. A Produção Total soma Compra de Dívida — Líquido + Produção de Parcela CLT."}
         </div>
 
         {carregando ? (
@@ -2172,7 +2388,7 @@ export default function DashboardClient() {
                 </th>
 
                 <th>
-                  CLT
+                  CLT PARCELA
                 </th>
 
                 <th>
@@ -2306,7 +2522,7 @@ export default function DashboardClient() {
                           )
                         }
                       >
-                        Ver propostas
+                        Ver contratos
                       </button>
                     </td>
                   </tr>

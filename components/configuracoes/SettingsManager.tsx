@@ -30,6 +30,7 @@ type OrgaoConvenio = {
 type TipoConfigFinanceiro =
   | "produto"
   | "banco"
+  | "parceiro"
   | "categoria_entrada"
   | "categoria_saida";
 
@@ -881,6 +882,7 @@ export default function SettingsManager() {
     > = {
       produto: [],
       banco: [],
+      parceiro: [],
       categoria_entrada: [],
       categoria_saida: [],
     };
@@ -1545,6 +1547,7 @@ export default function SettingsManager() {
                   >
                     <option value="produto">Produto</option>
                     <option value="banco">Banco</option>
+                    <option value="parceiro">Parceiro</option>
                     <option value="categoria_entrada">
                       Categoria de entrada
                     </option>
@@ -1615,6 +1618,20 @@ export default function SettingsManager() {
                 </article>
 
                 <article>
+                  <div className="settings-icon">P</div>
+                  <div>
+                    <strong>Parceiros</strong>
+                    <span>
+                      {
+                        financeiroPorTipo.parceiro.filter(
+                          (item) => item.ativo,
+                        ).length
+                      } ativos
+                    </span>
+                  </div>
+                </article>
+
+                <article>
                   <div className="settings-icon">E</div>
                   <div>
                     <strong>Categorias de entrada</strong>
@@ -1649,6 +1666,7 @@ export default function SettingsManager() {
             [
               ["produto", "Produtos financeiros", "P"],
               ["banco", "Bancos do financeiro", "B"],
+              ["parceiro", "Parceiros do financeiro", "P"],
               [
                 "categoria_entrada",
                 "Categorias de entrada",

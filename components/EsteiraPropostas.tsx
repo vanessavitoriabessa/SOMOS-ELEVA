@@ -1271,35 +1271,35 @@ for (const documento of documentos) {
     <div className="esteira-profissional">
       <section className="esteira-stats">
         <article>
-          <span>Total de propostas</span>
+          <span>TOTAL DE PROPOSTAS</span>
           <strong>{resumo.total}</strong>
         </article>
 
         <article>
-          <span>Em andamento</span>
+          <span>EM ANDAMENTO </span>
           <strong>{resumo.andamento}</strong>
         </article>
 
         <article>
-          <span>Contratos pagos</span>
+          <span>CONTRATOS PAGOS </span>
           <strong>{resumo.pagas}</strong>
         </article>
 
         <article>
-          <span>Aguardando boleto</span>
+          <span> AGUARDANDO BOLETO </span>
           <strong>{resumo.aguardando}</strong>
         </article>
 
         <article>
-          <span>Valor pago</span>
+          <span> VALOR BRUTO PAGO </span>
           <strong>{moeda(resumo.valorPago)}</strong>
         </article>
 <article>
-  <span>Produção paga</span>
+  <span>PRODUÇÃO LIQUIDA PAGO </span>
   <strong>{moeda(resumo.producaoPaga)}</strong>
 </article>
         <article className="destaque">
-          <span>Produção digitada</span>
+          <span>PRODUÇÃO DIGITADA </span>
 <strong>{moeda(resumo.producaoDigitada)}</strong>
         </article>
       </section>
