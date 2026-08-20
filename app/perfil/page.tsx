@@ -7,6 +7,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { createClient } from "@/lib/supabase/client";
 import "./perfil.css";
 
 type DadosPerfil = {
@@ -29,6 +30,11 @@ type UsuarioCadastrado = {
   ativo: boolean;
   criadoEm: string;
   foto?: string;
+};
+
+type PerfilConfigurado = {
+  chave: string;
+  nomeExibicao: string;
 };
 
 const historicoMensal = [
@@ -149,6 +155,42 @@ export default function PerfilPage() {
 
   const [mensagemFoto, setMensagemFoto] =
     useState("");
+
+  const [nomesPerfis, setNomesPerfis] =
+    useState<Record<string, string>>({});
+
+  useEffect(() => {
+    async function carregarNomesPerfis() {
+      try {
+        const supabase = createClient();
+
+        const { data, error } = await supabase
+          .from("config_perfis")
+          .select("chave, nome_exibicao")
+          .eq("ativo", true);
+
+        if (error) throw new Error(error.message);
+
+        const mapa: Record<string, string> = {};
+
+        (Array.isArray(data) ? data : []).forEach((item) => {
+          const chave = String(item.chave || "").trim();
+          const nome = String(item.nome_exibicao || chave).trim();
+
+          if (chave) mapa[chave] = nome || chave;
+        });
+
+        setNomesPerfis(mapa);
+      } catch (erro) {
+        console.error(
+          "Não foi possível carregar os nomes configurados dos perfis.",
+          erro,
+        );
+      }
+    }
+
+    void carregarNomesPerfis();
+  }, []);
 
   useEffect(() => {
     const usuarioLogado =
@@ -421,7 +463,7 @@ export default function PerfilPage() {
               </span>
 
               <h1>{perfil.nome}</h1>
-              <p>{perfil.cargo}</p>
+              <p>{nomesPerfis[perfil.cargo] || perfil.cargo}</p>
 
               <div className="perfil-informacoes">
                 <span>
@@ -807,14 +849,12 @@ export default function PerfilPage() {
 
                   <input
                     type="text"
-                    value={formulario.cargo}
-                    onChange={(evento) =>
-                      alterarCampo(
-                        "cargo",
-                        evento.target.value
-                      )
+                    value={
+                      nomesPerfis[formulario.cargo] ||
+                      formulario.cargo
                     }
-                    required
+                    readOnly
+                    title="O nome deste perfil é alterado em Configurações → Perfis."
                   />
                 </label>
 

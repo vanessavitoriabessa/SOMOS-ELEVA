@@ -46,6 +46,27 @@ type ItemMenu = {
   icon: LucideIcon;
 };
 
+type PermissoesPerfil = Record<string, boolean>;
+
+const CHAVE_POR_ROTA: Record<string, string> = {
+  "/dashboard": "dashboard",
+  "/clientes": "clientes",
+  "/simulacao": "simulacao",
+  "/esteira": "gestao_propostas",
+  "/propostas": "gestao_propostas",
+  "/clt": "clt",
+  "/baixas": "baixa_pagamentos",
+  "/protocolos": "protocolos",
+  "/ranking": "ranking",
+  "/minha-premiacao": "minha_premiacao",
+  "/loja-premios": "loja_premios",
+  "/financeiro": "financeiro",
+  "/equipe": "equipe",
+  "/rh": "rh",
+  "/dados-importados": "dados_importados",
+  "/configuracoes": "configuracoes",
+};
+
 const itensOperacao: ItemMenu[] = [
   {
     href: "/dashboard",
@@ -235,9 +256,12 @@ export default function AppShell({
 
   const [nome, setNome] = useState("Colaboradora");
   const [cargo, setCargo] = useState("Consultora");
+  const [cargoExibido, setCargoExibido] = useState("Consultora");
   const [foto, setFoto] = useState("");
   const [pontosHeader, setPontosHeader] = useState(0);
   const [permissaoCarregada, setPermissaoCarregada] = useState(false);
+  const [permissoesConfiguradas, setPermissoesConfiguradas] =
+    useState<PermissoesPerfil | null>(null);
 
   const ehAdministracao = perfilEhAdministracao(cargo);
   const ehConsultora = perfilEhConsultora(cargo);
@@ -314,6 +338,90 @@ export default function AppShell({
   }, []);
 
   useEffect(() => {
+    let ativo = true;
+
+    async function carregarNomeExibidoDoPerfil() {
+      const perfilInterno = String(cargo || "").trim();
+
+      if (!perfilInterno) {
+        if (ativo) setCargoExibido("");
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("config_perfis")
+          .select("nome_exibicao")
+          .eq("chave", perfilInterno)
+          .maybeSingle();
+
+        if (error) throw new Error(error.message);
+
+        if (!ativo) return;
+
+        setCargoExibido(
+          String(data?.nome_exibicao || perfilInterno).trim() ||
+            perfilInterno
+        );
+      } catch (erro) {
+        console.error(
+          "Não foi possível carregar o nome exibido do perfil:",
+          erro
+        );
+
+        if (ativo) {
+          setCargoExibido(perfilInterno);
+        }
+      }
+    }
+
+    void carregarNomeExibidoDoPerfil();
+
+    return () => {
+      ativo = false;
+    };
+  }, [cargo, supabase]);
+
+  useEffect(() => {
+    let ativo = true;
+
+    async function carregarPermissoesDoPerfil() {
+      const perfilInterno = String(cargo || "").trim();
+
+      if (!perfilInterno) {
+        if (ativo) setPermissoesConfiguradas(null);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("config_permissoes")
+          .select("permissoes")
+          .eq("perfil_chave", perfilInterno)
+          .maybeSingle();
+
+        if (error) throw new Error(error.message);
+        if (!ativo) return;
+
+        setPermissoesConfiguradas(
+          data?.permissoes && typeof data.permissoes === "object"
+            ? (data.permissoes as PermissoesPerfil)
+            : null,
+        );
+      } catch (erro) {
+        console.error("Não foi possível carregar as permissões do perfil:", erro);
+        if (ativo) setPermissoesConfiguradas(null);
+      }
+    }
+
+    void carregarPermissoesDoPerfil();
+
+    return () => {
+      ativo = false;
+    };
+  }, [cargo, supabase]);
+
+  useEffect(() => {
     function atualizarPontosHeader(event?: Event) {
       if (event instanceof CustomEvent) {
         const valorEvento = Number(event.detail);
@@ -353,70 +461,38 @@ export default function AppShell({
   });
 
   const itensOperacaoVisiveis = useMemo(() => {
+    if (permissoesConfiguradas) {
+      return itensOperacao.filter((item) => {
+        const chave = CHAVE_POR_ROTA[item.href];
+        return chave ? permissoesConfiguradas[chave] === true : false;
+      });
+    }
+
     if (ehAdministracao || ehCoordenacao) return itensOperacao;
 
     if (ehConsultora) {
-      const permitidos = [
-        "/dashboard",
-        "/clientes",
-        "/simulacao",
-        "/esteira",
-        "/clt",
-        "/protocolos",
-      ];
-
-      return itensOperacao.filter((item) =>
-        permitidos.includes(item.href)
-      );
+      const permitidos = ["/dashboard", "/clientes", "/simulacao", "/esteira", "/clt", "/protocolos"];
+      return itensOperacao.filter((item) => permitidos.includes(item.href));
     }
 
     if (ehOperacional) {
-  const permitidos = [
-    "/dashboard",
-    "/clientes",
-    "/propostas",
-    "/simulacao",
-    "/esteira",
-    "/clt",
-    "/protocolos",
-  ];
-
-  return itensOperacao.filter((item) =>
-    permitidos.includes(item.href)
-  );
-}
+      const permitidos = ["/dashboard", "/clientes", "/propostas", "/simulacao", "/esteira", "/clt", "/protocolos"];
+      return itensOperacao.filter((item) => permitidos.includes(item.href));
+    }
 
     if (ehSupervisao) {
-      const permitidos = [
-        "/dashboard",
-        "/clientes",
-        "/propostas",
-        "/simulacao",
-        "/esteira",
-        "/clt",
-        "/protocolos",
-      ];
-
-      return itensOperacao.filter((item) =>
-        permitidos.includes(item.href)
-      );
+      const permitidos = ["/dashboard", "/clientes", "/propostas", "/simulacao", "/esteira", "/clt", "/protocolos"];
+      return itensOperacao.filter((item) => permitidos.includes(item.href));
     }
 
     if (ehRh) {
-  const permitidos = [
-    "/dashboard",
-    "/esteira",
-  ];
+      const permitidos = ["/dashboard", "/esteira"];
+      return itensOperacao.filter((item) => permitidos.includes(item.href));
+    }
 
-  return itensOperacao.filter((item) =>
-    permitidos.includes(item.href)
-  );
-}
-
-    return itensOperacao.filter(
-      (item) => item.href === "/dashboard"
-    );
+    return itensOperacao.filter((item) => item.href === "/dashboard");
   }, [
+    permissoesConfiguradas,
     ehAdministracao,
     ehConsultora,
     ehSupervisao,
@@ -426,15 +502,18 @@ export default function AppShell({
   ]);
 
   const itensGestaoVisiveis = useMemo(() => {
+    if (permissoesConfiguradas) {
+      return itensGestao.filter((item) => {
+        const chave = CHAVE_POR_ROTA[item.href];
+        return chave ? permissoesConfiguradas[chave] === true : false;
+      });
+    }
+
     if (ehAdministracao || ehCoordenacao) return itensGestao;
 
     if (ehConsultora) {
       return itensGestao.filter((item) =>
-        [
-          "/ranking",
-          "/minha-premiacao",
-          "/loja-premios",
-        ].includes(item.href)
+        ["/ranking", "/minha-premiacao", "/loja-premios"].includes(item.href)
       );
     }
 
@@ -449,20 +528,14 @@ export default function AppShell({
     }
 
     if (ehRh) {
-      if (ehRh) {
-  const permitidos = [
-    "/ranking",
-    "/rh",
-  ];
-
-  return itensGestao.filter((item) =>
-    permitidos.includes(item.href)
-  );
-}
+      return itensGestao.filter((item) =>
+        ["/ranking", "/rh"].includes(item.href)
+      );
     }
 
     return [];
   }, [
+    permissoesConfiguradas,
     ehAdministracao,
     ehConsultora,
     ehSupervisao,
@@ -473,6 +546,20 @@ export default function AppShell({
 
   const rotaNegada = useMemo(() => {
     if (!permissaoCarregada) return false;
+
+    if (permissoesConfiguradas) {
+      if (rotaComecaCom(pathname, "/perfil")) return false;
+
+      const rotaEncontrada = Object.keys(CHAVE_POR_ROTA)
+        .sort((a, b) => b.length - a.length)
+        .find((rota) => rotaComecaCom(pathname, rota));
+
+      if (!rotaEncontrada) return false;
+
+      const chave = CHAVE_POR_ROTA[rotaEncontrada];
+      return permissoesConfiguradas[chave] !== true;
+    }
+
     if (ehAdministracao || ehCoordenacao) return false;
 
     if (ehConsultora) {
@@ -525,6 +612,7 @@ export default function AppShell({
   }, [
     pathname,
     permissaoCarregada,
+    permissoesConfiguradas,
     ehAdministracao,
     ehConsultora,
     ehSupervisao,
@@ -630,7 +718,7 @@ export default function AppShell({
 
           <div>
             <strong>{nome}</strong>
-            <span>{cargo}</span>
+            <span>{cargoExibido}</span>
           </div>
         </Link>
 
@@ -719,7 +807,7 @@ export default function AppShell({
 
               <div>
                 <strong>{nome}</strong>
-                <span>{cargo}</span>
+                <span>{cargoExibido}</span>
               </div>
             </Link>
           </div>

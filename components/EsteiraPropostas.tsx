@@ -393,6 +393,8 @@ export default function EsteiraPropostas() {
   const [orgaosConvenios, setOrgaosConvenios] = useState<OrgaoConvenio[]>([]);
   const [orgaoConvenio, setOrgaoConvenio] = useState("");
   const [perfilAtual, setPerfilAtual] = useState("");
+  const [permissoesPerfil, setPermissoesPerfil] =
+    useState<Record<string, boolean> | null>(null);
 
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("Todos");
@@ -865,11 +867,52 @@ const [arquivos, setArquivos] = useState({
 
   const perfilNormalizado = normalizarPerfil(perfilAtual);
 
-  const podeVerComissaoEmpresa = [
+  useEffect(() => {
+    let ativo = true;
+
+    async function carregarPermissoesPerfil() {
+      if (!perfilAtual) return;
+
+      try {
+        const { data, error } = await supabase
+          .from("config_permissoes")
+          .select("permissoes")
+          .eq("perfil_chave", perfilAtual)
+          .maybeSingle();
+
+        if (error) throw new Error(error.message);
+        if (!ativo) return;
+
+        setPermissoesPerfil(
+          data?.permissoes && typeof data.permissoes === "object"
+            ? (data.permissoes as Record<string, boolean>)
+            : null,
+        );
+      } catch (erro) {
+        console.error("Não foi possível carregar permissões do perfil:", erro);
+        if (ativo) setPermissoesPerfil(null);
+      }
+    }
+
+    void carregarPermissoesPerfil();
+
+    return () => {
+      ativo = false;
+    };
+  }, [perfilAtual, supabase]);
+
+  const ehAdminPadrao = [
     "administradora",
     "administrador",
     "admin",
   ].includes(perfilNormalizado);
+
+  const podeVerComissaoBanco =
+    permissoesPerfil?.ver_comissao_banco ?? ehAdminPadrao;
+
+  const podeVerComissaoEmpresa =
+    permissoesPerfil?.ver_comissao_empresa ?? ehAdminPadrao;
+
 async function buscarClientePorCpf() {
   const cpfNumeros = apenasNumeros(buscaCliente);
 
@@ -1611,12 +1654,8 @@ for (const documento of documentos) {
                   <th>VALOR</th>
                   <th>VALOR FINAL</th>
                   <th>% PRODUÇÃO</th>
-                  {podeVerComissaoEmpresa && (
-                    <>
-                      <th>% COMISSÃO BANCO</th>
-                      <th>COMISSÃO EMPRESA</th>
-                    </>
-                  )}
+                  {podeVerComissaoBanco && <th>% COMISSÃO BANCO</th>}
+                  {podeVerComissaoEmpresa && <th>COMISSÃO EMPRESA</th>}
                   <th>DATA / DIGITAÇÃO</th>
                   <th>STATUS</th>
                   <th>AÇÕES</th>
@@ -1682,31 +1721,31 @@ for (const documento of documentos) {
                       </strong>
                     </td>
 
-                    {podeVerComissaoEmpresa && (
-                      <>
-                        <td>
-                          <strong>
-                            {calculoComissao.percentual > 0
-                              ? `${String(calculoComissao.percentual).replace(".", ",")}%`
-                              : "—"}
-                          </strong>
-                        </td>
+                    {podeVerComissaoBanco && (
+                      <td>
+                        <strong>
+                          {calculoComissao.percentual > 0
+                            ? `${String(calculoComissao.percentual).replace(".", ",")}%`
+                            : "—"}
+                        </strong>
+                      </td>
+                    )}
 
-                        <td>
-                          <strong
-                            style={{
-                              color:
-                                calculoComissao.valor > 0
-                                  ? "#155eef"
-                                  : "#b42318",
-                            }}
-                          >
-                            {calculoComissao.valor > 0
-                              ? moeda(calculoComissao.valor)
-                              : "—"}
-                          </strong>
-                        </td>
-                      </>
+                    {podeVerComissaoEmpresa && (
+                      <td>
+                        <strong
+                          style={{
+                            color:
+                              calculoComissao.valor > 0
+                                ? "#155eef"
+                                : "#b42318",
+                          }}
+                        >
+                          {calculoComissao.valor > 0
+                            ? moeda(calculoComissao.valor)
+                            : "—"}
+                        </strong>
+                      </td>
                     )}
 
                     <td>

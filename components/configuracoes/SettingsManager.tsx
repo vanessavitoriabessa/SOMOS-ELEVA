@@ -46,6 +46,56 @@ type PerfilConfigurado = {
   ordem: number;
 };
 
+type ChavePermissao =
+  | "dashboard"
+  | "clientes"
+  | "simulacao"
+  | "gestao_propostas"
+  | "clt"
+  | "baixa_pagamentos"
+  | "protocolos"
+  | "ranking"
+  | "minha_premiacao"
+  | "loja_premios"
+  | "financeiro"
+  | "equipe"
+  | "rh"
+  | "dados_importados"
+  | "configuracoes"
+  | "ver_comissao_banco"
+  | "ver_comissao_empresa";
+
+type PermissoesPerfil = Record<ChavePermissao, boolean>;
+
+const PERMISSOES_DISPONIVEIS: Array<{
+  chave: ChavePermissao;
+  titulo: string;
+  grupo: "MENU" | "INFORMAÇÕES SENSÍVEIS";
+}> = [
+  { chave: "dashboard", titulo: "Dashboard", grupo: "MENU" },
+  { chave: "clientes", titulo: "Clientes", grupo: "MENU" },
+  { chave: "simulacao", titulo: "Simulação", grupo: "MENU" },
+  { chave: "gestao_propostas", titulo: "Gestão de Propostas", grupo: "MENU" },
+  { chave: "clt", titulo: "CLT", grupo: "MENU" },
+  { chave: "baixa_pagamentos", titulo: "Baixa de pagamentos", grupo: "MENU" },
+  { chave: "protocolos", titulo: "Protocolos", grupo: "MENU" },
+  { chave: "ranking", titulo: "Ranking", grupo: "MENU" },
+  { chave: "minha_premiacao", titulo: "Minha Premiação", grupo: "MENU" },
+  { chave: "loja_premios", titulo: "Loja de Prêmios", grupo: "MENU" },
+  { chave: "financeiro", titulo: "Financeiro", grupo: "MENU" },
+  { chave: "equipe", titulo: "Equipe", grupo: "MENU" },
+  { chave: "rh", titulo: "RH", grupo: "MENU" },
+  { chave: "dados_importados", titulo: "Dados importados", grupo: "MENU" },
+  { chave: "configuracoes", titulo: "Configurações", grupo: "MENU" },
+  { chave: "ver_comissao_banco", titulo: "Ver % Comissão Banco", grupo: "INFORMAÇÕES SENSÍVEIS" },
+  { chave: "ver_comissao_empresa", titulo: "Ver Comissão da Empresa", grupo: "INFORMAÇÕES SENSÍVEIS" },
+];
+
+const permissoesVazias = (): PermissoesPerfil =>
+  Object.fromEntries(
+    PERMISSOES_DISPONIVEIS.map((item) => [item.chave, false]),
+  ) as PermissoesPerfil;
+
 type TipoConfigFinanceiro =
   | "produto"
   | "banco"
@@ -138,7 +188,7 @@ export default function SettingsManager() {
   const supabase = useMemo(() => createClient(), []);
 
   const [aba, setAba] = useState<
-    "geral" | "bancos" | "tabelas" | "equipes" | "perfis" | "financeiro" | "metas"
+    "geral" | "bancos" | "tabelas" | "equipes" | "perfis" | "permissoes" | "financeiro" | "metas"
   >("geral");
   const [bancos, setBancos] = useState<Banco[]>([]);
   const [orgaosConvenios, setOrgaosConvenios] = useState<OrgaoConvenio[]>([]);
@@ -150,6 +200,11 @@ export default function SettingsManager() {
   const [editandoPerfilChave, setEditandoPerfilChave] =
     useState<PerfilConfigurado["chave"] | null>(null);
   const [nomePerfilEdicao, setNomePerfilEdicao] = useState("");
+
+  const [perfilPermissaoSelecionado, setPerfilPermissaoSelecionado] =
+    useState<PerfilConfigurado["chave"]>("Administradora");
+  const [permissoesPorPerfil, setPermissoesPorPerfil] =
+    useState<Record<string, PermissoesPerfil>>({});
 
   const [novaEquipe, setNovaEquipe] = useState("");
   const [editandoEquipeId, setEditandoEquipeId] = useState<string | null>(null);
@@ -344,6 +399,32 @@ export default function SettingsManager() {
           ordem: Number(item.ordem || 0),
         })),
       );
+
+      const { data: permissoesData, error: permissoesErro } =
+        await supabase
+          .from("config_permissoes")
+          .select("perfil_chave, permissoes");
+
+      if (permissoesErro) {
+        throw new Error(permissoesErro.message);
+      }
+
+      const mapaPermissoes: Record<string, PermissoesPerfil> = {};
+
+      (Array.isArray(permissoesData) ? permissoesData : []).forEach((item) => {
+        const base = permissoesVazias();
+        const recebidas =
+          item && typeof item.permissoes === "object" && item.permissoes
+            ? (item.permissoes as Partial<PermissoesPerfil>)
+            : {};
+
+        mapaPermissoes[String(item.perfil_chave)] = {
+          ...base,
+          ...recebidas,
+        };
+      });
+
+      setPermissoesPorPerfil(mapaPermissoes);
 
       // Metas e geral permanecem locais por enquanto.
       try {
@@ -1138,6 +1219,51 @@ export default function SettingsManager() {
     }
   }
 
+  function alterarPermissao(chave: ChavePermissao, permitido: boolean) {
+    setPermissoesPorPerfil((atual) => ({
+      ...atual,
+      [perfilPermissaoSelecionado]: {
+        ...(atual[perfilPermissaoSelecionado] || permissoesVazias()),
+        [chave]: permitido,
+      },
+    }));
+  }
+
+  async function salvarPermissoes() {
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const permissoes =
+        permissoesPorPerfil[perfilPermissaoSelecionado] ||
+        permissoesVazias();
+
+      const { error } = await supabase
+        .from("config_permissoes")
+        .upsert(
+          {
+            perfil_chave: perfilPermissaoSelecionado,
+            permissoes,
+            atualizado_em: new Date().toISOString(),
+          },
+          { onConflict: "perfil_chave" },
+        );
+
+      if (error) throw new Error(error.message);
+
+      setMensagem("Permissões atualizadas com sucesso.");
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível salvar as permissões.",
+      );
+    } finally {
+      setProcessando(false);
+    }
+  }
+
   function iniciarEdicaoPerfil(perfil: PerfilConfigurado) {
     setEditandoPerfilChave(perfil.chave);
     setNomePerfilEdicao(perfil.nomeExibicao);
@@ -1281,6 +1407,7 @@ export default function SettingsManager() {
         <button className={aba === "tabelas" ? "active" : ""} onClick={() => setAba("tabelas")}>Tabelas</button>
         <button className={aba === "equipes" ? "active" : ""} onClick={() => setAba("equipes")}>Equipes</button>
         <button className={aba === "perfis" ? "active" : ""} onClick={() => setAba("perfis")}>Perfis</button>
+        <button className={aba === "permissoes" ? "active" : ""} onClick={() => setAba("permissoes")}>Permissões</button>
         <button className={aba === "financeiro" ? "active" : ""} onClick={() => setAba("financeiro")}>Financeiro</button>
         <button className={aba === "metas" ? "active" : ""} onClick={() => setAba("metas")}>Metas</button>
       </nav>
@@ -2020,6 +2147,121 @@ export default function SettingsManager() {
             <strong>Importante:</strong>
             <span>
               alterar o nome exibido não muda o nível de acesso. Assim você pode renomear “Administradora” para “Diretoria”, por exemplo, sem quebrar as permissões.
+            </span>
+          </div>
+        </section>
+      )}
+
+      {aba === "permissoes" && (
+        <section className="settings-card">
+          <div className="settings-list-heading">
+            <div>
+              <span>CONTROLE DE ACESSO</span>
+              <h2>Permissões por perfil</h2>
+              <p>
+                Selecione um perfil e marque exatamente o que deve aparecer para ele no sistema.
+              </p>
+            </div>
+            <b>🔐</b>
+          </div>
+
+          <div style={{ marginTop: 18, maxWidth: 460 }}>
+            <label className="settings-single-label">
+              Perfil
+              <select
+                value={perfilPermissaoSelecionado}
+                onChange={(e) =>
+                  setPerfilPermissaoSelecionado(
+                    e.target.value as PerfilConfigurado["chave"],
+                  )
+                }
+                disabled={processando}
+              >
+                {perfisConfigurados
+                  .filter((perfil) => perfil.ativo)
+                  .map((perfil) => (
+                    <option key={perfil.chave} value={perfil.chave}>
+                      {perfil.nomeExibicao}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          </div>
+
+          {(["MENU", "INFORMAÇÕES SENSÍVEIS"] as const).map((grupo) => (
+            <div key={grupo} style={{ marginTop: 24 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 900,
+                  color: "#155eef",
+                  letterSpacing: "0.08em",
+                  marginBottom: 10,
+                }}
+              >
+                {grupo}
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+                  gap: 10,
+                }}
+              >
+                {PERMISSOES_DISPONIVEIS
+                  .filter((item) => item.grupo === grupo)
+                  .map((item) => {
+                    const marcado =
+                      permissoesPorPerfil[perfilPermissaoSelecionado]?.[
+                        item.chave
+                      ] || false;
+
+                    return (
+                      <label
+                        key={item.chave}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          padding: "13px 14px",
+                          border: "1px solid #dfe6f1",
+                          borderRadius: 12,
+                          background: marcado ? "#f1f6ff" : "#ffffff",
+                          cursor: "pointer",
+                          fontWeight: 700,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={marcado}
+                          onChange={(e) =>
+                            alterarPermissao(item.chave, e.target.checked)
+                          }
+                          disabled={processando}
+                        />
+                        <span>{item.titulo}</span>
+                      </label>
+                    );
+                  })}
+              </div>
+            </div>
+          ))}
+
+          <div className="settings-actions" style={{ marginTop: 24 }}>
+            <button
+              type="button"
+              onClick={() => void salvarPermissoes()}
+              disabled={processando}
+            >
+              {processando ? "Salvando..." : "Salvar permissões"}
+            </button>
+          </div>
+
+          <div className="settings-warning" style={{ marginTop: 16 }}>
+            <strong>Importante:</strong>
+            <span>
+              O nome exibido do perfil pode mudar, mas as permissões continuam ligadas ao perfil interno.
             </span>
           </div>
         </section>

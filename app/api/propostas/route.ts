@@ -721,11 +721,29 @@ percentual_tabela,
       : linhas;
 
     const perfilNormalizado = normalizarTexto(perfil.perfil);
-    const podeVerComissaoEmpresa = [
+    const adminPadrao = [
       "administradora",
       "administrador",
       "admin",
     ].includes(perfilNormalizado);
+
+    const { data: configPermissao } = await supabase
+      .from("config_permissoes")
+      .select("permissoes")
+      .eq("perfil_chave", perfil.perfil)
+      .maybeSingle();
+
+    const permissoes =
+      configPermissao?.permissoes &&
+      typeof configPermissao.permissoes === "object"
+        ? (configPermissao.permissoes as Record<string, boolean>)
+        : null;
+
+    const podeVerComissaoEmpresa =
+      permissoes?.ver_comissao_empresa ?? adminPadrao;
+
+    const podeVerComissaoBanco =
+      permissoes?.ver_comissao_banco ?? adminPadrao;
 
     const propostasResposta = await Promise.all(
       permitidas.map(async (linha) => {
@@ -734,7 +752,7 @@ percentual_tabela,
         // Comissão da empresa é calculada sobre o VALOR BRUTO usando
         // o percentual_comissao_banco configurado na tabela.
         // O valor só é devolvido para administradores.
-        if (!podeVerComissaoEmpresa) {
+        if (!podeVerComissaoEmpresa && !podeVerComissaoBanco) {
           return {
             ...propostaMapeada,
             comissao: 0,
