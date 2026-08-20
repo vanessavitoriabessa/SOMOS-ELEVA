@@ -24,6 +24,8 @@ type BaixaPagamento = {
   status: string;
   observacao: string | null;
   data_emissao?: string;
+  convenio?: string;
+  codigo_tabela?: string;
 };
 
 type SituacaoFiltro =
@@ -203,10 +205,13 @@ export default function BaixasManager() {
         (data || []) as BaixaPagamento[];
 
       /*
-       * A data de emissão é a data da digitação da proposta.
-       * Ela fica na tabela de propostas como data_cadastro.
-       * Buscamos somente as propostas necessárias e enriquecemos
-       * as linhas da baixa sem alterar a tabela baixas_pagamentos.
+       * Enriquecemos a baixa com:
+       * - data de digitação da proposta;
+       * - convênio da tabela;
+       * - código da tabela.
+       *
+       * A data de pagamento do cliente já existe em
+       * baixas_pagamentos.data_pagamento_proposta.
        */
       const ids = Array.from(
         new Set(
@@ -235,14 +240,53 @@ export default function BaixasManager() {
         }
       }
 
+      let tabelasConfiguradas: Array<{
+        banco: string;
+        nome: string;
+        orgao_convenio: string | null;
+        codigo: string | null;
+      }> = [];
+
+      const { data: tabelasData, error: erroTabelas } =
+        await supabase
+          .from("config_tabelas")
+          .select("banco, nome, orgao_convenio, codigo");
+
+      if (!erroTabelas && Array.isArray(tabelasData)) {
+        tabelasConfiguradas = tabelasData;
+      }
+
+      function chaveTabela(banco: string, tabela: string) {
+        return `${normalizar(banco)}|${normalizar(tabela)}`;
+      }
+
+      const mapaTabelas = new Map(
+        tabelasConfiguradas.map((item) => [
+          chaveTabela(
+            String(item.banco || ""),
+            String(item.nome || ""),
+          ),
+          {
+            convenio: String(item.orgao_convenio || ""),
+            codigo: String(item.codigo || ""),
+          },
+        ]),
+      );
+
       setBaixas(
-        registros.map((item) => ({
-          ...item,
-          data_emissao:
-            emissoes.get(item.proposta_id) ||
-            item.data_pagamento_proposta ||
-            "",
-        })),
+        registros.map((item) => {
+          const dadosTabela = mapaTabelas.get(
+            chaveTabela(item.banco, item.tabela),
+          );
+
+          return {
+            ...item,
+            data_emissao:
+              emissoes.get(item.proposta_id) || "",
+            convenio: dadosTabela?.convenio || "",
+            codigo_tabela: dadosTabela?.codigo || "",
+          };
+        }),
       );
     } catch (erro) {
       console.error(erro);
@@ -813,17 +857,20 @@ export default function BaixasManager() {
             <thead>
               <tr>
                 <th></th>
-                <th>EMISSÃO</th>
+                <th>DATA / DIGITAÇÃO</th>
                 <th>CPF</th>
                 <th>CLIENTE</th>
-                <th>BANCO / TABELA</th>
-                <th>VL. LIBERADO</th>
+                <th>BANCO / TABELA / CONVÊNIO</th>
+                <th>CÓDIGO</th>
+                <th>VALOR BRUTO</th>
+                <th>VALOR LÍQUIDO</th>
                 <th>TX. COMISS.</th>
                 <th>COMISS. LÍQ.</th>
                 <th>RECEBIDO</th>
                 <th>SITUAÇÃO</th>
                 <th>ESTEIRA</th>
-                <th>DATA PAGAMENTO</th>
+                <th>DATA PAGAMENTO CLIENTE</th>
+                <th>DATA RECEBIMENTO COMISSÃO</th>
                 <th>AÇÃO</th>
               </tr>
             </thead>
@@ -832,7 +879,7 @@ export default function BaixasManager() {
               {carregando ? (
                 <tr>
                   <td
-                    colSpan={13}
+                    colSpan={16}
                     className="baixas-live-vazio"
                   >
                     Carregando comissões...
@@ -841,7 +888,7 @@ export default function BaixasManager() {
               ) : filtradas.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={13}
+                    colSpan={16}
                     className="baixas-live-vazio"
                   >
                     Nenhuma comissão encontrada nos filtros.
@@ -902,14 +949,31 @@ export default function BaixasManager() {
                           {item.banco || "—"}
                         </strong>
                         <small>
-                          {item.tabela || "—"}
+                          {item.tabela || "Tabela não informada"}
                         </small>
+                        <small>
+                          {item.convenio || "Convênio não informado"}
+                        </small>
+                      </td>
+
+                      <td>
+                        <strong>
+                          {item.codigo_tabela || "—"}
+                        </strong>
                       </td>
 
                       <td>
                         <strong>
                           {moeda(
                             item.valor_operacao,
+                          )}
+                        </strong>
+                      </td>
+
+                      <td>
+                        <strong>
+                          {moeda(
+                            item.valor_liquido,
                           )}
                         </strong>
                       </td>
@@ -951,6 +1015,14 @@ export default function BaixasManager() {
                         <span className="baixas-live-esteira">
                           ● Proposta Paga
                         </span>
+                      </td>
+
+                      <td>
+                        <strong>
+                          {dataBR(
+                            item.data_pagamento_proposta,
+                          )}
+                        </strong>
                       </td>
 
                       <td>
@@ -1027,7 +1099,7 @@ export default function BaixasManager() {
 
             <div className="baixas-live-modal-resumo">
               <article>
-                <span>EMISSÃO</span>
+                <span>DATA / DIGITAÇÃO</span>
                 <strong>
                   {dataBR(
                     selecionada.data_emissao,

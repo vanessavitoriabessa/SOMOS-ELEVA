@@ -1346,3 +1346,147 @@ tr.selected .baixas-live-action {
     grid-template-columns: 1fr !important;
   }
 }
+/* =========================================================
+   BAIXA DE PAGAMENTOS — TABELA MAIOR / PADRÃO LIVECRED
+   Cole este bloco NO FINAL do arquivo components/baixas.css
+   ========================================================= */
+
+.baixas-live-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  border-radius: 0 0 14px 14px;
+}
+
+.baixas-live-table {
+  width: 100%;
+  min-width: 2050px !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+}
+
+/* Cabeçalho mais alto e legível */
+.baixas-live-table thead th {
+  height: 52px !important;
+  padding: 0 14px !important;
+  background: #f8faff !important;
+  border-bottom: 1px solid #dfe7f2 !important;
+  color: #5c6b84 !important;
+  font-size: 10.5px !important;
+  font-weight: 900 !important;
+  letter-spacing: .22px !important;
+  line-height: 1.25 !important;
+  text-align: left !important;
+  white-space: nowrap !important;
+}
+
+/* Linhas mais altas, como no LiveCred */
+.baixas-live-table tbody td {
+  min-height: 58px !important;
+  padding: 15px 14px !important;
+  border-bottom: 1px solid #e8eef6 !important;
+  color: #18304f !important;
+  font-size: 12.5px !important;
+  line-height: 1.35 !important;
+  vertical-align: middle !important;
+  white-space: nowrap;
+}
+
+.baixas-live-table tbody tr {
+  height: 64px !important;
+  transition: background .14s ease !important;
+}
+
+.baixas-live-table tbody tr:hover {
+  background: #f7faff !important;
+}
+
+/* Nome do cliente / valores principais */
+.baixas-live-table tbody td strong {
+  color: #102d57 !important;
+  font-size: 12.5px !important;
+  font-weight: 850 !important;
+  line-height: 1.25 !important;
+}
+
+/* Informações secundárias: consultora, tabela e convênio */
+.baixas-live-table tbody td small {
+  display: block !important;
+  margin-top: 4px !important;
+  color: #8492a8 !important;
+  font-size: 10.5px !important;
+  line-height: 1.25 !important;
+  font-weight: 500 !important;
+}
+
+/* Comissão líquida */
+.comissao-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  min-height: 32px !important;
+  padding: 0 11px !important;
+  border-radius: 8px !important;
+  background: #edf4ff !important;
+  color: #155eef !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+}
+
+/* Situação */
+.baixas-live-status {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 31px !important;
+  padding: 0 11px !important;
+  border-radius: 8px !important;
+  font-size: 10.5px !important;
+  font-weight: 900 !important;
+  white-space: nowrap !important;
+}
+
+/* Esteira */
+.baixas-live-esteira {
+  color: #078545 !important;
+  font-size: 11.5px !important;
+  font-weight: 850 !important;
+  white-space: nowrap !important;
+}
+
+/* Botão Receber / Editar */
+.baixas-live-action {
+  min-height: 34px !important;
+  padding: 0 14px !important;
+  border-radius: 8px !important;
+  font-size: 10.5px !important;
+  font-weight: 900 !important;
+}
+
+/* Radio/checkbox um pouco maior */
+.baixas-live-table input[type="radio"],
+.baixas-live-table input[type="checkbox"] {
+  width: 16px !important;
+  height: 16px !important;
+  cursor: pointer;
+}
+
+/* Filtros também mais confortáveis */
+.baixas-live-filtros label > span {
+  font-size: 10px !important;
+  font-weight: 900 !important;
+}
+
+.baixas-live-filtros input,
+.baixas-live-filtros select {
+  min-height: 44px !important;
+  font-size: 12.5px !important;
+  padding: 0 12px !important;
+}
+
+/* Mantém seleção legível */
+.baixas-live-table tbody tr.selected td,
+.baixas-live-table tbody tr.selected strong,
+.baixas-live-table tbody tr.selected small,
+.baixas-live-table tbody tr.selected .baixas-live-esteira {
+  color: #fff !important;
+}

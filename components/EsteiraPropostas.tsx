@@ -1657,6 +1657,7 @@ for (const documento of documentos) {
                   {podeVerComissaoBanco && <th>% COMISSÃO BANCO</th>}
                   {podeVerComissaoEmpresa && <th>COMISSÃO EMPRESA</th>}
                   <th>DATA / DIGITAÇÃO</th>
+                  <th>DATA PAGAMENTO CLIENTE</th>
                   <th>STATUS</th>
                   <th>AÇÕES</th>
                 </tr>
@@ -1752,12 +1753,12 @@ for (const documento of documentos) {
                       <strong>
                         {dataBR(proposta.dataCadastro)}
                       </strong>
+                    </td>
 
-                      {proposta.dataPagamento && (
-                        <small>
-                          Pago em {dataBR(proposta.dataPagamento)}
-                        </small>
-                      )}
+                    <td>
+                      <strong>
+                        {dataBR(proposta.dataPagamento)}
+                      </strong>
                     </td>
 
                     <td>

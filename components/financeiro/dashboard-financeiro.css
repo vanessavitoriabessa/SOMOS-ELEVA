@@ -811,3 +811,104 @@
   border-color: #155eef;
   box-shadow: 0 0 0 3px rgba(21,94,239,.08);
 }
+/* =========================================================
+   FINANCEIRO — 3 CARDS EM CIMA + A RECEBER EMBAIXO À ESQUERDA
+   Cole este bloco NO FINAL de components/financeiro/dashboard-financeiro.css
+   ========================================================= */
+
+.financial-primary-cards {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+  align-items: stretch !important;
+}
+
+.financial-primary-cards > article {
+  min-height: 128px !important;
+}
+
+.financial-primary-received {
+  display: flex !important;
+}
+
+.financial-secondary-cards {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 14px !important;
+  align-items: stretch !important;
+  justify-content: start !important;
+}
+
+.financial-secondary-cards .financial-receivable-card {
+  grid-column: 1 !important;
+  width: 100% !important;
+  min-height: 128px !important;
+}
+
+/* Mantém os cards responsivos */
+@media (max-width: 1050px) {
+  .financial-primary-cards,
+  .financial-secondary-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .financial-secondary-cards .financial-receivable-card {
+    grid-column: 1 !important;
+  }
+}
+/* =========================================================
+   FINANCEIRO — 3 CARDS EM CIMA + A RECEBER EMBAIXO À ESQUERDA
+   Cole este bloco NO FINAL de components/financeiro/dashboard-financeiro.css
+   ========================================================= */
+
+.financial-primary-cards {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+  align-items: stretch !important;
+}
+
+.financial-primary-cards > article {
+  min-height: 128px !important;
+}
+
+.financial-primary-received {
+  display: flex !important;
+}
+
+.financial-secondary-cards {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 14px !important;
+  align-items: stretch !important;
+  justify-content: start !important;
+}
+
+.financial-secondary-cards .financial-receivable-card {
+  grid-column: 1 !important;
+  width: 100% !important;
+  min-height: 128px !important;
+}
+
+/* Mantém os cards responsivos */
+@media (max-width: 1050px) {
+  .financial-primary-cards,
+  .financial-secondary-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .financial-secondary-cards .financial-receivable-card {
+    grid-column: 1 !important;
+  }
+}
+
+@media (max-width: 700px) {
+  .financial-primary-cards,
+  .financial-secondary-cards {
+    grid-template-columns: 1fr !important;
+  }
+
+  .financial-secondary-cards .financial-receivable-card {
+    grid-column: 1 !important;
+  }
+}

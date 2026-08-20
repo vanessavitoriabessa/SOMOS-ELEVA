@@ -24,6 +24,8 @@ type BaixaPagamento = {
   status: string;
   observacao: string | null;
   data_emissao?: string;
+  convenio?: string;
+  codigo_tabela?: string;
 };
 
 type SituacaoFiltro =
@@ -66,6 +68,12 @@ function normalizar(valor: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase();
+}
+
+function chaveTabelaFlexivel(valor: string) {
+  return normalizar(valor)
+    .replace(/^(sp|ma|go|mg|pb|pe|pr|rj|es|df|ba|ce|pi|rn|sc|rs|mt|ms|pa|am|ro|rr|ap|ac|to)[\s_-]*/i, "")
+    .replace(/[^a-z0-9]/g, "");
 }
 
 function somenteNumeros(valor: string) {
@@ -166,9 +174,6 @@ export default function BaixasManager() {
   const [selecionada, setSelecionada] =
     useState<BaixaPagamento | null>(null);
 
-  const [selecionadasIds, setSelecionadasIds] =
-    useState<Set<string>>(new Set());
-
   const [
     valorRecebidoEditavel,
     setValorRecebidoEditavel,
@@ -206,46 +211,183 @@ export default function BaixasManager() {
         (data || []) as BaixaPagamento[];
 
       /*
-       * A data de emissão é a data da digitação da proposta.
-       * Ela fica na tabela de propostas como data_cadastro.
-       * Buscamos somente as propostas necessárias e enriquecemos
-       * as linhas da baixa sem alterar a tabela baixas_pagamentos.
+       * IMPORTANTE:
+       * A Baixa não tenta mais descobrir os dados direto pelas tabelas
+       * usando apenas banco + nome da tabela.
+       *
+       * Primeiro usamos a própria API de propostas para obter:
+       * - data de digitação;
+       * - tabela_banco_id (quando existir);
+       * - banco e tabela originais.
+       *
+       * Depois usamos /api/configuracoes para localizar a configuração
+       * exata da tabela e puxar convênio e código.
        */
-      const ids = Array.from(
-        new Set(
-          registros
-            .map((item) => item.proposta_id)
-            .filter(Boolean),
-        ),
-      );
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      let emissoes = new Map<string, string>();
+      const token = session?.access_token || "";
 
-      if (ids.length) {
-        const { data: propostas, error: erroPropostas } =
-          await supabase
-            .from("propostas")
-            .select("id, data_cadastro")
-            .in("id", ids);
+      type PropostaApi = {
+        id: string;
+        numeroProposta?: string;
+        banco?: string;
+        tabela?: string;
+        tabelaBancoId?: string;
+        dataCadastro?: string;
+      };
 
-        if (!erroPropostas && propostas) {
-          emissoes = new Map(
-            propostas.map((item) => [
-              String(item.id),
-              String(item.data_cadastro || ""),
-            ]),
-          );
+      type TabelaConfigApi = {
+        id: string;
+        banco: string;
+        nome: string;
+        orgao_convenio?: string | null;
+        codigo?: string | null;
+      };
+
+      let propostasApi: PropostaApi[] = [];
+      let tabelasApi: TabelaConfigApi[] = [];
+
+      if (token) {
+        const [respostaPropostas, respostaConfiguracoes] =
+          await Promise.all([
+            fetch("/api/propostas", {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+              credentials: "omit",
+              cache: "no-store",
+            }),
+            fetch("/api/configuracoes", {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+              credentials: "omit",
+              cache: "no-store",
+            }),
+          ]);
+
+        if (respostaPropostas.ok) {
+          const conteudoPropostas =
+            (await respostaPropostas.json()) as {
+              propostas?: PropostaApi[];
+            };
+
+          propostasApi = Array.isArray(
+            conteudoPropostas.propostas,
+          )
+            ? conteudoPropostas.propostas
+            : [];
+        }
+
+        if (respostaConfiguracoes.ok) {
+          const conteudoConfiguracoes =
+            (await respostaConfiguracoes.json()) as {
+              tabelas?: TabelaConfigApi[];
+            };
+
+          tabelasApi = Array.isArray(
+            conteudoConfiguracoes.tabelas,
+          )
+            ? conteudoConfiguracoes.tabelas
+            : [];
         }
       }
 
+      const propostaPorId = new Map(
+        propostasApi.map((proposta) => [
+          String(proposta.id || ""),
+          proposta,
+        ]),
+      );
+
+      const propostaPorNumero = new Map(
+        propostasApi
+          .filter((proposta) =>
+            String(proposta.numeroProposta || "").trim(),
+          )
+          .map((proposta) => [
+            String(proposta.numeroProposta || "").trim(),
+            proposta,
+          ]),
+      );
+
+      const tabelaPorId = new Map(
+        tabelasApi.map((tabela) => [
+          String(tabela.id || ""),
+          tabela,
+        ]),
+      );
+
+      function localizarTabela(
+        item: BaixaPagamento,
+        proposta?: PropostaApi,
+      ) {
+        const tabelaBancoId = String(
+          proposta?.tabelaBancoId || "",
+        ).trim();
+
+        // Propostas mais novas: vínculo exato com a configuração.
+        if (tabelaBancoId) {
+          const exata = tabelaPorId.get(tabelaBancoId);
+          if (exata) return exata;
+        }
+
+        const bancoBuscado = normalizar(
+          proposta?.banco || item.banco,
+        );
+
+        const nomeBuscado = chaveTabelaFlexivel(
+          proposta?.tabela || item.tabela,
+        );
+
+        if (!nomeBuscado) return undefined;
+
+        // Propostas antigas: banco + nome flexível.
+        return tabelasApi.find((tabela) => {
+          const mesmoBanco =
+            normalizar(tabela.banco) === bancoBuscado;
+
+          const nomeConfig =
+            chaveTabelaFlexivel(tabela.nome);
+
+          const mesmoNome =
+            nomeConfig === nomeBuscado ||
+            nomeConfig.endsWith(nomeBuscado) ||
+            nomeBuscado.endsWith(nomeConfig);
+
+          return mesmoBanco && mesmoNome;
+        });
+      }
+
       setBaixas(
-        registros.map((item) => ({
-          ...item,
-          data_emissao:
-            emissoes.get(item.proposta_id) ||
-            item.data_pagamento_proposta ||
-            "",
-        })),
+        registros.map((item) => {
+          const proposta =
+            propostaPorId.get(
+              String(item.proposta_id || ""),
+            ) ||
+            propostaPorNumero.get(
+              String(item.numero_proposta || "").trim(),
+            );
+
+          const tabelaConfig = localizarTabela(
+            item,
+            proposta,
+          );
+
+          return {
+            ...item,
+            data_emissao:
+              String(proposta?.dataCadastro || ""),
+            convenio:
+              String(
+                tabelaConfig?.orgao_convenio || "",
+              ),
+            codigo_tabela:
+              String(tabelaConfig?.codigo || ""),
+          };
+        }),
       );
     } catch (erro) {
       console.error(erro);
@@ -337,17 +479,6 @@ export default function BaixasManager() {
           termo,
         );
 
-      // Número exato da proposta ignora os demais filtros.
-      const numeroPesquisado = somenteNumeros(busca);
-      const numeroDaProposta = somenteNumeros(item.numero_proposta);
-
-      if (
-        numeroPesquisado.length > 0 &&
-        numeroDaProposta === numeroPesquisado
-      ) {
-        return true;
-      }
-
       const correspondeBanco =
         filtroBanco === "TODOS" ||
         item.banco === filtroBanco;
@@ -429,20 +560,6 @@ export default function BaixasManager() {
       0,
     );
 
-    const recebidoFinalizados = finalizadas.reduce(
-      (total, item) =>
-        total +
-        Number(item.valor_recebido || 0),
-      0,
-    );
-
-    const totalPrevisto = linhas.reduce(
-      (total, item) =>
-        total +
-        Number(item.comissao_prevista || 0),
-      0,
-    );
-
     return {
       quantidade: linhas.length,
       aReceber: aReceber.length,
@@ -451,99 +568,8 @@ export default function BaixasManager() {
       comissoesAReceber,
       saldoParcial,
       recebido,
-      recebidoFinalizados,
-      totalPrevisto,
     };
   }, [linhas]);
-
-  const selecionadas = useMemo(
-    () =>
-      linhas.filter((item) =>
-        selecionadasIds.has(item.id),
-      ),
-    [linhas, selecionadasIds],
-  );
-
-  const totalSelecionado = useMemo(
-    () =>
-      selecionadas.reduce(
-        (total, item) =>
-          total +
-          Number(item.comissao_prevista || 0),
-        0,
-      ),
-    [selecionadas],
-  );
-
-  const resumoAbaAtual = useMemo(() => {
-    if (filtroSituacao === "PARCIAL") {
-      return {
-        titulo: "SALDO REC. PARCIAL",
-        valor: resumo.saldoParcial,
-      };
-    }
-
-    if (filtroSituacao === "FINALIZADO") {
-      return {
-        titulo: "TOTAL FINALIZADO",
-        valor: resumo.recebidoFinalizados,
-      };
-    }
-
-    if (filtroSituacao === "TODOS") {
-      return {
-        titulo: "TOTAL EM COMISSÕES",
-        valor: resumo.totalPrevisto,
-      };
-    }
-
-    return {
-      titulo: "COMISSÕES À RECEBER",
-      valor: resumo.comissoesAReceber,
-    };
-  }, [filtroSituacao, resumo]);
-
-  const todasFiltradasSelecionadas =
-    filtradas.length > 0 &&
-    filtradas.every((item) =>
-      selecionadasIds.has(item.id),
-    );
-
-  function alternarSelecao(id: string) {
-    setSelecionadasIds((atual) => {
-      const proximo = new Set(atual);
-
-      if (proximo.has(id)) {
-        proximo.delete(id);
-      } else {
-        proximo.add(id);
-      }
-
-      return proximo;
-    });
-  }
-
-  function selecionarTodasFiltradas() {
-    setSelecionadasIds((atual) => {
-      const proximo = new Set(atual);
-
-      if (todasFiltradasSelecionadas) {
-        filtradas.forEach((item) =>
-          proximo.delete(item.id),
-        );
-      } else {
-        filtradas.forEach((item) =>
-          proximo.add(item.id),
-        );
-      }
-
-      return proximo;
-    });
-  }
-
-  function limparSelecao() {
-    setSelecionadasIds(new Set());
-  }
 
   function abrirRecebimento(
     item: BaixaPagamento,
@@ -687,12 +713,6 @@ export default function BaixasManager() {
       setSelecionada(null);
       setMotivoAlteracao("");
 
-      setSelecionadasIds((atual) => {
-        const proximo = new Set(atual);
-        proximo.delete(selecionada.id);
-        return proximo;
-      });
-
       await carregar();
     } catch (erro) {
       setMensagem(
@@ -722,40 +742,40 @@ export default function BaixasManager() {
 
   return (
     <div className="baixas-page baixas-livecred-eleva">
-      <section className="baixas-resumo-live baixas-resumo-executivo">
-        <article className="resumo-a-receber-valor">
+      <section className="baixas-resumo-live">
+        <article>
           <span>COMISSÕES À RECEBER</span>
-          <strong>{moeda(resumo.comissoesAReceber)}</strong>
-          <b>{resumo.aReceber} contratos</b>
-          <small>Aguardando primeiro recebimento</small>
+          <strong>
+            {moeda(
+              resumo.comissoesAReceber +
+                resumo.saldoParcial,
+            )}
+          </strong>
+          <small>
+            À receber + saldo dos parciais
+          </small>
+        </article>
+
+        <article>
+          <span>À RECEBER</span>
+          <strong>{resumo.aReceber}</strong>
+          <small>Contratos sem recebimento</small>
         </article>
 
         <article className="resumo-parcial">
-          <span>REC. PARCIAL (SALDO RESTANTE)</span>
-          <strong>{moeda(resumo.saldoParcial)}</strong>
-          <b>{resumo.parciais} contratos</b>
-          <small>Saldo pendente dos pagamentos parciais</small>
-        </article>
-
-        <article className="resumo-total-recebido">
-          <span>TOTAL JÁ RECEBIDO</span>
-          <strong>{moeda(resumo.recebido)}</strong>
-          <b>{resumo.finalizadas} finalizados</b>
-          <small>Total efetivamente recebido em comissões</small>
+          <span>REC. PARCIAL</span>
+          <strong>{resumo.parciais}</strong>
+          <small>
+            Saldo: {moeda(resumo.saldoParcial)}
+          </small>
         </article>
 
         <article className="resumo-finalizado">
           <span>FINALIZADOS</span>
           <strong>{resumo.finalizadas}</strong>
-          <b>100% recebidos</b>
-          <small>Contratos com comissão totalmente recebida</small>
-        </article>
-
-        <article className="resumo-a-receber-qtd">
-          <span>À RECEBER</span>
-          <strong>{resumo.aReceber}</strong>
-          <b>Em aberto</b>
-          <small>Contratos sem recebimento ainda</small>
+          <small>
+            Recebido: {moeda(resumo.recebido)}
+          </small>
         </article>
       </section>
 
@@ -825,50 +845,22 @@ export default function BaixasManager() {
 
           <div className="baixas-live-selected">
             <span>
-              {selecionadasIds.size}
+              {selecionada ? 1 : 0}
             </span>
-            {selecionadasIds.size === 1
-              ? "SELECIONADO"
-              : "SELECIONADOS"}
+            SELECIONADO
           </div>
         </div>
 
         <div className="baixas-live-total">
-          <div className="baixas-live-total-principal">
-            <span>
-              {selecionadasIds.size > 0
-                ? "COMISSÕES SELECIONADAS"
-                : resumoAbaAtual.titulo}
-            </span>
-
-            <strong>
-              {selecionadasIds.size > 0
-                ? moeda(totalSelecionado)
-                : moeda(resumoAbaAtual.valor)}
-            </strong>
-          </div>
-
-          <div className="baixas-live-selection-actions">
-            <button
-              type="button"
-              onClick={selecionarTodasFiltradas}
-              disabled={filtradas.length === 0}
-            >
-              {todasFiltradasSelecionadas
-                ? "Desmarcar filtradas"
-                : "Selecionar tudo"}
-            </button>
-
-            {selecionadasIds.size > 0 && (
-              <button
-                type="button"
-                className="secondary"
-                onClick={limparSelecao}
-              >
-                Limpar seleção
-              </button>
+          <span>
+            COMISSÕES À RECEBER
+          </span>
+          <strong>
+            {moeda(
+              resumo.comissoesAReceber +
+                resumo.saldoParcial,
             )}
-          </div>
+          </strong>
         </div>
 
         <div className="baixas-live-filtros">
@@ -966,17 +958,20 @@ export default function BaixasManager() {
             <thead>
               <tr>
                 <th></th>
-                <th>EMISSÃO</th>
+                <th>DATA / DIGITAÇÃO</th>
                 <th>CPF</th>
                 <th>CLIENTE</th>
-                <th>BANCO / TABELA</th>
-                <th>VL. LIBERADO</th>
+                <th>BANCO / TABELA / CONVÊNIO</th>
+                <th>CÓDIGO</th>
+                <th>VALOR BRUTO</th>
+                <th>VALOR LÍQUIDO</th>
                 <th>TX. COMISS.</th>
                 <th>COMISS. LÍQ.</th>
                 <th>RECEBIDO</th>
                 <th>SITUAÇÃO</th>
                 <th>ESTEIRA</th>
-                <th>DATA PAGAMENTO</th>
+                <th>DATA PAGAMENTO CLIENTE</th>
+                <th>DATA RECEBIMENTO COMISSÃO</th>
                 <th>AÇÃO</th>
               </tr>
             </thead>
@@ -985,7 +980,7 @@ export default function BaixasManager() {
               {carregando ? (
                 <tr>
                   <td
-                    colSpan={13}
+                    colSpan={16}
                     className="baixas-live-vazio"
                   >
                     Carregando comissões...
@@ -994,7 +989,7 @@ export default function BaixasManager() {
               ) : filtradas.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={13}
+                    colSpan={16}
                     className="baixas-live-vazio"
                   >
                     Nenhuma comissão encontrada nos filtros.
@@ -1003,7 +998,8 @@ export default function BaixasManager() {
               ) : (
                 filtradas.map((item) => {
                   const ativa =
-                    selecionadasIds.has(item.id);
+                    selecionada?.id ===
+                    item.id;
 
                   return (
                     <tr
@@ -1012,18 +1008,18 @@ export default function BaixasManager() {
                         ativa ? "selected" : ""
                       }
                       onClick={() =>
-                        alternarSelecao(item.id)
+                        abrirRecebimento(item)
                       }
                     >
                       <td>
                         <input
-                          type="checkbox"
+                          type="radio"
+                          name="baixa-selecionada"
                           checked={ativa}
-                          onClick={(event) =>
-                            event.stopPropagation()
-                          }
                           onChange={() =>
-                            alternarSelecao(item.id)
+                            abrirRecebimento(
+                              item,
+                            )
                           }
                         />
                       </td>
@@ -1054,14 +1050,31 @@ export default function BaixasManager() {
                           {item.banco || "—"}
                         </strong>
                         <small>
-                          {item.tabela || "—"}
+                          {item.tabela || "Tabela não informada"}
                         </small>
+                        <small>
+                          {item.convenio || "Convênio não informado"}
+                        </small>
+                      </td>
+
+                      <td>
+                        <strong>
+                          {item.codigo_tabela || "—"}
+                        </strong>
                       </td>
 
                       <td>
                         <strong>
                           {moeda(
                             item.valor_operacao,
+                          )}
+                        </strong>
+                      </td>
+
+                      <td>
+                        <strong>
+                          {moeda(
+                            item.valor_liquido,
                           )}
                         </strong>
                       </td>
@@ -1103,6 +1116,14 @@ export default function BaixasManager() {
                         <span className="baixas-live-esteira">
                           ● Proposta Paga
                         </span>
+                      </td>
+
+                      <td>
+                        <strong>
+                          {dataBR(
+                            item.data_pagamento_proposta,
+                          )}
+                        </strong>
                       </td>
 
                       <td>
@@ -1179,7 +1200,7 @@ export default function BaixasManager() {
 
             <div className="baixas-live-modal-resumo">
               <article>
-                <span>EMISSÃO</span>
+                <span>DATA / DIGITAÇÃO</span>
                 <strong>
                   {dataBR(
                     selecionada.data_emissao,

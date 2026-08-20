@@ -725,18 +725,8 @@ export default function FinancialDashboard() {
           </div>
         </article>
 
-        <article>
-          <div className="financial-icon financial-icon-blue">%</div>
-          <div>
-            <span>Comissão prevista</span>
-            <strong>{moeda(indicadores.comissaoPrevista)}</strong>
-            <small>Valor previsto dos bancos</small>
-          </div>
-        </article>
-      </section>
-
-      <section className="financial-secondary-cards">
-        <article className="financial-kpi received">
+      
+        <article className="financial-kpi received financial-primary-received">
           <div className="financial-icon financial-icon-green">↓</div>
           <div>
             <span>Comissão recebida</span>
@@ -744,8 +734,11 @@ export default function FinancialDashboard() {
             <small>Recebimentos no período</small>
           </div>
         </article>
+</section>
 
-        <article className="financial-kpi">
+      <section className="financial-secondary-cards">
+
+        <article className="financial-kpi financial-receivable-card">
           <div className="financial-icon financial-icon-blue">◉</div>
           <div>
             <span>A receber</span>
