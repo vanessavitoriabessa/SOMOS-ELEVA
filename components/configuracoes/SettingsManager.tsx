@@ -27,6 +27,25 @@ type OrgaoConvenio = {
   ativo: boolean;
 };
 
+type EquipeConfigurada = {
+  id: string;
+  nome: string;
+  ativo: boolean;
+};
+
+type PerfilConfigurado = {
+  chave:
+    | "Administradora"
+    | "Coordenadora"
+    | "Supervisora"
+    | "Consultora"
+    | "Operacional"
+    | "Financeiro";
+  nomeExibicao: string;
+  ativo: boolean;
+  ordem: number;
+};
+
 type TipoConfigFinanceiro =
   | "produto"
   | "banco"
@@ -119,11 +138,23 @@ export default function SettingsManager() {
   const supabase = useMemo(() => createClient(), []);
 
   const [aba, setAba] = useState<
-    "geral" | "bancos" | "tabelas" | "financeiro" | "metas"
+    "geral" | "bancos" | "tabelas" | "equipes" | "perfis" | "financeiro" | "metas"
   >("geral");
   const [bancos, setBancos] = useState<Banco[]>([]);
   const [orgaosConvenios, setOrgaosConvenios] = useState<OrgaoConvenio[]>([]);
   const [tabelas, setTabelas] = useState<Tabela[]>([]);
+  const [equipesConfiguradas, setEquipesConfiguradas] =
+    useState<EquipeConfigurada[]>([]);
+  const [perfisConfigurados, setPerfisConfigurados] =
+    useState<PerfilConfigurado[]>([]);
+  const [editandoPerfilChave, setEditandoPerfilChave] =
+    useState<PerfilConfigurado["chave"] | null>(null);
+  const [nomePerfilEdicao, setNomePerfilEdicao] = useState("");
+
+  const [novaEquipe, setNovaEquipe] = useState("");
+  const [editandoEquipeId, setEditandoEquipeId] = useState<string | null>(null);
+  const [nomeEquipeEdicao, setNomeEquipeEdicao] = useState("");
+
   const [metas, setMetas] = useState<Meta[]>([]);
   const [geral, setGeral] = useState<ConfiguracaoGeral>(configPadrao);
   const [mensagem, setMensagem] = useState("");
@@ -275,6 +306,43 @@ export default function SettingsManager() {
             ordem: Number(item.ordem || 0),
           }),
         ),
+      );
+
+      const { data: equipesData, error: equipesErro } =
+        await supabase
+          .from("config_equipes")
+          .select("id, nome, ativo")
+          .order("nome", { ascending: true });
+
+      if (equipesErro) {
+        throw new Error(equipesErro.message);
+      }
+
+      setEquipesConfiguradas(
+        (Array.isArray(equipesData) ? equipesData : []).map((item) => ({
+          id: String(item.id),
+          nome: String(item.nome || ""),
+          ativo: item.ativo !== false,
+        })),
+      );
+
+      const { data: perfisData, error: perfisErro } =
+        await supabase
+          .from("config_perfis")
+          .select("chave, nome_exibicao, ativo, ordem")
+          .order("ordem", { ascending: true });
+
+      if (perfisErro) {
+        throw new Error(perfisErro.message);
+      }
+
+      setPerfisConfigurados(
+        (Array.isArray(perfisData) ? perfisData : []).map((item) => ({
+          chave: String(item.chave) as PerfilConfigurado["chave"],
+          nomeExibicao: String(item.nome_exibicao || item.chave || ""),
+          ativo: item.ativo !== false,
+          ordem: Number(item.ordem || 0),
+        })),
       );
 
       // Metas e geral permanecem locais por enquanto.
@@ -894,6 +962,230 @@ export default function SettingsManager() {
     return base;
   }, [financeiroItens]);
 
+  async function adicionarEquipe(event: FormEvent) {
+    event.preventDefault();
+
+    const nome = novaEquipe.trim();
+
+    if (!nome) {
+      setMensagem("Informe o nome da equipe.");
+      return;
+    }
+
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const { error } = await supabase
+        .from("config_equipes")
+        .insert({
+          nome,
+          ativo: true,
+          atualizado_em: new Date().toISOString(),
+        });
+
+      if (error) {
+        if (error.code === "23505") {
+          throw new Error("Essa equipe já está cadastrada.");
+        }
+        throw new Error(error.message);
+      }
+
+      setNovaEquipe("");
+      setMensagem("Equipe cadastrada com sucesso.");
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível cadastrar a equipe.",
+      );
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  function iniciarEdicaoEquipe(equipe: EquipeConfigurada) {
+    setEditandoEquipeId(equipe.id);
+    setNomeEquipeEdicao(equipe.nome);
+    setMensagem("");
+  }
+
+  function cancelarEdicaoEquipe() {
+    setEditandoEquipeId(null);
+    setNomeEquipeEdicao("");
+  }
+
+  async function salvarEdicaoEquipe() {
+    if (!editandoEquipeId) return;
+
+    const nome = nomeEquipeEdicao.trim();
+    if (!nome) return setMensagem("Informe o nome da equipe.");
+
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const equipeAnterior = equipesConfiguradas.find(
+        (item) => item.id === editandoEquipeId,
+      );
+
+      const { error } = await supabase
+        .from("config_equipes")
+        .update({
+          nome,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("id", editandoEquipeId);
+
+      if (error) throw new Error(error.message);
+
+      // Mantém os usuários já vinculados à equipe com o novo nome.
+      if (equipeAnterior && equipeAnterior.nome !== nome) {
+        const { error: usuariosErro } = await supabase
+          .from("profiles")
+          .update({ equipe: nome })
+          .eq("equipe", equipeAnterior.nome);
+
+        if (usuariosErro) throw new Error(usuariosErro.message);
+      }
+
+      cancelarEdicaoEquipe();
+      setMensagem("Equipe atualizada com sucesso.");
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível atualizar a equipe.",
+      );
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  async function alternarEquipe(equipe: EquipeConfigurada) {
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const { error } = await supabase
+        .from("config_equipes")
+        .update({
+          ativo: !equipe.ativo,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("id", equipe.id);
+
+      if (error) throw new Error(error.message);
+
+      setMensagem(
+        equipe.ativo ? "Equipe desativada." : "Equipe ativada.",
+      );
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível alterar a equipe.",
+      );
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  async function excluirEquipe(equipe: EquipeConfigurada) {
+    const emUso = await supabase
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("equipe", equipe.nome);
+
+    if (emUso.error) {
+      setMensagem(emUso.error.message);
+      return;
+    }
+
+    if ((emUso.count || 0) > 0) {
+      setMensagem(
+        `Não é possível excluir "${equipe.nome}" porque existem usuários vinculados. Renomeie ou desative a equipe.`,
+      );
+      return;
+    }
+
+    if (!window.confirm(`Deseja excluir a equipe "${equipe.nome}"?`)) return;
+
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const { error } = await supabase
+        .from("config_equipes")
+        .delete()
+        .eq("id", equipe.id);
+
+      if (error) throw new Error(error.message);
+
+      setMensagem("Equipe excluída.");
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível excluir a equipe.",
+      );
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  function iniciarEdicaoPerfil(perfil: PerfilConfigurado) {
+    setEditandoPerfilChave(perfil.chave);
+    setNomePerfilEdicao(perfil.nomeExibicao);
+    setMensagem("");
+  }
+
+  function cancelarEdicaoPerfil() {
+    setEditandoPerfilChave(null);
+    setNomePerfilEdicao("");
+  }
+
+  async function salvarEdicaoPerfil() {
+    if (!editandoPerfilChave) return;
+
+    const nomeExibicao = nomePerfilEdicao.trim();
+    if (!nomeExibicao) {
+      setMensagem("Informe o nome que será exibido para o perfil.");
+      return;
+    }
+
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const { error } = await supabase
+        .from("config_perfis")
+        .update({
+          nome_exibicao: nomeExibicao,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("chave", editandoPerfilChave);
+
+      if (error) throw new Error(error.message);
+
+      cancelarEdicaoPerfil();
+      setMensagem("Nome do perfil atualizado com sucesso.");
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível atualizar o nome do perfil.",
+      );
+    } finally {
+      setProcessando(false);
+    }
+  }
+
   function adicionarMeta(event: FormEvent) {
     event.preventDefault();
 
@@ -987,6 +1279,8 @@ export default function SettingsManager() {
         <button className={aba === "geral" ? "active" : ""} onClick={() => setAba("geral")}>Geral</button>
         <button className={aba === "bancos" ? "active" : ""} onClick={() => setAba("bancos")}>Bancos</button>
         <button className={aba === "tabelas" ? "active" : ""} onClick={() => setAba("tabelas")}>Tabelas</button>
+        <button className={aba === "equipes" ? "active" : ""} onClick={() => setAba("equipes")}>Equipes</button>
+        <button className={aba === "perfis" ? "active" : ""} onClick={() => setAba("perfis")}>Perfis</button>
         <button className={aba === "financeiro" ? "active" : ""} onClick={() => setAba("financeiro")}>Financeiro</button>
         <button className={aba === "metas" ? "active" : ""} onClick={() => setAba("metas")}>Metas</button>
       </nav>
@@ -1513,6 +1807,222 @@ export default function SettingsManager() {
           </section>
           </section>
         </>
+      )}
+
+      {aba === "equipes" && (
+        <section className="settings-grid">
+          <form className="settings-card" onSubmit={adicionarEquipe}>
+            <div className="settings-heading">
+              <div>
+                <span>NOVA EQUIPE</span>
+                <h2>Cadastrar equipe</h2>
+                <p>
+                  Os nomes cadastrados aqui aparecem no campo Equipe dos usuários.
+                </p>
+              </div>
+              <b>+</b>
+            </div>
+
+            <label className="settings-single-label">
+              Nome da equipe
+              <input
+                value={novaEquipe}
+                onChange={(e) => setNovaEquipe(e.target.value)}
+                placeholder="Ex.: Comercial Compra"
+                disabled={processando}
+              />
+            </label>
+
+            <div className="settings-actions">
+              <button type="submit" disabled={processando}>
+                {processando ? "Salvando..." : "Adicionar equipe"}
+              </button>
+            </div>
+          </form>
+
+          <section className="settings-card">
+            <div className="settings-list-heading">
+              <div>
+                <span>EQUIPES CADASTRADAS</span>
+                <h2>Equipes disponíveis</h2>
+                <p>
+                  Renomeie, ative ou desative sem precisar alterar o código.
+                </p>
+              </div>
+              <b>{equipesConfiguradas.length}</b>
+            </div>
+
+            <div className="settings-list">
+              {equipesConfiguradas.length === 0 ? (
+                <div className="settings-empty">
+                  Nenhuma equipe cadastrada.
+                </div>
+              ) : (
+                equipesConfiguradas.map((equipe) => (
+                  <article key={equipe.id}>
+                    <div className="settings-icon">E</div>
+
+                    <div>
+                      {editandoEquipeId === equipe.id ? (
+                        <input
+                          value={nomeEquipeEdicao}
+                          onChange={(e) =>
+                            setNomeEquipeEdicao(e.target.value)
+                          }
+                          disabled={processando}
+                        />
+                      ) : (
+                        <>
+                          <strong>{equipe.nome}</strong>
+                          <span>
+                            {equipe.ativo
+                              ? "Disponível no cadastro de usuários"
+                              : "Desativada"}
+                          </span>
+                        </>
+                      )}
+                    </div>
+
+                    <span
+                      className={
+                        equipe.ativo
+                          ? "status-active"
+                          : "status-inactive"
+                      }
+                    >
+                      {equipe.ativo ? "Ativa" : "Inativa"}
+                    </span>
+
+                    <div className="settings-row-actions">
+                      {editandoEquipeId === equipe.id ? (
+                        <>
+                          <button
+                            type="button"
+                            className="save-edit"
+                            onClick={() => void salvarEdicaoEquipe()}
+                            disabled={processando}
+                          >
+                            Salvar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelarEdicaoEquipe}
+                            disabled={processando}
+                          >
+                            Cancelar
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => iniciarEdicaoEquipe(equipe)}
+                            disabled={processando}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void alternarEquipe(equipe)}
+                            disabled={processando}
+                          >
+                            {equipe.ativo ? "Desativar" : "Ativar"}
+                          </button>
+                          <button
+                            type="button"
+                            className="delete"
+                            onClick={() => void excluirEquipe(equipe)}
+                            disabled={processando}
+                          >
+                            Excluir
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
+          </section>
+        </section>
+      )}
+
+      {aba === "perfis" && (
+        <section className="settings-card">
+          <div className="settings-list-heading">
+            <div>
+              <span>PERFIS DE ACESSO</span>
+              <h2>Nomes exibidos no sistema</h2>
+              <p>
+                Você pode trocar o nome que aparece na tela sem alterar as permissões internas do sistema.
+              </p>
+            </div>
+            <b>{perfisConfigurados.length}</b>
+          </div>
+
+          <div className="settings-list">
+            {perfisConfigurados.map((perfil) => (
+              <article key={perfil.chave}>
+                <div className="settings-icon">P</div>
+
+                <div>
+                  {editandoPerfilChave === perfil.chave ? (
+                    <input
+                      value={nomePerfilEdicao}
+                      onChange={(e) => setNomePerfilEdicao(e.target.value)}
+                      disabled={processando}
+                    />
+                  ) : (
+                    <>
+                      <strong>{perfil.nomeExibicao}</strong>
+                      <span>Perfil interno: {perfil.chave}</span>
+                    </>
+                  )}
+                </div>
+
+                <span className="status-active">Ativo</span>
+
+                <div className="settings-row-actions">
+                  {editandoPerfilChave === perfil.chave ? (
+                    <>
+                      <button
+                        type="button"
+                        className="save-edit"
+                        onClick={() => void salvarEdicaoPerfil()}
+                        disabled={processando}
+                      >
+                        Salvar
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={cancelarEdicaoPerfil}
+                        disabled={processando}
+                      >
+                        Cancelar
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => iniciarEdicaoPerfil(perfil)}
+                      disabled={processando}
+                    >
+                      Editar nome
+                    </button>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="settings-warning" style={{ marginTop: 16 }}>
+            <strong>Importante:</strong>
+            <span>
+              alterar o nome exibido não muda o nível de acesso. Assim você pode renomear “Administradora” para “Diretoria”, por exemplo, sem quebrar as permissões.
+            </span>
+          </div>
+        </section>
       )}
 
       {aba === "financeiro" && (

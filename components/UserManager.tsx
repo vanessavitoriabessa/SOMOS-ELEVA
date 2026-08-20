@@ -19,6 +19,12 @@ type Perfil =
   | "Operacional"
   | "Financeiro";
 
+type PerfilConfigurado = {
+  chave: Perfil;
+  nomeExibicao: string;
+  ativo: boolean;
+};
+
 type Usuario = {
   id: string;
   nome: string;
@@ -69,6 +75,12 @@ type TimeComercial = {
 };
 type RespostaTimesApi = {
   erro?: string; mensagem?: string; times?: TimeComercial[]; supervisoras?: SupervisoraTime[];
+};
+
+type EquipeConfigurada = {
+  id: string;
+  nome: string;
+  ativo: boolean;
 };
 
 const PERFIS: Perfil[] = [
@@ -261,6 +273,9 @@ export default function UserManager() {
     []
   );
 
+  const [perfisConfigurados, setPerfisConfigurados] =
+    useState<PerfilConfigurado[]>([]);
+
   const [usuarios, setUsuarios] =
     useState<Usuario[]>([]);
 
@@ -314,6 +329,9 @@ export default function UserManager() {
 
 const [formularioAberto, setFormularioAberto] =
   useState(false);
+
+  const [equipesConfiguradas, setEquipesConfiguradas] =
+    useState<EquipeConfigurada[]>([]);
 
   const [times, setTimes] = useState<TimeComercial[]>([]);
   const [supervisoras, setSupervisoras] = useState<SupervisoraTime[]>([]);
@@ -372,6 +390,59 @@ const [formularioAberto, setFormularioAberto] =
     }
 
     return data.session.access_token;
+  }
+
+  async function carregarPerfisConfigurados() {
+    try {
+      const { data, error } = await supabase
+        .from("config_perfis")
+        .select("chave, nome_exibicao, ativo")
+        .order("ordem", { ascending: true });
+
+      if (error) throw new Error(error.message);
+
+      const lista = (Array.isArray(data) ? data : []).map((item) => ({
+        chave: String(item.chave || "") as Perfil,
+        nomeExibicao: String(item.nome_exibicao || item.chave || "").trim(),
+        ativo: item.ativo !== false,
+      }));
+
+      setPerfisConfigurados(lista);
+    } catch {
+      // Fallback seguro: mantém os nomes internos originais.
+      setPerfisConfigurados(
+        PERFIS.map((perfil) => ({
+          chave: perfil,
+          nomeExibicao: perfil,
+          ativo: true,
+        })),
+      );
+    }
+  }
+
+  async function carregarEquipesConfiguradas() {
+    try {
+      const { data, error } = await supabase
+        .from("config_equipes")
+        .select("id, nome, ativo")
+        .order("nome", { ascending: true });
+
+      if (error) throw new Error(error.message);
+
+      setEquipesConfiguradas(
+        (Array.isArray(data) ? data : []).map((item) => ({
+          id: String(item.id),
+          nome: String(item.nome || "").trim(),
+          ativo: item.ativo !== false,
+        })),
+      );
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível carregar as equipes configuradas.",
+      );
+    }
   }
 
   async function carregarTimes() {
@@ -499,6 +570,8 @@ const [formularioAberto, setFormularioAberto] =
 
   useEffect(() => {
     void carregarUsuarios();
+    void carregarPerfisConfigurados();
+    void carregarEquipesConfiguradas();
     void carregarTimes();
   }, []);
 
@@ -1343,16 +1416,21 @@ function editar(usuario: Usuario) {
                 }
                 disabled={processando}
               >
-                {PERFIS.map(
-                  (perfil) => (
-                    <option
-                      key={perfil}
-                      value={perfil}
-                    >
-                      {perfil}
-                    </option>
-                  )
-                )}
+                {(perfisConfigurados.length
+                  ? perfisConfigurados.filter((perfil) => perfil.ativo)
+                  : PERFIS.map((perfil) => ({
+                      chave: perfil,
+                      nomeExibicao: perfil,
+                      ativo: true,
+                    }))
+                ).map((perfil) => (
+                  <option
+                    key={perfil.chave}
+                    value={perfil.chave}
+                  >
+                    {perfil.nomeExibicao}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -1375,25 +1453,22 @@ function editar(usuario: Usuario) {
                   Selecione a equipe
                 </option>
 
-                <option value="Compra de Dívida">
-                  Compra de Dívida
-                </option>
+                {form.equipe &&
+                  !equipesConfiguradas.some(
+                    (equipe) => equipe.nome === form.equipe,
+                  ) && (
+                    <option value={form.equipe}>
+                      {form.equipe} (atual)
+                    </option>
+                  )}
 
-                <option value="CLT">
-                  CLT
-                </option>
-
-                <option value="Compra de Dívida e CLT">
-                  Compra de Dívida e CLT
-                </option>
-
-                <option value="Diretoria">
-                  Diretoria
-                </option>
-
-                <option value="Administrativo">
-                  Administrativo
-                </option>
+                {equipesConfiguradas
+                  .filter((equipe) => equipe.ativo)
+                  .map((equipe) => (
+                    <option key={equipe.id} value={equipe.nome}>
+                      {equipe.nome}
+                    </option>
+                  ))}
               </select>
             </label>
 
@@ -1509,16 +1584,21 @@ function editar(usuario: Usuario) {
                 Todos
               </option>
 
-              {PERFIS.map(
-                (perfil) => (
-                  <option
-                    key={perfil}
-                    value={perfil}
-                  >
-                    {perfil}
-                  </option>
-                )
-              )}
+              {(perfisConfigurados.length
+                ? perfisConfigurados
+                : PERFIS.map((perfil) => ({
+                    chave: perfil,
+                    nomeExibicao: perfil,
+                    ativo: true,
+                  }))
+              ).map((perfil) => (
+                <option
+                  key={perfil.chave}
+                  value={perfil.chave}
+                >
+                  {perfil.nomeExibicao}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -1568,7 +1648,9 @@ function editar(usuario: Usuario) {
 
                     <div>
                       <b>
-                        {usuario.perfil}
+                        {perfisConfigurados.find(
+                          (perfil) => perfil.chave === usuario.perfil,
+                        )?.nomeExibicao || usuario.perfil}
                       </b>
 
                       {usuario.equipe && (

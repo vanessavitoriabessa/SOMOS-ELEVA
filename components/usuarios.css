@@ -1087,3 +1087,202 @@
     height:210px;
   }
 }
+
+/* =========================================================
+   TIMES E SUPERVISORAS — VERSÃO MAIOR
+   ========================================================= */
+
+.teams-management{
+  margin:0 0 28px !important;
+  border-radius:20px !important;
+}
+
+.teams-management-head{
+  padding:30px 32px !important;
+  gap:24px !important;
+}
+
+.teams-management-head span,
+.teams-create-card>span,
+.teams-list-title span{
+  font-size:10px !important;
+  letter-spacing:1.1px !important;
+}
+
+.teams-management-head h2{
+  margin-top:7px !important;
+  font-size:26px !important;
+}
+
+.teams-management-head p{
+  margin-top:8px !important;
+  font-size:12px !important;
+  line-height:1.5 !important;
+}
+
+.teams-count{
+  min-width:112px !important;
+  padding:15px 18px !important;
+  border-radius:14px !important;
+}
+
+.teams-count strong{
+  font-size:27px !important;
+}
+
+.teams-count span{
+  font-size:9px !important;
+}
+
+.teams-management-grid{
+  grid-template-columns:390px minmax(0,1fr) !important;
+  gap:24px !important;
+  padding:28px !important;
+  align-items:stretch !important;
+}
+
+.teams-create-card,
+.teams-list-card{
+  min-height:420px !important;
+  padding:26px !important;
+  border-radius:17px !important;
+}
+
+.teams-create-card h3,
+.teams-list-title h3{
+  margin-top:8px !important;
+  font-size:23px !important;
+}
+
+.teams-create-card label{
+  margin-top:22px !important;
+  font-size:11px !important;
+}
+
+.teams-create-card input,
+.teams-create-card select{
+  min-height:52px !important;
+  margin-top:8px !important;
+  padding:0 14px !important;
+  border-radius:11px !important;
+  font-size:13px !important;
+}
+
+.teams-form-actions{
+  margin-top:24px !important;
+}
+
+.teams-save,
+.teams-cancel{
+  min-height:46px !important;
+  padding:0 18px !important;
+  border-radius:10px !important;
+  font-size:13px !important;
+}
+
+.teams-list-title{
+  margin-bottom:16px !important;
+}
+
+.teams-list-title b{
+  width:38px !important;
+  height:38px !important;
+  border-radius:11px !important;
+  font-size:15px !important;
+}
+
+.teams-list article{
+  grid-template-columns:56px minmax(0,1fr) auto auto !important;
+  gap:16px !important;
+  min-height:100px !important;
+  padding:20px 16px !important;
+}
+
+.team-icon{
+  width:50px !important;
+  height:50px !important;
+  border-radius:14px !important;
+  font-size:18px !important;
+}
+
+.team-main strong{
+  font-size:15px !important;
+}
+
+.team-main span{
+  margin-top:5px !important;
+  font-size:10px !important;
+}
+
+.team-main div{
+  gap:8px !important;
+  margin-top:9px !important;
+}
+
+.team-main b{
+  padding:5px 8px !important;
+  border-radius:7px !important;
+  font-size:9px !important;
+}
+
+.team-status span{
+  padding:7px 10px !important;
+  font-size:9px !important;
+}
+
+.team-actions{
+  gap:8px !important;
+}
+
+.team-actions button{
+  min-height:38px !important;
+  padding:0 14px !important;
+  border-radius:9px !important;
+  font-size:10px !important;
+}
+
+.teams-message{
+  margin-top:16px !important;
+  padding:12px 14px !important;
+  font-size:11px !important;
+}
+
+@media(max-width:1100px){
+  .teams-management-grid{
+    grid-template-columns:1fr !important;
+  }
+
+  .teams-create-card,
+  .teams-list-card{
+    min-height:auto !important;
+  }
+}
+
+@media(max-width:700px){
+  .teams-management-head{
+    align-items:flex-start !important;
+    padding:22px 20px !important;
+  }
+
+  .teams-management-grid{
+    padding:18px !important;
+  }
+
+  .teams-create-card,
+  .teams-list-card{
+    padding:20px !important;
+  }
+
+  .teams-list article{
+    grid-template-columns:50px minmax(0,1fr) !important;
+  }
+
+  .team-status,
+  .team-actions{
+    grid-column:2 !important;
+  }
+
+  .team-actions{
+    flex-wrap:wrap !important;
+  }
+}

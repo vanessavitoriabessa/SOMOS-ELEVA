@@ -11,289 +11,51 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-type Perfil = {
-  id: string;
-  nome: string;
-  perfil: string;
-  ativo: boolean;
+const PERFIS_PERMITIDOS = [
+  "Administradora",
+  "Coordenadora",
+  "Supervisora",
+  "Consultora",
+  "Operacional",
+  "Financeiro",
+  "RH",
+] as const;
+
+type PerfilPermitido =
+  (typeof PERFIS_PERMITIDOS)[number];
+
+type DadosUsuario = {
+  id?: string;
+  nome?: string;
+  email?: string;
+  senha?: string;
+  perfil?: string;
+  equipe?: string;
+  time_id?: string | null;
+  ativo?: boolean;
+  foto_url?: string;
 };
-
-type ProdutoRanking =
-  | "Todos"
-  | "Compra de Dívida"
-  | "CLT";
-
-type ConsultoraRanking = {
-  id: string;
-  nome: string;
-  fotoUrl: string;
-  timeId: string | null;
-};
-
-type LinhaProposta = {
-  consultora_id?: string | null;
-  vendedora?: string | null;
-  valor_contrato?: number | string | null;
-  valor_meta?: number | string | null;
-  percentual_tabela?: number | string | null;
-  status?: string | null;
-  data_cadastro?: string | null;
-  data_pagamento?: string | null;
-};
-
-type LinhaClt = {
-  consultora_id?: string | null;
-  consultora?: string | null;
-  parcela?: number | string | null;
-  status?: string | null;
-  criado_em?: string | null;
-  atualizado_em?: string | null;
-};
-
-type AcumuladoRanking = {
-  id: string;
-  nome: string;
-  fotoUrl: string;
-  timeId: string | null;
-  contratosCompra: number;
-  contratosClt: number;
-  producaoCompra: number;
-  producaoClt: number;
-};
-
-function normalizarTexto(valor: unknown) {
-  return String(valor || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-}
-
-function numeroSeguro(valor: unknown) {
-  const numero = Number(valor || 0);
-  return Number.isFinite(numero) ? numero : 0;
-}
-
-function perfilEhConsultora(perfil: unknown) {
-  const texto = normalizarTexto(perfil);
-
-  return (
-    texto === "consultora" ||
-    texto === "consultor" ||
-    texto.includes("consultora de vendas") ||
-    texto.includes("consultor de vendas") ||
-    texto.includes("vendedora") ||
-    texto.includes("vendedor")
-  );
-}
-
-function perfilPodeVerTodos(perfil: unknown) {
-  const texto = normalizarTexto(perfil);
-
-  return (
-    texto.includes("administrador") ||
-    texto.includes("administradora") ||
-    texto.includes("supervisor") ||
-    texto.includes("supervisora") ||
-    texto.includes("coordenador") ||
-    texto.includes("coordenadora") ||
-    texto === "admin"
-  );
-}
-
-function statusEhPago(status: unknown) {
-  return normalizarTexto(status) === "pago";
-}
 
 function respostaErro(
   erro: string,
-  status: number,
+  status: number
 ) {
   return NextResponse.json(
     { erro },
-    { status },
+    { status }
   );
 }
 
-function dataIsoValida(valor: string | null) {
-  const texto = String(valor || "").trim();
-
-  return /^\d{4}-\d{2}-\d{2}$/.test(texto)
-    ? texto
-    : "";
-}
-
-function dataIsoDoValor(valor: unknown) {
-  const texto = String(valor || "").trim();
-  const encontrada = texto.match(/\d{4}-\d{2}-\d{2}/);
-
-  return encontrada ? encontrada[0] : "";
-}
-
-function intervaloPadrao(periodo: string) {
-  const hoje = new Date();
-
-  const formatar = (data: Date) =>
-    `${data.getFullYear()}-${String(
-      data.getMonth() + 1,
-    ).padStart(2, "0")}-${String(
-      data.getDate(),
-    ).padStart(2, "0")}`;
-
-  if (periodo === "Hoje") {
-    const hojeTexto = formatar(hoje);
-
-    return {
-      inicio: hojeTexto,
-      fim: hojeTexto,
-    };
-  }
-
-  if (periodo === "Semana") {
-    const inicio = new Date(hoje);
-    const dia = inicio.getDay();
-    const diferenca =
-      dia === 0 ? -6 : 1 - dia;
-
-    inicio.setDate(
-      inicio.getDate() + diferenca,
-    );
-
-    return {
-      inicio: formatar(inicio),
-      fim: formatar(hoje),
-    };
-  }
-
-  if (periodo === "Mês") {
-    const inicio = new Date(
-      hoje.getFullYear(),
-      hoje.getMonth(),
-      1,
-    );
-
-    const fim = new Date(
-      hoje.getFullYear(),
-      hoje.getMonth() + 1,
-      0,
-    );
-
-    return {
-      inicio: formatar(inicio),
-      fim: formatar(fim),
-    };
-  }
-
-  return {
-    inicio: "",
-    fim: "",
-  };
-}
-
-function estaNoPeriodo(
-  valorData: unknown,
-  dataInicial: string,
-  dataFinal: string,
-) {
-  if (!dataInicial && !dataFinal) {
-    return true;
-  }
-
-  const data = dataIsoDoValor(valorData);
-
-  if (!data) {
-    return false;
-  }
-
-  if (dataInicial && data < dataInicial) {
-    return false;
-  }
-
-  if (dataFinal && data > dataFinal) {
-    return false;
-  }
-
-  return true;
-}
-
-function valorProducaoCompra(
-  linha: LinhaProposta,
-) {
-  const valorMeta =
-    numeroSeguro(linha.valor_meta);
-
-  if (valorMeta > 0) {
-    return valorMeta;
-  }
-
-  const valorContrato =
-    numeroSeguro(linha.valor_contrato);
-
-  const percentual =
-    numeroSeguro(
-      linha.percentual_tabela,
-    );
-
-  if (percentual > 0) {
-    return (
-      valorContrato *
-      (percentual / 100)
-    );
-  }
-
-  return valorContrato;
-}
-
-function nomesCorrespondem(
-  nomeA: unknown,
-  nomeB: unknown,
-) {
-  const a = normalizarTexto(nomeA);
-  const b = normalizarTexto(nomeB);
-
-  if (!a || !b) return false;
-  if (a === b) return true;
-
-  const menor =
-    a.length <= b.length ? a : b;
-  const maior =
-    a.length > b.length ? a : b;
-
-  return (
-    menor.length >= 5 &&
-    maior.includes(menor)
+function perfilValido(
+  valor: string
+): valor is PerfilPermitido {
+  return PERFIS_PERMITIDOS.includes(
+    valor as PerfilPermitido
   );
 }
 
-function encontrarConsultora(
-  consultoras: ConsultoraRanking[],
-  id: unknown,
-  nome: unknown,
-) {
-  const idTexto = String(id || "").trim();
-
-  if (idTexto) {
-    const porId = consultoras.find(
-      (consultora) =>
-        consultora.id === idTexto,
-    );
-
-    if (porId) {
-      return porId;
-    }
-  }
-
-  return consultoras.find(
-    (consultora) =>
-      nomesCorrespondem(
-        consultora.nome,
-        nome,
-      ),
-  );
-}
-
-async function autenticar(
-  request: NextRequest,
+async function autenticarAdministradora(
+  request: NextRequest
 ) {
   const autorizacao =
     request.headers.get("authorization");
@@ -305,7 +67,7 @@ async function autenticar(
     return {
       resposta: respostaErro(
         "Você precisa estar autenticada.",
-        401,
+        401
       ),
     };
   }
@@ -330,7 +92,7 @@ async function autenticar(
     return {
       resposta: respostaErro(
         "A conexão com o Supabase não foi configurada.",
-        500,
+        500
       ),
     };
   }
@@ -345,14 +107,14 @@ async function autenticar(
           persistSession: false,
           detectSessionInUrl: false,
         },
-      },
+      }
     );
 
   const {
     data: dadosAutenticacao,
     error: erroAutenticacao,
   } = await verificador.auth.getUser(
-    token,
+    token
   );
 
   if (
@@ -362,7 +124,7 @@ async function autenticar(
     return {
       resposta: respostaErro(
         "Sua sessão não é válida. Entre novamente.",
-        401,
+        401
       ),
     };
   }
@@ -371,44 +133,578 @@ async function autenticar(
     createAdminClient();
 
   const {
-    data: perfil,
+    data: perfilAdministradora,
     error: erroPerfil,
   } = await supabase
     .from("profiles")
-    .select(
-      "id, nome, perfil, ativo",
-    )
+    .select("perfil, ativo")
     .eq(
       "id",
-      dadosAutenticacao.user.id,
+      dadosAutenticacao.user.id
     )
     .single();
 
+  if (erroPerfil) {
+    return {
+      resposta: respostaErro(
+        `Não foi possível consultar seu perfil: ${erroPerfil.message}`,
+        500
+      ),
+    };
+  }
+
   if (
-    erroPerfil ||
-    !perfil ||
-    !perfil.ativo
+    !perfilAdministradora ||
+    perfilAdministradora.perfil !==
+      "Administradora" ||
+    !perfilAdministradora.ativo
   ) {
     return {
       resposta: respostaErro(
-        "Não foi possível localizar seu perfil.",
-        403,
+        "Somente uma Administradora ativa pode gerenciar usuários.",
+        403
       ),
     };
   }
 
   return {
     supabase,
-    perfil: perfil as Perfil,
+    administradoraId:
+      dadosAutenticacao.user.id,
   };
 }
 
+function tratarErroSupabase(
+  mensagem?: string
+) {
+  const texto =
+    String(mensagem || "").toLowerCase();
+
+  if (
+    texto.includes("already") ||
+    texto.includes("registered") ||
+    texto.includes("duplicate")
+  ) {
+    return "Já existe um usuário com esse e-mail.";
+  }
+
+  return (
+    mensagem ||
+    "Não foi possível concluir a operação."
+  );
+}
+
 export async function GET(
-  request: NextRequest,
+  request: NextRequest
 ) {
   try {
     const autenticacao =
-      await autenticar(request);
+      await autenticarAdministradora(
+        request
+      );
+
+    if ("resposta" in autenticacao) {
+      return autenticacao.resposta;
+    }
+
+    const { supabase } =
+      autenticacao;
+
+    const {
+      data,
+      error,
+    } = await supabase
+      .from("profiles")
+      .select(`
+        id,
+        nome,
+        email,
+        perfil,
+        equipe,
+        time_id,
+        ativo,
+        foto_url,
+        criado_em
+      `)
+      .order("nome", {
+        ascending: true,
+      });
+
+    if (error) {
+      return respostaErro(
+        "Não foi possível carregar os usuários.",
+        500
+      );
+    }
+
+    return NextResponse.json({
+      usuarios: data || [],
+    });
+  } catch {
+    return respostaErro(
+      "Ocorreu um erro ao carregar os usuários.",
+      500
+    );
+  }
+}
+
+export async function POST(
+  request: NextRequest
+) {
+  try {
+    const autenticacao =
+      await autenticarAdministradora(
+        request
+      );
+
+    if ("resposta" in autenticacao) {
+      return autenticacao.resposta;
+    }
+
+    const { supabase } =
+      autenticacao;
+
+    const dados =
+      (await request.json()) as DadosUsuario;
+
+    const nome = String(
+      dados.nome || ""
+    ).trim();
+
+    const email = String(
+      dados.email || ""
+    )
+      .trim()
+      .toLowerCase();
+
+    const senha = String(
+      dados.senha || ""
+    );
+
+    const perfil = String(
+      dados.perfil || ""
+    ).trim();
+
+    const equipe = String(
+      dados.equipe || ""
+    ).trim();
+
+    const timeId = String(
+      dados.time_id || ""
+    ).trim() || null;
+
+    const fotoUrl = String(
+      dados.foto_url || ""
+    );
+
+    if (!nome) {
+      return respostaErro(
+        "Informe o nome da colaboradora.",
+        400
+      );
+    }
+
+    const emailValido =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+        email
+      );
+
+    if (!emailValido) {
+      return respostaErro(
+        "Informe um endereço de e-mail válido.",
+        400
+      );
+    }
+
+    if (senha.length < 6) {
+      return respostaErro(
+        "A senha precisa ter pelo menos 6 caracteres.",
+        400
+      );
+    }
+
+    if (!perfilValido(perfil)) {
+      return respostaErro(
+        "Selecione um perfil válido.",
+        400
+      );
+    }
+
+    const {
+      data: usuarioCriado,
+      error: erroCriacao,
+    } =
+      await supabase.auth.admin.createUser(
+        {
+          email,
+          password: senha,
+          email_confirm: true,
+          // A foto fica somente em public.profiles.foto_url.
+          // Nunca grave Base64 no Auth, pois isso aumenta o JWT e causa HTTP 431.
+          user_metadata: {
+            nome,
+            perfil,
+            equipe,
+          },
+        }
+      );
+
+    if (
+      erroCriacao ||
+      !usuarioCriado.user
+    ) {
+      return respostaErro(
+        tratarErroSupabase(
+          erroCriacao?.message
+        ),
+        400
+      );
+    }
+
+    const ativo =
+      dados.ativo !== false;
+
+    const {
+      data: perfilCriado,
+      error: erroPerfil,
+    } = await supabase
+      .from("profiles")
+      .update({
+        nome,
+        email,
+        perfil,
+        equipe,
+        time_id: timeId,
+        ativo,
+        foto_url: fotoUrl,
+      })
+      .eq(
+        "id",
+        usuarioCriado.user.id
+      )
+      .select(`
+        id,
+        nome,
+        email,
+        perfil,
+        equipe,
+        time_id,
+        ativo,
+        foto_url,
+        criado_em
+      `)
+      .single();
+
+    if (erroPerfil) {
+      await supabase
+        .auth
+        .admin
+        .deleteUser(
+          usuarioCriado.user.id
+        );
+
+      return respostaErro(
+        "O acesso foi criado, mas não foi possível salvar o perfil. Tente novamente.",
+        500
+      );
+    }
+
+    return NextResponse.json(
+      {
+        mensagem:
+          "Usuário criado com sucesso.",
+        usuario: perfilCriado,
+      },
+      {
+        status: 201,
+      }
+    );
+  } catch {
+    return respostaErro(
+      "Ocorreu um erro ao criar o usuário.",
+      500
+    );
+  }
+}
+
+export async function PATCH(
+  request: NextRequest
+) {
+  try {
+    const autenticacao =
+      await autenticarAdministradora(
+        request
+      );
+
+    if ("resposta" in autenticacao) {
+      return autenticacao.resposta;
+    }
+
+    const { supabase } =
+      autenticacao;
+
+    const dados =
+      (await request.json()) as DadosUsuario;
+
+    const id = String(
+      dados.id || ""
+    ).trim();
+
+    const nome = String(
+      dados.nome || ""
+    ).trim();
+
+    const email = String(
+      dados.email || ""
+    )
+      .trim()
+      .toLowerCase();
+
+    const senha = String(
+      dados.senha || ""
+    );
+
+    const perfil = String(
+      dados.perfil || ""
+    ).trim();
+
+    const equipe = String(
+      dados.equipe || ""
+    ).trim();
+
+    const timeId = String(
+      dados.time_id || ""
+    ).trim() || null;
+
+    const fotoUrl = String(
+      dados.foto_url || ""
+    );
+
+    const ativo =
+      dados.ativo !== false;
+
+    if (!id) {
+      return respostaErro(
+        "Usuário não informado.",
+        400
+      );
+    }
+
+    if (!nome) {
+      return respostaErro(
+        "Informe o nome da colaboradora.",
+        400
+      );
+    }
+
+    const emailValido =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+        email
+      );
+
+    if (!emailValido) {
+      return respostaErro(
+        "Informe um endereço de e-mail válido.",
+        400
+      );
+    }
+
+    if (
+      senha &&
+      senha.length < 6
+    ) {
+      return respostaErro(
+        "A nova senha precisa ter pelo menos 6 caracteres.",
+        400
+      );
+    }
+
+    if (!perfilValido(perfil)) {
+      return respostaErro(
+        "Selecione um perfil válido.",
+        400
+      );
+    }
+
+    const {
+      data: perfilAnterior,
+      error: erroPerfilAnterior,
+    } = await supabase
+      .from("profiles")
+      .select(
+        "id, perfil, ativo, email"
+      )
+      .eq("id", id)
+      .single();
+
+    if (
+      erroPerfilAnterior ||
+      !perfilAnterior
+    ) {
+      return respostaErro(
+        "Usuário não encontrado.",
+        404
+      );
+    }
+
+    const deixaraDeSerAdminAtiva =
+      perfilAnterior.perfil ===
+        "Administradora" &&
+      perfilAnterior.ativo &&
+      (
+        perfil !==
+          "Administradora" ||
+        !ativo
+      );
+
+    if (
+      deixaraDeSerAdminAtiva
+    ) {
+      const {
+        count,
+        error: erroContagem,
+      } = await supabase
+        .from("profiles")
+        .select("id", {
+          count: "exact",
+          head: true,
+        })
+        .eq(
+          "perfil",
+          "Administradora"
+        )
+        .eq("ativo", true)
+        .neq("id", id);
+
+      if (erroContagem) {
+        return respostaErro(
+          "Não foi possível verificar as administradoras.",
+          500
+        );
+      }
+
+      if (!count) {
+        return respostaErro(
+          "Não é possível desativar ou alterar a única Administradora ativa.",
+          400
+        );
+      }
+    }
+
+    const atributosAuth: {
+      email?: string;
+      password?: string;
+      email_confirm?: boolean;
+      user_metadata: {
+        nome: string;
+        perfil: string;
+        equipe: string;
+        foto_url: null;
+      };
+    } = {
+      // Mantém apenas dados pequenos no Auth. O null remove a foto antiga
+      // que possa ter sido salva em raw_user_meta_data.
+      user_metadata: {
+        nome,
+        perfil,
+        equipe,
+        foto_url: null,
+      },
+    };
+
+    if (
+      email !==
+      String(
+        perfilAnterior.email || ""
+      ).toLowerCase()
+    ) {
+      atributosAuth.email = email;
+      atributosAuth.email_confirm = true;
+    }
+
+    if (senha) {
+      atributosAuth.password = senha;
+    }
+
+    const {
+      error: erroAtualizacaoAuth,
+    } =
+      await supabase
+        .auth
+        .admin
+        .updateUserById(
+          id,
+          atributosAuth
+        );
+
+    if (erroAtualizacaoAuth) {
+      return respostaErro(
+        tratarErroSupabase(
+          erroAtualizacaoAuth.message
+        ),
+        400
+      );
+    }
+
+    const {
+      data: perfilAtualizado,
+      error: erroAtualizacaoPerfil,
+    } = await supabase
+      .from("profiles")
+      .update({
+        nome,
+        email,
+        perfil,
+        equipe,
+        time_id: timeId,
+        ativo,
+        foto_url: fotoUrl,
+      })
+      .eq("id", id)
+      .select(`
+        id,
+        nome,
+        email,
+        perfil,
+        equipe,
+        time_id,
+        ativo,
+        foto_url,
+        criado_em
+      `)
+      .single();
+
+    if (
+      erroAtualizacaoPerfil ||
+      !perfilAtualizado
+    ) {
+      return respostaErro(
+        "O acesso foi atualizado, mas não foi possível atualizar o perfil.",
+        500
+      );
+    }
+
+    return NextResponse.json({
+      mensagem:
+        "Usuário atualizado com sucesso.",
+      usuario: perfilAtualizado,
+    });
+  } catch {
+    return respostaErro(
+      "Ocorreu um erro ao atualizar o usuário.",
+      500
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest
+) {
+  try {
+    const autenticacao =
+      await autenticarAdministradora(
+        request
+      );
 
     if ("resposta" in autenticacao) {
       return autenticacao.resposta;
@@ -416,392 +712,116 @@ export async function GET(
 
     const {
       supabase,
-      perfil,
+      administradoraId,
     } = autenticacao;
 
-    const url =
-      new URL(request.url);
+    const dados =
+      (await request.json()) as {
+        id?: string;
+      };
 
-    const periodo =
-      url.searchParams.get("periodo") ||
-      "Mês";
+    const id = String(
+      dados.id || ""
+    ).trim();
 
-    const produtoInformado =
-      String(
-        url.searchParams.get("produto") ||
-          "Todos",
-      ) as ProdutoRanking;
+    if (!id) {
+      return respostaErro(
+        "Usuário não informado.",
+        400
+      );
+    }
 
-    const produto: ProdutoRanking =
-      [
-        "Todos",
-        "Compra de Dívida",
-        "CLT",
-      ].includes(produtoInformado)
-        ? produtoInformado
-        : "Todos";
-
-    const timeSelecionado =
-      String(
-        url.searchParams.get("timeId") ||
-          "Todos",
-      ).trim();
-
-    const padrao =
-      intervaloPadrao(periodo);
-
-    const ignorarDatas =
-      periodo === "Todos";
-
-    const dataInicial = ignorarDatas
-      ? ""
-      : dataIsoValida(
-          url.searchParams.get(
-            "dataInicial",
-          ),
-        ) || padrao.inicio;
-
-    const dataFinal = ignorarDatas
-      ? ""
-      : dataIsoValida(
-          url.searchParams.get(
-            "dataFinal",
-          ),
-        ) || padrao.fim;
+    if (
+      id === administradoraId
+    ) {
+      return respostaErro(
+        "Você não pode excluir o próprio usuário enquanto está conectada.",
+        400
+      );
+    }
 
     const {
-      data: perfis,
-      error: erroPerfis,
+      data: perfilExcluido,
+      error: erroPerfil,
     } = await supabase
       .from("profiles")
       .select(
-        "id, nome, perfil, ativo, foto_url, time_id",
+        "perfil, ativo"
       )
-      .eq("ativo", true);
+      .eq("id", id)
+      .single();
 
-    if (erroPerfis) {
+    if (
+      erroPerfil ||
+      !perfilExcluido
+    ) {
       return respostaErro(
-        `Não foi possível carregar as consultoras: ${erroPerfis.message}`,
-        500,
+        "Usuário não encontrado.",
+        404
       );
     }
 
-    const consultoras =
-      (perfis || [])
-        .filter((item) =>
-          perfilEhConsultora(
-            item.perfil,
-          ),
-        )
-        .map((item) => ({
-          id: String(item.id),
-          nome: String(
-            item.nome || "",
-          ).trim(),
-          fotoUrl: String(
-            item.foto_url || "",
-          ),
-          timeId:
-            item.time_id == null
-              ? null
-              : String(item.time_id),
-        }))
-        .filter(
-          (item) =>
-            item.nome &&
-            (
-              timeSelecionado === "Todos" ||
-              item.timeId === timeSelecionado
-            ),
-        );
-
-    const agrupado =
-      new Map<string, AcumuladoRanking>();
-
-    consultoras.forEach(
-      (consultora) => {
-        agrupado.set(
-          consultora.id,
-          {
-            id: consultora.id,
-            nome: consultora.nome,
-            fotoUrl:
-              consultora.fotoUrl,
-            timeId:
-              consultora.timeId,
-            contratosCompra: 0,
-            contratosClt: 0,
-            producaoCompra: 0,
-            producaoClt: 0,
-          },
-        );
-      },
-    );
-
-    if (produto !== "CLT") {
+    if (
+      perfilExcluido.perfil ===
+        "Administradora" &&
+      perfilExcluido.ativo
+    ) {
       const {
-        data: propostas,
-        error: erroPropostas,
+        count,
+        error: erroContagem,
       } = await supabase
-        .from("propostas")
-        .select(`
-          consultora_id,
-          vendedora,
-          valor_contrato,
-          valor_meta,
-          percentual_tabela,
-          status,
-          data_cadastro,
-          data_pagamento
-        `);
+        .from("profiles")
+        .select("id", {
+          count: "exact",
+          head: true,
+        })
+        .eq(
+          "perfil",
+          "Administradora"
+        )
+        .eq("ativo", true)
+        .neq("id", id);
 
-      if (erroPropostas) {
+      if (erroContagem) {
         return respostaErro(
-          `Não foi possível carregar os contratos de Compra de Dívida: ${erroPropostas.message}`,
-          500,
+          "Não foi possível verificar as administradoras.",
+          500
         );
       }
 
-      (
-        (propostas || []) as
-          LinhaProposta[]
-      ).forEach((linha) => {
-        if (!statusEhPago(linha.status)) {
-          return;
-        }
-
-        const dataReferencia =
-          linha.data_pagamento ||
-          linha.data_cadastro;
-
-        if (
-          !estaNoPeriodo(
-            dataReferencia,
-            dataInicial,
-            dataFinal,
-          )
-        ) {
-          return;
-        }
-
-        const consultora =
-          encontrarConsultora(
-            consultoras,
-            linha.consultora_id,
-            linha.vendedora,
-          );
-
-        if (!consultora) {
-          return;
-        }
-
-        const atual =
-          agrupado.get(
-            consultora.id,
-          );
-
-        if (!atual) {
-          return;
-        }
-
-        atual.contratosCompra += 1;
-        atual.producaoCompra +=
-          valorProducaoCompra(linha);
-      });
-    }
-
-    if (produto !== "Compra de Dívida") {
-      const {
-        data: registrosClt,
-        error: erroClt,
-      } = await supabase
-        .from("clt_registros")
-        .select(`
-          consultora_id,
-          consultora,
-          parcela,
-          status,
-          criado_em,
-          atualizado_em
-        `);
-
-      if (erroClt) {
+      if (!count) {
         return respostaErro(
-          `Não foi possível carregar os contratos CLT: ${erroClt.message}`,
-          500,
+          "Não é possível excluir a única Administradora ativa.",
+          400
         );
       }
-
-      (
-        (registrosClt || []) as
-          LinhaClt[]
-      ).forEach((linha) => {
-        if (!statusEhPago(linha.status)) {
-          return;
-        }
-
-        const dataReferencia =
-          linha.atualizado_em ||
-          linha.criado_em;
-
-        if (
-          !estaNoPeriodo(
-            dataReferencia,
-            dataInicial,
-            dataFinal,
-          )
-        ) {
-          return;
-        }
-
-        const consultora =
-          encontrarConsultora(
-            consultoras,
-            linha.consultora_id,
-            linha.consultora,
-          );
-
-        if (!consultora) {
-          return;
-        }
-
-        const atual =
-          agrupado.get(
-            consultora.id,
-          );
-
-        if (!atual) {
-          return;
-        }
-
-        atual.contratosClt += 1;
-        atual.producaoClt +=
-          numeroSeguro(linha.parcela);
-      });
     }
 
-    const rankingCompleto =
-      Array.from(
-        agrupado.values(),
-      )
-        .map((item) => ({
-          ...item,
-          contratos:
-            item.contratosCompra +
-            item.contratosClt,
-          producao:
-            item.producaoCompra +
-            item.producaoClt,
-        }))
-        .filter(
-          (item) =>
-            item.contratos > 0 ||
-            item.producao > 0,
-        )
-        .sort((a, b) => {
-          if (
-            b.producao !==
-            a.producao
-          ) {
-            return (
-              b.producao -
-              a.producao
-            );
-          }
+    const {
+      error: erroExclusao,
+    } =
+      await supabase
+        .auth
+        .admin
+        .deleteUser(id);
 
-          if (
-            b.contratos !==
-            a.contratos
-          ) {
-            return (
-              b.contratos -
-              a.contratos
-            );
-          }
-
-          return a.nome.localeCompare(
-            b.nome,
-            "pt-BR",
-          );
-        });
-
-    const podeVerTodos =
-      perfilPodeVerTodos(
-        perfil.perfil,
+    if (erroExclusao) {
+      return respostaErro(
+        tratarErroSupabase(
+          erroExclusao.message
+        ),
+        400
       );
-
-    const usuarioEhConsultora =
-      perfilEhConsultora(
-        perfil.perfil,
-      );
-
-    const ranking =
-      rankingCompleto.map(
-        (item, indice) => {
-          const ehPropria =
-            usuarioEhConsultora &&
-            item.id === perfil.id;
-
-          const podeVerValores =
-            podeVerTodos ||
-            ehPropria;
-
-          return {
-            posicao: indice + 1,
-            id: item.id,
-            nome: item.nome,
-            fotoUrl: item.fotoUrl,
-            timeId: item.timeId,
-            contratosCompra:
-              item.contratosCompra,
-            contratosClt:
-              item.contratosClt,
-            contratos:
-              item.contratos,
-            producaoCompra:
-              podeVerValores
-                ? item.producaoCompra
-                : null,
-            producaoClt:
-              podeVerValores
-                ? item.producaoClt
-                : null,
-            producao:
-              podeVerValores
-                ? item.producao
-                : null,
-          };
-        },
-      );
+    }
 
     return NextResponse.json({
-      perfil: {
-        id: perfil.id,
-        nome: perfil.nome,
-        perfil: perfil.perfil,
-      },
-      periodo: {
-        inicio:
-          dataInicial || null,
-        fim:
-          dataFinal || null,
-      },
-      produto,
-      contratosPagos:
-        rankingCompleto.reduce(
-          (total, item) =>
-            total +
-            item.contratos,
-          0,
-        ),
-      ranking,
+      mensagem:
+        "Usuário excluído com sucesso.",
     });
-  } catch (erro) {
+  } catch {
     return respostaErro(
-      erro instanceof Error
-        ? erro.message
-        : "Ocorreu um erro ao montar o ranking.",
-      500,
+      "Ocorreu um erro ao excluir o usuário.",
+      500
     );
   }
 }

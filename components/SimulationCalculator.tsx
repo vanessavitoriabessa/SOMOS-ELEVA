@@ -53,7 +53,6 @@ export default function SimulationCalculator() {
   const router = useRouter();
   const [parcela, setParcela] = useState("");
   const [margem, setMargem] = useState("");
-  const [cliente, setCliente] = useState("");
   const [tabelaId, setTabelaId] = useState(TABELAS[0].id);
   const [historico, setHistorico] = useState<Historico[]>([]);
   const [mensagem, setMensagem] = useState("");
@@ -99,7 +98,7 @@ export default function SimulationCalculator() {
 
     const nova: Historico = {
       id: crypto.randomUUID(),
-      cliente: cliente.trim() || "Cliente não informado",
+      cliente: "Simulação",
       parcela: resultado.valorParcela,
       margem: resultado.margemAdicional,
       tabela: tabela.nome,
@@ -127,7 +126,6 @@ export default function SimulationCalculator() {
     const texto = [
       "SIMULAÇÃO SOMOS ELEVA",
       "",
-      `Cliente: ${cliente.trim() || "Não informado"}`,
       `Banco/Tabela: ${tabela.nome}`,
       `Parcela: ${moeda(resultado.valorParcela)}`,
       `Prazo: ${tabela.prazo} parcelas`,
@@ -149,7 +147,6 @@ export default function SimulationCalculator() {
     }
 
     const rascunho = {
-      cliente: cliente.trim(),
       banco: tabela.banco,
       tabela: tabela.nome,
       parcela: resultado.valorParcela,
@@ -170,7 +167,6 @@ export default function SimulationCalculator() {
   function limpar() {
     setParcela("");
     setMargem("");
-    setCliente("");
     setMensagem("");
   }
 
@@ -190,15 +186,6 @@ export default function SimulationCalculator() {
         </div>
 
         <div className="simulation-form-grid">
-          <label>
-            Nome do cliente <small>(opcional)</small>
-            <input
-              value={cliente}
-              onChange={(event) => setCliente(event.target.value)}
-              placeholder="Digite o nome do cliente"
-            />
-          </label>
-
           <label>
             Valor da parcela
             <input
@@ -234,25 +221,6 @@ export default function SimulationCalculator() {
           </label>
         </div>
 
-        <div className="simulation-info">
-          <div>
-            <span>Prazo</span>
-            <strong>{tabela.prazo} parcelas</strong>
-          </div>
-          <div>
-            <span>Fator</span>
-            <strong>{tabela.fator.toFixed(5).replace(".", ",")}</strong>
-          </div>
-          <div>
-            <span>Percentual</span>
-            <strong>{tabela.percentual}%</strong>
-          </div>
-          <div>
-            <span>Banco</span>
-            <strong>{tabela.banco}</strong>
-          </div>
-        </div>
-
         <div className="simulation-results">
           <article>
             <span>Saldo devedor</span>
@@ -275,6 +243,33 @@ export default function SimulationCalculator() {
             <strong>{moeda(resultado.troco)}</strong>
             <small>Valor liberado − saldo devedor</small>
           </article>
+        </div>
+
+        <div
+          className="simulation-info"
+          style={{
+            marginTop: "12px",
+            padding: "10px 14px",
+            minHeight: "auto",
+            fontSize: "12px",
+          }}
+        >
+          <div>
+            <span>Prazo</span>
+            <strong>{tabela.prazo}x</strong>
+          </div>
+          <div>
+            <span>Fator</span>
+            <strong>{tabela.fator.toFixed(5).replace(".", ",")}</strong>
+          </div>
+          <div>
+            <span>Percentual</span>
+            <strong>{tabela.percentual}%</strong>
+          </div>
+          <div>
+            <span>Banco</span>
+            <strong>{tabela.banco}</strong>
+          </div>
         </div>
 
         {mensagem && <div className="simulation-message">{mensagem}</div>}
@@ -315,7 +310,7 @@ export default function SimulationCalculator() {
             {historico.map((item) => (
               <article key={item.id}>
                 <div className="history-top">
-                  <strong>{item.cliente}</strong>
+                  <strong>Simulação</strong>
                   <time>{item.criadoEm}</time>
                 </div>
                 <span>{item.tabela}</span>

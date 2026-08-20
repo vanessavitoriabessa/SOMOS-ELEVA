@@ -57,10 +57,12 @@ type Proposta = {
   telefone: string;
   vendedora: string;
   banco: string;
+  tabelaBancoId?: string;
   tabela: string;
   percentualTabela: number;
   valorContrato: number;
   valorMeta: number;
+  comissao?: number;
   status: StatusProposta;
   dataSolicitacao: string;
   dataCadastro: string;
@@ -78,6 +80,7 @@ type TabelaConfigurada = {
   nome: string;
   codigo: string;
   percentual: number;
+  percentualComissaoBanco: number | null;
   ativo: boolean;
 };
 
@@ -191,6 +194,100 @@ function normalizarPerfil(valor: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase();
+}
+
+
+function numeroFlex(valor: string) {
+  const texto = normalizarPerfil(valor)
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+
+  const achou = texto.match(/flex\s*0*(\d+)/i);
+  return achou ? Number(achou[1]) : null;
+}
+
+function ehTabelaNormal(valor: string) {
+  return normalizarPerfil(valor).includes("normal");
+}
+
+function encontrarTabelaDaProposta(
+  proposta: Proposta,
+  tabelas: TabelaConfigurada[],
+) {
+  const ativas = tabelas.filter((tabela) => tabela.ativo);
+
+  // 1) Melhor cenário: a proposta já possui o ID exato da tabela escolhida.
+  if (proposta.tabelaBancoId) {
+    const porId = ativas.find(
+      (tabela) => tabela.id === proposta.tabelaBancoId,
+    );
+    if (porId) return porId;
+  }
+
+  const banco = normalizarPerfil(proposta.banco);
+  const nomeVenda = normalizarPerfil(proposta.tabela);
+  const percentualVenda = Number(proposta.percentualTabela || 0);
+  const flexVenda = numeroFlex(proposta.tabela);
+  const normalVenda = ehTabelaNormal(proposta.tabela);
+
+  const mesmoBanco = ativas.filter(
+    (tabela) => normalizarPerfil(tabela.banco) === banco,
+  );
+
+  // 2) Nome exatamente igual + mesmo percentual de produção.
+  const exata = mesmoBanco.find(
+    (tabela) =>
+      normalizarPerfil(tabela.nome) === nomeVenda &&
+      Math.abs(Number(tabela.percentual || 0) - percentualVenda) < 0.0001,
+  );
+  if (exata) return exata;
+
+  // 3) Propostas antigas como "NEO FLEX 3":
+  // casa pelo número do FLEX + percentual de produção.
+  if (flexVenda !== null) {
+    const porFlexEPercentual = mesmoBanco.find(
+      (tabela) =>
+        numeroFlex(tabela.nome) === flexVenda &&
+        Math.abs(Number(tabela.percentual || 0) - percentualVenda) < 0.0001,
+    );
+    if (porFlexEPercentual) return porFlexEPercentual;
+  }
+
+  // 4) NORMAL antiga: casa NORMAL + percentual de produção.
+  if (normalVenda) {
+    const porNormalEPercentual = mesmoBanco.find(
+      (tabela) =>
+        ehTabelaNormal(tabela.nome) &&
+        Math.abs(Number(tabela.percentual || 0) - percentualVenda) < 0.0001,
+    );
+    if (porNormalEPercentual) return porNormalEPercentual;
+  }
+
+  // 5) Compatibilidade final para nomes com prefixos (SP_NCDT_, MA_CGMX_ etc).
+  const porNomeContido = mesmoBanco.find((tabela) => {
+    const nomeTabela = normalizarPerfil(tabela.nome);
+    return (
+      nomeTabela.includes(nomeVenda) ||
+      nomeVenda.includes(nomeTabela)
+    );
+  });
+
+  return porNomeContido;
+}
+
+function calcularComissaoDaProposta(
+  proposta: Proposta,
+  tabelas: TabelaConfigurada[],
+) {
+  const tabela = encontrarTabelaDaProposta(proposta, tabelas);
+  const percentual = Number(tabela?.percentualComissaoBanco || 0);
+  const valor = Number(proposta.valorContrato || 0) * (percentual / 100);
+
+  return {
+    tabela,
+    percentual,
+    valor,
+  };
 }
 
 function formatarCpf(valor: string) {
@@ -388,6 +485,12 @@ const [arquivos, setArquivos] = useState({
             nome: String(item.nome || "").trim(),
             codigo: String(item.codigo || "").trim(),
             percentual: Number(item.percentual || 0),
+            percentualComissaoBanco:
+              item.percentual_comissao_banco === null ||
+              item.percentual_comissao_banco === undefined ||
+              String(item.percentual_comissao_banco).trim() === ""
+                ? null
+                : Number(item.percentual_comissao_banco),
             ativo: item.ativo !== false,
           }))
         : [];
@@ -424,7 +527,30 @@ const [arquivos, setArquivos] = useState({
         );
       }
 
-      setPerfilAtual(String(conteudo.perfil?.perfil || ""));
+      const perfilDaApi = String(conteudo.perfil?.perfil || "").trim();
+
+      if (perfilDaApi) {
+        setPerfilAtual(perfilDaApi);
+      } else {
+        const { data: sessaoAtual } = await supabase.auth.getSession();
+        const perfilMetadata = String(
+          sessaoAtual.session?.user?.user_metadata?.perfil ||
+          sessaoAtual.session?.user?.user_metadata?.cargo ||
+          ""
+        ).trim();
+
+        const perfilLocal =
+          typeof window !== "undefined"
+            ? String(
+                localStorage.getItem("somos-eleva-cargo") ||
+                localStorage.getItem("somos-eleva-perfil") ||
+                ""
+              ).trim()
+            : "";
+
+        setPerfilAtual(perfilMetadata || perfilLocal);
+      }
+
       setPropostas(
         Array.isArray(conteudo.propostas) ? conteudo.propostas : []
       );
@@ -632,6 +758,18 @@ const [arquivos, setArquivos] = useState({
     0
   );
 
+  const comissaoEmpresa = pagasDentroDoPrazo.reduce(
+    (total, item) => {
+      const calculo = calcularComissaoDaProposta(
+        item,
+        tabelasConfiguradas,
+      );
+
+      return total + calculo.valor;
+    },
+    0
+  );
+
   return {
     total: ativas.length,
 
@@ -648,8 +786,9 @@ const [arquivos, setArquivos] = useState({
     valorPago,
     producaoDigitada,
     producaoPaga,
+    comissaoEmpresa,
   };
-}, [propostasFiltradas, dataFinal]);
+}, [propostasFiltradas, dataFinal, tabelasConfiguradas]);
 
   const clienteSelecionado = useMemo(
     () => clientes.find((cliente) => cliente.id === form.clienteId),
@@ -703,6 +842,7 @@ const [arquivos, setArquivos] = useState({
         nome: editando.tabela,
         codigo: "",
         percentual: Number(editando.percentualTabela || 0),
+        percentualComissaoBanco: null,
         ativo: true,
       } satisfies TabelaConfigurada;
     }
@@ -722,6 +862,14 @@ const [arquivos, setArquivos] = useState({
   const podeCancelarProposta = ["administradora", "operacional"].includes(
     normalizarPerfil(perfilAtual)
   );
+
+  const perfilNormalizado = normalizarPerfil(perfilAtual);
+
+  const podeVerComissaoEmpresa = [
+    "administradora",
+    "administrador",
+    "admin",
+  ].includes(perfilNormalizado);
 async function buscarClientePorCpf() {
   const cpfNumeros = apenasNumeros(buscaCliente);
 
@@ -1049,6 +1197,10 @@ cpf: apenasNumeros(form.cpfCliente),
 telefone: form.telefoneCliente.trim(),
         vendedora: form.vendedora,
         banco: form.banco.trim(),
+        tabelaBancoId:
+          tabelaSelecionada.id.startsWith("historica-")
+            ? editando?.tabelaBancoId || ""
+            : tabelaSelecionada.id,
         tabela: tabelaSelecionada.nome,
         percentualTabela: tabelaSelecionada.percentual,
         valorContrato,
@@ -1217,6 +1369,10 @@ for (const documento of documentos) {
         telefone: form.telefoneCliente.trim(),
         vendedora: form.vendedora,
         banco: form.banco.trim(),
+        tabelaBancoId:
+          tabelaSelecionada && !tabelaSelecionada.id.startsWith("historica-")
+            ? tabelaSelecionada.id
+            : editando.tabelaBancoId || "",
         tabela: form.tabela,
         percentualTabela: tabelaSelecionada?.percentual || 0,
         valorContrato,
@@ -1298,6 +1454,21 @@ for (const documento of documentos) {
   <span>PRODUÇÃO LIQUIDA PAGO </span>
   <strong>{moeda(resumo.producaoPaga)}</strong>
 </article>
+
+        {podeVerComissaoEmpresa && (
+          <article
+            style={{
+              borderColor: "#c8d8ff",
+              background: "linear-gradient(135deg, #f3f7ff, #ffffff)",
+            }}
+          >
+            <span>COMISSÃO DA EMPRESA</span>
+            <strong style={{ color: "#155eef" }}>
+              {moeda(resumo.comissaoEmpresa)}
+            </strong>
+          </article>
+        )}
+
         <article className="destaque">
           <span>PRODUÇÃO DIGITADA </span>
 <strong>{moeda(resumo.producaoDigitada)}</strong>
@@ -1416,25 +1587,48 @@ for (const documento of documentos) {
             </span>
           </div>
         ) : (
-          <div className="esteira-tabela-wrapper">
-            <table className="esteira-tabela">
+          <div
+            className="esteira-tabela-wrapper"
+            style={{
+              transform: "rotateX(180deg)",
+              overflowX: "auto",
+            }}
+          >
+            <table
+              className="esteira-tabela"
+              style={{
+                transform: "rotateX(180deg)",
+              }}
+            >
               <thead>
                 <tr>
                   <th>Nº</th>
-                  <th>Consultora</th>
-                  <th>Cliente</th>
-                  <th>Produto</th>
-                  <th>Banco / Tabela</th>
-                  <th>Valor</th>
-                  <th>Valor final</th>
-                  <th>Data / Digitação</th>
-                  <th>Status</th>
-                  <th>Ações</th>
+                  <th>CONSULTORA</th>
+                  <th>CLIENTE</th>
+                  <th>PRODUTO</th>
+                  <th>BANCO / TABELA / CONVÊNIO</th>
+                  <th>CÓDIGO</th>
+                  <th>VALOR</th>
+                  <th>VALOR FINAL</th>
+                  <th>% PRODUÇÃO</th>
+                  <th>% COMISSÃO BANCO</th>
+                  {podeVerComissaoEmpresa && (
+                    <th>COMISSÃO EMPRESA</th>
+                  )}
+                  <th>DATA / DIGITAÇÃO</th>
+                  <th>STATUS</th>
+                  <th>AÇÕES</th>
                 </tr>
               </thead>
 
               <tbody>
-                {propostasFiltradas.map((proposta, indice) => (
+                {propostasFiltradas.map((proposta, indice) => {
+                  const calculoComissao = calcularComissaoDaProposta(
+                    proposta,
+                    tabelasConfiguradas,
+                  );
+
+                  return (
                   <tr key={proposta.id}>
                     <td>
                       <strong>
@@ -1453,9 +1647,17 @@ for (const documento of documentos) {
 
                     <td>
                       <strong>{proposta.banco || "—"}</strong>
-                      <small>
+                      <small style={{ fontWeight: 400 }}>
                         {proposta.tabela || "Tabela não informada"}
                       </small>
+                      <small style={{ fontWeight: 400 }}>
+                        {calculoComissao.tabela?.orgaoConvenio ||
+                          "Convênio não informado"}
+                      </small>
+                    </td>
+
+                    <td>
+                      {calculoComissao.tabela?.codigo || "—"}
                     </td>
 
                     <td>{moeda(proposta.valorContrato)}</td>
@@ -1465,6 +1667,43 @@ for (const documento of documentos) {
                         {moeda(proposta.valorMeta)}
                       </strong>
                     </td>
+
+                    <td>
+                      <strong>
+                        {`${String(
+                          Number(
+                            calculoComissao.tabela?.percentual ??
+                              proposta.percentualTabela ??
+                              0,
+                          ),
+                        ).replace(".", ",")}%`}
+                      </strong>
+                    </td>
+
+                    <td>
+                      <strong>
+                        {calculoComissao.percentual > 0
+                          ? `${String(calculoComissao.percentual).replace(".", ",")}%`
+                          : "—"}
+                      </strong>
+                    </td>
+
+                    {podeVerComissaoEmpresa && (
+                      <td>
+                        <strong
+                          style={{
+                            color:
+                              calculoComissao.valor > 0
+                                ? "#155eef"
+                                : "#b42318",
+                          }}
+                        >
+                          {calculoComissao.valor > 0
+                            ? moeda(calculoComissao.valor)
+                            : "—"}
+                        </strong>
+                      </td>
+                    )}
 
                     <td>
                       <strong>
@@ -1548,7 +1787,8 @@ for (const documento of documentos) {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

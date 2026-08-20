@@ -720,13 +720,57 @@ percentual_tabela,
       ? linhas.filter((linha) => podeAlterarProposta(perfil, linha))
       : linhas;
 
+    const perfilNormalizado = normalizarTexto(perfil.perfil);
+    const podeVerComissaoEmpresa = [
+      "administradora",
+      "administrador",
+      "admin",
+    ].includes(perfilNormalizado);
+
+    const propostasResposta = await Promise.all(
+      permitidas.map(async (linha) => {
+        const propostaMapeada = linhaParaProposta(linha);
+
+        // Comissão da empresa é calculada sobre o VALOR BRUTO usando
+        // o percentual_comissao_banco configurado na tabela.
+        // O valor só é devolvido para administradores.
+        if (!podeVerComissaoEmpresa) {
+          return {
+            ...propostaMapeada,
+            comissao: 0,
+          };
+        }
+
+        if (statusSeguro(linha.status) !== "PAGO") {
+          return {
+            ...propostaMapeada,
+            comissao: 0,
+          };
+        }
+
+        const percentualBanco = await percentualComissaoBanco(
+          supabase,
+          linha,
+        );
+
+        const valorBruto = numeroSeguro(linha.valor_contrato);
+        const comissaoEmpresa =
+          valorBruto * (percentualBanco / 100);
+
+        return {
+          ...propostaMapeada,
+          comissao: comissaoEmpresa,
+        };
+      }),
+    );
+
     return NextResponse.json({
       perfil: {
         id: perfil.id,
         nome: perfil.nome,
         perfil: perfil.perfil,
       },
-      propostas: permitidas.map(linhaParaProposta),
+      propostas: propostasResposta,
     });
   } catch (erro) {
     return respostaErro(
