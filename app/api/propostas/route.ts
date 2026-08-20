@@ -530,6 +530,74 @@ function chaveDuplicidadeProposta(linha: LinhaProposta) {
   return `${responsavel}|${identificadorCliente}|${valor}|${data}|${tabela}`;
 }
 
+
+async function resolverTabelaBancoId(
+  supabase: ReturnType<typeof createAdminClient>,
+  proposta: PropostaRecebida,
+) {
+  const idRecebido = String(proposta.tabelaBancoId || "").trim();
+
+  if (idRecebido) {
+    const { data: tabelaPorId, error: erroPorId } = await supabase
+      .from("config_tabelas")
+      .select("id")
+      .eq("id", idRecebido)
+      .maybeSingle();
+
+    if (erroPorId) {
+      throw new Error(
+        `Não foi possível validar a tabela selecionada: ${erroPorId.message}`,
+      );
+    }
+
+    if (tabelaPorId?.id) {
+      return String(tabelaPorId.id);
+    }
+  }
+
+  const bancoProposta = normalizarTexto(proposta.banco);
+  const nomeProposta = normalizarTexto(proposta.tabela);
+  const percentualProducao = numeroSeguro(proposta.percentualTabela);
+
+  if (!bancoProposta || !nomeProposta) {
+    return null;
+  }
+
+  const { data: tabelas, error } = await supabase
+    .from("config_tabelas")
+    .select("id, banco, nome, percentual, ativo")
+    .eq("ativo", true);
+
+  if (error) {
+    throw new Error(
+      `Não foi possível localizar a tabela selecionada: ${error.message}`,
+    );
+  }
+
+  const candidatas = (tabelas || []).filter((tabela) => {
+    if (normalizarTexto(tabela.banco) !== bancoProposta) return false;
+
+    const nomeConfigurado = normalizarTexto(tabela.nome);
+
+    return (
+      nomeConfigurado === nomeProposta ||
+      nomeConfigurado.startsWith(nomeProposta) ||
+      nomeProposta.startsWith(nomeConfigurado)
+    );
+  });
+
+  if (!candidatas.length) {
+    return null;
+  }
+
+  const porPercentual = candidatas.find(
+    (tabela) =>
+      Math.abs(numeroSeguro(tabela.percentual) - percentualProducao) < 0.0001,
+  );
+
+  return String((porPercentual || candidatas[0]).id || "") || null;
+}
+
 async function montarLinha(
   supabase: ReturnType<typeof createAdminClient>,
   perfil: Perfil,
@@ -607,6 +675,11 @@ if (valorContrato <= 0) {
     throw new Error("Informe o motivo do cancelamento.");
   }
 
+  const tabelaBancoId = await resolverTabelaBancoId(
+    supabase,
+    proposta,
+  );
+
   return {
     id,
     numero_proposta: String(proposta.numeroProposta || "").trim() || null,
@@ -628,7 +701,7 @@ if (valorContrato <= 0) {
     banco: String(proposta.banco || "").trim(),
 banco_origem_id: String(proposta.bancoOrigemId || "").trim() || null,
 banco_atual_id: String(proposta.bancoAtualId || "").trim() || null,
-tabela_banco_id: String(proposta.tabelaBancoId || "").trim() || null,
+tabela_banco_id: tabelaBancoId,
 tabela: String(proposta.tabela || "").trim(),
 percentual_tabela: percentualTabela,
 valor_contrato: valorContrato,

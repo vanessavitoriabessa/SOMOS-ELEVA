@@ -796,15 +796,36 @@ if (form.status === "Pago" && !form.dataPagamento) {
   return;
 }
 
-    const duplicado = registros.some(
-      (item) =>
-        item.id !== editandoId &&
+    /*
+     * O mesmo cliente pode contratar CLT novamente.
+     * Por isso, CPF + consultora sozinhos não devem bloquear um novo cadastro.
+     *
+     * Bloqueamos apenas uma duplicação realmente provável:
+     * mesmo CPF + mesma consultora + mesmo valor aprovado + mesma parcela
+     * + mesmo prazo + mesmo banco, desde que o registro anterior ainda esteja
+     * ativo (Cancelado/Recusado nunca bloqueiam uma nova operação).
+     */
+    const duplicado = registros.some((item) => {
+      if (item.id === editandoId) return false;
+
+      if (["Cancelado", "Recusado"].includes(item.status)) {
+        return false;
+      }
+
+      return (
         item.cpf === cpf &&
-        nomesCorrespondem(item.consultora, consultoraResponsavel),
-    );
+        nomesCorrespondem(item.consultora, consultoraResponsavel) &&
+        Math.abs(Number(item.valorAprovado || 0) - valorAprovado) < 0.01 &&
+        Math.abs(Number(item.parcela || 0) - parcela) < 0.01 &&
+        Number(item.prazo || 0) === prazo &&
+        normalizarTexto(item.banco) === normalizarTexto(form.banco)
+      );
+    });
 
     if (duplicado) {
-      setMensagem("Já existe um registro CLT com esse CPF para essa consultora.");
+      setMensagem(
+        "Já existe uma operação CLT igual para este CPF e esta consultora. Confira valor, parcela, prazo e banco.",
+      );
       return;
     }
 
