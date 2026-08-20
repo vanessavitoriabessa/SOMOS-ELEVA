@@ -1611,9 +1611,11 @@ for (const documento of documentos) {
                   <th>VALOR</th>
                   <th>VALOR FINAL</th>
                   <th>% PRODUÇÃO</th>
-                  <th>% COMISSÃO BANCO</th>
                   {podeVerComissaoEmpresa && (
-                    <th>COMISSÃO EMPRESA</th>
+                    <>
+                      <th>% COMISSÃO BANCO</th>
+                      <th>COMISSÃO EMPRESA</th>
+                    </>
                   )}
                   <th>DATA / DIGITAÇÃO</th>
                   <th>STATUS</th>
@@ -1680,29 +1682,31 @@ for (const documento of documentos) {
                       </strong>
                     </td>
 
-                    <td>
-                      <strong>
-                        {calculoComissao.percentual > 0
-                          ? `${String(calculoComissao.percentual).replace(".", ",")}%`
-                          : "—"}
-                      </strong>
-                    </td>
-
                     {podeVerComissaoEmpresa && (
-                      <td>
-                        <strong
-                          style={{
-                            color:
-                              calculoComissao.valor > 0
-                                ? "#155eef"
-                                : "#b42318",
-                          }}
-                        >
-                          {calculoComissao.valor > 0
-                            ? moeda(calculoComissao.valor)
-                            : "—"}
-                        </strong>
-                      </td>
+                      <>
+                        <td>
+                          <strong>
+                            {calculoComissao.percentual > 0
+                              ? `${String(calculoComissao.percentual).replace(".", ",")}%`
+                              : "—"}
+                          </strong>
+                        </td>
+
+                        <td>
+                          <strong
+                            style={{
+                              color:
+                                calculoComissao.valor > 0
+                                  ? "#155eef"
+                                  : "#b42318",
+                            }}
+                          >
+                            {calculoComissao.valor > 0
+                              ? moeda(calculoComissao.valor)
+                              : "—"}
+                          </strong>
+                        </td>
+                      </>
                     )}
 
                     <td>
