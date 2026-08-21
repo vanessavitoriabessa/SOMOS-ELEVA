@@ -27,6 +27,7 @@ type TabelaPayload = {
   id?: string;
   banco?: string;
   orgaoConvenio?: string;
+  orgaoConvenioIds?: string[];
   nome?: string;
   codigo?: string;
   percentual?: number | string;
@@ -153,6 +154,7 @@ export async function GET(
       bancosResposta,
       orgaosResposta,
       tabelasResposta,
+      vinculosResposta,
     ] = await Promise.all([
       supabase
         .from("config_bancos")
@@ -179,6 +181,10 @@ export async function GET(
         .order("nome", {
           ascending: true,
         }),
+
+      supabase
+        .from("config_tabelas_orgaos")
+        .select("tabela_id, orgao_convenio_id"),
     ]);
 
     if (bancosResposta.error) {
@@ -197,10 +203,26 @@ export async function GET(
       );
     }
 
+    if (vinculosResposta.error) {
+      throw new Error(vinculosResposta.error.message);
+    }
+
+    const orgaosPorId = new Map(
+      (orgaosResposta.data || []).map((orgao) => [String(orgao.id), orgao]),
+    );
+
+    const tabelasComOrgaos = (tabelasResposta.data || []).map((tabela) => ({
+      ...tabela,
+      orgaos_convenios: (vinculosResposta.data || [])
+        .filter((vinculo) => String(vinculo.tabela_id) === String(tabela.id))
+        .map((vinculo) => orgaosPorId.get(String(vinculo.orgao_convenio_id)))
+        .filter(Boolean),
+    }));
+
     return NextResponse.json({
       bancos: bancosResposta.data || [],
       orgaosConvenios: orgaosResposta.data || [],
-      tabelas: tabelasResposta.data || [],
+      tabelas: tabelasComOrgaos,
     });
   } catch (erro) {
     console.error(erro);
@@ -350,6 +372,10 @@ export async function POST(
         .trim()
         .toUpperCase();
 
+      const orgaoConvenioIds = Array.isArray(body.tabela?.orgaoConvenioIds)
+        ? [...new Set(body.tabela.orgaoConvenioIds.map((id) => String(id).trim()).filter(Boolean))]
+        : [];
+
       const nome = String(
         body.tabela?.nome || "",
       )
@@ -479,6 +505,22 @@ export async function POST(
         }
 
         throw new Error(error.message);
+      }
+
+      if (orgaoConvenioIds.length > 0) {
+        const { error: erroVinculos } = await supabase
+          .from("config_tabelas_orgaos")
+          .insert(
+            orgaoConvenioIds.map((orgaoId) => ({
+              tabela_id: data.id,
+              orgao_convenio_id: orgaoId,
+            })),
+          );
+
+        if (erroVinculos) {
+          await supabase.from("config_tabelas").delete().eq("id", data.id);
+          throw new Error(erroVinculos.message);
+        }
       }
 
       return NextResponse.json({
@@ -786,6 +828,38 @@ export async function PATCH(
 
       if (error) {
         throw new Error(error.message);
+      }
+
+      if (Array.isArray(body.tabela?.orgaoConvenioIds)) {
+        const ids = [...new Set(
+          body.tabela.orgaoConvenioIds
+            .map((orgaoId) => String(orgaoId).trim())
+            .filter(Boolean),
+        )];
+
+        const { error: erroExcluirVinculos } = await supabase
+          .from("config_tabelas_orgaos")
+          .delete()
+          .eq("tabela_id", id);
+
+        if (erroExcluirVinculos) {
+          throw new Error(erroExcluirVinculos.message);
+        }
+
+        if (ids.length > 0) {
+          const { error: erroInserirVinculos } = await supabase
+            .from("config_tabelas_orgaos")
+            .insert(
+              ids.map((orgaoId) => ({
+                tabela_id: id,
+                orgao_convenio_id: orgaoId,
+              })),
+            );
+
+          if (erroInserirVinculos) {
+            throw new Error(erroInserirVinculos.message);
+          }
+        }
       }
 
       return NextResponse.json({
