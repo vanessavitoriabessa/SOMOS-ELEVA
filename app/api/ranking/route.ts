@@ -519,92 +519,28 @@ export async function GET(
     const agrupado =
       new Map<string, AcumuladoRanking>();
 
-    function garantirAcumulado(
-      idInformado: unknown,
-      nomeInformado: unknown,
-    ) {
-      const nome = String(nomeInformado || "").trim();
-
-      const consultoraPerfil =
-        encontrarConsultora(
-          consultoras,
-          idInformado,
-          nome,
-        );
-
-      if (consultoraPerfil) {
-        const existente =
-          agrupado.get(consultoraPerfil.id);
-
-        if (existente) {
-          return existente;
-        }
-
-        const novo: AcumuladoRanking = {
-          id: consultoraPerfil.id,
-          nome: consultoraPerfil.nome,
-          fotoUrl: consultoraPerfil.fotoUrl,
-          timeId: consultoraPerfil.timeId,
-          contratosCompra: 0,
-          contratosClt: 0,
-          producaoCompra: 0,
-          producaoClt: 0,
-        };
-
+    consultoras.forEach(
+      (consultora) => {
         agrupado.set(
-          consultoraPerfil.id,
-          novo,
+          consultora.id,
+          {
+            id: consultora.id,
+            nome: consultora.nome,
+            fotoUrl:
+              consultora.fotoUrl,
+            timeId:
+              consultora.timeId,
+            contratosCompra: 0,
+            contratosClt: 0,
+            producaoCompra: 0,
+            producaoClt: 0,
+          },
         );
-
-        return novo;
-      }
-
-      // Registros antigos podem ter consultora_id nulo/antigo.
-      // A produção não pode desaparecer por isso: usa o nome gravado
-      // na própria proposta/CLT como chave de agrupamento.
-      if (!nome) {
-        return null;
-      }
-
-      const chaveNome =
-        `nome:${normalizarTexto(nome)}`;
-
-      const existente =
-        agrupado.get(chaveNome);
-
-      if (existente) {
-        return existente;
-      }
-
-      const novo: AcumuladoRanking = {
-        id: chaveNome,
-        nome,
-        fotoUrl: "",
-        timeId: null,
-        contratosCompra: 0,
-        contratosClt: 0,
-        producaoCompra: 0,
-        producaoClt: 0,
-      };
-
-      agrupado.set(chaveNome, novo);
-
-      return novo;
-    }
-
-    // Mantém as consultoras atuais disponíveis para receber produção.
-    consultoras.forEach((consultora) => {
-      garantirAcumulado(
-        consultora.id,
-        consultora.nome,
-      );
-    });
+      },
+    );
 
     if (produto !== "CLT") {
-      const {
-        data: propostas,
-        error: erroPropostas,
-      } = await supabase
+      let consultaPropostas = supabase
         .from("propostas")
         .select(`
           consultora_id,
@@ -615,7 +551,30 @@ export async function GET(
           status,
           data_cadastro,
           data_pagamento
-        `);
+        `)
+        .ilike("status", "pago");
+
+      // Filtra no próprio banco para evitar paginação/limite da consulta geral.
+      // Compra de Dívida paga entra pelo pagamento; registros históricos sem
+      // data_pagamento continuam sendo tratados pelo fallback abaixo.
+      if (dataInicial) {
+        consultaPropostas = consultaPropostas.gte(
+          "data_pagamento",
+          dataInicial,
+        );
+      }
+
+      if (dataFinal) {
+        consultaPropostas = consultaPropostas.lte(
+          "data_pagamento",
+          dataFinal,
+        );
+      }
+
+      const {
+        data: propostas,
+        error: erroPropostas,
+      } = await consultaPropostas.range(0, 9999);
 
       if (erroPropostas) {
         return respostaErro(
@@ -625,15 +584,15 @@ export async function GET(
       }
 
       (
-        (propostas || []) as LinhaProposta[]
+        (propostas || []) as
+          LinhaProposta[]
       ).forEach((linha) => {
         if (!statusEhPago(linha.status)) {
           return;
         }
 
         const dataReferencia =
-          linha.data_pagamento ||
-          linha.data_cadastro;
+  linha.data_cadastro;
 
         if (
           !estaNoPeriodo(
@@ -645,22 +604,23 @@ export async function GET(
           return;
         }
 
-        const atual =
-          garantirAcumulado(
+        const consultora =
+          encontrarConsultora(
+            consultoras,
             linha.consultora_id,
             linha.vendedora,
           );
 
-        if (!atual) {
+        if (!consultora) {
           return;
         }
 
-        // Se houver filtro de time e conseguimos identificar o perfil,
-        // respeita o time selecionado.
-        if (
-          timeSelecionado !== "Todos" &&
-          atual.timeId !== timeSelecionado
-        ) {
+        const atual =
+          agrupado.get(
+            consultora.id,
+          );
+
+        if (!atual) {
           return;
         }
 
@@ -671,10 +631,7 @@ export async function GET(
     }
 
     if (produto !== "Compra de Dívida") {
-      const {
-        data: registrosClt,
-        error: erroClt,
-      } = await supabase
+      let consultaClt = supabase
         .from("clt_registros")
         .select(`
           consultora_id,
@@ -684,7 +641,30 @@ export async function GET(
           criado_em,
           atualizado_em,
           data_pagamento
-        `);
+        `)
+        .ilike("status", "pago");
+
+      // O Ranking deve consultar diretamente a mesma competência usada
+      // no relatório CLT. Assim não dependemos do limite padrão de linhas
+      // de uma consulta geral para depois filtrar em JavaScript.
+      if (dataInicial) {
+        consultaClt = consultaClt.gte(
+          "data_pagamento",
+          dataInicial,
+        );
+      }
+
+      if (dataFinal) {
+        consultaClt = consultaClt.lte(
+          "data_pagamento",
+          dataFinal,
+        );
+      }
+
+      const {
+        data: registrosClt,
+        error: erroClt,
+      } = await consultaClt.range(0, 9999);
 
       if (erroClt) {
         return respostaErro(
@@ -694,16 +674,15 @@ export async function GET(
       }
 
       (
-        (registrosClt || []) as LinhaClt[]
+        (registrosClt || []) as
+          LinhaClt[]
       ).forEach((linha) => {
         if (!statusEhPago(linha.status)) {
           return;
         }
 
         const dataReferencia =
-          linha.data_pagamento ||
-          linha.atualizado_em ||
-          linha.criado_em;
+         linha.data_pagamento;
 
         if (
           !estaNoPeriodo(
@@ -715,20 +694,23 @@ export async function GET(
           return;
         }
 
-        const atual =
-          garantirAcumulado(
+        const consultora =
+          encontrarConsultora(
+            consultoras,
             linha.consultora_id,
             linha.consultora,
           );
 
-        if (!atual) {
+        if (!consultora) {
           return;
         }
 
-        if (
-          timeSelecionado !== "Todos" &&
-          atual.timeId !== timeSelecionado
-        ) {
+        const atual =
+          agrupado.get(
+            consultora.id,
+          );
+
+        if (!atual) {
           return;
         }
 
@@ -798,13 +780,7 @@ export async function GET(
         (item, indice) => {
           const ehPropria =
             usuarioEhConsultora &&
-            (
-              item.id === perfil.id ||
-              nomesCorrespondem(
-                item.nome,
-                perfil.nome,
-              )
-            );
+            item.id === perfil.id;
 
           const podeVerValores =
             podeVerTodos ||
@@ -851,11 +827,7 @@ const contratosPagos = podeVerTodos
 
 const totalConsultoras = podeVerTodos
   ? rankingCompleto.length
-  : rankingCompleto.some(
-      (item) =>
-        item.id === perfil.id ||
-        nomesCorrespondem(item.nome, perfil.nome),
-    )
+  : rankingCompleto.some((item) => item.id === perfil.id)
     ? 1
     : 0;
 
