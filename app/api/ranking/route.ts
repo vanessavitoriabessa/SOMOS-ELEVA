@@ -573,7 +573,7 @@ export async function GET(
         }
 
         const dataReferencia =
-  linha.data_cadastro;
+          linha.data_pagamento || linha.data_cadastro;
 
         if (
           !estaNoPeriodo(
@@ -644,7 +644,9 @@ export async function GET(
         }
 
         const dataReferencia =
-         linha.data_pagamento;
+          linha.data_pagamento ||
+          linha.atualizado_em ||
+          linha.criado_em;
 
         if (
           !estaNoPeriodo(

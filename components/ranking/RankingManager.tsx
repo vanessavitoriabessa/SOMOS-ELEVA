@@ -604,8 +604,6 @@ const [dataFinal, setDataFinal] = useState(
       setUsuariosRanking([]);
     }
 
-    void carregar();
-
     const atualizarAoVoltar = () => {
       if (document.visibilityState === "visible") {
         void carregar();
@@ -624,6 +622,11 @@ const [dataFinal, setDataFinal] = useState(
       window.removeEventListener("focus", atualizarAoFocar);
     };
   }, []);
+
+  useEffect(() => {
+    void carregar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodo, dataInicial, dataFinal, produto, timeSelecionado]);
 
   function identificarPermissao() {
     try {
@@ -935,11 +938,12 @@ const [dataFinal, setDataFinal] = useState(
           return false;
         }
 
-        const digitacao =
+        const dataReferencia =
+  converterData(proposta.dataPagamento) ||
   converterData(proposta.dataCadastro);
 
 return estaNoPeriodo(
-  digitacao,
+  dataReferencia,
   periodo,
   dataInicial,
   dataFinal
