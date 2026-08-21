@@ -90,6 +90,12 @@ type OrgaoConvenio = {
   ativo: boolean;
 };
 
+type BancoConfigurado = {
+  id: string;
+  nome: string;
+  ativo: boolean;
+};
+
 type RespostaApi = {
   perfil?: {
     id: string;
@@ -391,6 +397,7 @@ export default function EsteiraPropostas() {
   const [consultoras, setConsultoras] = useState<string[]>([]);
   const [tabelasConfiguradas, setTabelasConfiguradas] = useState<TabelaConfigurada[]>([]);
   const [orgaosConvenios, setOrgaosConvenios] = useState<OrgaoConvenio[]>([]);
+  const [bancosConfigurados, setBancosConfigurados] = useState<BancoConfigurado[]>([]);
   const [orgaoConvenio, setOrgaoConvenio] = useState("");
   const [perfilAtual, setPerfilAtual] = useState("");
   const [permissoesPerfil, setPermissoesPerfil] =
@@ -460,6 +467,7 @@ const [arquivos, setArquivos] = useState({
       });
 
       const conteudo = (await resposta.json()) as {
+        bancos?: Array<Record<string, unknown>>;
         orgaosConvenios?: Array<Record<string, unknown>>;
         tabelas?: Array<Record<string, unknown>>;
         erro?: string;
@@ -470,6 +478,14 @@ const [arquivos, setArquivos] = useState({
           conteudo.erro || "Não foi possível carregar as tabelas configuradas."
         );
       }
+
+      const listaBancos = Array.isArray(conteudo.bancos)
+        ? conteudo.bancos.map((item) => ({
+            id: String(item.id || ""),
+            nome: String(item.nome || "").trim().toUpperCase(),
+            ativo: item.ativo !== false,
+          }))
+        : [];
 
       const listaOrgaos = Array.isArray(conteudo.orgaosConvenios)
         ? conteudo.orgaosConvenios.map((item) => ({
@@ -497,10 +513,12 @@ const [arquivos, setArquivos] = useState({
           }))
         : [];
 
+      setBancosConfigurados(listaBancos);
       setOrgaosConvenios(listaOrgaos);
       setTabelasConfiguradas(lista);
     } catch (erro) {
       console.error(erro);
+      setBancosConfigurados([]);
       setOrgaosConvenios([]);
       setTabelasConfiguradas([]);
     }
@@ -797,25 +815,39 @@ const [arquivos, setArquivos] = useState({
     [clientes, form.clienteId]
   );
 
-  const bancosDisponiveis = useMemo(
-    () => Array.from(new Set(
-      tabelasConfiguradas
-        .filter((tabela) => tabela.ativo && tabela.banco)
-        .map((tabela) => tabela.banco)
-    )).sort((a, b) => a.localeCompare(b, "pt-BR")),
-    [tabelasConfiguradas],
-  );
+  const bancosDisponiveis = useMemo(() => {
+    const bancosAtivos = bancosConfigurados
+      .filter((banco) => banco.ativo && banco.nome)
+      .map((banco) => banco.nome);
+
+    if (bancosAtivos.length) {
+      return Array.from(new Set(bancosAtivos)).sort((a, b) =>
+        a.localeCompare(b, "pt-BR"),
+      );
+    }
+
+    // Fallback para instalações antigas onde a API ainda não devolve bancos.
+    return Array.from(
+      new Set(
+        tabelasConfiguradas
+          .filter((tabela) => tabela.ativo && tabela.banco)
+          .map((tabela) => tabela.banco),
+      ),
+    ).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [bancosConfigurados, tabelasConfiguradas]);
 
   const orgaosDisponiveis = useMemo(
     () =>
       orgaosConvenios
-        .filter((item) =>
-          item.ativo &&
-          tabelasConfiguradas.some((tabela) =>
-            tabela.ativo &&
-            tabela.banco === String(form.banco || "").trim().toUpperCase() &&
-            tabela.orgaoConvenio === item.nome
-          )
+        .filter(
+          (item) =>
+            item.ativo &&
+            tabelasConfiguradas.some(
+              (tabela) =>
+                tabela.ativo &&
+                tabela.banco === String(form.banco || "").trim().toUpperCase() &&
+                tabela.orgaoConvenio === item.nome,
+            ),
         )
         .map((item) => item.nome)
         .sort((a, b) => a.localeCompare(b, "pt-BR")),
@@ -2332,16 +2364,30 @@ for (const documento of documentos) {
             value={form.banco}
             onChange={(evento) => {
               const banco = evento.target.value;
-              setForm({ ...form, banco, tabela: "" });
+
+              setForm({
+                ...form,
+                banco,
+                tabela: "",
+              });
+
               setOrgaoConvenio("");
             }}
           >
             <option value="">Selecione o banco</option>
-            {editando && form.banco && !bancosDisponiveis.includes(form.banco) && (
-              <option value={form.banco}>{form.banco} (histórico)</option>
-            )}
+
+            {editando &&
+              form.banco &&
+              !bancosDisponiveis.includes(form.banco) && (
+                <option value={form.banco}>
+                  {form.banco} (histórico)
+                </option>
+              )}
+
             {bancosDisponiveis.map((banco) => (
-              <option key={banco} value={banco}>{banco}</option>
+              <option key={banco} value={banco}>
+                {banco}
+              </option>
             ))}
           </select>
         </label>
@@ -2362,7 +2408,9 @@ for (const documento of documentos) {
             }}
           >
             <option value="">
-              {form.banco ? "Selecione o órgão / convênio" : "Escolha primeiro o banco"}
+              {form.banco
+                ? "Selecione o órgão / convênio"
+                : "Escolha primeiro o banco"}
             </option>
 
             {editando &&
