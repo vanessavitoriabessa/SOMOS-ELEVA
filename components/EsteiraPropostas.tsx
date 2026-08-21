@@ -172,7 +172,7 @@ bairroCliente: "",
 cidadeCliente: "",
 ufCliente: "",
   vendedora: "",
-  banco: "NEO",
+  banco: "",
   tabela: "",
   valorContrato: "",
   status: "AG. BOLETO",
@@ -797,13 +797,29 @@ const [arquivos, setArquivos] = useState({
     [clientes, form.clienteId]
   );
 
+  const bancosDisponiveis = useMemo(
+    () => Array.from(new Set(
+      tabelasConfiguradas
+        .filter((tabela) => tabela.ativo && tabela.banco)
+        .map((tabela) => tabela.banco)
+    )).sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [tabelasConfiguradas],
+  );
+
   const orgaosDisponiveis = useMemo(
     () =>
       orgaosConvenios
-        .filter((item) => item.ativo)
+        .filter((item) =>
+          item.ativo &&
+          tabelasConfiguradas.some((tabela) =>
+            tabela.ativo &&
+            tabela.banco === String(form.banco || "").trim().toUpperCase() &&
+            tabela.orgaoConvenio === item.nome
+          )
+        )
         .map((item) => item.nome)
         .sort((a, b) => a.localeCompare(b, "pt-BR")),
-    [orgaosConvenios],
+    [orgaosConvenios, tabelasConfiguradas, form.banco],
   );
 
   const tabelasFiltradas = useMemo(() => {
@@ -1113,7 +1129,7 @@ function preencherClienteNoFormulario(cliente: Cliente) {
       cidadeCliente: cliente?.cidade || "",
       ufCliente: cliente?.uf || "",
       vendedora: proposta.vendedora || "",
-      banco: proposta.banco || "NEO",
+      banco: proposta.banco || "",
       tabela: proposta.tabela || "",
       valorContrato: Number(proposta.valorContrato || 0)
         .toFixed(2)
@@ -2312,16 +2328,29 @@ for (const documento of documentos) {
 
         <label>
           Banco
-          <input
+          <select
             value={form.banco}
-            readOnly
-          />
+            onChange={(evento) => {
+              const banco = evento.target.value;
+              setForm({ ...form, banco, tabela: "" });
+              setOrgaoConvenio("");
+            }}
+          >
+            <option value="">Selecione o banco</option>
+            {editando && form.banco && !bancosDisponiveis.includes(form.banco) && (
+              <option value={form.banco}>{form.banco} (histórico)</option>
+            )}
+            {bancosDisponiveis.map((banco) => (
+              <option key={banco} value={banco}>{banco}</option>
+            ))}
+          </select>
         </label>
 
         <label>
           Órgão / Convênio
           <select
             value={orgaoConvenio}
+            disabled={!form.banco}
             onChange={(evento) => {
               const valor = evento.target.value;
 
@@ -2332,7 +2361,9 @@ for (const documento of documentos) {
               });
             }}
           >
-            <option value="">Selecione o órgão / convênio</option>
+            <option value="">
+              {form.banco ? "Selecione o órgão / convênio" : "Escolha primeiro o banco"}
+            </option>
 
             {editando &&
               orgaoConvenio === "__HISTORICA__" && (
