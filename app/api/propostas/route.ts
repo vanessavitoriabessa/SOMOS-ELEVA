@@ -402,6 +402,8 @@ tabela: String(linha.tabela || ""),
     dataCadastro: String(linha.data_cadastro || ""),
     dataPagamento: String(linha.data_pagamento || ""),
     observacao: String(linha.observacao || ""),
+    criadoEm: String(linha.criado_em || ""),
+    atualizadoEm: String(linha.atualizado_em || ""),
   };
 }
 

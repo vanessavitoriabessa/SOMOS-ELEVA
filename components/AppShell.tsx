@@ -15,6 +15,7 @@ import {
   FileText,
   Gift,
   LayoutDashboard,
+  ChartNoAxesCombined,
   Settings,
   Trophy,
   UserCog,
@@ -61,6 +62,7 @@ const CHAVE_POR_ROTA: Record<string, string> = {
   "/minha-premiacao": "minha_premiacao",
   "/loja-premios": "loja_premios",
   "/financeiro": "financeiro",
+  "/coordenacao": "coordenacao_geral",
   "/equipe": "equipe",
   "/rh": "rh",
   "/dados-importados": "dados_importados",
@@ -107,6 +109,11 @@ const itensOperacao: ItemMenu[] = [
 
 
 const itensGestao: ItemMenu[] = [
+  {
+    href: "/coordenacao",
+    label: "Coordenação Geral",
+    icon: ChartNoAxesCombined,
+  },
   {
     href: "/ranking",
     label: "Ranking",
@@ -164,6 +171,7 @@ const ROTAS_PERMITIDAS_CONSULTORA = [
 
 const ROTAS_PERMITIDAS_COORDENACAO = [
   "/dashboard",
+  "/coordenacao",
   "/clientes",
   "/propostas",
   "/simulacao",

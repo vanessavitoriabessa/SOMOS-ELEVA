@@ -554,19 +554,18 @@ export async function GET(
         `)
         .ilike("status", "pago");
 
-      // Filtra no próprio banco para evitar paginação/limite da consulta geral.
-      // Compra de Dívida paga entra pelo pagamento; registros históricos sem
-      // data_pagamento continuam sendo tratados pelo fallback abaixo.
+      // Compra de Dívida pertence ao período pela DATA DE CADASTRO/DIGITAÇÃO.
+      // Isso mantém a mesma regra usada no Ranking e na Gestão de Propostas.
       if (dataInicial) {
         consultaPropostas = consultaPropostas.gte(
-          "data_pagamento",
+          "data_cadastro",
           dataInicial,
         );
       }
 
       if (dataFinal) {
         consultaPropostas = consultaPropostas.lte(
-          "data_pagamento",
+          "data_cadastro",
           dataFinal,
         );
       }
