@@ -611,32 +611,6 @@ const [dataFinal, setDataFinal] = useState(
     } catch {
       setUsuariosRanking([]);
     }
-
-    void carregar();
-
-    const atualizarAoVoltar = () => {
-      if (document.visibilityState === "visible") {
-        void carregar({
-          periodo,
-          dataInicial,
-          dataFinal,
-          produto,
-          timeSelecionado,
-        });
-      }
-    };
-
-    const atualizarAoFocar = () => {
-      void carregar();
-    };
-
-    document.addEventListener("visibilitychange", atualizarAoVoltar);
-    window.addEventListener("focus", atualizarAoFocar);
-
-    return () => {
-      document.removeEventListener("visibilitychange", atualizarAoVoltar);
-      window.removeEventListener("focus", atualizarAoFocar);
-    };
   }, []);
 
   useEffect(() => {
@@ -967,11 +941,12 @@ const [dataFinal, setDataFinal] = useState(
           return false;
         }
 
-        const digitacao =
+        const dataReferencia =
+  converterData(proposta.dataPagamento) ||
   converterData(proposta.dataCadastro);
 
 return estaNoPeriodo(
-  digitacao,
+  dataReferencia,
   periodo,
   dataInicial,
   dataFinal
