@@ -11,6 +11,14 @@ import {
 type Periodo = "Hoje" | "Semana" | "Mês" | "Todos" | "Personalizado";
 type ProdutoRanking = "Todos" | "Compra de Dívida" | "CLT";
 
+type FiltrosRanking = {
+  periodo: Periodo;
+  dataInicial: string;
+  dataFinal: string;
+  produto: ProdutoRanking;
+  timeSelecionado: string;
+};
+
 type UsuarioRanking = {
   nome?: string;
   foto?: string;
@@ -604,9 +612,17 @@ const [dataFinal, setDataFinal] = useState(
       setUsuariosRanking([]);
     }
 
+    void carregar();
+
     const atualizarAoVoltar = () => {
       if (document.visibilityState === "visible") {
-        void carregar();
+        void carregar({
+          periodo,
+          dataInicial,
+          dataFinal,
+          produto,
+          timeSelecionado,
+        });
       }
     };
 
@@ -624,7 +640,13 @@ const [dataFinal, setDataFinal] = useState(
   }, []);
 
   useEffect(() => {
-    void carregar();
+    void carregar({
+      periodo,
+      dataInicial,
+      dataFinal,
+      produto,
+      timeSelecionado,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodo, dataInicial, dataFinal, produto, timeSelecionado]);
 
@@ -685,7 +707,14 @@ const [dataFinal, setDataFinal] = useState(
     }
   }
 
-  async function carregar() {
+  async function carregar(filtros?: FiltrosRanking) {
+    const filtrosAtuais: FiltrosRanking = filtros ?? {
+      periodo,
+      dataInicial,
+      dataFinal,
+      produto,
+      timeSelecionado,
+    };
     setAtualizando(true);
   try {
     const { data, error } =
@@ -699,11 +728,11 @@ const [dataFinal, setDataFinal] = useState(
 
     const paramsRanking =
       new URLSearchParams({
-        periodo,
-        dataInicial,
-        dataFinal,
-        produto,
-        timeId: timeSelecionado,
+        periodo: filtrosAtuais.periodo,
+        dataInicial: filtrosAtuais.dataInicial,
+        dataFinal: filtrosAtuais.dataFinal,
+        produto: filtrosAtuais.produto,
+        timeId: filtrosAtuais.timeSelecionado,
       });
 
     const [
@@ -938,12 +967,11 @@ const [dataFinal, setDataFinal] = useState(
           return false;
         }
 
-        const dataReferencia =
-  converterData(proposta.dataPagamento) ||
+        const digitacao =
   converterData(proposta.dataCadastro);
 
 return estaNoPeriodo(
-  dataReferencia,
+  digitacao,
   periodo,
   dataInicial,
   dataFinal
@@ -1538,7 +1566,15 @@ faixa: faixaCompra
           <button
             type="button"
             className="ranking-reference-refresh"
-            onClick={() => void carregar()}
+            onClick={() =>
+              void carregar({
+                periodo,
+                dataInicial,
+                dataFinal,
+                produto,
+                timeSelecionado,
+              })
+            }
             disabled={atualizando}
           >
             {atualizando
