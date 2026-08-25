@@ -314,6 +314,7 @@ async function listarConsultoras(
 
     return (
       perfilNormalizado.includes("consultor") ||
+      perfilNormalizado.includes("supervisor") ||
       nome.includes("vinicius") ||
       nome.includes("sthefane")
     );
