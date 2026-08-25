@@ -98,18 +98,18 @@ export async function GET(
       createAdminClient();
 
     const {
-  data,
-  error,
-} = await supabase
-  .from("profiles")
-  .select("id, nome, perfil, equipe")
-  .eq("ativo", true)
-  .or(
-    'perfil.eq.Consultora,nome.ilike.%Vinicius%,nome.ilike.%Sthefane%'
-  )
-  .order("nome", {
-    ascending: true,
-  });
+      data,
+      error,
+    } = await supabase
+      .from("profiles")
+      .select("id, nome, perfil, equipe")
+      .eq("ativo", true)
+      .or(
+        'perfil.eq.Consultora,perfil.eq.Supervisora,nome.ilike.%Vinicius%,nome.ilike.%Sthefane%'
+      )
+      .order("nome", {
+        ascending: true,
+      });
 
     if (error) {
       return NextResponse.json(
