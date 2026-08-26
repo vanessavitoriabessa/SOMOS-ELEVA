@@ -112,6 +112,12 @@ type ConfigFinanceiroItem = {
   ordem: number;
 };
 
+type StatusPropostaConfigurado = {
+  id: string; nome: string;
+  tipo: "EM_ANDAMENTO" | "PAGO" | "CANCELADO";
+  prazoDias: number | null; ordem: number; ativo: boolean;
+};
+
 type Meta = {
   id: string;
   nome: string;
@@ -189,7 +195,7 @@ export default function SettingsManager() {
   const supabase = useMemo(() => createClient(), []);
 
   const [aba, setAba] = useState<
-    "geral" | "bancos" | "tabelas" | "equipes" | "perfis" | "permissoes" | "financeiro" | "metas"
+    "geral" | "bancos" | "tabelas" | "status" | "equipes" | "perfis" | "permissoes" | "financeiro" | "metas"
   >("geral");
   const [bancos, setBancos] = useState<Banco[]>([]);
   const [orgaosConvenios, setOrgaosConvenios] = useState<OrgaoConvenio[]>([]);
@@ -215,6 +221,10 @@ export default function SettingsManager() {
   const [editandoEquipeId, setEditandoEquipeId] = useState<string | null>(null);
   const [nomeEquipeEdicao, setNomeEquipeEdicao] = useState("");
 
+  const [statusPropostas, setStatusPropostas] = useState<StatusPropostaConfigurado[]>([]);
+  const [novoStatus, setNovoStatus] = useState({ nome:"", tipo:"EM_ANDAMENTO" as StatusPropostaConfigurado["tipo"], prazoDias:"", ordem:"" });
+  const [editandoStatusId, setEditandoStatusId] = useState<string | null>(null);
+  const [edicaoStatus, setEdicaoStatus] = useState({ nome:"", tipo:"EM_ANDAMENTO" as StatusPropostaConfigurado["tipo"], prazoDias:"", ordem:"" });
   const [metas, setMetas] = useState<Meta[]>([]);
   const [geral, setGeral] = useState<ConfiguracaoGeral>(configPadrao);
   const [mensagem, setMensagem] = useState("");
@@ -350,6 +360,14 @@ export default function SettingsManager() {
       setBancos(bancosApi);
       setOrgaosConvenios(orgaosApi);
       setTabelas(tabelasApi);
+      setStatusPropostas(
+        (Array.isArray(conteudo.statusPropostas) ? conteudo.statusPropostas : []).map((item: Record<string, unknown>) => ({
+          id: String(item.id || ""), nome: String(item.nome || ""),
+          tipo: String(item.tipo || "EM_ANDAMENTO") as StatusPropostaConfigurado["tipo"],
+          prazoDias: item.prazo_dias == null ? null : Number(item.prazo_dias),
+          ordem: Number(item.ordem || 0), ativo: item.ativo !== false,
+        }))
+      );
 
       const { data: financeiroData, error: financeiroErro } =
         await supabase
@@ -929,6 +947,53 @@ export default function SettingsManager() {
     }
   }
 
+  async function adicionarStatus(event: FormEvent) {
+    event.preventDefault();
+    const nome = novoStatus.nome.trim().toUpperCase();
+    if (!nome) return setMensagem("Informe o nome do status.");
+    setProcessando(true); setMensagem("");
+    try {
+      const conteudo = await chamarApi("POST", { acao:"criar_status_proposta", statusProposta:{
+        nome, tipo:novoStatus.tipo,
+        prazoDias: novoStatus.prazoDias === "" ? null : Number(novoStatus.prazoDias),
+        ordem: novoStatus.ordem === "" ? statusPropostas.length * 10 + 10 : Number(novoStatus.ordem),
+      }});
+      setNovoStatus({nome:"",tipo:"EM_ANDAMENTO",prazoDias:"",ordem:""});
+      setMensagem(conteudo.mensagem || "Status cadastrado com sucesso."); await carregar();
+    } catch(e) { setMensagem(e instanceof Error ? e.message : "Não foi possível cadastrar o status."); }
+    finally { setProcessando(false); }
+  }
+
+  function iniciarEdicaoStatus(item: StatusPropostaConfigurado) {
+    setEditandoStatusId(item.id);
+    setEdicaoStatus({nome:item.nome,tipo:item.tipo,prazoDias:item.prazoDias == null ? "" : String(item.prazoDias),ordem:String(item.ordem)});
+  }
+  function cancelarEdicaoStatus() { setEditandoStatusId(null); setEdicaoStatus({nome:"",tipo:"EM_ANDAMENTO",prazoDias:"",ordem:""}); }
+
+  async function salvarEdicaoStatus() {
+    if (!editandoStatusId) return;
+    const nome=edicaoStatus.nome.trim().toUpperCase(); if(!nome) return setMensagem("Informe o nome do status.");
+    setProcessando(true); setMensagem("");
+    try {
+      const conteudo=await chamarApi("PATCH",{acao:"editar_status_proposta",statusProposta:{
+        id:editandoStatusId,nome,tipo:edicaoStatus.tipo,
+        prazoDias:edicaoStatus.prazoDias === "" ? null : Number(edicaoStatus.prazoDias),
+        ordem:edicaoStatus.ordem === "" ? 0 : Number(edicaoStatus.ordem),
+      }});
+      cancelarEdicaoStatus(); setMensagem(conteudo.mensagem || "Status atualizado com sucesso."); await carregar();
+    } catch(e){setMensagem(e instanceof Error ? e.message : "Não foi possível atualizar o status.");}
+    finally{setProcessando(false);}
+  }
+
+  async function alternarStatus(item: StatusPropostaConfigurado) {
+    setProcessando(true); setMensagem("");
+    try {
+      const conteudo=await chamarApi("PATCH",{acao:"editar_status_proposta",statusProposta:{id:item.id,ativo:!item.ativo}});
+      setMensagem(conteudo.mensagem || "Status atualizado."); await carregar();
+    } catch(e){setMensagem(e instanceof Error ? e.message : "Não foi possível alterar o status.");}
+    finally{setProcessando(false);}
+  }
+
   async function adicionarFinanceiroItem(
     event: FormEvent,
   ) {
@@ -1438,6 +1503,7 @@ export default function SettingsManager() {
         <button className={aba === "geral" ? "active" : ""} onClick={() => setAba("geral")}>Geral</button>
         <button className={aba === "bancos" ? "active" : ""} onClick={() => setAba("bancos")}>Bancos</button>
         <button className={aba === "tabelas" ? "active" : ""} onClick={() => setAba("tabelas")}>Tabelas</button>
+        <button className={aba === "status" ? "active" : ""} onClick={() => setAba("status")}>Status das Propostas</button>
         <button className={aba === "equipes" ? "active" : ""} onClick={() => setAba("equipes")}>Equipes</button>
         <button className={aba === "perfis" ? "active" : ""} onClick={() => setAba("perfis")}>Perfis</button>
         <button className={aba === "permissoes" ? "active" : ""} onClick={() => setAba("permissoes")}>Permissões</button>
@@ -2063,6 +2129,40 @@ export default function SettingsManager() {
           </section>
           </section>
         </>
+      )}
+
+      {aba === "status" && (
+        <section className="settings-grid">
+          <form className="settings-card" onSubmit={adicionarStatus}>
+            <div className="settings-heading"><div><span>NOVO STATUS</span><h2>Cadastrar status de proposta</h2><p>Os status ativos ficarão disponíveis na Gestão de Propostas.</p></div><b>+</b></div>
+            <div className="settings-form-grid">
+              <label>Nome do status<input value={novoStatus.nome} onChange={e=>setNovoStatus({...novoStatus,nome:e.target.value})} placeholder="Ex.: AG. DOCUMENTAÇÃO" disabled={processando}/></label>
+              <label>Tipo<select value={novoStatus.tipo} onChange={e=>setNovoStatus({...novoStatus,tipo:e.target.value as StatusPropostaConfigurado["tipo"]})} disabled={processando}><option value="EM_ANDAMENTO">Em andamento</option><option value="PAGO">Pago</option><option value="CANCELADO">Cancelado</option></select></label>
+              <label>Prazo máximo (dias)<input type="number" min="0" value={novoStatus.prazoDias} onChange={e=>setNovoStatus({...novoStatus,prazoDias:e.target.value})} placeholder="Ex.: 2" disabled={processando}/><small>Deixe em branco se não houver prazo.</small></label>
+              <label>Ordem<input type="number" min="0" value={novoStatus.ordem} onChange={e=>setNovoStatus({...novoStatus,ordem:e.target.value})} placeholder="Automática" disabled={processando}/></label>
+            </div>
+            <div className="settings-actions"><button type="submit" disabled={processando}>{processando?"Salvando...":"Adicionar status"}</button></div>
+          </form>
+          <section className="settings-card">
+            <div className="settings-list-heading"><div><span>STATUS CADASTRADOS</span><h2>Fluxo das propostas</h2><p>Edite, ordene, ative ou desative sem alterar o código.</p></div><b>{statusPropostas.length}</b></div>
+            <div className="settings-list">
+              {statusPropostas.map(item=>(
+                <article key={item.id}>
+                  <div className="settings-icon">S</div>
+                  <div>{editandoStatusId===item.id ? <div className="settings-status-edit">
+                    <input value={edicaoStatus.nome} onChange={e=>setEdicaoStatus({...edicaoStatus,nome:e.target.value})}/>
+                    <select value={edicaoStatus.tipo} onChange={e=>setEdicaoStatus({...edicaoStatus,tipo:e.target.value as StatusPropostaConfigurado["tipo"]})}><option value="EM_ANDAMENTO">Em andamento</option><option value="PAGO">Pago</option><option value="CANCELADO">Cancelado</option></select>
+                    <input type="number" min="0" value={edicaoStatus.prazoDias} onChange={e=>setEdicaoStatus({...edicaoStatus,prazoDias:e.target.value})} placeholder="Prazo"/>
+                    <input type="number" min="0" value={edicaoStatus.ordem} onChange={e=>setEdicaoStatus({...edicaoStatus,ordem:e.target.value})} placeholder="Ordem"/>
+                  </div> : <><strong>{item.nome}</strong><span>{item.tipo==="PAGO"?"Pago":item.tipo==="CANCELADO"?"Cancelado":"Em andamento"} • {item.prazoDias==null?"Sem prazo":`${item.prazoDias} dia(s)`} • Ordem {item.ordem}</span></>}</div>
+                  <span className={item.ativo?"status-active":"status-inactive"}>{item.ativo?"Ativo":"Inativo"}</span>
+                  <div className="settings-row-actions">{editandoStatusId===item.id ? <><button type="button" className="save-edit" onClick={()=>void salvarEdicaoStatus()}>Salvar</button><button type="button" onClick={cancelarEdicaoStatus}>Cancelar</button></> : <><button type="button" onClick={()=>iniciarEdicaoStatus(item)}>Editar</button><button type="button" onClick={()=>void alternarStatus(item)}>{item.ativo?"Desativar":"Ativar"}</button></>}</div>
+                </article>
+              ))}
+            </div>
+            <div className="settings-warning" style={{marginTop:16}}><strong>Importante:</strong><span>PAGO e CANCELADA continuam com funções especiais. O tipo preserva essas regras.</span></div>
+          </section>
+        </section>
       )}
 
       {aba === "equipes" && (

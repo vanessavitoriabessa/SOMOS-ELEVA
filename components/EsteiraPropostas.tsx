@@ -11,19 +11,7 @@ import {
   useState,
 } from "react";
 
-type StatusProposta =
-  | "AG. BOLETO"
-  | "PROPOSTA DIGITADA"
-  | "AG. ASS TERMO"
-  | "AG. VÍDEO"
-  | "AG. ASS PROPOSTA"
-  | "BOLETO VALIDADO"
-  | "AG. QUITAÇÃO"
-  | "BOLETO QUITADO"
-  | "AG. LIBERAÇÃO MARGEM"
-    | "AVERBADO"
-  | "PAGO"
-  | "CANCELADA";
+type StatusProposta = string;
 
 type Cliente = {
   id: string;
@@ -90,6 +78,12 @@ type OrgaoConvenio = {
   ativo: boolean;
 };
 
+type StatusConfigurado = {
+  id: string; nome: string;
+  tipo: "EM_ANDAMENTO" | "PAGO" | "CANCELADO";
+  prazoDias: number | null; ordem: number; ativo: boolean;
+};
+
 type BancoConfigurado = {
   id: string;
   nome: string;
@@ -139,7 +133,7 @@ senhaContracheque: string;
 senhaConsignacao: string;
 };
 
-const STATUS: StatusProposta[] = [
+const STATUS_PADRAO: StatusProposta[] = [
   "AG. BOLETO",
   "PROPOSTA DIGITADA",
   "AG. ASS TERMO",
@@ -398,6 +392,7 @@ export default function EsteiraPropostas() {
   const [tabelasConfiguradas, setTabelasConfiguradas] = useState<TabelaConfigurada[]>([]);
   const [orgaosConvenios, setOrgaosConvenios] = useState<OrgaoConvenio[]>([]);
   const [bancosConfigurados, setBancosConfigurados] = useState<BancoConfigurado[]>([]);
+  const [statusConfigurados, setStatusConfigurados] = useState<StatusConfigurado[]>([]);
   const [orgaoConvenio, setOrgaoConvenio] = useState("");
   const [perfilAtual, setPerfilAtual] = useState("");
   const [permissoesPerfil, setPermissoesPerfil] =
@@ -470,6 +465,7 @@ const [arquivos, setArquivos] = useState({
         bancos?: Array<Record<string, unknown>>;
         orgaosConvenios?: Array<Record<string, unknown>>;
         tabelas?: Array<Record<string, unknown>>;
+        statusPropostas?: Array<Record<string, unknown>>;
         erro?: string;
       };
 
@@ -513,14 +509,26 @@ const [arquivos, setArquivos] = useState({
           }))
         : [];
 
+      const listaStatus = Array.isArray(conteudo.statusPropostas)
+        ? conteudo.statusPropostas.map((item) => ({
+            id: String(item.id || ""),
+            nome: String(item.nome || "").trim().toUpperCase(),
+            tipo: String(item.tipo || "EM_ANDAMENTO") as StatusConfigurado["tipo"],
+            prazoDias: item.prazo_dias == null ? null : Number(item.prazo_dias),
+            ordem: Number(item.ordem || 0),
+            ativo: item.ativo !== false,
+          }))
+        : [];
       setBancosConfigurados(listaBancos);
       setOrgaosConvenios(listaOrgaos);
       setTabelasConfiguradas(lista);
+      setStatusConfigurados(listaStatus);
     } catch (erro) {
       console.error(erro);
       setBancosConfigurados([]);
       setOrgaosConvenios([]);
       setTabelasConfiguradas([]);
+      setStatusConfigurados([]);
     }
   }, [obterToken]);
 
@@ -689,6 +697,23 @@ const [arquivos, setArquivos] = useState({
     void carregarClientes();
     void carregarConsultoras();
   }, [carregarPropostas, carregarClientes, carregarConsultoras]);
+
+  const statusAtivos = useMemo(() => {
+    const configurados = statusConfigurados.filter((item) => item.ativo && item.nome)
+      .sort((a,b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome,"pt-BR"));
+    return configurados.length ? configurados : STATUS_PADRAO.map((nome,indice) => ({
+      id:`padrao-${indice}`, nome,
+      tipo: nome==="PAGO" ? ("PAGO" as const) : nome==="CANCELADA" ? ("CANCELADO" as const) : ("EM_ANDAMENTO" as const),
+      prazoDias:null, ordem:(indice+1)*10, ativo:true
+    }));
+  }, [statusConfigurados]);
+
+  const nomesStatusAtivos = useMemo(() => statusAtivos.map(item => item.nome), [statusAtivos]);
+
+  function tipoDoStatus(nome: string) {
+    return statusAtivos.find(item => item.nome === nome)?.tipo ||
+      (nome === "PAGO" ? "PAGO" : nome === "CANCELADA" ? "CANCELADO" : "EM_ANDAMENTO");
+  }
 
   const propostasFiltradas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -1109,6 +1134,7 @@ function preencherClienteNoFormulario(cliente: Cliente) {
   setOrgaoConvenio("");
   setForm({
     ...FORMULARIO_VAZIO,
+    status: nomesStatusAtivos[0] || "AG. BOLETO",
     dataSolicitacao: hojeIso(),
     dataDigitacao: hojeIso(),
   });
@@ -1300,7 +1326,7 @@ telefone: form.telefoneCliente.trim(),
 dataSolicitacao: form.dataSolicitacao,
 dataCadastro: form.dataDigitacao,
 dataPagamento:
-  form.status === "PAGO" ? form.dataPagamento || hojeIso() : "",
+  tipoDoStatus(form.status) === "PAGO" ? form.dataPagamento || hojeIso() : "",
 observacao: form.observacao.trim(),
 senhaContracheque: form.senhaContracheque.trim(),
 senhaConsignacao: form.senhaConsignacao.trim(),
@@ -1636,7 +1662,7 @@ for (const documento of documentos) {
   >
     <option value="Todos">Todos os status</option>
 
-    {STATUS.map((status) => (
+    {nomesStatusAtivos.map((status) => (
       <option key={status} value={status}>
         {status}
       </option>
@@ -2532,7 +2558,7 @@ for (const documento of documentos) {
                 ...form,
                 status: evento.target.value as StatusProposta,
                 dataPagamento:
-                  evento.target.value === "PAGO" &&
+                  tipoDoStatus(evento.target.value) === "PAGO" &&
                   podeAlterarDataPagamento &&
                   !form.dataPagamento
                     ? hojeIso()
@@ -2540,10 +2566,11 @@ for (const documento of documentos) {
               })
             }
           >
-            {STATUS.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
+            {editando && form.status && !nomesStatusAtivos.includes(form.status) && (
+              <option value={form.status}>{form.status} (histórico)</option>
+            )}
+            {nomesStatusAtivos.map((status) => (
+              <option key={status} value={status}>{status}</option>
             ))}
           </select>
         </label>

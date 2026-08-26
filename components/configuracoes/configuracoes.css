@@ -865,3 +865,4 @@
     max-height:48vh;
   }
 }
+.settings-status-edit{display:grid;grid-template-columns:minmax(150px,2fr) minmax(120px,1fr) 90px 80px;gap:7px;align-items:center}.settings-status-edit input,.settings-status-edit select{width:100%;min-height:36px;border:1px solid #dce5f2;border-radius:9px;padding:7px 9px;background:#fff}@media(max-width:900px){.settings-status-edit{grid-template-columns:1fr 1fr}}

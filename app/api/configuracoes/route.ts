@@ -23,6 +23,12 @@ type OrgaoConvenioPayload = {
   ativo?: boolean;
 };
 
+type StatusPropostaPayload = {
+  id?: string; nome?: string;
+  tipo?: "EM_ANDAMENTO" | "PAGO" | "CANCELADO";
+  prazoDias?: number | string | null; ordem?: number | string; ativo?: boolean;
+};
+
 type TabelaPayload = {
   id?: string;
   banco?: string;
@@ -155,6 +161,7 @@ export async function GET(
       orgaosResposta,
       tabelasResposta,
       vinculosResposta,
+      statusResposta,
     ] = await Promise.all([
       supabase
         .from("config_bancos")
@@ -185,6 +192,12 @@ export async function GET(
       supabase
         .from("config_tabelas_orgaos")
         .select("tabela_id, orgao_convenio_id"),
+
+      supabase
+        .from("config_status_propostas")
+        .select("id, nome, tipo, prazo_dias, ordem, ativo, criado_em, atualizado_em")
+        .order("ordem", { ascending: true })
+        .order("nome", { ascending: true }),
     ]);
 
     if (bancosResposta.error) {
@@ -203,9 +216,8 @@ export async function GET(
       );
     }
 
-    if (vinculosResposta.error) {
-      throw new Error(vinculosResposta.error.message);
-    }
+    if (vinculosResposta.error) throw new Error(vinculosResposta.error.message);
+    if (statusResposta.error) throw new Error(statusResposta.error.message);
 
     const orgaosPorId = new Map(
       (orgaosResposta.data || []).map((orgao) => [String(orgao.id), orgao]),
@@ -223,6 +235,7 @@ export async function GET(
       bancos: bancosResposta.data || [],
       orgaosConvenios: orgaosResposta.data || [],
       tabelas: tabelasComOrgaos,
+      statusPropostas: statusResposta.data || [],
     });
   } catch (erro) {
     console.error(erro);
@@ -257,6 +270,7 @@ export async function POST(
         banco?: BancoPayload;
         orgaoConvenio?: OrgaoConvenioPayload;
         tabela?: TabelaPayload;
+        statusProposta?: StatusPropostaPayload;
       };
 
     const supabase =
@@ -530,6 +544,39 @@ export async function POST(
       });
     }
 
+    if (body.acao === "criar_status_proposta") {
+      const nome=String(body.statusProposta?.nome||"").trim().toUpperCase();
+      const tipo=body.statusProposta?.tipo||"EM_ANDAMENTO";
+      const raw=body.statusProposta?.prazoDias;
+      const prazoDias=raw==null||String(raw).trim()===""?null:Math.max(0,Math.trunc(numero(raw)));
+      const ordem=Math.max(0,Math.trunc(numero(body.statusProposta?.ordem)));
+      if(!nome) return NextResponse.json({erro:"Informe o nome do status."},{status:400});
+      if(!["EM_ANDAMENTO","PAGO","CANCELADO"].includes(tipo)) return NextResponse.json({erro:"Tipo de status inválido."},{status:400});
+      const {data,error}=await supabase.from("config_status_propostas").insert({nome,tipo,prazo_dias:prazoDias,ordem,ativo:true,atualizado_em:new Date().toISOString()}).select("*").single();
+      if(error){if(error.code==="23505") return NextResponse.json({erro:"Esse status já está cadastrado."},{status:409}); throw new Error(error.message);}
+      return NextResponse.json({statusProposta:data,mensagem:"Status cadastrado com sucesso."});
+    }
+
+    if (body.acao === "editar_status_proposta") {
+      const id=String(body.statusProposta?.id||"");
+      if(!id) return NextResponse.json({erro:"Status não informado."},{status:400});
+      const atualizacao:Record<string,unknown>={atualizado_em:new Date().toISOString()};
+      if(body.statusProposta?.nome!==undefined) atualizacao.nome=String(body.statusProposta.nome).trim().toUpperCase();
+      if(body.statusProposta?.tipo!==undefined) {
+        if(!["EM_ANDAMENTO","PAGO","CANCELADO"].includes(body.statusProposta.tipo)) return NextResponse.json({erro:"Tipo de status inválido."},{status:400});
+        atualizacao.tipo=body.statusProposta.tipo;
+      }
+      if(body.statusProposta?.prazoDias!==undefined) {
+        const raw=body.statusProposta.prazoDias;
+        atualizacao.prazo_dias=raw===null||String(raw).trim()===""?null:Math.max(0,Math.trunc(numero(raw)));
+      }
+      if(body.statusProposta?.ordem!==undefined) atualizacao.ordem=Math.max(0,Math.trunc(numero(body.statusProposta.ordem)));
+      if(typeof body.statusProposta?.ativo==="boolean") atualizacao.ativo=body.statusProposta.ativo;
+      const {data,error}=await supabase.from("config_status_propostas").update(atualizacao).eq("id",id).select("*").single();
+      if(error){if(error.code==="23505") return NextResponse.json({erro:"Já existe um status com esse nome."},{status:409}); throw new Error(error.message);}
+      return NextResponse.json({statusProposta:data,mensagem:"Status atualizado com sucesso."});
+    }
+
     return NextResponse.json(
       {
         erro:
@@ -572,6 +619,7 @@ export async function PATCH(
         banco?: BancoPayload;
         orgaoConvenio?: OrgaoConvenioPayload;
         tabela?: TabelaPayload;
+        statusProposta?: StatusPropostaPayload;
       };
 
     const supabase =
