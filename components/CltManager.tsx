@@ -580,12 +580,6 @@ export default function CltManager() {
     [registrosAntigosPendentes],
   );
 
-  const bancosDoFiltro = useMemo(() =>
-    Array.from(new Set(registros.map(item => String(item.banco || "").trim()).filter(Boolean)))
-      .sort((a,b) => a.localeCompare(b,"pt-BR")),
-    [registros],
-  );
-
   const filtrados = useMemo(() => {
   const termo = busca.trim().toLowerCase();
   const numerico = apenasNumeros(busca);
@@ -1312,9 +1306,14 @@ banco: item.banco,
               title="Filtrar por banco"
             >
               <option value="Todos">Todos os bancos</option>
-              {bancosDoFiltro.map((banco) => (
-                <option key={banco} value={banco}>{banco}</option>
-              ))}
+              {bancos
+                .filter((banco) => banco.ativo && banco.nome)
+                .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
+                .map((banco) => (
+                  <option key={banco.id} value={banco.nome}>
+                    {banco.nome}
+                  </option>
+                ))}
             </select>
 
             <select
