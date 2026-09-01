@@ -264,6 +264,7 @@ export default function CltManager() {
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("Todos");
   const [filtroConsultora, setFiltroConsultora] = useState("Todas");
+  const [filtroBanco, setFiltroBanco] = useState("Todos");
   const [periodo, setPeriodo] = useState<"Hoje" | "Este mês" | "Todas" | "Personalizado">("Este mês");
   const [dataPagamentoInicial, setDataPagamentoInicial] = useState("");
   const [dataPagamentoFinal, setDataPagamentoFinal] = useState("");
@@ -579,6 +580,12 @@ export default function CltManager() {
     [registrosAntigosPendentes],
   );
 
+  const bancosDoFiltro = useMemo(() =>
+    Array.from(new Set(registros.map(item => String(item.banco || "").trim()).filter(Boolean)))
+      .sort((a,b) => a.localeCompare(b,"pt-BR")),
+    [registros],
+  );
+
   const filtrados = useMemo(() => {
   const termo = busca.trim().toLowerCase();
   const numerico = apenasNumeros(busca);
@@ -591,6 +598,10 @@ export default function CltManager() {
     const consultoraOk =
       filtroConsultora === "Todas" ||
       item.consultora === filtroConsultora;
+
+    const bancoOk =
+      filtroBanco === "Todos" ||
+      normalizarTexto(item.banco) === normalizarTexto(filtroBanco);
 
     const buscaOk =
       !termo ||
@@ -623,6 +634,7 @@ export default function CltManager() {
     return (
       statusOk &&
       consultoraOk &&
+      bancoOk &&
       buscaOk &&
       dataInicialOk &&
       dataFinalOk
@@ -633,6 +645,7 @@ export default function CltManager() {
   busca,
   filtroStatus,
   filtroConsultora,
+  filtroBanco,
   dataPagamentoInicial,
   dataPagamentoFinal,
 ]);
@@ -1290,6 +1303,17 @@ banco: item.banco,
                 >
                   {consultora}
                 </option>
+              ))}
+            </select>
+
+            <select
+              value={filtroBanco}
+              onChange={(event) => setFiltroBanco(event.target.value)}
+              title="Filtrar por banco"
+            >
+              <option value="Todos">Todos os bancos</option>
+              {bancosDoFiltro.map((banco) => (
+                <option key={banco} value={banco}>{banco}</option>
               ))}
             </select>
 
