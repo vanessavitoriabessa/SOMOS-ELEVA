@@ -609,21 +609,23 @@ export default function CltManager() {
       item.dataPagamento || ""
     ).slice(0, 10);
 
+    /*
+     * O período desta tela é o PERÍODO DO PAGAMENTO.
+     * Portanto, ele só deve restringir propostas que já estão com status "Pago".
+     * Propostas em Novo lead, Em análise, Digitado etc. precisam continuar
+     * aparecendo na carteira mesmo sem data de pagamento.
+     */
+    const propostaPaga = item.status === "Pago";
+
     const dataInicialOk =
+      !propostaPaga ||
       !dataPagamentoInicial ||
-      (
-        item.status === "Pago" &&
-        dataPagamento &&
-        dataPagamento >= dataPagamentoInicial
-      );
+      (Boolean(dataPagamento) && dataPagamento >= dataPagamentoInicial);
 
     const dataFinalOk =
+      !propostaPaga ||
       !dataPagamentoFinal ||
-      (
-        item.status === "Pago" &&
-        dataPagamento &&
-        dataPagamento <= dataPagamentoFinal
-      );
+      (Boolean(dataPagamento) && dataPagamento <= dataPagamentoFinal);
 
     return (
       statusOk &&
