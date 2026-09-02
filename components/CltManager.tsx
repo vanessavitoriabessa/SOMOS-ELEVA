@@ -265,7 +265,9 @@ export default function CltManager() {
   const [filtroStatus, setFiltroStatus] = useState("Todos");
   const [filtroConsultora, setFiltroConsultora] = useState("Todas");
   const [filtroBanco, setFiltroBanco] = useState("Todos");
-  const [periodo, setPeriodo] = useState<"Hoje" | "Este mês" | "Todas" | "Personalizado">("Este mês");
+  const [periodo, setPeriodo] = useState<
+  "Hoje" | "Este mês" | "Todas" | "Personalizado"
+>("Todas");
   const [dataPagamentoInicial, setDataPagamentoInicial] = useState("");
   const [dataPagamentoFinal, setDataPagamentoFinal] = useState("");
   const [editandoId, setEditandoId] = useState<string | null>(null);
@@ -572,8 +574,8 @@ export default function CltManager() {
   }, [supabase]);
 
   useEffect(() => {
-    aplicarPeriodo("Este mês");
-  }, []);
+  aplicarPeriodo("Todas");
+}, []);
 
   const idsPendentes = useMemo(
     () => new Set(registrosAntigosPendentes.map((item) => item.id)),
