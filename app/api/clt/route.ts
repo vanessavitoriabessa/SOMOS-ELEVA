@@ -314,6 +314,60 @@ function chaveCpfConsultora(linha: Pick<LinhaClt, "cpf" | "consultora_id" | "con
   return `${linha.consultora_id || normalizarTexto(linha.consultora)}|${cpf}`;
 }
 
+async function carregarTodosRegistrosClt(
+  supabase: ReturnType<typeof createAdminClient>,
+) {
+  const tamanhoPagina = 1000;
+  const todos: LinhaClt[] = [];
+  let inicio = 0;
+
+  while (true) {
+    const fim = inicio + tamanhoPagina - 1;
+
+    const { data, error } = await supabase
+      .from("clt_registros")
+      .select(
+        `
+        id,
+        nome,
+        cpf,
+        data_nascimento,
+        data_pagamento,
+        telefone,
+        valor_aprovado,
+        parcela,
+        prazo,
+        banco,
+        consultora_id,
+        consultora,
+        status,
+        criado_por,
+        criado_em,
+        atualizado_em
+      `,
+      )
+      .order("atualizado_em", { ascending: false })
+      .range(inicio, fim);
+
+    if (error) {
+      throw new Error(
+        `Não foi possível carregar os registros CLT: ${error.message}`,
+      );
+    }
+
+    const pagina = (data || []) as LinhaClt[];
+    todos.push(...pagina);
+
+    if (pagina.length < tamanhoPagina) {
+      break;
+    }
+
+    inicio += tamanhoPagina;
+  }
+
+  return todos;
+}
+
 async function montarLinha(
   supabase: ReturnType<typeof createAdminClient>,
   perfil: Perfil,
@@ -416,38 +470,7 @@ export async function GET(request: NextRequest) {
 
     const { supabase, perfil } = autenticacao;
 
-    const { data, error } = await supabase
-      .from("clt_registros")
-      .select(
-        `
-        id,
-        nome,
-        cpf,
-        data_nascimento,
-        data_pagamento,
-        telefone,
-        valor_aprovado,
-        parcela,
-        prazo,
-        banco,
-        consultora_id,
-        consultora,
-        status,
-        criado_por,
-        criado_em,
-        atualizado_em
-      `,
-      )
-      .order("atualizado_em", { ascending: false });
-
-    if (error) {
-      return respostaErro(
-        `Não foi possível carregar os registros CLT: ${error.message}`,
-        500,
-      );
-    }
-
-    const linhas = (data || []) as LinhaClt[];
+    const linhas = await carregarTodosRegistrosClt(supabase);
     const permitidas = perfilEhConsultora(perfil.perfil)
       ? linhas.filter((linha) => podeAlterarRegistro(perfil, linha))
       : linhas;
@@ -498,18 +521,7 @@ export async function POST(request: NextRequest) {
       }
 
       const consultoras = await listarConsultoras(supabase);
-      const { data: existentesData, error: erroExistentes } = await supabase
-        .from("clt_registros")
-        .select("*");
-
-      if (erroExistentes) {
-        return respostaErro(
-          `Não foi possível conferir os registros existentes: ${erroExistentes.message}`,
-          500,
-        );
-      }
-
-      const existentes = (existentesData || []) as LinhaClt[];
+      const existentes = await carregarTodosRegistrosClt(supabase);
       const porId = new Map(existentes.map((linha) => [linha.id, linha]));
       const chavesCpf = new Set(
         existentes.map(chaveCpfConsultora).filter(Boolean),
