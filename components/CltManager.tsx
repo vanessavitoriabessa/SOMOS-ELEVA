@@ -612,20 +612,24 @@ export default function CltManager() {
     ).slice(0, 10);
 
     /*
-     * O período desta tela é o PERÍODO DO PAGAMENTO.
-     * Portanto, ele só deve restringir propostas que já estão com status "Pago".
-     * Propostas em Novo lead, Em análise, Digitado etc. precisam continuar
-     * aparecendo na carteira mesmo sem data de pagamento.
+     * Com período de pagamento selecionado, mostrar somente propostas PAGAS
+     * que tenham data de pagamento dentro do intervalo.
+     * Sem período ("Todas"), todos os status permanecem visíveis.
      */
-    const propostaPaga = item.status === "Pago";
+    const periodoPagamentoAtivo =
+      Boolean(dataPagamentoInicial) || Boolean(dataPagamentoFinal);
+
+    const statusPeriodoOk =
+      !periodoPagamentoAtivo || item.status === "Pago";
+
+    const possuiDataNoPeriodo =
+      !periodoPagamentoAtivo || Boolean(dataPagamento);
 
     const dataInicialOk =
-      !propostaPaga ||
       !dataPagamentoInicial ||
       (Boolean(dataPagamento) && dataPagamento >= dataPagamentoInicial);
 
     const dataFinalOk =
-      !propostaPaga ||
       !dataPagamentoFinal ||
       (Boolean(dataPagamento) && dataPagamento <= dataPagamentoFinal);
 
@@ -634,6 +638,8 @@ export default function CltManager() {
       consultoraOk &&
       bancoOk &&
       buscaOk &&
+      statusPeriodoOk &&
+      possuiDataNoPeriodo &&
       dataInicialOk &&
       dataFinalOk
     );
