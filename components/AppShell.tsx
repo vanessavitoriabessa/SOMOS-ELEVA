@@ -110,11 +110,6 @@ const itensOperacao: ItemMenu[] = [
 
 const itensGestao: ItemMenu[] = [
   {
-    href: "/coordenacao",
-    label: "Coordenação Geral",
-    icon: ChartNoAxesCombined,
-  },
-  {
     href: "/ranking",
     label: "Ranking",
     icon: Trophy,
