@@ -112,6 +112,15 @@ type ConfigFinanceiroItem = {
   ordem: number;
 };
 
+type RegraComissao = {
+  id: string;
+  nome: string;
+  produto: string;
+  percentual: number;
+  observacao: string;
+  ativo: boolean;
+};
+
 type StatusPropostaConfigurado = {
   id: string; nome: string;
   tipo: "EM_ANDAMENTO" | "PAGO" | "CANCELADO";
@@ -134,6 +143,8 @@ type ConfiguracaoGeral = {
   nomeEmpresa: string;
   multiplicadorSaldo: number;
   moeda: string;
+  fusoHorario: string;
+  formatoData: string;
 };
 
 const hoje = () => new Date().toISOString().slice(0, 10);
@@ -162,6 +173,8 @@ const configPadrao: ConfiguracaoGeral = {
   nomeEmpresa: "Eleva Promotora de Crédito",
   multiplicadorSaldo: 22,
   moeda: "BRL",
+  fusoHorario: "America/Sao_Paulo",
+  formatoData: "dd/mm/aaaa",
 };
 
 function numero(valor: string) {
@@ -195,7 +208,19 @@ export default function SettingsManager() {
   const supabase = useMemo(() => createClient(), []);
 
   const [aba, setAba] = useState<
-    "geral" | "bancos" | "tabelas" | "status" | "equipes" | "perfis" | "permissoes" | "financeiro" | "metas"
+    | "geral"
+    | "preferencias"
+    | "bancos"
+    | "orgaos"
+    | "tabelas"
+    | "status"
+    | "equipes"
+    | "perfis"
+    | "permissoes"
+    | "financeiro"
+    | "comissoes"
+    | "logs"
+    | "metas"
   >("geral");
   const [bancos, setBancos] = useState<Banco[]>([]);
   const [orgaosConvenios, setOrgaosConvenios] = useState<OrgaoConvenio[]>([]);
@@ -230,12 +255,25 @@ export default function SettingsManager() {
   const [mensagem, setMensagem] = useState("");
   const [processando, setProcessando] = useState(false);
 
+  // Define em quais módulos cada banco deve aparecer.
+  // A persistência é feita na tabela public.config_banco_modulos (SQL incluído no pacote).
+  const [bancoModulos, setBancoModulos] = useState<Record<string, string[]>>({});
+  const [salvandoBancoModulo, setSalvandoBancoModulo] = useState<string | null>(null);
+
   const [financeiroItens, setFinanceiroItens] =
     useState<ConfigFinanceiroItem[]>([]);
   const [novoFinanceiroTipo, setNovoFinanceiroTipo] =
     useState<TipoConfigFinanceiro>("produto");
   const [novoFinanceiroNome, setNovoFinanceiroNome] =
     useState("");
+
+  const [regrasComissao, setRegrasComissao] = useState<RegraComissao[]>([]);
+  const [novaRegraComissao, setNovaRegraComissao] = useState({
+    nome: "",
+    produto: "",
+    percentual: "",
+    observacao: "",
+  });
 
   const [novoBanco, setNovoBanco] = useState("");
   const [novoOrgaoConvenio, setNovoOrgaoConvenio] = useState("");
@@ -266,6 +304,73 @@ export default function SettingsManager() {
     inicio: hoje(),
     fim: hoje(),
   });
+
+  useEffect(() => {
+    try {
+      const salvo = localStorage.getItem("somos-eleva-regras-comissao");
+      if (!salvo) return;
+      const parsed = JSON.parse(salvo);
+      if (Array.isArray(parsed)) setRegrasComissao(parsed);
+    } catch {
+      // Mantém a tela funcional mesmo se houver um valor antigo inválido.
+    }
+  }, []);
+
+  function salvarRegrasComissaoLocal(lista: RegraComissao[]) {
+    setRegrasComissao(lista);
+    localStorage.setItem("somos-eleva-regras-comissao", JSON.stringify(lista));
+  }
+
+  function adicionarRegraComissao(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const nome = novaRegraComissao.nome.trim();
+    const produto = novaRegraComissao.produto.trim();
+    const percentual = Number(
+      String(novaRegraComissao.percentual).replace(",", "."),
+    );
+
+    if (!nome || !produto || !Number.isFinite(percentual) || percentual < 0) {
+      setMensagem("Informe nome, produto e percentual válido para a regra.");
+      return;
+    }
+
+    const nova: RegraComissao = {
+      id: crypto.randomUUID(),
+      nome,
+      produto,
+      percentual,
+      observacao: novaRegraComissao.observacao.trim(),
+      ativo: true,
+    };
+
+    salvarRegrasComissaoLocal([...regrasComissao, nova]);
+    setNovaRegraComissao({
+      nome: "",
+      produto: "",
+      percentual: "",
+      observacao: "",
+    });
+    setMensagem("Regra de comissão adicionada.");
+  }
+
+  function alternarRegraComissao(id: string) {
+    salvarRegrasComissaoLocal(
+      regrasComissao.map((item) =>
+        item.id === id ? { ...item, ativo: !item.ativo } : item,
+      ),
+    );
+  }
+
+  function excluirRegraComissao(id: string) {
+    const regra = regrasComissao.find((item) => item.id === id);
+    if (!regra) return;
+    if (!window.confirm(`Deseja excluir a regra "${regra.nome}"?`)) return;
+
+    salvarRegrasComissaoLocal(
+      regrasComissao.filter((item) => item.id !== id),
+    );
+  }
 
   async function obterToken() {
     const { data, error } = await supabase.auth.getSession();
@@ -489,8 +594,84 @@ export default function SettingsManager() {
     }
   }
 
+  async function carregarBancoModulos() {
+    try {
+      const { data, error } = await supabase
+        .from("config_banco_modulos")
+        .select("banco_id, modulo");
+
+      if (error) {
+        // Enquanto a migration ainda não tiver sido executada, não quebra Configurações.
+        if (String(error.code || "") === "42P01") return;
+        throw error;
+      }
+
+      const mapa: Record<string, string[]> = {};
+
+      (Array.isArray(data) ? data : []).forEach((item) => {
+        const bancoId = String(item.banco_id || "");
+        const modulo = String(item.modulo || "");
+        if (!bancoId || !modulo) return;
+
+        mapa[bancoId] = Array.from(new Set([...(mapa[bancoId] || []), modulo]));
+      });
+
+      setBancoModulos(mapa);
+    } catch {
+      // O restante das configurações continua funcionando mesmo sem a tabela nova.
+    }
+  }
+
+  async function alternarBancoModulo(
+    bancoId: string,
+    modulo: "CLT" | "COMPRA_DIVIDA",
+  ) {
+    const chave = `${bancoId}:${modulo}`;
+    setSalvandoBancoModulo(chave);
+    setMensagem("");
+
+    try {
+      const marcado = (bancoModulos[bancoId] || []).includes(modulo);
+
+      if (marcado) {
+        const { error } = await supabase
+          .from("config_banco_modulos")
+          .delete()
+          .eq("banco_id", bancoId)
+          .eq("modulo", modulo);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("config_banco_modulos")
+          .upsert(
+            {
+              banco_id: bancoId,
+              modulo,
+              atualizado_em: new Date().toISOString(),
+            },
+            { onConflict: "banco_id,modulo" },
+          );
+
+        if (error) throw error;
+      }
+
+      await carregarBancoModulos();
+      setMensagem("Disponibilidade do banco atualizada.");
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível atualizar onde o banco aparece.",
+      );
+    } finally {
+      setSalvandoBancoModulo(null);
+    }
+  }
+
   useEffect(() => {
     void carregar();
+    void carregarBancoModulos();
   }, [supabase]);
 
   function salvarGeral() {
@@ -1492,64 +1673,493 @@ export default function SettingsManager() {
 
   return (
     <div className="settings-page">
-      <section className="settings-summary">
-        <article><span>Bancos ativos</span><strong>{resumo.bancosAtivos}</strong></article>
-        <article><span>Tabelas ativas</span><strong>{resumo.tabelasAtivas}</strong></article>
-        <article><span>Metas ativas</span><strong>{resumo.metasAtivas}</strong></article>
-        <article className="settings-highlight"><span>Multiplicador do saldo</span><strong>{geral.multiplicadorSaldo}x</strong></article>
+      <section className="settings-v3-intro">
+        <div className="settings-v3-intro-icon">⚙</div>
+        <div className="settings-v3-intro-copy">
+          <span>CENTRAL DO SISTEMA</span>
+          <h2>Configurações</h2>
+          <p>
+            Controle tudo que define como o sistema funciona. Cadastre, edite e personalize as regras do negócio.
+          </p>
+        </div>
       </section>
 
-      <nav className="settings-tabs">
-        <button className={aba === "geral" ? "active" : ""} onClick={() => setAba("geral")}>Geral</button>
-        <button className={aba === "bancos" ? "active" : ""} onClick={() => setAba("bancos")}>Bancos</button>
-        <button className={aba === "tabelas" ? "active" : ""} onClick={() => setAba("tabelas")}>Tabelas</button>
-        <button className={aba === "status" ? "active" : ""} onClick={() => setAba("status")}>Status das Propostas</button>
-        <button className={aba === "equipes" ? "active" : ""} onClick={() => setAba("equipes")}>Equipes</button>
-        <button className={aba === "perfis" ? "active" : ""} onClick={() => setAba("perfis")}>Perfis</button>
-        <button className={aba === "permissoes" ? "active" : ""} onClick={() => setAba("permissoes")}>Permissões</button>
-        <button className={aba === "financeiro" ? "active" : ""} onClick={() => setAba("financeiro")}>Financeiro</button>
-        <button className={aba === "metas" ? "active" : ""} onClick={() => setAba("metas")}>Metas</button>
-      </nav>
+      <section className="settings-v3-summary">
+        <article className="blue">
+          <div className="settings-v3-kpi-icon">B</div>
+          <div>
+            <span>Bancos</span>
+            <strong>{bancos.length}</strong>
+            <small>instituições cadastradas</small>
+          </div>
+        </article>
 
-      {mensagem && <div className="settings-message">{mensagem}</div>}
+        <article className="green">
+          <div className="settings-v3-kpi-icon">T</div>
+          <div>
+            <span>Tabelas</span>
+            <strong>{tabelas.length}</strong>
+            <small>regras de produção</small>
+          </div>
+        </article>
+
+        <article className="orange">
+          <div className="settings-v3-kpi-icon">S</div>
+          <div>
+            <span>Status</span>
+            <strong>{statusPropostas.length}</strong>
+            <small>status de propostas</small>
+          </div>
+        </article>
+
+        <article className="purple">
+          <div className="settings-v3-kpi-icon">E</div>
+          <div>
+            <span>Equipes</span>
+            <strong>{equipesConfiguradas.length}</strong>
+            <small>equipes cadastradas</small>
+          </div>
+        </article>
+
+        <article className="pink">
+          <div className="settings-v3-kpi-icon">P</div>
+          <div>
+            <span>Perfis</span>
+            <strong>{perfisConfigurados.length}</strong>
+            <small>perfis de acesso</small>
+          </div>
+        </article>
+
+        <article className="teal">
+          <div className="settings-v3-kpi-icon">×</div>
+          <div>
+            <span>Multiplicador</span>
+            <strong>{geral.multiplicadorSaldo}x</strong>
+            <small>do saldo de comissão</small>
+          </div>
+        </article>
+      </section>
+
+      <div className="settings-admin-layout">
+        <aside className="settings-admin-sidebar">
+          <div className="settings-admin-sidebar-title">
+            <span>CONFIGURAÇÕES</span>
+            <strong>Central do sistema</strong>
+          </div>
+
+          <div className="settings-v3-side-search">
+            <span>⌕</span>
+            <input
+              type="search"
+              placeholder="Buscar configurações..."
+              aria-label="Buscar configurações"
+            />
+          </div>
+
+          <div className="settings-admin-group">
+            <small>GERAL</small>
+            <button className={aba === "geral" ? "active" : ""} onClick={() => setAba("geral")}>
+              <span className="settings-nav-icon">⚙</span><span><b>Informações do sistema</b><em>Identidade e parâmetros</em></span>
+            </button>
+            <button className={aba === "preferencias" ? "active" : ""} onClick={() => setAba("preferencias")}>
+              <span className="settings-nav-icon">◉</span><span><b>Preferências</b><em>Data, moeda e padrões</em></span>
+            </button>
+          </div>
+
+          <div className="settings-admin-group">
+            <small>COMERCIAL</small>
+            <button className={aba === "bancos" ? "active" : ""} onClick={() => setAba("bancos")}>
+              <span className="settings-nav-icon">B</span><span><b>Bancos</b><em>{bancos.length} cadastrados</em></span>
+            </button>
+            <button className={aba === "orgaos" ? "active" : ""} onClick={() => setAba("orgaos")}>
+              <span className="settings-nav-icon">O</span><span><b>Órgãos e convênios</b><em>{orgaosConvenios.length} cadastrados</em></span>
+            </button>
+            <button className={aba === "tabelas" ? "active" : ""} onClick={() => setAba("tabelas")}>
+              <span className="settings-nav-icon">%</span><span><b>Tabelas de produção</b><em>{tabelas.length} regras</em></span>
+            </button>
+            <button className={aba === "status" ? "active" : ""} onClick={() => setAba("status")}>
+              <span className="settings-nav-icon">S</span><span><b>Status das propostas</b><em>{statusPropostas.length} etapas</em></span>
+            </button>
+            <button className={aba === "metas" ? "active" : ""} onClick={() => setAba("metas")}>
+              <span className="settings-nav-icon">◎</span><span><b>Metas</b><em>Objetivos comerciais</em></span>
+            </button>
+          </div>
+
+          <div className="settings-admin-group">
+            <small>PESSOAS E ACESSO</small>
+            <button className={aba === "equipes" ? "active" : ""} onClick={() => setAba("equipes")}>
+              <span className="settings-nav-icon">E</span><span><b>Equipes</b><em>{equipesConfiguradas.length} cadastradas</em></span>
+            </button>
+            <button className={aba === "perfis" ? "active" : ""} onClick={() => setAba("perfis")}>
+              <span className="settings-nav-icon">P</span><span><b>Cargos e perfis</b><em>{perfisConfigurados.length} níveis</em></span>
+            </button>
+            <button className={aba === "permissoes" ? "active" : ""} onClick={() => setAba("permissoes")}>
+              <span className="settings-nav-icon">🔒</span><span><b>Permissões</b><em>Menus e dados sensíveis</em></span>
+            </button>
+          </div>
+
+          <div className="settings-admin-group">
+            <small>FINANCEIRO</small>
+            <button className={aba === "financeiro" ? "active" : ""} onClick={() => setAba("financeiro")}>
+              <span className="settings-nav-icon">R$</span><span><b>Cadastros financeiros</b><em>Produtos, parceiros e categorias</em></span>
+            </button>
+            <button className={aba === "comissoes" ? "active" : ""} onClick={() => setAba("comissoes")}>
+              <span className="settings-nav-icon">$</span><span><b>Regras de comissão</b><em>Percentuais e critérios</em></span>
+            </button>
+          </div>
+
+          <div className="settings-admin-group">
+            <small>OUTROS</small>
+            <button className={aba === "logs" ? "active" : ""} onClick={() => setAba("logs")}>
+              <span className="settings-nav-icon">◷</span><span><b>Logs do sistema</b><em>Auditoria e histórico</em></span>
+            </button>
+          </div>
+        </aside>
+
+        <main className="settings-admin-content">
+
+          {mensagem && <div className="settings-message">{mensagem}</div>}
 
       {aba === "geral" && (
-        <section className="settings-card">
-          <div className="settings-heading">
-            <div><span>CONFIGURAÇÕES GERAIS</span><h2>Identidade e cálculo padrão</h2><p>Esses parâmetros serão usados pelos demais módulos.</p></div>
-            <b>⚙</b>
+        <section className="settings-card settings-v3-general-card">
+          <div className="settings-v3-section-head">
+            <div className="settings-v3-section-icon">⚙</div>
+            <div>
+              <h2>Informações do sistema</h2>
+              <p>Defina a identidade do sistema e os parâmetros principais. Essas informações serão usadas em todos os módulos.</p>
+            </div>
+            <span className="settings-v3-active-pill">● Configuração ativa</span>
           </div>
 
-          <div className="settings-form-grid">
-            <label>Nome do sistema<input value={geral.nomeSistema} onChange={e=>setGeral({...geral,nomeSistema:e.target.value})}/></label>
-            <label>Nome da empresa<input value={geral.nomeEmpresa} onChange={e=>setGeral({...geral,nomeEmpresa:e.target.value})}/></label>
-            <label>Multiplicador do saldo<input value={geral.multiplicadorSaldo} onChange={e=>setGeral({...geral,multiplicadorSaldo:Number(e.target.value)||0})} type="number"/></label>
-            <label>Moeda<select value={geral.moeda} onChange={e=>setGeral({...geral,moeda:e.target.value})}><option value="BRL">Real brasileiro (BRL)</option></select></label>
+          <div className="settings-v3-inner-card">
+            <div className="settings-v3-inner-title">
+              <div className="settings-v3-inner-icon">▦</div>
+              <div>
+                <strong>Dados básicos</strong>
+                <span>Nome, empresa e parâmetros principais.</span>
+              </div>
+            </div>
+
+            <div className="settings-form-grid settings-v3-form-grid">
+              <label>
+                Nome do sistema
+                <input value={geral.nomeSistema} onChange={e=>setGeral({...geral,nomeSistema:e.target.value})}/>
+                <small>Nome que aparece no topo do sistema.</small>
+              </label>
+              <label>
+                Nome da empresa
+                <input value={geral.nomeEmpresa} onChange={e=>setGeral({...geral,nomeEmpresa:e.target.value})}/>
+                <small>Razão social ou nome exibido da empresa.</small>
+              </label>
+              <label>
+                Multiplicador do saldo
+                <input value={geral.multiplicadorSaldo} onChange={e=>setGeral({...geral,multiplicadorSaldo:Number(e.target.value)||0})} type="number"/>
+                <small>Define o multiplicador usado no cálculo da premiação.</small>
+              </label>
+              <label>
+                Moeda
+                <select value={geral.moeda} onChange={e=>setGeral({...geral,moeda:e.target.value})}>
+                  <option value="BRL">Real brasileiro (BRL)</option>
+                </select>
+                <small>Moeda padrão do sistema.</small>
+              </label>
+            </div>
           </div>
 
-          <div className="settings-actions"><button onClick={salvarGeral}>Salvar configurações</button></div>
+          <div className="settings-v3-inner-card">
+            <div className="settings-v3-inner-title">
+              <div className="settings-v3-inner-icon">☷</div>
+              <div>
+                <strong>Configurações adicionais</strong>
+                <span>Outras preferências que afetam o funcionamento do sistema.</span>
+              </div>
+            </div>
+
+            <div className="settings-form-grid settings-v3-form-grid">
+              <label>
+                Fuso horário
+                <select value={geral.fusoHorario} onChange={e=>setGeral({...geral,fusoHorario:e.target.value})}>
+                  <option value="America/Sao_Paulo">(GMT-03:00) Brasília</option>
+                </select>
+                <small>Usado para datas e relatórios.</small>
+              </label>
+              <label>
+                Formato de data
+                <select value={geral.formatoData} onChange={e=>setGeral({...geral,formatoData:e.target.value})}>
+                  <option value="dd/mm/aaaa">dd/mm/aaaa</option>
+                </select>
+                <small>Formato de exibição das datas.</small>
+              </label>
+            </div>
+          </div>
+
+          <div className="settings-v3-footer-actions">
+            <button
+              type="button"
+              className="settings-v3-restore"
+              onClick={() => setGeral(configPadrao)}
+            >
+              ↶ Restaurar padrão
+            </button>
+            <button
+              type="button"
+              className="settings-v3-save"
+              onClick={salvarGeral}
+            >
+              ▣ Salvar configurações
+            </button>
+          </div>
+        </section>
+      )}
+
+
+      {aba === "preferencias" && (
+        <section className="settings-card settings-v6-preferences">
+          <div className="settings-v6-page-head">
+            <div>
+              <span>PREFERÊNCIAS DO SISTEMA</span>
+              <h2>Padrões de exibição e funcionamento</h2>
+              <p>Defina formatos usados no dia a dia sem alterar regras comerciais.</p>
+            </div>
+            <b>◉</b>
+          </div>
+
+          <div className="settings-v6-preference-grid">
+            <article>
+              <div className="settings-v6-pref-icon">◷</div>
+              <div>
+                <strong>Fuso horário</strong>
+                <span>Usado em datas, relatórios e horários do sistema.</span>
+              </div>
+              <select
+                value={geral.fusoHorario}
+                onChange={(e) => setGeral({ ...geral, fusoHorario: e.target.value })}
+              >
+                <option value="America/Sao_Paulo">(GMT-03:00) Brasília</option>
+              </select>
+            </article>
+
+            <article>
+              <div className="settings-v6-pref-icon">▣</div>
+              <div>
+                <strong>Formato de data</strong>
+                <span>Padrão utilizado para exibir datas nas telas.</span>
+              </div>
+              <select
+                value={geral.formatoData}
+                onChange={(e) => setGeral({ ...geral, formatoData: e.target.value })}
+              >
+                <option value="dd/mm/aaaa">dd/mm/aaaa</option>
+              </select>
+            </article>
+
+            <article>
+              <div className="settings-v6-pref-icon">R$</div>
+              <div>
+                <strong>Moeda</strong>
+                <span>Moeda padrão para valores e relatórios.</span>
+              </div>
+              <select
+                value={geral.moeda}
+                onChange={(e) => setGeral({ ...geral, moeda: e.target.value })}
+              >
+                <option value="BRL">Real brasileiro (BRL)</option>
+              </select>
+            </article>
+
+            <article>
+              <div className="settings-v6-pref-icon">×</div>
+              <div>
+                <strong>Multiplicador do saldo</strong>
+                <span>Parâmetro usado no cálculo de saldo e premiação.</span>
+              </div>
+              <input
+                type="number"
+                value={geral.multiplicadorSaldo}
+                onChange={(e) =>
+                  setGeral({
+                    ...geral,
+                    multiplicadorSaldo: Number(e.target.value) || 0,
+                  })
+                }
+              />
+            </article>
+          </div>
+
+          <div className="settings-v6-page-actions">
+            <button type="button" className="secondary" onClick={() => setGeral(configPadrao)}>
+              Restaurar padrão
+            </button>
+            <button type="button" onClick={salvarGeral}>Salvar preferências</button>
+          </div>
         </section>
       )}
 
       {aba === "bancos" && (
-        <section className="settings-grid">
-          <form className="settings-card" onSubmit={adicionarBanco}>
-            <div className="settings-heading"><div><span>NOVO BANCO</span><h2>Cadastrar banco</h2></div><b>+</b></div>
-            <label className="settings-single-label">Nome do banco<input value={novoBanco} onChange={e=>setNovoBanco(e.target.value)} placeholder="Ex.: BANCO MASTER"/></label>
-            <div className="settings-actions"><button type="submit">Adicionar banco</button></div>
+        <section className="settings-v6-stack">
+          <section className="settings-card settings-v6-bank-create">
+            <div className="settings-v6-page-head">
+              <div>
+                <span>BANCOS</span>
+                <h2>Instituições do sistema</h2>
+                <p>Cadastre o banco e defina exatamente em quais operações ele deve aparecer.</p>
+              </div>
+              <b>{bancos.length}</b>
+            </div>
+
+            <form className="settings-v6-inline-create" onSubmit={adicionarBanco}>
+              <label>
+                Nome do banco
+                <input
+                  value={novoBanco}
+                  onChange={(e) => setNovoBanco(e.target.value)}
+                  placeholder="Ex.: BANCO MASTER"
+                />
+              </label>
+              <button type="submit" disabled={processando}>
+                + Adicionar banco
+              </button>
+            </form>
+          </section>
+
+          <section className="settings-card">
+            <div className="settings-v6-list-head">
+              <div>
+                <span>DISPONIBILIDADE</span>
+                <h2>Onde cada banco aparece</h2>
+                <p>
+                  CLT e Compra de Dívida ficam independentes. Assim a equipe vê apenas os bancos corretos em cada operação.
+                </p>
+              </div>
+            </div>
+
+            <div className="settings-v6-bank-table">
+              <div className="settings-v6-bank-table-head">
+                <span>Banco</span>
+                <span>CLT</span>
+                <span>Compra de Dívida</span>
+                <span>Status</span>
+                <span>Ações</span>
+              </div>
+
+              {bancos.map((banco) => {
+                const modulos = bancoModulos[banco.id] || [];
+                const clt = modulos.includes("CLT");
+                const compra = modulos.includes("COMPRA_DIVIDA");
+
+                return (
+                  <article key={banco.id} className="settings-v6-bank-row">
+                    <div className="settings-v6-entity">
+                      <span className="settings-v6-entity-icon">B</span>
+                      <div>
+                        <strong>{banco.nome}</strong>
+                        <small>{banco.ativo ? "Disponível no sistema" : "Banco desativado"}</small>
+                      </div>
+                    </div>
+
+                    <label className={`settings-v6-module-toggle ${clt ? "selected" : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={clt}
+                        disabled={salvandoBancoModulo === `${banco.id}:CLT`}
+                        onChange={() => void alternarBancoModulo(banco.id, "CLT")}
+                      />
+                      <span>CLT</span>
+                    </label>
+
+                    <label className={`settings-v6-module-toggle ${compra ? "selected" : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={compra}
+                        disabled={salvandoBancoModulo === `${banco.id}:COMPRA_DIVIDA`}
+                        onChange={() => void alternarBancoModulo(banco.id, "COMPRA_DIVIDA")}
+                      />
+                      <span>Compra de Dívida</span>
+                    </label>
+
+                    <span className={banco.ativo ? "status-active" : "status-inactive"}>
+                      {banco.ativo ? "Ativo" : "Inativo"}
+                    </span>
+
+                    <div className="settings-row-actions">
+                      <button type="button" onClick={() => void alternarBanco(banco.id)}>
+                        {banco.ativo ? "Desativar" : "Ativar"}
+                      </button>
+                      <button type="button" className="delete" onClick={() => void excluirBanco(banco.id)}>
+                        Excluir
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            <div className="settings-v6-example">
+              <strong>Exemplo recomendado:</strong>
+              <span>3RN e C6 → CLT</span>
+              <span>NEO, AMIGOZ e FUTURO → Compra de Dívida</span>
+            </div>
+          </section>
+        </section>
+      )}
+
+      {aba === "orgaos" && (
+        <section className="settings-grid settings-grid-orgaos">
+          <form className="settings-card" onSubmit={adicionarOrgaoConvenio}>
+            <div className="settings-heading">
+              <div>
+                <span>NOVO ÓRGÃO / CONVÊNIO</span>
+                <h2>Cadastrar convênio</h2>
+                <p>Governo, Prefeitura ou qualquer convênio utilizado nas tabelas.</p>
+              </div>
+              <b>+</b>
+            </div>
+
+            <label className="settings-single-label">
+              Nome do órgão / convênio
+              <input
+                value={novoOrgaoConvenio}
+                onChange={(e) => setNovoOrgaoConvenio(e.target.value)}
+                placeholder="Ex.: GOVERNO DE GO"
+                disabled={processando}
+              />
+            </label>
+
+            <div className="settings-actions">
+              <button type="submit" disabled={processando}>
+                {processando ? "Salvando..." : "Adicionar órgão / convênio"}
+              </button>
+            </div>
           </form>
 
           <section className="settings-card">
-            <div className="settings-list-heading"><div><span>BANCOS CADASTRADOS</span><h2>Instituições disponíveis</h2></div><b>{bancos.length}</b></div>
-            <div className="settings-list">
-              {bancos.map(banco=>(
-                <article key={banco.id}>
-                  <div className="settings-icon">B</div>
-                  <div><strong>{banco.nome}</strong><span>{banco.ativo ? "Disponível no sistema" : "Desativado"}</span></div>
-                  <span className={banco.ativo ? "status-active" : "status-inactive"}>{banco.ativo ? "Ativo" : "Inativo"}</span>
+            <div className="settings-list-heading">
+              <div>
+                <span>CADASTRADOS</span>
+                <h2>Órgãos e convênios</h2>
+                <p>Lista central usada nas regras de produção.</p>
+              </div>
+              <b>{orgaosConvenios.length}</b>
+            </div>
+
+            <div className="settings-list settings-v6-clean-list">
+              {orgaosConvenios.map((orgao) => (
+                <article key={orgao.id}>
+                  <div className="settings-icon">O</div>
+                  <div>
+                    <strong>{orgao.nome}</strong>
+                    <span>{orgao.ativo ? "Disponível para vincular às tabelas" : "Desativado"}</span>
+                  </div>
+                  <span className={orgao.ativo ? "status-active" : "status-inactive"}>
+                    {orgao.ativo ? "Ativo" : "Inativo"}
+                  </span>
                   <div className="settings-row-actions">
-                    <button onClick={() => void alternarBanco(banco.id)}>{banco.ativo ? "Desativar" : "Ativar"}</button>
-                    <button className="delete" onClick={() => void excluirBanco(banco.id)}>Excluir</button>
+                    <button type="button" onClick={() => void alternarOrgaoConvenio(orgao.id)}>
+                      {orgao.ativo ? "Desativar" : "Ativar"}
+                    </button>
+                    <button type="button" className="delete" onClick={() => void excluirOrgaoConvenio(orgao.id)}>
+                      Excluir
+                    </button>
                   </div>
                 </article>
               ))}
@@ -1560,77 +2170,6 @@ export default function SettingsManager() {
 
       {aba === "tabelas" && (
         <>
-          <section className="settings-grid settings-grid-orgaos">
-            <form className="settings-card" onSubmit={adicionarOrgaoConvenio}>
-              <div className="settings-heading">
-                <div>
-                  <span>ÓRGÃOS / CONVÊNIOS</span>
-                  <h2>Cadastrar órgão / convênio</h2>
-                  <p>Cadastre aqui Governo, Prefeitura ou qualquer novo convênio que liberar.</p>
-                </div>
-                <b>+</b>
-              </div>
-
-              <label className="settings-single-label">
-                Nome do órgão / convênio
-                <input
-                  value={novoOrgaoConvenio}
-                  onChange={(e) => setNovoOrgaoConvenio(e.target.value)}
-                  placeholder="Ex.: GOVERNO DE GO"
-                  disabled={processando}
-                />
-              </label>
-
-              <div className="settings-actions">
-                <button type="submit" disabled={processando}>
-                  {processando ? "Salvando..." : "Adicionar órgão / convênio"}
-                </button>
-              </div>
-            </form>
-
-            <section className="settings-card">
-              <div className="settings-list-heading">
-                <div>
-                  <span>CADASTRADOS</span>
-                  <h2>Órgãos e convênios disponíveis</h2>
-                </div>
-                <b>{orgaosConvenios.length}</b>
-              </div>
-
-              <div className="settings-list">
-                {orgaosConvenios.map((orgao) => (
-                  <article key={orgao.id}>
-                    <div className="settings-icon">O</div>
-                    <div>
-                      <strong>{orgao.nome}</strong>
-                      <span>{orgao.ativo ? "Disponível no sistema" : "Desativado"}</span>
-                    </div>
-                    <span className={orgao.ativo ? "status-active" : "status-inactive"}>
-                      {orgao.ativo ? "Ativo" : "Inativo"}
-                    </span>
-                    <div className="settings-row-actions">
-                      <button
-                        type="button"
-                        onClick={() => void alternarOrgaoConvenio(orgao.id)}
-                        disabled={processando}
-                      >
-                        {orgao.ativo ? "Desativar" : "Ativar"}
-                      </button>
-                      <button
-                        type="button"
-                        className="delete"
-                        onClick={() => void excluirOrgaoConvenio(orgao.id)}
-                        disabled={processando}
-                      >
-                        Excluir
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-          </section>
-
           <section className="settings-grid settings-grid-tabelas">
           <form className="settings-card" onSubmit={adicionarTabela}>
             <div className="settings-heading">
@@ -2166,138 +2705,88 @@ export default function SettingsManager() {
       )}
 
       {aba === "equipes" && (
-        <section className="settings-grid">
-          <form className="settings-card" onSubmit={adicionarEquipe}>
-            <div className="settings-heading">
-              <div>
-                <span>NOVA EQUIPE</span>
-                <h2>Cadastrar equipe</h2>
-                <p>
-                  Os nomes cadastrados aqui aparecem no campo Equipe dos usuários.
-                </p>
-              </div>
-              <b>+</b>
-            </div>
-
-            <label className="settings-single-label">
-              Nome da equipe
-              <input
-                value={novaEquipe}
-                onChange={(e) => setNovaEquipe(e.target.value)}
-                placeholder="Ex.: Comercial Compra"
-                disabled={processando}
-              />
-            </label>
-
-            <div className="settings-actions">
-              <button type="submit" disabled={processando}>
-                {processando ? "Salvando..." : "Adicionar equipe"}
-              </button>
-            </div>
-          </form>
-
+        <section className="settings-v6-stack">
           <section className="settings-card">
-            <div className="settings-list-heading">
+            <div className="settings-v6-page-head">
               <div>
-                <span>EQUIPES CADASTRADAS</span>
-                <h2>Equipes disponíveis</h2>
-                <p>
-                  Renomeie, ative ou desative sem precisar alterar o código.
-                </p>
+                <span>ESTRUTURA DE PESSOAS</span>
+                <h2>Equipes</h2>
+                <p>Cadastre setores e times usados nos usuários, propostas, metas e relatórios.</p>
               </div>
               <b>{equipesConfiguradas.length}</b>
             </div>
 
-            <div className="settings-list">
-              {equipesConfiguradas.length === 0 ? (
-                <div className="settings-empty">
-                  Nenhuma equipe cadastrada.
-                </div>
-              ) : (
-                equipesConfiguradas.map((equipe) => (
-                  <article key={equipe.id}>
-                    <div className="settings-icon">E</div>
+            <form className="settings-v6-inline-create" onSubmit={adicionarEquipe}>
+              <label>
+                Nome da nova equipe
+                <input
+                  value={novaEquipe}
+                  onChange={(e) => setNovaEquipe(e.target.value)}
+                  placeholder="Ex.: Comercial Compra"
+                  disabled={processando}
+                />
+              </label>
+              <button type="submit" disabled={processando}>
+                + Criar equipe
+              </button>
+            </form>
+          </section>
 
-                    <div>
-                      {editandoEquipeId === equipe.id ? (
-                        <input
-                          value={nomeEquipeEdicao}
-                          onChange={(e) =>
-                            setNomeEquipeEdicao(e.target.value)
-                          }
-                          disabled={processando}
-                        />
-                      ) : (
-                        <>
-                          <strong>{equipe.nome}</strong>
-                          <span>
-                            {equipe.ativo
-                              ? "Disponível no cadastro de usuários"
-                              : "Desativada"}
-                          </span>
-                        </>
-                      )}
-                    </div>
+          <section className="settings-card">
+            <div className="settings-v6-list-head">
+              <div>
+                <span>EQUIPES CADASTRADAS</span>
+                <h2>Estrutura atual</h2>
+                <p>Renomear uma equipe atualiza também os usuários já vinculados.</p>
+              </div>
+            </div>
 
-                    <span
-                      className={
-                        equipe.ativo
-                          ? "status-active"
-                          : "status-inactive"
-                      }
-                    >
+            <div className="settings-v6-team-grid">
+              {equipesConfiguradas.map((equipe) => (
+                <article key={equipe.id} className="settings-v6-team-card">
+                  <div className="settings-v6-team-top">
+                    <span className="settings-v6-entity-icon">E</span>
+                    <span className={equipe.ativo ? "status-active" : "status-inactive"}>
                       {equipe.ativo ? "Ativa" : "Inativa"}
                     </span>
+                  </div>
 
-                    <div className="settings-row-actions">
-                      {editandoEquipeId === equipe.id ? (
-                        <>
-                          <button
-                            type="button"
-                            className="save-edit"
-                            onClick={() => void salvarEdicaoEquipe()}
-                            disabled={processando}
-                          >
-                            Salvar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={cancelarEdicaoEquipe}
-                            disabled={processando}
-                          >
-                            Cancelar
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => iniciarEdicaoEquipe(equipe)}
-                            disabled={processando}
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void alternarEquipe(equipe)}
-                            disabled={processando}
-                          >
-                            {equipe.ativo ? "Desativar" : "Ativar"}
-                          </button>
-                          <button
-                            type="button"
-                            className="delete"
-                            onClick={() => void excluirEquipe(equipe)}
-                            disabled={processando}
-                          >
-                            Excluir
-                          </button>
-                        </>
-                      )}
+                  {editandoEquipeId === equipe.id ? (
+                    <input
+                      className="settings-v6-edit-input"
+                      value={nomeEquipeEdicao}
+                      onChange={(e) => setNomeEquipeEdicao(e.target.value)}
+                      disabled={processando}
+                    />
+                  ) : (
+                    <div className="settings-v6-team-name">
+                      <strong>{equipe.nome}</strong>
+                      <span>Disponível para usuários e filtros do sistema.</span>
                     </div>
-                  </article>
-                ))
-              )}
+                  )}
+
+                  <div className="settings-v6-team-actions">
+                    {editandoEquipeId === equipe.id ? (
+                      <>
+                        <button type="button" className="primary" onClick={() => void salvarEdicaoEquipe()}>
+                          Salvar
+                        </button>
+                        <button type="button" onClick={cancelarEdicaoEquipe}>Cancelar</button>
+                      </>
+                    ) : (
+                      <>
+                        <button type="button" onClick={() => iniciarEdicaoEquipe(equipe)}>Editar nome</button>
+                        <button type="button" onClick={() => void alternarEquipe(equipe)}>
+                          {equipe.ativo ? "Desativar" : "Ativar"}
+                        </button>
+                        <button type="button" className="danger" onClick={() => void excluirEquipe(equipe)}>
+                          Excluir
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </article>
+              ))}
             </div>
           </section>
         </section>
@@ -2305,65 +2794,63 @@ export default function SettingsManager() {
 
       {aba === "perfis" && (
         <section className="settings-card">
-          <div className="settings-list-heading">
+          <div className="settings-v6-page-head">
             <div>
-              <span>PERFIS DE ACESSO</span>
-              <h2>Nomes exibidos no sistema</h2>
-              <p>
-                Você pode trocar o nome que aparece na tela sem alterar as permissões internas do sistema.
-              </p>
+              <span>CARGOS E PERFIS DE ACESSO</span>
+              <h2>Perfis do sistema</h2>
+              <p>Edite o nome exibido e veja claramente qual chave técnica controla as permissões.</p>
             </div>
             <b>{perfisConfigurados.length}</b>
           </div>
 
-          <div className="settings-list">
-            {perfisConfigurados.map((perfil) => (
-              <article key={perfil.chave}>
-                <div className="settings-icon">P</div>
+          <div className="settings-v6-profile-table">
+            <div className="settings-v6-profile-head">
+              <span>Nome exibido</span>
+              <span>Código técnico</span>
+              <span>Situação</span>
+              <span>Ações</span>
+            </div>
 
-                <div>
-                  {editandoPerfilChave === perfil.chave ? (
-                    <input
-                      value={nomePerfilEdicao}
-                      onChange={(e) => setNomePerfilEdicao(e.target.value)}
-                      disabled={processando}
-                    />
-                  ) : (
-                    <>
-                      <strong>{perfil.nomeExibicao}</strong>
-                      <span>Perfil interno: {perfil.chave}</span>
-                    </>
-                  )}
+            {perfisConfigurados.map((perfil) => (
+              <article key={perfil.chave} className="settings-v6-profile-row">
+                <div className="settings-v6-entity">
+                  <span className="settings-v6-entity-icon">P</span>
+                  <div>
+                    {editandoPerfilChave === perfil.chave ? (
+                      <input
+                        className="settings-v6-edit-input"
+                        value={nomePerfilEdicao}
+                        onChange={(e) => setNomePerfilEdicao(e.target.value)}
+                        disabled={processando}
+                      />
+                    ) : (
+                      <>
+                        <strong>{perfil.nomeExibicao}</strong>
+                        <small>Nome que aparece para a equipe</small>
+                      </>
+                    )}
+                  </div>
                 </div>
 
-                <span className="status-active">Ativo</span>
+                <div className="settings-v6-code">
+                  <code>{perfil.chave}</code>
+                  <small>Identificador interno protegido</small>
+                </div>
+
+                <span className={perfil.ativo ? "status-active" : "status-inactive"}>
+                  {perfil.ativo ? "Ativo" : "Inativo"}
+                </span>
 
                 <div className="settings-row-actions">
                   {editandoPerfilChave === perfil.chave ? (
                     <>
-                      <button
-                        type="button"
-                        className="save-edit"
-                        onClick={() => void salvarEdicaoPerfil()}
-                        disabled={processando}
-                      >
+                      <button type="button" className="save-edit" onClick={() => void salvarEdicaoPerfil()}>
                         Salvar
                       </button>
-
-                      <button
-                        type="button"
-                        onClick={cancelarEdicaoPerfil}
-                        disabled={processando}
-                      >
-                        Cancelar
-                      </button>
+                      <button type="button" onClick={cancelarEdicaoPerfil}>Cancelar</button>
                     </>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => iniciarEdicaoPerfil(perfil)}
-                      disabled={processando}
-                    >
+                    <button type="button" onClick={() => iniciarEdicaoPerfil(perfil)}>
                       Editar nome
                     </button>
                   )}
@@ -2372,31 +2859,31 @@ export default function SettingsManager() {
             ))}
           </div>
 
-          <div className="settings-warning" style={{ marginTop: 16 }}>
-            <strong>Importante:</strong>
+          <div className="settings-v6-profile-warning">
+            <strong>Sobre “RH / Financeiro”:</strong>
             <span>
-              alterar o nome exibido não muda o nível de acesso. Assim você pode renomear “Administradora” para “Diretoria”, por exemplo, sem quebrar as permissões.
+              Hoje “RH” usa a chave técnica “Financeiro”. O nome exibido pode ser alterado aqui.
+              Para transformar a própria chave interna em RH sem quebrar acessos, precisamos migrar também usuários,
+              permissões e validações do restante do sistema — essa alteração será feita como uma etapa técnica separada.
             </span>
           </div>
         </section>
       )}
 
       {aba === "permissoes" && (
-        <section className="settings-card">
-          <div className="settings-list-heading">
+        <section className="settings-card settings-v6-permissions">
+          <div className="settings-v6-page-head">
             <div>
               <span>CONTROLE DE ACESSO</span>
               <h2>Permissões por perfil</h2>
-              <p>
-                Selecione um perfil e marque exatamente o que deve aparecer para ele no sistema.
-              </p>
+              <p>Escolha um perfil e defina os módulos e informações que ele pode visualizar.</p>
             </div>
-            <b>🔐</b>
+            <b>🔒</b>
           </div>
 
-          <div style={{ marginTop: 18, maxWidth: 460 }}>
-            <label className="settings-single-label">
-              Perfil
+          <div className="settings-v6-permission-toolbar">
+            <label>
+              Perfil que deseja configurar
               <select
                 value={perfilPermissaoSelecionado}
                 onChange={(e) =>
@@ -2415,69 +2902,110 @@ export default function SettingsManager() {
                   ))}
               </select>
             </label>
+
+            <div className="settings-v6-permission-actions-top">
+              <button
+                type="button"
+                onClick={() =>
+                  setPermissoesPorPerfil((atual) => ({
+                    ...atual,
+                    [perfilPermissaoSelecionado]: Object.fromEntries(
+                      PERMISSOES_DISPONIVEIS.map((item) => [item.chave, true]),
+                    ) as PermissoesPerfil,
+                  }))
+                }
+              >
+                Marcar todas
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setPermissoesPorPerfil((atual) => ({
+                    ...atual,
+                    [perfilPermissaoSelecionado]: permissoesVazias(),
+                  }))
+                }
+              >
+                Limpar seleção
+              </button>
+            </div>
           </div>
 
-          {(["MENU", "INFORMAÇÕES SENSÍVEIS"] as const).map((grupo) => (
-            <div key={grupo} style={{ marginTop: 24 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 900,
-                  color: "#155eef",
-                  letterSpacing: "0.08em",
-                  marginBottom: 10,
-                }}
-              >
-                {grupo}
-              </div>
+          <div className="settings-v6-permission-groups">
+            {(["MENU", "INFORMAÇÕES SENSÍVEIS"] as const).map((grupo) => (
+              <section key={grupo} className="settings-v6-permission-group">
+                <div className="settings-v6-permission-group-head">
+                  <div>
+                    <strong>
+                      {grupo === "MENU" ? "Acesso aos módulos" : "Informações sensíveis"}
+                    </strong>
+                    <span>
+                      {grupo === "MENU"
+                        ? "Controle quais áreas aparecem no menu e podem ser acessadas."
+                        : "Dados financeiros e comissões que exigem acesso especial."}
+                    </span>
+                  </div>
+                  <b>
+                    {
+                      PERMISSOES_DISPONIVEIS.filter(
+                        (item) =>
+                          item.grupo === grupo &&
+                          permissoesPorPerfil[perfilPermissaoSelecionado]?.[item.chave],
+                      ).length
+                    }
+                    /
+                    {PERMISSOES_DISPONIVEIS.filter((item) => item.grupo === grupo).length}
+                  </b>
+                </div>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
-                  gap: 10,
-                }}
-              >
-                {PERMISSOES_DISPONIVEIS
-                  .filter((item) => item.grupo === grupo)
-                  .map((item) => {
-                    const marcado =
-                      permissoesPorPerfil[perfilPermissaoSelecionado]?.[
-                        item.chave
-                      ] || false;
+                <div className="settings-v6-permission-grid">
+                  {PERMISSOES_DISPONIVEIS
+                    .filter((item) => item.grupo === grupo)
+                    .map((item) => {
+                      const marcado =
+                        permissoesPorPerfil[perfilPermissaoSelecionado]?.[
+                          item.chave
+                        ] || false;
 
-                    return (
-                      <label
-                        key={item.chave}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                          padding: "13px 14px",
-                          border: "1px solid #dfe6f1",
-                          borderRadius: 12,
-                          background: marcado ? "#f1f6ff" : "#ffffff",
-                          cursor: "pointer",
-                          fontWeight: 700,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={marcado}
-                          onChange={(e) =>
-                            alterarPermissao(item.chave, e.target.checked)
-                          }
-                          disabled={processando}
-                        />
-                        <span>{item.titulo}</span>
-                      </label>
-                    );
-                  })}
-              </div>
+                      return (
+                        <label
+                          key={item.chave}
+                          className={`settings-v6-permission-item ${
+                            marcado ? "selected" : ""
+                          }`}
+                        >
+                          <div className="settings-v6-permission-copy">
+                            <span className="settings-v6-permission-icon">
+                              {item.titulo.slice(0, 1)}
+                            </span>
+                            <div>
+                              <strong>{item.titulo}</strong>
+                              <small>{marcado ? "Permitido" : "Sem acesso"}</small>
+                            </div>
+                          </div>
+
+                          <input
+                            type="checkbox"
+                            checked={marcado}
+                            onChange={(e) =>
+                              alterarPermissao(item.chave, e.target.checked)
+                            }
+                            disabled={processando}
+                          />
+                          <span className="settings-v6-switch" />
+                        </label>
+                      );
+                    })}
+                </div>
+              </section>
+            ))}
+          </div>
+
+          <div className="settings-v6-permission-footer">
+            <div>
+              <strong>Alterações de acesso</strong>
+              <span>As permissões continuam ligadas ao código interno do perfil.</span>
             </div>
-          ))}
-
-          <div className="settings-actions" style={{ marginTop: 24 }}>
             <button
               type="button"
               onClick={() => void salvarPermissoes()}
@@ -2486,242 +3014,351 @@ export default function SettingsManager() {
               {processando ? "Salvando..." : "Salvar permissões"}
             </button>
           </div>
-
-          <div className="settings-warning" style={{ marginTop: 16 }}>
-            <strong>Importante:</strong>
-            <span>
-              O nome exibido do perfil pode mudar, mas as permissões continuam ligadas ao perfil interno.
-            </span>
-          </div>
         </section>
       )}
 
       {aba === "financeiro" && (
-        <>
-          <section className="settings-grid">
+        <section className="settings-v7-finance-page">
+          <section className="settings-card settings-v7-finance-hero">
+            <div className="settings-v7-page-title">
+              <div className="settings-v7-page-icon">R$</div>
+              <div>
+                <span>CONFIGURAÇÃO FINANCEIRA</span>
+                <h2>Cadastros financeiros</h2>
+                <p>
+                  Organize produtos, parceiros, bancos e categorias usados no Financeiro.
+                </p>
+              </div>
+            </div>
+
+            <div className="settings-v7-finance-kpis">
+              {(
+                [
+                  ["produto", "Produtos", "P"],
+                  ["banco", "Bancos", "B"],
+                  ["parceiro", "Parceiros", "P"],
+                  ["categoria_entrada", "Entradas", "E"],
+                  ["categoria_saida", "Saídas", "S"],
+                ] as Array<[TipoConfigFinanceiro, string, string]>
+              ).map(([tipo, titulo, icone]) => (
+                <article key={tipo}>
+                  <span>{icone}</span>
+                  <div>
+                    <small>{titulo}</small>
+                    <strong>
+                      {financeiroPorTipo[tipo].filter((item) => item.ativo).length}
+                    </strong>
+                    <em>ativos</em>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="settings-v7-finance-grid">
             <form
-              className="settings-card"
+              className="settings-card settings-v7-finance-create"
               onSubmit={adicionarFinanceiroItem}
             >
-              <div className="settings-heading">
+              <div className="settings-v7-card-head">
                 <div>
-                  <span>CONFIGURAÇÃO FINANCEIRA</span>
-                  <h2>Adicionar item</h2>
-                  <p>
-                    Produtos, bancos e categorias usados no Financeiro.
-                  </p>
+                  <span>NOVO CADASTRO</span>
+                  <h3>Adicionar item</h3>
+                  <p>Escolha a categoria e informe o nome do novo item.</p>
                 </div>
-                <b>R$</b>
+                <b>+</b>
               </div>
 
-              <div className="settings-form-grid">
-                <label>
-                  Tipo
-                  <select
-                    value={novoFinanceiroTipo}
-                    onChange={(e) =>
-                      setNovoFinanceiroTipo(
-                        e.target.value as TipoConfigFinanceiro,
-                      )
-                    }
-                    disabled={processando}
-                  >
-                    <option value="produto">Produto</option>
-                    <option value="banco">Banco</option>
-                    <option value="parceiro">Parceiro</option>
-                    <option value="categoria_entrada">
-                      Categoria de entrada
-                    </option>
-                    <option value="categoria_saida">
-                      Categoria de saída
-                    </option>
-                  </select>
-                </label>
+              <label className="settings-v7-field">
+                Tipo de cadastro
+                <select
+                  value={novoFinanceiroTipo}
+                  onChange={(e) =>
+                    setNovoFinanceiroTipo(
+                      e.target.value as TipoConfigFinanceiro,
+                    )
+                  }
+                  disabled={processando}
+                >
+                  <option value="produto">Produto</option>
+                  <option value="banco">Banco do Financeiro</option>
+                  <option value="parceiro">Parceiro</option>
+                  <option value="categoria_entrada">Categoria de entrada</option>
+                  <option value="categoria_saida">Categoria de saída</option>
+                </select>
+              </label>
 
-                <label>
-                  Nome
-                  <input
-                    value={novoFinanceiroNome}
-                    onChange={(e) =>
-                      setNovoFinanceiroNome(e.target.value)
-                    }
-                    placeholder="Digite o nome"
-                    disabled={processando}
-                  />
-                </label>
-              </div>
+              <label className="settings-v7-field">
+                Nome
+                <input
+                  value={novoFinanceiroNome}
+                  onChange={(e) => setNovoFinanceiroNome(e.target.value)}
+                  placeholder="Ex.: Impostos, Aluguel, 3RN..."
+                  disabled={processando}
+                />
+              </label>
 
-              <div className="settings-actions">
-                <button type="submit" disabled={processando}>
-                  {processando
-                    ? "Salvando..."
-                    : "Adicionar ao Financeiro"}
-                </button>
-              </div>
+              <button
+                type="submit"
+                className="settings-v7-primary-button"
+                disabled={processando}
+              >
+                {processando ? "Salvando..." : "+ Adicionar item"}
+              </button>
             </form>
 
-            <section className="settings-card">
-              <div className="settings-list-heading">
+            <section className="settings-card settings-v7-finance-summary">
+              <div className="settings-v7-card-head">
                 <div>
-                  <span>RESUMO FINANCEIRO</span>
-                  <h2>Itens configurados</h2>
+                  <span>VISÃO GERAL</span>
+                  <h3>Estrutura configurada</h3>
+                  <p>{financeiroItens.length} item(ns) cadastrado(s) no total.</p>
                 </div>
                 <b>{financeiroItens.length}</b>
               </div>
 
-              <div className="settings-list">
-                <article>
-                  <div className="settings-icon">P</div>
-                  <div>
-                    <strong>Produtos</strong>
-                    <span>
-                      {
-                        financeiroPorTipo.produto.filter(
-                          (item) => item.ativo,
-                        ).length
-                      } ativos
-                    </span>
-                  </div>
-                </article>
-
-                <article>
-                  <div className="settings-icon">B</div>
-                  <div>
-                    <strong>Bancos</strong>
-                    <span>
-                      {
-                        financeiroPorTipo.banco.filter(
-                          (item) => item.ativo,
-                        ).length
-                      } ativos
-                    </span>
-                  </div>
-                </article>
-
-                <article>
-                  <div className="settings-icon">P</div>
-                  <div>
-                    <strong>Parceiros</strong>
-                    <span>
-                      {
-                        financeiroPorTipo.parceiro.filter(
-                          (item) => item.ativo,
-                        ).length
-                      } ativos
-                    </span>
-                  </div>
-                </article>
-
-                <article>
-                  <div className="settings-icon">E</div>
-                  <div>
-                    <strong>Categorias de entrada</strong>
-                    <span>
-                      {
-                        financeiroPorTipo.categoria_entrada.filter(
-                          (item) => item.ativo,
-                        ).length
-                      } ativas
-                    </span>
-                  </div>
-                </article>
-
-                <article>
-                  <div className="settings-icon">S</div>
-                  <div>
-                    <strong>Categorias de saída</strong>
-                    <span>
-                      {
-                        financeiroPorTipo.categoria_saida.filter(
-                          (item) => item.ativo,
-                        ).length
-                      } ativas
-                    </span>
-                  </div>
-                </article>
+              <div className="settings-v7-finance-summary-list">
+                {(
+                  [
+                    ["produto", "Produtos financeiros", "Produtos disponíveis para lançamentos"],
+                    ["banco", "Bancos do Financeiro", "Instituições usadas nos recebimentos"],
+                    ["parceiro", "Parceiros", "Parceiros comerciais e operacionais"],
+                    ["categoria_entrada", "Categorias de entrada", "Tipos de receitas"],
+                    ["categoria_saida", "Categorias de saída", "Tipos de despesas"],
+                  ] as Array<[TipoConfigFinanceiro, string, string]>
+                ).map(([tipo, titulo, descricao]) => (
+                  <article key={tipo}>
+                    <div>
+                      <strong>{titulo}</strong>
+                      <span>{descricao}</span>
+                    </div>
+                    <b>{financeiroPorTipo[tipo].filter((item) => item.ativo).length}</b>
+                  </article>
+                ))}
               </div>
             </section>
           </section>
 
-          {(
-            [
-              ["produto", "Produtos financeiros", "P"],
-              ["banco", "Bancos do financeiro", "B"],
-              ["parceiro", "Parceiros do financeiro", "P"],
+          <section className="settings-v7-finance-sections">
+            {(
               [
-                "categoria_entrada",
-                "Categorias de entrada",
-                "E",
-              ],
-              [
-                "categoria_saida",
-                "Categorias de saída",
-                "S",
-              ],
-            ] as Array<
-              [TipoConfigFinanceiro, string, string]
-            >
-          ).map(([tipo, titulo, icone]) => (
-            <section className="settings-card" key={tipo}>
-              <div className="settings-list-heading">
-                <div>
-                  <span>FINANCEIRO</span>
-                  <h2>{titulo}</h2>
+                ["produto", "Produtos financeiros", "Defina os produtos disponíveis nos lançamentos.", "P"],
+                ["banco", "Bancos do Financeiro", "Controle quais bancos aparecem na área financeira.", "B"],
+                ["parceiro", "Parceiros", "Cadastre parceiros usados nas movimentações.", "P"],
+                ["categoria_entrada", "Categorias de entrada", "Organize todas as receitas do sistema.", "E"],
+                ["categoria_saida", "Categorias de saída", "Organize todas as despesas do sistema.", "S"],
+              ] as Array<[TipoConfigFinanceiro, string, string, string]>
+            ).map(([tipo, titulo, descricao, icone]) => (
+              <section className="settings-card settings-v7-finance-section" key={tipo}>
+                <div className="settings-v7-section-title">
+                  <span className="settings-v7-section-icon">{icone}</span>
+                  <div>
+                    <h3>{titulo}</h3>
+                    <p>{descricao}</p>
+                  </div>
+                  <b>{financeiroPorTipo[tipo].length}</b>
                 </div>
-                <b>{financeiroPorTipo[tipo].length}</b>
+
+                <div className="settings-v7-item-list">
+                  {financeiroPorTipo[tipo].length === 0 ? (
+                    <div className="settings-v7-empty">
+                      Nenhum item cadastrado nesta categoria.
+                    </div>
+                  ) : (
+                    financeiroPorTipo[tipo].map((item) => (
+                      <article key={item.id}>
+                        <div className="settings-v7-item-name">
+                          <span>{icone}</span>
+                          <div>
+                            <strong>{item.nome}</strong>
+                            <small>
+                              {item.ativo ? "Disponível no sistema" : "Item desativado"}
+                            </small>
+                          </div>
+                        </div>
+
+                        <span className={item.ativo ? "status-active" : "status-inactive"}>
+                          {item.ativo ? "Ativo" : "Inativo"}
+                        </span>
+
+                        <div className="settings-row-actions">
+                          <button
+                            type="button"
+                            onClick={() => void alternarFinanceiroItem(item)}
+                            disabled={processando}
+                          >
+                            {item.ativo ? "Desativar" : "Ativar"}
+                          </button>
+                          <button
+                            type="button"
+                            className="delete"
+                            onClick={() => void excluirFinanceiroItem(item)}
+                            disabled={processando}
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      </article>
+                    ))
+                  )}
+                </div>
+              </section>
+            ))}
+          </section>
+        </section>
+      )}
+
+      {aba === "comissoes" && (
+        <section className="settings-v7-commission-page">
+          <section className="settings-card settings-v7-commission-hero">
+            <div className="settings-v7-page-title">
+              <div className="settings-v7-page-icon">$</div>
+              <div>
+                <span>REGRAS DE COMISSÃO</span>
+                <h2>Comissões e percentuais</h2>
+                <p>
+                  Cadastre regras comerciais de forma organizada sem misturar com os demais cadastros financeiros.
+                </p>
+              </div>
+            </div>
+
+            <div className="settings-v7-commission-info">
+              <article>
+                <small>Regras cadastradas</small>
+                <strong>{regrasComissao.length}</strong>
+              </article>
+              <article>
+                <small>Regras ativas</small>
+                <strong>{regrasComissao.filter((item) => item.ativo).length}</strong>
+              </article>
+            </div>
+          </section>
+
+          <section className="settings-v7-commission-grid">
+            <form
+              className="settings-card settings-v7-commission-form"
+              onSubmit={adicionarRegraComissao}
+            >
+              <div className="settings-v7-card-head">
+                <div>
+                  <span>NOVA REGRA</span>
+                  <h3>Cadastrar regra de comissão</h3>
+                  <p>Crie a regra e vincule ao produto correspondente.</p>
+                </div>
+                <b>+</b>
               </div>
 
-              <div className="settings-list">
-                {financeiroPorTipo[tipo].length === 0 ? (
-                  <div className="settings-empty">
-                    Nenhum item cadastrado.
+              <label className="settings-v7-field">
+                Nome da regra
+                <input
+                  value={novaRegraComissao.nome}
+                  onChange={(e) =>
+                    setNovaRegraComissao({
+                      ...novaRegraComissao,
+                      nome: e.target.value,
+                    })
+                  }
+                  placeholder="Ex.: Comissão padrão Compra"
+                />
+              </label>
+
+              <label className="settings-v7-field">
+                Produto
+                <input
+                  value={novaRegraComissao.produto}
+                  onChange={(e) =>
+                    setNovaRegraComissao({
+                      ...novaRegraComissao,
+                      produto: e.target.value,
+                    })
+                  }
+                  placeholder="Ex.: Compra de Dívida"
+                />
+              </label>
+
+              <label className="settings-v7-field">
+                Percentual (%)
+                <input
+                  value={novaRegraComissao.percentual}
+                  onChange={(e) =>
+                    setNovaRegraComissao({
+                      ...novaRegraComissao,
+                      percentual: e.target.value,
+                    })
+                  }
+                  placeholder="Ex.: 2,5"
+                  inputMode="decimal"
+                />
+              </label>
+
+              <label className="settings-v7-field">
+                Observação
+                <input
+                  value={novaRegraComissao.observacao}
+                  onChange={(e) =>
+                    setNovaRegraComissao({
+                      ...novaRegraComissao,
+                      observacao: e.target.value,
+                    })
+                  }
+                  placeholder="Opcional"
+                />
+              </label>
+
+              <button type="submit" className="settings-v7-primary-button">
+                + Adicionar regra
+              </button>
+            </form>
+
+            <section className="settings-card settings-v7-commission-list">
+              <div className="settings-v7-card-head">
+                <div>
+                  <span>REGRAS CADASTRADAS</span>
+                  <h3>Regras disponíveis</h3>
+                  <p>Ative ou desative sem precisar excluir a configuração.</p>
+                </div>
+                <b>{regrasComissao.length}</b>
+              </div>
+
+              <div className="settings-v7-rule-list">
+                {regrasComissao.length === 0 ? (
+                  <div className="settings-v7-empty">
+                    Nenhuma regra de comissão cadastrada ainda.
                   </div>
                 ) : (
-                  financeiroPorTipo[tipo].map((item) => (
-                    <article key={item.id}>
-                      <div className="settings-icon">
-                        {icone}
+                  regrasComissao.map((regra) => (
+                    <article key={regra.id}>
+                      <div className="settings-v7-rule-main">
+                        <span className="settings-v7-rule-icon">$</span>
+                        <div>
+                          <strong>{regra.nome}</strong>
+                          <small>
+                            {regra.produto}
+                            {regra.observacao ? ` • ${regra.observacao}` : ""}
+                          </small>
+                        </div>
                       </div>
 
-                      <div>
-                        <strong>{item.nome}</strong>
-                        <span>
-                          {item.ativo
-                            ? "Disponível no Financeiro"
-                            : "Desativado"}
-                        </span>
+                      <div className="settings-v7-rule-percent">
+                        <strong>{regra.percentual.toLocaleString("pt-BR")}%</strong>
+                        <small>percentual</small>
                       </div>
 
-                      <span
-                        className={
-                          item.ativo
-                            ? "status-active"
-                            : "status-inactive"
-                        }
-                      >
-                        {item.ativo ? "Ativo" : "Inativo"}
+                      <span className={regra.ativo ? "status-active" : "status-inactive"}>
+                        {regra.ativo ? "Ativa" : "Inativa"}
                       </span>
 
                       <div className="settings-row-actions">
                         <button
                           type="button"
-                          onClick={() =>
-                            void alternarFinanceiroItem(item)
-                          }
-                          disabled={processando}
+                          onClick={() => alternarRegraComissao(regra.id)}
                         >
-                          {item.ativo
-                            ? "Desativar"
-                            : "Ativar"}
+                          {regra.ativo ? "Desativar" : "Ativar"}
                         </button>
-
                         <button
                           type="button"
                           className="delete"
-                          onClick={() =>
-                            void excluirFinanceiroItem(item)
-                          }
-                          disabled={processando}
+                          onClick={() => excluirRegraComissao(regra.id)}
                         >
                           Excluir
                         </button>
@@ -2730,9 +3367,103 @@ export default function SettingsManager() {
                   ))
                 )}
               </div>
+
+              <div className="settings-v7-local-note">
+                <strong>Importante:</strong>
+                <span>
+                  Nesta versão, as novas regras de comissão ficam salvas neste navegador.
+                  Antes de usá-las para cálculos automáticos, vamos ligar essas regras ao Supabase e aos módulos de produção.
+                </span>
+              </div>
             </section>
-          ))}
-        </>
+          </section>
+        </section>
+      )}
+
+
+      {aba === "logs" && (
+        <section className="settings-v8-logs-page">
+          <section className="settings-card settings-v8-logs-hero">
+            <div className="settings-v8-logs-title">
+              <div className="settings-v8-logs-icon">◷</div>
+              <div>
+                <span>OUTROS</span>
+                <h2>Logs do sistema</h2>
+                <p>
+                  Central de auditoria para acompanhar alterações, acessos e ações administrativas.
+                </p>
+              </div>
+            </div>
+
+            <span className="settings-v8-beta-pill">Auditoria preparada</span>
+          </section>
+
+          <section className="settings-v8-log-kpis">
+            <article>
+              <span>A</span>
+              <div>
+                <small>Ações administrativas</small>
+                <strong>—</strong>
+                <em>aguardando integração</em>
+              </div>
+            </article>
+            <article>
+              <span>U</span>
+              <div>
+                <small>Usuários ativos</small>
+                <strong>—</strong>
+                <em>aguardando integração</em>
+              </div>
+            </article>
+            <article>
+              <span>E</span>
+              <div>
+                <small>Erros registrados</small>
+                <strong>—</strong>
+                <em>aguardando integração</em>
+              </div>
+            </article>
+          </section>
+
+          <section className="settings-card settings-v8-logs-panel">
+            <div className="settings-v8-logs-panel-head">
+              <div>
+                <span>HISTÓRICO</span>
+                <h3>Atividades do sistema</h3>
+                <p>
+                  Esta área já está pronta visualmente. Para exibir histórico real, ainda precisamos conectar uma tabela de auditoria no Supabase.
+                </p>
+              </div>
+            </div>
+
+            <div className="settings-v8-log-filters">
+              <input type="search" placeholder="Pesquisar usuário, ação ou módulo..." disabled />
+              <select disabled>
+                <option>Todos os módulos</option>
+              </select>
+              <select disabled>
+                <option>Todos os tipos de ação</option>
+              </select>
+            </div>
+
+            <div className="settings-v8-log-empty">
+              <div className="settings-v8-log-empty-icon">◷</div>
+              <strong>Nenhum histórico de auditoria conectado ainda</strong>
+              <span>
+                Quando ativarmos os logs no Supabase, esta tela poderá mostrar quem alterou bancos,
+                tabelas, perfis, permissões, propostas e demais configurações.
+              </span>
+            </div>
+
+            <div className="settings-v8-log-note">
+              <strong>Próxima etapa:</strong>
+              <span>
+                criar a tabela de auditoria e registrar automaticamente usuário, ação, data/hora,
+                módulo e conteúdo alterado.
+              </span>
+            </div>
+          </section>
+        </section>
       )}
 
       {aba === "metas" && (
@@ -2771,7 +3502,10 @@ export default function SettingsManager() {
         </section>
       )}
 
-      <section className="settings-warning">
+        </main>
+      </div>
+
+      <section className="settings-warning settings-global-warning">
         <strong>Integração preparada:</strong>
         <span>as tabelas e metas ficam centralizadas para serem usadas pelos módulos de Simulação, Propostas, Dashboard e Ranking.</span>
       </section>
