@@ -3,7 +3,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import "./configuracoes.css";
-import "./premiacao-settings.css";
 
 type Banco = {
   id: string;
