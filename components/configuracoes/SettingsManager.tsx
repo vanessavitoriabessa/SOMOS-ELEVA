@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import "./configuracoes.css";
+import "./premiacao-settings.css";
 
 type Banco = {
   id: string;
@@ -119,6 +120,46 @@ type RegraComissao = {
   percentual: number;
   observacao: string;
   ativo: boolean;
+};
+
+
+type PremiacaoPlano = {
+  id: string;
+  codigo: string;
+  nome: string;
+  cargoChave: string;
+  produto: string;
+  tipoCalculo: string;
+  unidadeResultado: "PONTOS" | "REAIS" | "MISTO";
+  vigenciaInicio: string;
+  vigenciaFim: string;
+  ativo: boolean;
+  parametros: Record<string, any>;
+  observacao: string;
+};
+
+type PremiacaoFaixa = {
+  id: string;
+  planoId: string;
+  ordem: number;
+  nomeFaixa: string;
+  valorMin: number;
+  valorMax: number | null;
+  tipoRecompensa: "PONTOS" | "REAIS" | "PERCENTUAL";
+  valorRecompensa: number;
+  bonusReais: number;
+  ativo: boolean;
+  observacao: string;
+};
+
+type NovaPremiacaoFaixa = {
+  nomeFaixa: string;
+  valorMin: string;
+  valorMax: string;
+  tipoRecompensa: PremiacaoFaixa["tipoRecompensa"];
+  valorRecompensa: string;
+  bonusReais: string;
+  observacao: string;
 };
 
 type StatusPropostaConfigurado = {
@@ -267,13 +308,24 @@ export default function SettingsManager() {
   const [novoFinanceiroNome, setNovoFinanceiroNome] =
     useState("");
 
-  const [regrasComissao, setRegrasComissao] = useState<RegraComissao[]>([]);
-  const [novaRegraComissao, setNovaRegraComissao] = useState({
-    nome: "",
-    produto: "",
-    percentual: "",
-    observacao: "",
-  });
+  const [planosPremiacao, setPlanosPremiacao] = useState<PremiacaoPlano[]>([]);
+  const [faixasPremiacao, setFaixasPremiacao] = useState<PremiacaoFaixa[]>([]);
+  const [planoPremiacaoSelecionadoId, setPlanoPremiacaoSelecionadoId] =
+    useState("");
+  const [carregandoPremiacao, setCarregandoPremiacao] = useState(false);
+  const [salvandoPremiacaoId, setSalvandoPremiacaoId] = useState<string | null>(
+    null,
+  );
+  const [novaFaixaPremiacao, setNovaFaixaPremiacao] =
+    useState<NovaPremiacaoFaixa>({
+      nomeFaixa: "",
+      valorMin: "",
+      valorMax: "",
+      tipoRecompensa: "PONTOS",
+      valorRecompensa: "",
+      bonusReais: "",
+      observacao: "",
+    });
 
   const [novoBanco, setNovoBanco] = useState("");
   const [novoOrgaoConvenio, setNovoOrgaoConvenio] = useState("");
@@ -305,71 +357,345 @@ export default function SettingsManager() {
     fim: hoje(),
   });
 
-  useEffect(() => {
-    try {
-      const salvo = localStorage.getItem("somos-eleva-regras-comissao");
-      if (!salvo) return;
-      const parsed = JSON.parse(salvo);
-      if (Array.isArray(parsed)) setRegrasComissao(parsed);
-    } catch {
-      // Mantém a tela funcional mesmo se houver um valor antigo inválido.
-    }
-  }, []);
-
-  function salvarRegrasComissaoLocal(lista: RegraComissao[]) {
-    setRegrasComissao(lista);
-    localStorage.setItem("somos-eleva-regras-comissao", JSON.stringify(lista));
+  function numeroPremiacao(valor: string | number | null | undefined) {
+    if (typeof valor === "number") return Number.isFinite(valor) ? valor : 0;
+    return numero(String(valor ?? ""));
   }
 
-  function adicionarRegraComissao(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const nome = novaRegraComissao.nome.trim();
-    const produto = novaRegraComissao.produto.trim();
-    const percentual = Number(
-      String(novaRegraComissao.percentual).replace(",", "."),
-    );
-
-    if (!nome || !produto || !Number.isFinite(percentual) || percentual < 0) {
-      setMensagem("Informe nome, produto e percentual válido para a regra.");
-      return;
-    }
-
-    const nova: RegraComissao = {
-      id: crypto.randomUUID(),
-      nome,
-      produto,
-      percentual,
-      observacao: novaRegraComissao.observacao.trim(),
-      ativo: true,
-    };
-
-    salvarRegrasComissaoLocal([...regrasComissao, nova]);
-    setNovaRegraComissao({
-      nome: "",
-      produto: "",
-      percentual: "",
-      observacao: "",
+  function formatarNumeroPremiacao(valor: number | null) {
+    if (valor === null || valor === undefined) return "";
+    return Number(valor).toLocaleString("pt-BR", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
     });
-    setMensagem("Regra de comissão adicionada.");
   }
 
-  function alternarRegraComissao(id: string) {
-    salvarRegrasComissaoLocal(
-      regrasComissao.map((item) =>
-        item.id === id ? { ...item, ativo: !item.ativo } : item,
+  function parametrosPlanoAtualizados(
+    plano: PremiacaoPlano,
+    caminho: string[],
+    valor: unknown,
+  ) {
+    const raiz = structuredClone(plano.parametros || {});
+    let cursor: Record<string, any> = raiz;
+
+    caminho.forEach((chave, indice) => {
+      if (indice === caminho.length - 1) {
+        cursor[chave] = valor;
+        return;
+      }
+
+      if (!cursor[chave] || typeof cursor[chave] !== "object") {
+        cursor[chave] = {};
+      }
+
+      cursor = cursor[chave] as Record<string, any>;
+    });
+
+    return raiz;
+  }
+
+  async function carregarPremiacao() {
+    setCarregandoPremiacao(true);
+
+    try {
+      const [{ data: planosData, error: planosErro }, { data: faixasData, error: faixasErro }] =
+        await Promise.all([
+          supabase
+            .from("premiacao_planos")
+            .select(
+              "id, codigo, nome, cargo_chave, produto, tipo_calculo, unidade_resultado, vigencia_inicio, vigencia_fim, ativo, parametros, observacao",
+            )
+            .order("nome", { ascending: true }),
+          supabase
+            .from("premiacao_faixas")
+            .select(
+              "id, plano_id, ordem, nome_faixa, valor_min, valor_max, tipo_recompensa, valor_recompensa, bonus_reais, ativo, observacao",
+            )
+            .order("ordem", { ascending: true }),
+        ]);
+
+      if (planosErro) throw new Error(planosErro.message);
+      if (faixasErro) throw new Error(faixasErro.message);
+
+      const planosNormalizados: PremiacaoPlano[] = (
+        Array.isArray(planosData) ? planosData : []
+      ).map((item) => ({
+        id: String(item.id || ""),
+        codigo: String(item.codigo || ""),
+        nome: String(item.nome || ""),
+        cargoChave: String(item.cargo_chave || ""),
+        produto: String(item.produto || ""),
+        tipoCalculo: String(item.tipo_calculo || ""),
+        unidadeResultado: String(
+          item.unidade_resultado || "PONTOS",
+        ) as PremiacaoPlano["unidadeResultado"],
+        vigenciaInicio: String(item.vigencia_inicio || ""),
+        vigenciaFim: String(item.vigencia_fim || ""),
+        ativo: item.ativo !== false,
+        parametros:
+          item.parametros && typeof item.parametros === "object"
+            ? (item.parametros as Record<string, any>)
+            : {},
+        observacao: String(item.observacao || ""),
+      }));
+
+      const faixasNormalizadas: PremiacaoFaixa[] = (
+        Array.isArray(faixasData) ? faixasData : []
+      ).map((item) => ({
+        id: String(item.id || ""),
+        planoId: String(item.plano_id || ""),
+        ordem: Number(item.ordem || 0),
+        nomeFaixa: String(item.nome_faixa || ""),
+        valorMin: Number(item.valor_min || 0),
+        valorMax:
+          item.valor_max === null || item.valor_max === undefined
+            ? null
+            : Number(item.valor_max),
+        tipoRecompensa: String(
+          item.tipo_recompensa || "PONTOS",
+        ) as PremiacaoFaixa["tipoRecompensa"],
+        valorRecompensa: Number(item.valor_recompensa || 0),
+        bonusReais: Number(item.bonus_reais || 0),
+        ativo: item.ativo !== false,
+        observacao: String(item.observacao || ""),
+      }));
+
+      setPlanosPremiacao(planosNormalizados);
+      setFaixasPremiacao(faixasNormalizadas);
+
+      setPlanoPremiacaoSelecionadoId((atual) => {
+        if (
+          atual &&
+          planosNormalizados.some((plano) => plano.id === atual)
+        ) {
+          return atual;
+        }
+
+        return planosNormalizados[0]?.id || "";
+      });
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível carregar as regras de premiação.",
+      );
+    } finally {
+      setCarregandoPremiacao(false);
+    }
+  }
+
+  function atualizarPlanoPremiacaoLocal(
+    id: string,
+    alteracoes: Partial<PremiacaoPlano>,
+  ) {
+    setPlanosPremiacao((lista) =>
+      lista.map((plano) =>
+        plano.id === id ? { ...plano, ...alteracoes } : plano,
       ),
     );
   }
 
-  function excluirRegraComissao(id: string) {
-    const regra = regrasComissao.find((item) => item.id === id);
-    if (!regra) return;
-    if (!window.confirm(`Deseja excluir a regra "${regra.nome}"?`)) return;
-
-    salvarRegrasComissaoLocal(
-      regrasComissao.filter((item) => item.id !== id),
+  function atualizarParametroPremiacao(
+    planoId: string,
+    caminho: string[],
+    valor: unknown,
+  ) {
+    setPlanosPremiacao((lista) =>
+      lista.map((plano) =>
+        plano.id === planoId
+          ? {
+              ...plano,
+              parametros: parametrosPlanoAtualizados(plano, caminho, valor),
+            }
+          : plano,
+      ),
     );
+  }
+
+  async function salvarPlanoPremiacao(plano: PremiacaoPlano) {
+    setSalvandoPremiacaoId(plano.id);
+    setMensagem("");
+
+    try {
+      const { error } = await supabase
+        .from("premiacao_planos")
+        .update({
+          nome: plano.nome.trim(),
+          cargo_chave: plano.cargoChave.trim() || null,
+          produto: plano.produto.trim() || null,
+          unidade_resultado: plano.unidadeResultado,
+          vigencia_inicio: plano.vigenciaInicio || null,
+          vigencia_fim: plano.vigenciaFim || null,
+          ativo: plano.ativo,
+          parametros: plano.parametros || {},
+          observacao: plano.observacao.trim() || null,
+        })
+        .eq("id", plano.id);
+
+      if (error) throw new Error(error.message);
+
+      setMensagem("Regra de premiação atualizada com sucesso.");
+      await carregarPremiacao();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível salvar a regra de premiação.",
+      );
+    } finally {
+      setSalvandoPremiacaoId(null);
+    }
+  }
+
+  async function alternarPlanoPremiacao(plano: PremiacaoPlano) {
+    const atualizado = { ...plano, ativo: !plano.ativo };
+    atualizarPlanoPremiacaoLocal(plano.id, { ativo: atualizado.ativo });
+    await salvarPlanoPremiacao(atualizado);
+  }
+
+  function atualizarFaixaPremiacaoLocal(
+    id: string,
+    alteracoes: Partial<PremiacaoFaixa>,
+  ) {
+    setFaixasPremiacao((lista) =>
+      lista.map((faixa) =>
+        faixa.id === id ? { ...faixa, ...alteracoes } : faixa,
+      ),
+    );
+  }
+
+  async function salvarFaixaPremiacao(faixa: PremiacaoFaixa) {
+    setSalvandoPremiacaoId(faixa.id);
+    setMensagem("");
+
+    try {
+      const { error } = await supabase
+        .from("premiacao_faixas")
+        .update({
+          ordem: faixa.ordem,
+          nome_faixa: faixa.nomeFaixa.trim(),
+          valor_min: faixa.valorMin,
+          valor_max: faixa.valorMax,
+          tipo_recompensa: faixa.tipoRecompensa,
+          valor_recompensa: faixa.valorRecompensa,
+          bonus_reais: faixa.bonusReais,
+          ativo: faixa.ativo,
+          observacao: faixa.observacao.trim() || null,
+        })
+        .eq("id", faixa.id);
+
+      if (error) throw new Error(error.message);
+
+      setMensagem("Faixa atualizada com sucesso.");
+      await carregarPremiacao();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível salvar a faixa.",
+      );
+    } finally {
+      setSalvandoPremiacaoId(null);
+    }
+  }
+
+  async function excluirFaixaPremiacao(faixa: PremiacaoFaixa) {
+    if (!window.confirm(`Deseja excluir a faixa "${faixa.nomeFaixa}"?`)) {
+      return;
+    }
+
+    setSalvandoPremiacaoId(faixa.id);
+    setMensagem("");
+
+    try {
+      const { error } = await supabase
+        .from("premiacao_faixas")
+        .delete()
+        .eq("id", faixa.id);
+
+      if (error) throw new Error(error.message);
+
+      setMensagem("Faixa excluída.");
+      await carregarPremiacao();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível excluir a faixa.",
+      );
+    } finally {
+      setSalvandoPremiacaoId(null);
+    }
+  }
+
+  async function adicionarFaixaPremiacao(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!planoPremiacaoSelecionadoId) {
+      setMensagem("Selecione um plano de premiação.");
+      return;
+    }
+
+    const valorMin = numeroPremiacao(novaFaixaPremiacao.valorMin);
+    const valorMax = novaFaixaPremiacao.valorMax.trim()
+      ? numeroPremiacao(novaFaixaPremiacao.valorMax)
+      : null;
+    const valorRecompensa = numeroPremiacao(
+      novaFaixaPremiacao.valorRecompensa,
+    );
+    const bonusReais = numeroPremiacao(novaFaixaPremiacao.bonusReais);
+
+    if (!novaFaixaPremiacao.nomeFaixa.trim()) {
+      setMensagem("Informe o nome da faixa.");
+      return;
+    }
+
+    const faixasDoPlano = faixasPremiacao.filter(
+      (faixa) => faixa.planoId === planoPremiacaoSelecionadoId,
+    );
+    const proximaOrdem =
+      Math.max(0, ...faixasDoPlano.map((faixa) => faixa.ordem)) + 1;
+
+    setSalvandoPremiacaoId("nova-faixa");
+    setMensagem("");
+
+    try {
+      const { error } = await supabase.from("premiacao_faixas").insert({
+        plano_id: planoPremiacaoSelecionadoId,
+        ordem: proximaOrdem,
+        nome_faixa: novaFaixaPremiacao.nomeFaixa.trim(),
+        valor_min: valorMin,
+        valor_max: valorMax,
+        tipo_recompensa: novaFaixaPremiacao.tipoRecompensa,
+        valor_recompensa: valorRecompensa,
+        bonus_reais: bonusReais,
+        ativo: true,
+        observacao: novaFaixaPremiacao.observacao.trim() || null,
+      });
+
+      if (error) throw new Error(error.message);
+
+      setNovaFaixaPremiacao({
+        nomeFaixa: "",
+        valorMin: "",
+        valorMax: "",
+        tipoRecompensa: "PONTOS",
+        valorRecompensa: "",
+        bonusReais: "",
+        observacao: "",
+      });
+
+      setMensagem("Nova faixa adicionada.");
+      await carregarPremiacao();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível adicionar a faixa.",
+      );
+    } finally {
+      setSalvandoPremiacaoId(null);
+    }
   }
 
   async function obterToken() {
@@ -673,6 +999,14 @@ export default function SettingsManager() {
     void carregar();
     void carregarBancoModulos();
   }, [supabase]);
+
+
+  useEffect(() => {
+    if (aba === "comissoes") {
+      void carregarPremiacao();
+    }
+  }, [aba, supabase]);
+
 
   function salvarGeral() {
     localStorage.setItem("somos-eleva-config-geral", JSON.stringify(geral));
@@ -1671,6 +2005,20 @@ export default function SettingsManager() {
     [bancos, tabelas, metas]
   );
 
+  const planoPremiacaoSelecionado =
+    planosPremiacao.find(
+      (plano) => plano.id === planoPremiacaoSelecionadoId,
+    ) || null;
+
+  const faixasPlanoSelecionado = faixasPremiacao
+    .filter((faixa) => faixa.planoId === planoPremiacaoSelecionadoId)
+    .sort((a, b) => a.ordem - b.ordem);
+
+  const totalFaixasPremiacao = faixasPremiacao.length;
+  const totalPlanosAtivos = planosPremiacao.filter(
+    (plano) => plano.ativo,
+  ).length;
+
   return (
     <div className="settings-page">
       <section className="settings-v3-intro">
@@ -1804,7 +2152,7 @@ export default function SettingsManager() {
               <span className="settings-nav-icon">R$</span><span><b>Cadastros financeiros</b><em>Produtos, parceiros e categorias</em></span>
             </button>
             <button className={aba === "comissoes" ? "active" : ""} onClick={() => setAba("comissoes")}>
-              <span className="settings-nav-icon">$</span><span><b>Regras de comissão</b><em>Percentuais e critérios</em></span>
+              <span className="settings-nav-icon">★</span><span><b>Regras de Premiação</b><em>Faixas, pontos e critérios</em></span>
             </button>
           </div>
 
@@ -3209,174 +3557,877 @@ export default function SettingsManager() {
       )}
 
       {aba === "comissoes" && (
-        <section className="settings-v7-commission-page">
-          <section className="settings-card settings-v7-commission-hero">
-            <div className="settings-v7-page-title">
-              <div className="settings-v7-page-icon">$</div>
+        <section className="premiacao-settings-page">
+          <section className="settings-card premiacao-settings-hero">
+            <div className="premiacao-settings-hero-title">
+              <div className="premiacao-settings-hero-icon">★</div>
               <div>
-                <span>REGRAS DE COMISSÃO</span>
-                <h2>Comissões e percentuais</h2>
+                <span>CENTRAL DE PREMIAÇÃO</span>
+                <h2>Regras de Premiação</h2>
                 <p>
-                  Cadastre regras comerciais de forma organizada sem misturar com os demais cadastros financeiros.
+                  Controle faixas, pontos, valores e critérios diretamente no Supabase.
+                  A previsão será conferida pela Diretoria antes de qualquer liberação para a colaboradora.
                 </p>
               </div>
             </div>
 
-            <div className="settings-v7-commission-info">
+            <div className="premiacao-settings-kpis">
               <article>
-                <small>Regras cadastradas</small>
-                <strong>{regrasComissao.length}</strong>
+                <small>Planos cadastrados</small>
+                <strong>{planosPremiacao.length}</strong>
+                <span>regras principais</span>
               </article>
               <article>
-                <small>Regras ativas</small>
-                <strong>{regrasComissao.filter((item) => item.ativo).length}</strong>
+                <small>Planos ativos</small>
+                <strong>{totalPlanosAtivos}</strong>
+                <span>em vigência</span>
+              </article>
+              <article>
+                <small>Faixas cadastradas</small>
+                <strong>{totalFaixasPremiacao}</strong>
+                <span>níveis de premiação</span>
+              </article>
+              <article className="is-connected">
+                <small>Origem dos dados</small>
+                <strong>Supabase</strong>
+                <span>configuração centralizada</span>
               </article>
             </div>
           </section>
 
-          <section className="settings-v7-commission-grid">
-            <form
-              className="settings-card settings-v7-commission-form"
-              onSubmit={adicionarRegraComissao}
-            >
-              <div className="settings-v7-card-head">
-                <div>
-                  <span>NOVA REGRA</span>
-                  <h3>Cadastrar regra de comissão</h3>
-                  <p>Crie a regra e vincule ao produto correspondente.</p>
+          {carregandoPremiacao && (
+            <div className="premiacao-settings-loading">
+              Carregando regras de premiação...
+            </div>
+          )}
+
+          {!carregandoPremiacao && planosPremiacao.length === 0 && (
+            <div className="settings-card premiacao-settings-empty">
+              <strong>Nenhum plano de premiação encontrado.</strong>
+              <span>
+                Confirme se o SQL da Etapa 1 foi executado no mesmo projeto Supabase utilizado pelo sistema.
+              </span>
+            </div>
+          )}
+
+          {!carregandoPremiacao && planosPremiacao.length > 0 && (
+            <div className="premiacao-settings-layout">
+              <aside className="settings-card premiacao-settings-plans">
+                <div className="premiacao-settings-side-head">
+                  <span>PLANOS</span>
+                  <h3>Quem recebe</h3>
+                  <p>Selecione uma regra para conferir ou editar.</p>
                 </div>
-                <b>+</b>
-              </div>
 
-              <label className="settings-v7-field">
-                Nome da regra
-                <input
-                  value={novaRegraComissao.nome}
-                  onChange={(e) =>
-                    setNovaRegraComissao({
-                      ...novaRegraComissao,
-                      nome: e.target.value,
-                    })
-                  }
-                  placeholder="Ex.: Comissão padrão Compra"
-                />
-              </label>
+                <div className="premiacao-settings-plan-list">
+                  {planosPremiacao.map((plano) => {
+                    const quantidadeFaixas = faixasPremiacao.filter(
+                      (faixa) => faixa.planoId === plano.id,
+                    ).length;
 
-              <label className="settings-v7-field">
-                Produto
-                <input
-                  value={novaRegraComissao.produto}
-                  onChange={(e) =>
-                    setNovaRegraComissao({
-                      ...novaRegraComissao,
-                      produto: e.target.value,
-                    })
-                  }
-                  placeholder="Ex.: Compra de Dívida"
-                />
-              </label>
+                    return (
+                      <button
+                        type="button"
+                        key={plano.id}
+                        className={
+                          planoPremiacaoSelecionadoId === plano.id
+                            ? "active"
+                            : ""
+                        }
+                        onClick={() =>
+                          setPlanoPremiacaoSelecionadoId(plano.id)
+                        }
+                      >
+                        <span className="premiacao-settings-plan-icon">
+                          {plano.codigo.includes("CLT")
+                            ? "C"
+                            : plano.codigo.includes("SUPERV")
+                              ? "S"
+                              : plano.codigo.includes("COORD")
+                                ? "V"
+                                : plano.codigo.includes("OPER")
+                                  ? "O"
+                                  : plano.codigo.includes("QUAL")
+                                    ? "Q"
+                                    : "P"}
+                        </span>
 
-              <label className="settings-v7-field">
-                Percentual (%)
-                <input
-                  value={novaRegraComissao.percentual}
-                  onChange={(e) =>
-                    setNovaRegraComissao({
-                      ...novaRegraComissao,
-                      percentual: e.target.value,
-                    })
-                  }
-                  placeholder="Ex.: 2,5"
-                  inputMode="decimal"
-                />
-              </label>
+                        <span>
+                          <strong>{plano.nome}</strong>
+                          <em>
+                            {quantidadeFaixas
+                              ? `${quantidadeFaixas} faixa(s)`
+                              : "regra por parâmetros"}
+                          </em>
+                        </span>
 
-              <label className="settings-v7-field">
-                Observação
-                <input
-                  value={novaRegraComissao.observacao}
-                  onChange={(e) =>
-                    setNovaRegraComissao({
-                      ...novaRegraComissao,
-                      observacao: e.target.value,
-                    })
-                  }
-                  placeholder="Opcional"
-                />
-              </label>
-
-              <button type="submit" className="settings-v7-primary-button">
-                + Adicionar regra
-              </button>
-            </form>
-
-            <section className="settings-card settings-v7-commission-list">
-              <div className="settings-v7-card-head">
-                <div>
-                  <span>REGRAS CADASTRADAS</span>
-                  <h3>Regras disponíveis</h3>
-                  <p>Ative ou desative sem precisar excluir a configuração.</p>
+                        <i className={plano.ativo ? "active" : "inactive"} />
+                      </button>
+                    );
+                  })}
                 </div>
-                <b>{regrasComissao.length}</b>
-              </div>
+              </aside>
 
-              <div className="settings-v7-rule-list">
-                {regrasComissao.length === 0 ? (
-                  <div className="settings-v7-empty">
-                    Nenhuma regra de comissão cadastrada ainda.
-                  </div>
-                ) : (
-                  regrasComissao.map((regra) => (
-                    <article key={regra.id}>
-                      <div className="settings-v7-rule-main">
-                        <span className="settings-v7-rule-icon">$</span>
-                        <div>
-                          <strong>{regra.nome}</strong>
-                          <small>
-                            {regra.produto}
-                            {regra.observacao ? ` • ${regra.observacao}` : ""}
-                          </small>
+              {planoPremiacaoSelecionado && (
+                <main className="premiacao-settings-main">
+                  <section className="settings-card premiacao-settings-plan-card">
+                    <div className="premiacao-settings-plan-head">
+                      <div>
+                        <span>PLANO SELECIONADO</span>
+                        <h3>{planoPremiacaoSelecionado.nome}</h3>
+                        <p>
+                          {planoPremiacaoSelecionado.produto || "Premiação geral"} ·{" "}
+                          {planoPremiacaoSelecionado.cargoChave || "Sem cargo definido"}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        className={
+                          planoPremiacaoSelecionado.ativo
+                            ? "premiacao-status active"
+                            : "premiacao-status inactive"
+                        }
+                        onClick={() =>
+                          void alternarPlanoPremiacao(
+                            planoPremiacaoSelecionado,
+                          )
+                        }
+                        disabled={
+                          salvandoPremiacaoId ===
+                          planoPremiacaoSelecionado.id
+                        }
+                      >
+                        {planoPremiacaoSelecionado.ativo
+                          ? "● Plano ativo"
+                          : "○ Plano inativo"}
+                      </button>
+                    </div>
+
+                    <div className="premiacao-settings-form-grid">
+                      <label>
+                        Nome exibido
+                        <input
+                          value={planoPremiacaoSelecionado.nome}
+                          onChange={(e) =>
+                            atualizarPlanoPremiacaoLocal(
+                              planoPremiacaoSelecionado.id,
+                              { nome: e.target.value },
+                            )
+                          }
+                        />
+                      </label>
+
+                      <label>
+                        Cargo / perfil
+                        <input
+                          value={planoPremiacaoSelecionado.cargoChave}
+                          onChange={(e) =>
+                            atualizarPlanoPremiacaoLocal(
+                              planoPremiacaoSelecionado.id,
+                              { cargoChave: e.target.value },
+                            )
+                          }
+                        />
+                      </label>
+
+                      <label>
+                        Produto / origem
+                        <input
+                          value={planoPremiacaoSelecionado.produto}
+                          onChange={(e) =>
+                            atualizarPlanoPremiacaoLocal(
+                              planoPremiacaoSelecionado.id,
+                              { produto: e.target.value },
+                            )
+                          }
+                        />
+                      </label>
+
+                      <label>
+                        Resultado
+                        <select
+                          value={
+                            planoPremiacaoSelecionado.unidadeResultado
+                          }
+                          onChange={(e) =>
+                            atualizarPlanoPremiacaoLocal(
+                              planoPremiacaoSelecionado.id,
+                              {
+                                unidadeResultado: e.target
+                                  .value as PremiacaoPlano["unidadeResultado"],
+                              },
+                            )
+                          }
+                        >
+                          <option value="PONTOS">Pontos</option>
+                          <option value="REAIS">Valor em reais</option>
+                          <option value="MISTO">Pontos + reais</option>
+                        </select>
+                      </label>
+
+                      <label>
+                        Vigência inicial
+                        <input
+                          type="date"
+                          value={
+                            planoPremiacaoSelecionado.vigenciaInicio
+                          }
+                          onChange={(e) =>
+                            atualizarPlanoPremiacaoLocal(
+                              planoPremiacaoSelecionado.id,
+                              { vigenciaInicio: e.target.value },
+                            )
+                          }
+                        />
+                      </label>
+
+                      <label>
+                        Vigência final
+                        <input
+                          type="date"
+                          value={
+                            planoPremiacaoSelecionado.vigenciaFim
+                          }
+                          onChange={(e) =>
+                            atualizarPlanoPremiacaoLocal(
+                              planoPremiacaoSelecionado.id,
+                              { vigenciaFim: e.target.value },
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
+
+                    <label className="premiacao-settings-full-field">
+                      Observação do plano
+                      <textarea
+                        value={planoPremiacaoSelecionado.observacao}
+                        onChange={(e) =>
+                          atualizarPlanoPremiacaoLocal(
+                            planoPremiacaoSelecionado.id,
+                            { observacao: e.target.value },
+                          )
+                        }
+                        rows={2}
+                      />
+                    </label>
+
+                    <div className="premiacao-settings-special">
+                      <div className="premiacao-settings-special-title">
+                        <span>REGRAS ESPECIAIS</span>
+                        <h4>Parâmetros do cálculo</h4>
+                        <p>
+                          Estes campos controlam os gatilhos que não pertencem às faixas normais.
+                        </p>
+                      </div>
+
+                      {planoPremiacaoSelecionado.codigo ===
+                        "CONSULTORA_COMPRA" && (
+                        <div className="premiacao-settings-param-grid">
+                          <label>
+                            Mínimo para plano de pontos
+                            <input
+                              value={formatarNumeroPremiacao(
+                                Number(
+                                  planoPremiacaoSelecionado.parametros
+                                    ?.producao_minima_plano_pontos || 0,
+                                ),
+                              )}
+                              onChange={(e) =>
+                                atualizarParametroPremiacao(
+                                  planoPremiacaoSelecionado.id,
+                                  ["producao_minima_plano_pontos"],
+                                  numeroPremiacao(e.target.value),
+                                )
+                              }
+                            />
+                            <small>
+                              Abaixo deste valor, não entra nas faixas da Compra.
+                            </small>
+                          </label>
+
+                          <div className="premiacao-settings-rule-note">
+                            <strong>Peso da tabela</strong>
+                            <span>
+                              A produção válida da Compra usa automaticamente o % Produção cadastrado em Tabelas de produção.
+                            </span>
+                          </div>
                         </div>
-                      </div>
+                      )}
 
-                      <div className="settings-v7-rule-percent">
-                        <strong>{regra.percentual.toLocaleString("pt-BR")}%</strong>
-                        <small>percentual</small>
-                      </div>
+                      {planoPremiacaoSelecionado.codigo ===
+                        "CONSULTORA_CLT" && (
+                        <div className="premiacao-settings-param-grid">
+                          <label>
+                            Mínimo CLT
+                            <input
+                              value={formatarNumeroPremiacao(
+                                Number(
+                                  planoPremiacaoSelecionado.parametros
+                                    ?.clt_minimo || 0,
+                                ),
+                              )}
+                              onChange={(e) =>
+                                atualizarParametroPremiacao(
+                                  planoPremiacaoSelecionado.id,
+                                  ["clt_minimo"],
+                                  numeroPremiacao(e.target.value),
+                                )
+                              }
+                            />
+                          </label>
 
-                      <span className={regra.ativo ? "status-active" : "status-inactive"}>
-                        {regra.ativo ? "Ativa" : "Inativa"}
+                          <label>
+                            Limite Compra para usar 1%
+                            <input
+                              value={formatarNumeroPremiacao(
+                                Number(
+                                  planoPremiacaoSelecionado.parametros
+                                    ?.compra_abaixo_minimo_pontos
+                                    ?.limite_compra || 0,
+                                ),
+                              )}
+                              onChange={(e) =>
+                                atualizarParametroPremiacao(
+                                  planoPremiacaoSelecionado.id,
+                                  [
+                                    "compra_abaixo_minimo_pontos",
+                                    "limite_compra",
+                                  ],
+                                  numeroPremiacao(e.target.value),
+                                )
+                              }
+                            />
+                          </label>
+
+                          <label>
+                            % sobre Compra abaixo da meta
+                            <input
+                              value={formatarNumeroPremiacao(
+                                Number(
+                                  planoPremiacaoSelecionado.parametros
+                                    ?.compra_abaixo_minimo_pontos
+                                    ?.percentual_premiacao_compra || 0,
+                                ),
+                              )}
+                              onChange={(e) =>
+                                atualizarParametroPremiacao(
+                                  planoPremiacaoSelecionado.id,
+                                  [
+                                    "compra_abaixo_minimo_pontos",
+                                    "percentual_premiacao_compra",
+                                  ],
+                                  numeroPremiacao(e.target.value),
+                                )
+                              }
+                            />
+                          </label>
+                        </div>
+                      )}
+
+                      {planoPremiacaoSelecionado.codigo ===
+                        "COORDENACAO_COMPRA" && (
+                        <div className="premiacao-settings-param-grid">
+                          <label>
+                            Meta CLT da empresa
+                            <input
+                              value={formatarNumeroPremiacao(
+                                Number(
+                                  planoPremiacaoSelecionado.parametros
+                                    ?.meta_clt_empresa || 0,
+                                ),
+                              )}
+                              onChange={(e) =>
+                                atualizarParametroPremiacao(
+                                  planoPremiacaoSelecionado.id,
+                                  ["meta_clt_empresa"],
+                                  numeroPremiacao(e.target.value),
+                                )
+                              }
+                            />
+                          </label>
+
+                          <label>
+                            Bônus ao bater CLT (R$)
+                            <input
+                              value={formatarNumeroPremiacao(
+                                Number(
+                                  planoPremiacaoSelecionado.parametros
+                                    ?.bonus_clt_reais || 0,
+                                ),
+                              )}
+                              onChange={(e) =>
+                                atualizarParametroPremiacao(
+                                  planoPremiacaoSelecionado.id,
+                                  ["bonus_clt_reais"],
+                                  numeroPremiacao(e.target.value),
+                                )
+                              }
+                            />
+                          </label>
+
+                          <label>
+                            Compra mínima com meta CLT
+                            <input
+                              value={formatarNumeroPremiacao(
+                                Number(
+                                  planoPremiacaoSelecionado.parametros
+                                    ?.compra_minima_com_meta_clt || 0,
+                                ),
+                              )}
+                              onChange={(e) =>
+                                atualizarParametroPremiacao(
+                                  planoPremiacaoSelecionado.id,
+                                  ["compra_minima_com_meta_clt"],
+                                  numeroPremiacao(e.target.value),
+                                )
+                              }
+                            />
+                          </label>
+
+                          <label>
+                            Compra mínima sem meta CLT
+                            <input
+                              value={formatarNumeroPremiacao(
+                                Number(
+                                  planoPremiacaoSelecionado.parametros
+                                    ?.compra_minima_sem_meta_clt || 0,
+                                ),
+                              )}
+                              onChange={(e) =>
+                                atualizarParametroPremiacao(
+                                  planoPremiacaoSelecionado.id,
+                                  ["compra_minima_sem_meta_clt"],
+                                  numeroPremiacao(e.target.value),
+                                )
+                              }
+                            />
+                          </label>
+                        </div>
+                      )}
+
+                      {planoPremiacaoSelecionado.codigo ===
+                        "SUPERVISAO" && (
+                        <div className="premiacao-settings-rule-note wide">
+                          <strong>Produção da Supervisão</strong>
+                          <span>
+                            Soma parcelas do CLT + produção válida da Compra. Venda própria pode ajudar a atingir a meta ou ser remunerada separadamente, sem duplicidade.
+                          </span>
+                        </div>
+                      )}
+
+                      {planoPremiacaoSelecionado.codigo ===
+                        "OPERACIONAL" && (
+                        <div className="premiacao-settings-param-grid">
+                          <label>
+                            R$ por contrato pago
+                            <input
+                              value={formatarNumeroPremiacao(
+                                Number(
+                                  planoPremiacaoSelecionado.parametros
+                                    ?.valor_por_contrato_pago || 0,
+                                ),
+                              )}
+                              onChange={(e) =>
+                                atualizarParametroPremiacao(
+                                  planoPremiacaoSelecionado.id,
+                                  ["valor_por_contrato_pago"],
+                                  numeroPremiacao(e.target.value),
+                                )
+                              }
+                            />
+                          </label>
+
+                          <div className="premiacao-settings-rule-note">
+                            <strong>Bônus empresa</strong>
+                            <span>
+                              R$ 500 mil = R$ 250 · R$ 1 milhão = R$ 500. A maior faixa substitui a anterior.
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {planoPremiacaoSelecionado.codigo ===
+                        "QUALIDADE" && (
+                        <div className="premiacao-settings-param-grid">
+                          <label>
+                            R$ por contrato pago
+                            <input
+                              value={formatarNumeroPremiacao(
+                                Number(
+                                  planoPremiacaoSelecionado.parametros
+                                    ?.valor_por_contrato_pago || 0,
+                                ),
+                              )}
+                              onChange={(e) =>
+                                atualizarParametroPremiacao(
+                                  planoPremiacaoSelecionado.id,
+                                  ["valor_por_contrato_pago"],
+                                  numeroPremiacao(e.target.value),
+                                )
+                              }
+                            />
+                          </label>
+
+                          <label>
+                            Meta da empresa
+                            <input
+                              value={formatarNumeroPremiacao(
+                                Number(
+                                  planoPremiacaoSelecionado.parametros
+                                    ?.meta_empresa || 0,
+                                ),
+                              )}
+                              onChange={(e) =>
+                                atualizarParametroPremiacao(
+                                  planoPremiacaoSelecionado.id,
+                                  ["meta_empresa"],
+                                  numeroPremiacao(e.target.value),
+                                )
+                              }
+                            />
+                          </label>
+
+                          <label>
+                            Bônus da meta (R$)
+                            <input
+                              value={formatarNumeroPremiacao(
+                                Number(
+                                  planoPremiacaoSelecionado.parametros
+                                    ?.bonus_meta_reais || 0,
+                                ),
+                              )}
+                              onChange={(e) =>
+                                atualizarParametroPremiacao(
+                                  planoPremiacaoSelecionado.id,
+                                  ["bonus_meta_reais"],
+                                  numeroPremiacao(e.target.value),
+                                )
+                              }
+                            />
+                          </label>
+
+                          <div className="premiacao-settings-rule-note">
+                            <strong>Venda própria</strong>
+                            <span>
+                              Segue a regra das consultoras e não pode ser contada novamente na meta geral quando for premiada separadamente.
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="premiacao-settings-plan-actions">
+                      <span>
+                        Código interno: <b>{planoPremiacaoSelecionado.codigo}</b>
                       </span>
 
-                      <div className="settings-row-actions">
-                        <button
-                          type="button"
-                          onClick={() => alternarRegraComissao(regra.id)}
-                        >
-                          {regra.ativo ? "Desativar" : "Ativar"}
-                        </button>
-                        <button
-                          type="button"
-                          className="delete"
-                          onClick={() => excluirRegraComissao(regra.id)}
-                        >
-                          Excluir
-                        </button>
-                      </div>
-                    </article>
-                  ))
-                )}
-              </div>
+                      <button
+                        type="button"
+                        className="premiacao-settings-save"
+                        onClick={() =>
+                          void salvarPlanoPremiacao(
+                            planoPremiacaoSelecionado,
+                          )
+                        }
+                        disabled={
+                          salvandoPremiacaoId ===
+                          planoPremiacaoSelecionado.id
+                        }
+                      >
+                        {salvandoPremiacaoId ===
+                        planoPremiacaoSelecionado.id
+                          ? "Salvando..."
+                          : "Salvar alterações"}
+                      </button>
+                    </div>
+                  </section>
 
-              <div className="settings-v7-local-note">
-                <strong>Importante:</strong>
-                <span>
-                  Nesta versão, as novas regras de comissão ficam salvas neste navegador.
-                  Antes de usá-las para cálculos automáticos, vamos ligar essas regras ao Supabase e aos módulos de produção.
-                </span>
-              </div>
-            </section>
-          </section>
+                  <section className="settings-card premiacao-settings-ranges">
+                    <div className="premiacao-settings-ranges-head">
+                      <div>
+                        <span>FAIXAS DE PREMIAÇÃO</span>
+                        <h3>
+                          {faixasPlanoSelecionado.length
+                            ? "Valores e pontuações"
+                            : "Plano sem faixas"}
+                        </h3>
+                        <p>
+                          Edite a faixa e clique em Salvar na própria linha.
+                        </p>
+                      </div>
+
+                      <b>{faixasPlanoSelecionado.length}</b>
+                    </div>
+
+                    {faixasPlanoSelecionado.length > 0 && (
+                      <div className="premiacao-settings-range-table">
+                        <div className="premiacao-settings-range-header">
+                          <span>Faixa</span>
+                          <span>De</span>
+                          <span>Até</span>
+                          <span>Tipo</span>
+                          <span>Premiação</span>
+                          <span>Bônus R$</span>
+                          <span>Ações</span>
+                        </div>
+
+                        {faixasPlanoSelecionado.map((faixa) => (
+                          <article key={faixa.id}>
+                            <input
+                              value={faixa.nomeFaixa}
+                              onChange={(e) =>
+                                atualizarFaixaPremiacaoLocal(faixa.id, {
+                                  nomeFaixa: e.target.value,
+                                })
+                              }
+                            />
+
+                            <input
+                              value={formatarNumeroPremiacao(
+                                faixa.valorMin,
+                              )}
+                              onChange={(e) =>
+                                atualizarFaixaPremiacaoLocal(faixa.id, {
+                                  valorMin: numeroPremiacao(
+                                    e.target.value,
+                                  ),
+                                })
+                              }
+                            />
+
+                            <input
+                              value={formatarNumeroPremiacao(
+                                faixa.valorMax,
+                              )}
+                              placeholder="Sem limite"
+                              onChange={(e) =>
+                                atualizarFaixaPremiacaoLocal(faixa.id, {
+                                  valorMax: e.target.value.trim()
+                                    ? numeroPremiacao(e.target.value)
+                                    : null,
+                                })
+                              }
+                            />
+
+                            <select
+                              value={faixa.tipoRecompensa}
+                              onChange={(e) =>
+                                atualizarFaixaPremiacaoLocal(faixa.id, {
+                                  tipoRecompensa: e.target
+                                    .value as PremiacaoFaixa["tipoRecompensa"],
+                                })
+                              }
+                            >
+                              <option value="PONTOS">Pontos</option>
+                              <option value="REAIS">R$</option>
+                              <option value="PERCENTUAL">%</option>
+                            </select>
+
+                            <input
+                              value={formatarNumeroPremiacao(
+                                faixa.valorRecompensa,
+                              )}
+                              onChange={(e) =>
+                                atualizarFaixaPremiacaoLocal(faixa.id, {
+                                  valorRecompensa: numeroPremiacao(
+                                    e.target.value,
+                                  ),
+                                })
+                              }
+                            />
+
+                            <input
+                              value={formatarNumeroPremiacao(
+                                faixa.bonusReais,
+                              )}
+                              onChange={(e) =>
+                                atualizarFaixaPremiacaoLocal(faixa.id, {
+                                  bonusReais: numeroPremiacao(
+                                    e.target.value,
+                                  ),
+                                })
+                              }
+                            />
+
+                            <div className="premiacao-settings-range-actions">
+                              <button
+                                type="button"
+                                className={
+                                  faixa.ativo ? "active" : "inactive"
+                                }
+                                onClick={() => {
+                                  const atualizada = {
+                                    ...faixa,
+                                    ativo: !faixa.ativo,
+                                  };
+                                  atualizarFaixaPremiacaoLocal(faixa.id, {
+                                    ativo: atualizada.ativo,
+                                  });
+                                  void salvarFaixaPremiacao(atualizada);
+                                }}
+                                disabled={
+                                  salvandoPremiacaoId === faixa.id
+                                }
+                              >
+                                {faixa.ativo ? "Ativa" : "Inativa"}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void salvarFaixaPremiacao(faixa)
+                                }
+                                disabled={
+                                  salvandoPremiacaoId === faixa.id
+                                }
+                              >
+                                Salvar
+                              </button>
+
+                              <button
+                                type="button"
+                                className="delete"
+                                onClick={() =>
+                                  void excluirFaixaPremiacao(faixa)
+                                }
+                                disabled={
+                                  salvandoPremiacaoId === faixa.id
+                                }
+                              >
+                                Excluir
+                              </button>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+
+                    <form
+                      className="premiacao-settings-add-range"
+                      onSubmit={adicionarFaixaPremiacao}
+                    >
+                      <div className="premiacao-settings-add-head">
+                        <div>
+                          <span>NOVA FAIXA</span>
+                          <h4>Adicionar nível de premiação</h4>
+                        </div>
+                        <b>+</b>
+                      </div>
+
+                      <div className="premiacao-settings-add-grid">
+                        <label>
+                          Nome da faixa
+                          <input
+                            value={novaFaixaPremiacao.nomeFaixa}
+                            onChange={(e) =>
+                              setNovaFaixaPremiacao({
+                                ...novaFaixaPremiacao,
+                                nomeFaixa: e.target.value,
+                              })
+                            }
+                            placeholder="Ex.: FAIXA 26"
+                          />
+                        </label>
+
+                        <label>
+                          Valor inicial
+                          <input
+                            value={novaFaixaPremiacao.valorMin}
+                            onChange={(e) =>
+                              setNovaFaixaPremiacao({
+                                ...novaFaixaPremiacao,
+                                valorMin: e.target.value,
+                              })
+                            }
+                            placeholder="Ex.: 470.000"
+                          />
+                        </label>
+
+                        <label>
+                          Valor final
+                          <input
+                            value={novaFaixaPremiacao.valorMax}
+                            onChange={(e) =>
+                              setNovaFaixaPremiacao({
+                                ...novaFaixaPremiacao,
+                                valorMax: e.target.value,
+                              })
+                            }
+                            placeholder="Vazio = sem limite"
+                          />
+                        </label>
+
+                        <label>
+                          Tipo
+                          <select
+                            value={novaFaixaPremiacao.tipoRecompensa}
+                            onChange={(e) =>
+                              setNovaFaixaPremiacao({
+                                ...novaFaixaPremiacao,
+                                tipoRecompensa: e.target
+                                  .value as PremiacaoFaixa["tipoRecompensa"],
+                              })
+                            }
+                          >
+                            <option value="PONTOS">Pontos</option>
+                            <option value="REAIS">R$</option>
+                            <option value="PERCENTUAL">%</option>
+                          </select>
+                        </label>
+
+                        <label>
+                          Premiação
+                          <input
+                            value={novaFaixaPremiacao.valorRecompensa}
+                            onChange={(e) =>
+                              setNovaFaixaPremiacao({
+                                ...novaFaixaPremiacao,
+                                valorRecompensa: e.target.value,
+                              })
+                            }
+                            placeholder="Ex.: 12.500"
+                          />
+                        </label>
+
+                        <label>
+                          Bônus R$
+                          <input
+                            value={novaFaixaPremiacao.bonusReais}
+                            onChange={(e) =>
+                              setNovaFaixaPremiacao({
+                                ...novaFaixaPremiacao,
+                                bonusReais: e.target.value,
+                              })
+                            }
+                            placeholder="Opcional"
+                          />
+                        </label>
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="premiacao-settings-add-button"
+                        disabled={salvandoPremiacaoId === "nova-faixa"}
+                      >
+                        {salvandoPremiacaoId === "nova-faixa"
+                          ? "Adicionando..."
+                          : "+ Adicionar faixa"}
+                      </button>
+                    </form>
+                  </section>
+
+                  <section className="premiacao-settings-footer-note">
+                    <strong>Importante:</strong>
+                    <span>
+                      Esta tela controla a regra prevista. Na próxima etapa, o sistema calculará a previsão da competência e somente a Diretoria poderá conferir e liberar a pontuação para a colaboradora.
+                    </span>
+                  </section>
+                </main>
+              )}
+            </div>
+          )}
         </section>
       )}
 

@@ -1,7 +1,6 @@
 "use client";
 
 import LojaPremiosV2 from "./loja-premios/v2/LojaPremiosV2";
-import MinhaPremiacaoV2 from "./minha-premiacao/MinhaPremiacaoV2";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import "./loja-premios.css";
@@ -381,7 +380,7 @@ type LojaPremiosManagerProps = {
 };
 
 export default function LojaPremiosManager({
-  area = "premiacao",
+  area = "loja",
 }: LojaPremiosManagerProps) {
   const supabase = useMemo(() => createClient(), []);
   const [propostas, setPropostas] = useState<PropostaCompraDivida[]>([]);
@@ -551,23 +550,10 @@ export default function LojaPremiosManager({
   }
 
   useEffect(() => {
-    const atualizar = () => {
-      void carregar();
-    };
-
-    atualizar();
-
-    const intervalo = window.setInterval(atualizar, 3000);
-    window.addEventListener("storage", atualizar);
-    window.addEventListener("focus", atualizar);
-    window.addEventListener("loja-premios-pedidos-atualizados", atualizar);
-
-    return () => {
-      window.clearInterval(intervalo);
-      window.removeEventListener("storage", atualizar);
-      window.removeEventListener("focus", atualizar);
-      window.removeEventListener("loja-premios-pedidos-atualizados", atualizar);
-    };
+    // Carrega uma única vez ao montar o componente.
+    // Removido o polling a cada 3 segundos, que estava criando dezenas
+    // de requisições /api/propostas simultâneas e deixando tudo em "pending".
+    void carregar();
   }, [supabase]);
 
   const ehAdmin = perfilEhAdministracao(perfilLogado);
@@ -1318,44 +1304,10 @@ const progresso = Math.min(
     );
   }
 
-  if (area === "premiacao" && !ehOperacional) {
-    return (
-      <MinhaPremiacaoV2
-        nomeUsuario={nomeLogado}
-        nomeExibido={resumoExibido.nome}
-        perfilUsuario={perfilLogado}
-        podeGerenciar={podeGerenciarLoja}
-        nomesConsultoras={nomesConsultoras}
-        consultoraSelecionada={consultoraSelecionada}
-        competencia={competencia}
-        pontosCompra={resumoExibido.pontosCompra}
-        pontosClt={resumoExibido.pontosClt}
-        pontosTotal={resumoExibido.pontosTotal}
-        premioCompra={resumoExibido.premioCompra}
-        premioClt={resumoExibido.premioClt}
-        premioTotal={resumoExibido.premioTotal}
-        producaoDigitada={acompanhamentoCompetencia.valorProduzido}
-        producaoConfirmada={acompanhamentoCompetencia.valorConfirmado}
-        producaoEmFormacao={acompanhamentoCompetencia.valorEmFormacao}
-        contratosDigitados={acompanhamentoCompetencia.digitados}
-        contratosConfirmados={acompanhamentoCompetencia.pagosConfirmados}
-        contratosEmFormacao={acompanhamentoCompetencia.aguardando}
-        saquesPagos={valorSaquesPagos}
-        progresso={progresso}
-        faltaParaMeta={faltaParaMeta}
-        meta={META_MINIMA}
-        movimentos={resumoExibido.movimentos}
-        posicaoRanking={posicaoRanking}
-        totalRanking={rankingCompetencia.length}
-        podeSolicitar={podeSolicitar}
-        solicitacaoPendente={Boolean(solicitacaoPendente)}
-        onConsultoraChange={setConsultoraSelecionada}
-        onCompetenciaChange={setCompetencia}
-        onAtualizar={carregar}
-        onSolicitarSaque={solicitarSaqueComPix}
-      />
-    );
-  }
+  // A área "Minha Premiação" atual é renderizada por PremiacaoManagerV3.
+  // Este manager permanece responsável somente pela Loja de Prêmios e
+  // pelas regras operacionais antigas, evitando conflito entre duas telas
+  // de premiação diferentes.
 
   if (ehOperacional) {
     return (

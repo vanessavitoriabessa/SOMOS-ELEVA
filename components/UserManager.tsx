@@ -9,6 +9,17 @@ import {
 } from "react";
 
 import { createClient } from "@/lib/supabase/client";
+import {
+  CheckCircle2,
+  Crown,
+  EyeOff,
+  Filter,
+  Pencil,
+  Search,
+  Trash2,
+  UserPlus,
+  UsersRound,
+} from "lucide-react";
 import "./usuarios.css";
 
 type Perfil =
@@ -295,6 +306,11 @@ export default function UserManager() {
     setFiltroPerfil,
   ] = useState("Todos");
 
+  const [filtroTime, setFiltroTime] = useState("Todos");
+  const [buscaTime, setBuscaTime] = useState("");
+  const [paginaUsuarios, setPaginaUsuarios] = useState(1);
+  const [mostrarTodosUsuarios, setMostrarTodosUsuarios] = useState(false);
+
   const [mensagem, setMensagem] =
     useState("");
 
@@ -576,35 +592,65 @@ const [formularioAberto, setFormularioAberto] =
   }, []);
 
   const filtrados = useMemo(() => {
-    const termo = busca
-      .trim()
-      .toLowerCase();
+    const termo = busca.trim().toLowerCase();
 
     return usuarios
       .filter(
         (usuario) =>
           filtroPerfil === "Todos" ||
-          usuario.perfil ===
-            filtroPerfil
+          usuario.perfil === filtroPerfil
+      )
+      .filter(
+        (usuario) =>
+          filtroTime === "Todos" ||
+          usuario.timeId === filtroTime
       )
       .filter(
         (usuario) =>
           !termo ||
-          usuario.nome
-            .toLowerCase()
-            .includes(termo) ||
-          usuario.email
-            .toLowerCase()
-            .includes(termo) ||
-          usuario.equipe
+          usuario.nome.toLowerCase().includes(termo) ||
+          usuario.email.toLowerCase().includes(termo) ||
+          usuario.equipe.toLowerCase().includes(termo) ||
+          (times.find((time) => time.id === usuario.timeId)?.nome || "")
             .toLowerCase()
             .includes(termo)
       );
-  }, [
-    usuarios,
-    busca,
-    filtroPerfil,
-  ]);
+  }, [usuarios, busca, filtroPerfil, filtroTime, times]);
+
+  const timesFiltrados = useMemo(() => {
+    const termo = buscaTime.trim().toLowerCase();
+
+    if (!termo) return times;
+
+    return times.filter((time) =>
+      [time.nome, time.supervisora?.nome || "", time.supervisora?.email || ""]
+        .some((valor) => String(valor).toLowerCase().includes(termo))
+    );
+  }, [times, buscaTime]);
+
+  const usuariosPorPagina = 5;
+  const totalPaginasUsuarios = Math.max(
+    1,
+    Math.ceil(filtrados.length / usuariosPorPagina)
+  );
+
+  const usuariosPaginados = useMemo(() => {
+    if (mostrarTodosUsuarios) return filtrados;
+
+    const inicio = (paginaUsuarios - 1) * usuariosPorPagina;
+    return filtrados.slice(inicio, inicio + usuariosPorPagina);
+  }, [filtrados, paginaUsuarios, mostrarTodosUsuarios]);
+
+  useEffect(() => {
+    setPaginaUsuarios(1);
+    setMostrarTodosUsuarios(false);
+  }, [busca, filtroPerfil, filtroTime]);
+
+  useEffect(() => {
+    if (paginaUsuarios > totalPaginasUsuarios) {
+      setPaginaUsuarios(totalPaginasUsuarios);
+    }
+  }, [paginaUsuarios, totalPaginasUsuarios]);
 
   const resumo = useMemo(
     () => ({
@@ -981,97 +1027,225 @@ function editar(usuario: Usuario) {
   }
 
   return (
-    <div className="users-page">
-      <section className="users-summary">
-        <article>
-          <span>
-            Total de usuários
-          </span>
-          <strong>
-            {resumo.total}
-          </strong>
+    <div className="users-page equipe-ref-page">
+      <div className="equipe-ref-breadcrumb">
+        <span>⌂</span>
+        <span>/</span>
+        <strong>Equipe</strong>
+      </div>
+
+      <section className="equipe-ref-summary">
+        <article className="equipe-ref-brand">
+          <div className="equipe-ref-brand-icon">
+            <UsersRound size={22} strokeWidth={2.4} />
+          </div>
+          <div>
+            <h2>Gestão da equipe</h2>
+            <p>
+              Organize sua estrutura comercial, cadastre usuários e defina permissões de acesso.
+            </p>
+          </div>
         </article>
 
-        <article>
-          <span>
-            Usuários ativos
-          </span>
-          <strong>
-            {resumo.ativos}
-          </strong>
+        <article className="equipe-ref-kpi kpi-blue">
+          <div className="equipe-ref-kpi-icon">
+            <UserPlus size={18} strokeWidth={2.3} />
+          </div>
+          <div>
+            <span>Total de usuários</span>
+            <strong>{resumo.total}</strong>
+            <small>em toda a empresa</small>
+          </div>
         </article>
 
-        <article>
-          <span>Consultoras</span>
-          <strong>
-            {resumo.consultoras}
-          </strong>
+        <article className="equipe-ref-kpi kpi-green">
+          <div className="equipe-ref-kpi-icon">
+            <CheckCircle2 size={18} strokeWidth={2.5} />
+          </div>
+          <div>
+            <span>Usuários ativos</span>
+            <strong>{resumo.ativos}</strong>
+            <small>
+              {resumo.total
+                ? `${Math.round((resumo.ativos / resumo.total) * 100)}% do total`
+                : "0% do total"}
+            </small>
+          </div>
         </article>
 
-        <article className="users-highlight">
-          <span>Gestão</span>
-          <strong>
-            {resumo.gestao}
-          </strong>
+        <article className="equipe-ref-kpi kpi-purple">
+          <div className="equipe-ref-kpi-icon">
+            <UsersRound size={18} strokeWidth={2.4} />
+          </div>
+          <div>
+            <span>Consultoras</span>
+            <strong>{resumo.consultoras}</strong>
+            <small>equipe comercial</small>
+          </div>
+        </article>
+
+        <article className="equipe-ref-kpi kpi-orange">
+          <div className="equipe-ref-kpi-icon">
+            <Crown size={18} strokeWidth={2.4} />
+          </div>
+          <div>
+            <span>Gestão</span>
+            <strong>{resumo.gestao}</strong>
+            <small>diretoria e coordenação</small>
+          </div>
         </article>
       </section>
 
-      <section className="teams-management">
-        <div className="teams-management-head">
-          <div><span>GESTÃO COMERCIAL</span><h2>Times e supervisoras</h2>
-            <p>Organize as consultoras por time sem alterar produtos e acessos.</p></div>
-          <div className="teams-count"><strong>{times.length}</strong><span>times cadastrados</span></div>
-        </div>
-
-        <div className="teams-management-grid">
-          <form className="teams-create-card" onSubmit={salvarTime}>
-            <span>{timeEditandoId ? "EDITAR TIME" : "NOVO TIME"}</span>
-            <h3>{timeEditandoId ? "Atualizar time" : "Criar time comercial"}</h3>
-            <label>Nome do time
-              <input value={nomeTime} onChange={(e) => setNomeTime(e.target.value)}
-                placeholder="Ex.: Time Compra 01" disabled={processandoTime} />
-            </label>
-            <label>Supervisora
-              <select value={supervisorTimeId} onChange={(e) => setSupervisorTimeId(e.target.value)} disabled={processandoTime}>
-                <option value="">Sem supervisora definida</option>
-                {supervisoras.filter((s) => s.ativo !== false).map((s) => (
-                  <option key={s.id} value={s.id}>{s.nome || s.email || "Supervisora"}</option>
-                ))}
-              </select>
-            </label>
-            {mensagemTime && <div className="teams-message">{mensagemTime}</div>}
-            <div className="teams-form-actions">
-              {timeEditandoId && <button type="button" className="teams-cancel"
-                onClick={() => { setTimeEditandoId(null); setNomeTime(""); setSupervisorTimeId(""); }}>Cancelar</button>}
-              <button type="submit" className="teams-save" disabled={processandoTime}>
-                {processandoTime ? "Salvando..." : timeEditandoId ? "Atualizar time" : "+ Criar time"}
-              </button>
+      <section className="equipe-ref-teams-grid">
+        <form className="equipe-ref-card equipe-ref-create" onSubmit={salvarTime}>
+          <div className="equipe-ref-card-head">
+            <div className="equipe-ref-card-icon icon-blue">
+              <UserPlus size={19} />
             </div>
-          </form>
-
-          <div className="teams-list-card">
-            <div className="teams-list-title"><div><span>TIMES CADASTRADOS</span><h3>Estrutura comercial</h3></div><b>{times.length}</b></div>
-            <div className="teams-list">
-              {!times.length && <div className="teams-empty">Nenhum time cadastrado ainda.</div>}
-              {times.map((time) => (
-                <article key={time.id} className={time.ativo ? "" : "team-inactive"}>
-                  <div className="team-icon">{time.nome.charAt(0).toUpperCase()}</div>
-                  <div className="team-main">
-                    <strong>{time.nome}</strong>
-                    <span>Supervisora: {time.supervisora?.nome || "Não definida"}</span>
-                    <div><b>{time.quantidade_consultoras || 0} consultoras</b><b>{time.quantidade_membros || 0} membros</b></div>
-                  </div>
-                  <div className="team-status"><span className={time.ativo ? "active" : "inactive"}>{time.ativo ? "Ativo" : "Inativo"}</span></div>
-                  <div className="team-actions">
-                    <button type="button" onClick={() => editarTime(time)}>Editar</button>
-                    <button type="button" onClick={() => void alternarStatusTime(time)}>{time.ativo ? "Desativar" : "Ativar"}</button>
-                    <button type="button" className="delete" onClick={() => void excluirTime(time)}>Excluir</button>
-                  </div>
-                </article>
-              ))}
+            <div>
+              <h3>{timeEditandoId ? "Atualizar time" : "Criar time comercial"}</h3>
+              <p>
+                {timeEditandoId
+                  ? "Altere o time e a supervisora responsável."
+                  : "Cadastre um novo time e defina a supervisora responsável."}
+              </p>
             </div>
           </div>
-        </div>
+
+          <label>
+            Nome do time
+            <div className="equipe-ref-field">
+              <UsersRound size={15} />
+              <input
+                value={nomeTime}
+                onChange={(e) => setNomeTime(e.target.value)}
+                placeholder="Ex.: Time Compra 01"
+                disabled={processandoTime}
+              />
+            </div>
+          </label>
+
+          <label>
+            Supervisora
+            <div className="equipe-ref-field">
+              <UserPlus size={15} />
+              <select
+                value={supervisorTimeId}
+                onChange={(e) => setSupervisorTimeId(e.target.value)}
+                disabled={processandoTime}
+              >
+                <option value="">Selecione a supervisora</option>
+                {supervisoras
+                  .filter((s) => s.ativo !== false)
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nome || s.email || "Supervisora"}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          </label>
+
+          {mensagemTime && <div className="teams-message">{mensagemTime}</div>}
+
+          <div className="equipe-ref-create-actions">
+            {timeEditandoId && (
+              <button
+                type="button"
+                className="equipe-ref-cancel"
+                onClick={() => {
+                  setTimeEditandoId(null);
+                  setNomeTime("");
+                  setSupervisorTimeId("");
+                }}
+              >
+                Cancelar
+              </button>
+            )}
+
+            <button
+              type="submit"
+              className="equipe-ref-primary"
+              disabled={processandoTime}
+            >
+              {processandoTime
+                ? "Salvando..."
+                : timeEditandoId
+                  ? "Salvar alterações"
+                  : "+ Criar time"}
+            </button>
+          </div>
+        </form>
+
+        <section className="equipe-ref-card equipe-ref-times">
+          <div className="equipe-ref-card-head equipe-ref-card-head-between">
+            <div className="equipe-ref-head-left">
+              <div className="equipe-ref-card-icon icon-purple">
+                <UsersRound size={19} />
+              </div>
+              <div>
+                <h3>Times cadastrados</h3>
+                <p>Visualize e gerencie os times comerciais da sua empresa.</p>
+              </div>
+            </div>
+
+            <b className="equipe-ref-count">
+              {times.length} {times.length === 1 ? "time" : "times"}
+            </b>
+          </div>
+
+          <div className="equipe-ref-search">
+            <Search size={14} />
+            <input
+              value={buscaTime}
+              onChange={(e) => setBuscaTime(e.target.value)}
+              placeholder="Pesquisar time..."
+            />
+          </div>
+
+          <div className="equipe-ref-team-list">
+            {!timesFiltrados.length && (
+              <div className="teams-empty">Nenhum time encontrado.</div>
+            )}
+
+            {timesFiltrados.map((time) => (
+              <article key={time.id} className={time.ativo ? "" : "team-inactive"}>
+                <div className="equipe-ref-team-avatar">
+                  {time.nome.charAt(0).toUpperCase()}
+                </div>
+
+                <div className="equipe-ref-team-info">
+                  <strong>{time.nome}</strong>
+                  <span>Supervisora: {time.supervisora?.nome || "Não definida"}</span>
+                  <div>
+                    <b>{time.quantidade_consultoras || 0} consultoras</b>
+                    <b>{time.quantidade_membros || 0} membros</b>
+                  </div>
+                </div>
+
+                <span className={`equipe-ref-status ${time.ativo ? "active" : "inactive"}`}>
+                  <i />
+                  {time.ativo ? "Ativo" : "Inativo"}
+                </span>
+
+                <div className="equipe-ref-team-actions">
+                  <button type="button" className="edit" onClick={() => editarTime(time)}>
+                    <Pencil size={13} />
+                    Editar
+                  </button>
+                  <button type="button" onClick={() => void alternarStatusTime(time)}>
+                    <EyeOff size={13} />
+                    {time.ativo ? "Desativar" : "Ativar"}
+                  </button>
+                  <button type="button" className="delete" onClick={() => void excluirTime(time)}>
+                    <Trash2 size={13} />
+                    Excluir
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
       </section>
 
       <section className="users-layout">
@@ -1536,199 +1710,220 @@ function editar(usuario: Usuario) {
           </div>
         </form>
 
-        <section className="users-card">
-          <div className="users-list-heading">
-            <div>
-              <span>
-                EQUIPE CADASTRADA
-              </span>
-
-              <h2>
-                Usuários e permissões
-              </h2>
+        <section className="users-card equipe-ref-users-card">
+          <div className="equipe-ref-users-top">
+            <div className="equipe-ref-users-title">
+              <div className="equipe-ref-card-icon icon-blue">
+                <UserPlus size={19} />
+              </div>
+              <div>
+                <h3>Usuários e permissões</h3>
+                <p>Gerencie os usuários, equipes e níveis de acesso ao sistema.</p>
+              </div>
             </div>
 
-            <div className="users-heading-actions">
-  <b>{filtrados.length}</b>
+            <div className="equipe-ref-users-tools">
+              <div className="equipe-ref-search">
+                <Search size={14} />
+                <input
+                  value={busca}
+                  onChange={(evento) => setBusca(evento.target.value)}
+                  placeholder="Pesquisar por nome, e-mail ou equipe..."
+                />
+              </div>
 
-  <button
-    type="button"
-    className="users-new-button"
-    onClick={abrirNovoUsuario}
-  >
-    + Novo usuário
-  </button>
-</div>
+              <select
+                value={filtroPerfil}
+                onChange={(evento) => setFiltroPerfil(evento.target.value)}
+              >
+                <option value="Todos">Todos os perfis</option>
+                {(perfisConfigurados.length
+                  ? perfisConfigurados.filter((perfil) => perfil.ativo)
+                  : PERFIS.map((perfil) => ({
+                      chave: perfil,
+                      nomeExibicao: perfil,
+                      ativo: true,
+                    }))
+                ).map((perfil) => (
+                  <option key={perfil.chave} value={perfil.chave}>
+                    {perfil.nomeExibicao}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={filtroTime}
+                onChange={(evento) => setFiltroTime(evento.target.value)}
+              >
+                <option value="Todos">Todos os times</option>
+                {times
+                  .filter((time) => time.ativo)
+                  .map((time) => (
+                    <option key={time.id} value={time.id}>
+                      {time.nome}
+                    </option>
+                  ))}
+              </select>
+
+              <button type="button" className="equipe-ref-filter" aria-label="Filtros">
+                <Filter size={15} />
+              </button>
+
+              <button
+                type="button"
+                className="equipe-ref-new-user"
+                onClick={abrirNovoUsuario}
+              >
+                + Novo usuário
+              </button>
+            </div>
           </div>
 
-          <div className="users-filters">
-            <input
-              value={busca}
-              onChange={(evento) =>
-                setBusca(
-                  evento.target.value
-                )
-              }
-              placeholder="Pesquisar nome, e-mail ou equipe"
-            />
-
-            <select
-              value={filtroPerfil}
-              onChange={(evento) =>
-                setFiltroPerfil(
-                  evento.target.value
-                )
-              }
-            >
-              <option>
-                Todos
-              </option>
-
-              {(perfisConfigurados.length
-                ? perfisConfigurados
-                : PERFIS.map((perfil) => ({
-                    chave: perfil,
-                    nomeExibicao: perfil,
-                    ativo: true,
-                  }))
-              ).map((perfil) => (
-                <option
-                  key={perfil.chave}
-                  value={perfil.chave}
-                >
-                  {perfil.nomeExibicao}
-                </option>
-              ))}
-            </select>
+          <div className="equipe-ref-table-head">
+            <span>Usuário</span>
+            <span>Equipe / time</span>
+            <span>Perfil</span>
+            <span>Status</span>
+            <span>Ações</span>
           </div>
 
-          <div className="users-list">
-            {carregando && (
-              <p>
-                Carregando usuários...
-              </p>
+          <div className="users-list equipe-ref-user-list">
+            {carregando && <p>Carregando usuários...</p>}
+
+            {!carregando && !filtrados.length && (
+              <p>Nenhum usuário encontrado.</p>
             )}
 
-            {!carregando &&
-              !filtrados.length && (
-                <p>
-                  Nenhum usuário
-                  encontrado.
-                </p>
-              )}
-
-            {filtrados.map(
-              (usuario) => (
-                <article
-                  key={usuario.id}
-                >
+            {usuariosPaginados.map((usuario) => (
+              <article key={usuario.id}>
+                <div className="equipe-ref-user-cell">
                   <div className="user-avatar">
                     {usuario.foto ? (
-                      <img
-                        src={
-                          usuario.foto
-                        }
-                        alt={`Foto de ${usuario.nome}`}
-                      />
+                      <img src={usuario.foto} alt={`Foto de ${usuario.nome}`} />
                     ) : (
-                      usuario.nome
-                        .charAt(0)
-                        .toUpperCase()
+                      usuario.nome.charAt(0).toUpperCase()
                     )}
                   </div>
 
                   <div className="user-main">
-                    <strong>
-                      {usuario.nome}
-                    </strong>
-
-                    <span>
-                      {usuario.email}
-                    </span>
-
-                    <div>
-                      <b>
-                        {perfisConfigurados.find(
-                          (perfil) => perfil.chave === usuario.perfil,
-                        )?.nomeExibicao || usuario.perfil}
-                      </b>
-
-                      {usuario.equipe && (
-                        <b>
-                          {
-                            usuario.equipe
-                          }
-                        </b>
-                      )}
-                      {usuario.timeId && (
-                        <b className="user-time-badge">
-                          {times.find((time) => time.id === usuario.timeId)?.nome || "Time"}
-                        </b>
-                      )}
-                    </div>
+                    <strong>{usuario.nome}</strong>
+                    <span>{usuario.email}</span>
                   </div>
+                </div>
 
-                  <div className="user-status">
-                    <span
-                      className={
-                        usuario.ativo
-                          ? "active"
-                          : "inactive"
-                      }
-                    >
-                      {usuario.ativo
-                        ? "Ativo"
-                        : "Inativo"}
-                    </span>
-                  </div>
+                <div className="equipe-ref-user-team">
+                  {usuario.timeId ? (
+                    <b className="user-time-badge">
+                      <UsersRound size={11} />
+                      {times.find((time) => time.id === usuario.timeId)?.nome || "Time"}
+                    </b>
+                  ) : (
+                    <b className="equipe-ref-neutral">
+                      <UsersRound size={11} />
+                      Sem equipe
+                    </b>
+                  )}
+                </div>
 
-                  <div className="user-actions">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        editar(usuario)
-                      }
-                      disabled={
-                        processando
-                      }
-                    >
-                      Editar
-                    </button>
+                <div className="equipe-ref-user-profile">
+                  <b>
+                    {perfisConfigurados.find(
+                      (perfil) => perfil.chave === usuario.perfil,
+                    )?.nomeExibicao || usuario.perfil}
+                  </b>
+                  {usuario.equipe && <b className="secondary">{usuario.equipe}</b>}
+                </div>
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void alternarStatus(
-                          usuario
-                        )
-                      }
-                      disabled={
-                        processando
-                      }
-                    >
-                      {usuario.ativo
-                        ? "Desativar"
-                        : "Ativar"}
-                    </button>
+                <div className="user-status">
+                  <span className={usuario.ativo ? "active" : "inactive"}>
+                    <i />
+                    {usuario.ativo ? "Ativo" : "Inativo"}
+                  </span>
+                </div>
 
-                    <button
-                      type="button"
-                      className="delete"
-                      onClick={() =>
-                        void excluir(
-                          usuario
-                        )
-                      }
-                      disabled={
-                        processando
-                      }
-                    >
-                      Excluir
-                    </button>
-                  </div>
-                </article>
-              )
-            )}
+                <div className="user-actions">
+                  <button type="button" onClick={() => editar(usuario)} disabled={processando}>
+                    <Pencil size={12} />
+                    Editar
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => alternarStatus(usuario)}
+                    disabled={processando}
+                  >
+                    <EyeOff size={12} />
+                    {usuario.ativo ? "Desativar" : "Ativar"}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="delete"
+                    onClick={() => excluir(usuario)}
+                    disabled={processando}
+                  >
+                    <Trash2 size={12} />
+                    Excluir
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="equipe-ref-pagination">
+            <span>
+              Mostrando {usuariosPaginados.length} de {filtrados.length} usuários
+            </span>
+
+            <div>
+              <button
+                type="button"
+                disabled={mostrarTodosUsuarios || paginaUsuarios <= 1}
+                onClick={() => {
+                  setMostrarTodosUsuarios(false);
+                  setPaginaUsuarios((pagina) => Math.max(1, pagina - 1));
+                }}
+              >
+                ‹
+              </button>
+
+              {Array.from({ length: totalPaginasUsuarios }, (_, indice) => indice + 1)
+                .slice(0, 4)
+                .map((pagina) => (
+                  <button
+                    key={pagina}
+                    type="button"
+                    className={!mostrarTodosUsuarios && paginaUsuarios === pagina ? "active" : ""}
+                    onClick={() => {
+                      setMostrarTodosUsuarios(false);
+                      setPaginaUsuarios(pagina);
+                    }}
+                  >
+                    {pagina}
+                  </button>
+                ))}
+
+              <button
+                type="button"
+                disabled={mostrarTodosUsuarios || paginaUsuarios >= totalPaginasUsuarios}
+                onClick={() => {
+                  setMostrarTodosUsuarios(false);
+                  setPaginaUsuarios((pagina) =>
+                    Math.min(totalPaginasUsuarios, pagina + 1)
+                  );
+                }}
+              >
+                ›
+              </button>
+
+              <button
+                type="button"
+                className={`equipe-ref-show-all ${mostrarTodosUsuarios ? "active" : ""}`}
+                onClick={() => setMostrarTodosUsuarios((valor) => !valor)}
+              >
+                {mostrarTodosUsuarios ? "Paginar" : "Todos"}
+              </button>
+            </div>
           </div>
         </section>
       </section>

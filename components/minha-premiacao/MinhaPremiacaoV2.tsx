@@ -1,74 +1,108 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
-  ArrowDownLeft,
-  ArrowUpRight,
-  Award,
+  BadgeDollarSign,
   CalendarDays,
+  Check,
+  CheckCircle2,
   ChevronRight,
-  Gift,
+  Clock3,
+  Coins,
   History,
   Landmark,
-  Medal,
-  Pencil,
-  PiggyBank,
-  Sparkles,
-  Target,
-  TrendingUp,
+  RefreshCcw,
+  Search,
+  ShieldCheck,
   WalletCards,
+  X,
 } from "lucide-react";
-import AjustePontosModal from "../loja-premios/AjustePontosModal";
 import "./minha-premiacao-v2.css";
 
 export type MovimentoPremiacao = {
   id: string;
+  propostaId: string;
   produto: "Compra de Dívida" | "CLT";
+  cliente: string;
   descricao: string;
-  pontos: number;
   data: string;
+  banco: string;
+  tabela: string;
+  valorContrato: number;
+  pesoTabela: number;
+  producaoValida: number;
+  comissaoEmpresa: number;
+  valorParcelaClt: number;
 };
 
-type MinhaPremiacaoV2Props = {
+export type SaquePremiacao = {
+  id: string;
+  usuario_id: string;
+  usuario_nome: string;
+  competencia_id?: string | null;
+  pontos_solicitados: number;
+  valor_reais?: number | null;
+  status: "SOLICITADO" | "PAGO" | "RECUSADO";
+  chave_pix?: string | null;
+  tipo_chave_pix?: string | null;
+  solicitado_em: string;
+  processado_em?: string | null;
+  motivo_recusa?: string | null;
+};
+
+type Props = {
   nomeUsuario: string;
   nomeExibido: string;
   perfilUsuario: string;
   podeGerenciar: boolean;
 
-  nomesConsultoras: string[];
+  nomesConsultoras?: string[];
   consultoraSelecionada: string;
   competencia: string;
 
-  pontosCompra: number;
-  pontosClt: number;
-  pontosTotal: number;
-  premioCompra: number;
-  premioClt: number;
-  premioTotal: number;
-
+  producaoCompra: number;
+  producaoClt: number;
   producaoDigitada: number;
   producaoConfirmada: number;
   producaoEmFormacao: number;
+  valorPagoBruto: number;
   contratosDigitados: number;
   contratosConfirmados: number;
   contratosEmFormacao: number;
+  contratosForaPrazo?: number;
 
-  saquesPagos: number;
-  progresso: number;
-  faltaParaMeta: number;
-  meta: number;
-  movimentos: MovimentoPremiacao[];
-  posicaoRanking: number;
-  totalRanking: number;
+  pontosCompraPrevistos: number;
+  pontosCltPrevistos: number;
+  pontosTotalPrevisto: number;
+  faixaCompra: string;
+  faixaClt: string;
+  complementoCompraComClt: number;
+  comissaoEmpresa: number;
 
-  podeSolicitar: boolean;
-  solicitacaoPendente: boolean;
+  movimentos?: MovimentoPremiacao[];
+  saldoPontos: number;
+  saldoDisponivelSaque: number;
+  premiacaoJaLiberada: boolean;
+
+  saques?: SaquePremiacao[];
+  extrato?: any[];
+  processando: boolean;
 
   onConsultoraChange: (nome: string) => void;
   onCompetenciaChange: (competencia: string) => void;
   onAtualizar: () => void | Promise<void>;
-  onSolicitarSaque: (chavePix: string) => void;
+  onLiberarPremiacao: (
+    pontosCompra: number,
+    pontosClt: number,
+  ) => Promise<void>;
+  onSolicitarSaque: (
+    pontos: number,
+    chavePix: string,
+  ) => Promise<void>;
+  onProcessarSaque: (
+    saqueId: string,
+    acao: "PAGO" | "RECUSADO",
+  ) => Promise<void>;
 };
 
 function moeda(valor: number) {
@@ -85,620 +119,1000 @@ function pontos(valor: number) {
   });
 }
 
-function competenciaFormatada(valor: string) {
-  const [ano, mes] = valor.split("-").map(Number);
-
-  if (!ano || !mes) return valor;
-
-  return new Date(ano, mes - 1, 1).toLocaleDateString("pt-BR", {
-    month: "long",
-    year: "numeric",
+function porcentagem(valor: number) {
+  return Number(valor || 0).toLocaleString("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
   });
 }
 
-function competenciaCurta(valor: string) {
-  const [ano, mes] = valor.split("-");
-  return mes && ano ? `${mes}/${ano}` : valor;
-}
-
-function dataMovimento(valor: string) {
-  if (!valor) return "Data não informada";
-
+function dataPt(valor?: string | null) {
+  if (!valor) return "—";
   const data = new Date(valor);
-
   if (Number.isNaN(data.getTime())) return valor;
-
   return data.toLocaleDateString("pt-BR");
 }
 
-export default function MinhaPremiacaoV2({
-  nomeUsuario,
-  nomeExibido,
-  perfilUsuario,
-  podeGerenciar,
-  nomesConsultoras,
-  consultoraSelecionada,
-  competencia,
-  pontosCompra,
-  pontosClt,
-  pontosTotal,
-  premioCompra,
-  premioClt,
-  premioTotal,
-  producaoDigitada,
-  producaoConfirmada,
-  producaoEmFormacao,
-  contratosDigitados,
-  contratosConfirmados,
-  contratosEmFormacao,
-  saquesPagos,
-  progresso,
-  faltaParaMeta,
-  meta,
-  movimentos,
-  posicaoRanking,
-  totalRanking,
-  podeSolicitar,
-  solicitacaoPendente,
-  onConsultoraChange,
-  onCompetenciaChange,
-  onAtualizar,
-  onSolicitarSaque,
-}: MinhaPremiacaoV2Props) {
-  const router = useRouter();
+export default function MinhaPremiacaoV2(props: Props) {
+  const {
+    nomeUsuario,
+    nomeExibido,
+    podeGerenciar,
+    nomesConsultoras = [],
+    consultoraSelecionada,
+    competencia,
+    producaoCompra,
+    producaoClt,
+    producaoDigitada,
+    producaoConfirmada,
+    producaoEmFormacao,
+    valorPagoBruto,
+    contratosDigitados,
+    contratosConfirmados,
+    contratosEmFormacao,
+    contratosForaPrazo = 0,
+    pontosCompraPrevistos,
+    pontosCltPrevistos,
+    pontosTotalPrevisto,
+    faixaCompra,
+    faixaClt,
+    complementoCompraComClt,
+    comissaoEmpresa,
+    movimentos = [],
+    saldoPontos,
+    saldoDisponivelSaque,
+    premiacaoJaLiberada,
+    saques = [],
+    extrato = [],
+    processando,
+    onConsultoraChange,
+    onCompetenciaChange,
+    onAtualizar,
+    onLiberarPremiacao,
+    onSolicitarSaque,
+    onProcessarSaque,
+  } = props;
 
-  const [modalSaqueAberto, setModalSaqueAberto] = useState(false);
-  const [modalAjusteAberto, setModalAjusteAberto] = useState(false);
+  const [abaAdmin, setAbaAdmin] = useState<
+    "conferencia" | "liberados" | "saques"
+  >("conferencia");
+  const [filtroProduto, setFiltroProduto] = useState<
+    "todos" | "compra" | "clt"
+  >("todos");
+  const [busca, setBusca] = useState("");
+  const [modalConferencia, setModalConferencia] = useState(false);
+  const [modalSaque, setModalSaque] = useState(false);
+  const [pontosCompraLiberar, setPontosCompraLiberar] = useState(
+    String(Number(pontosCompraPrevistos ?? 0) || 0),
+  );
+  const [pontosCltLiberar, setPontosCltLiberar] = useState(
+    String(Number(pontosCltPrevistos ?? 0) || 0),
+  );
+  const [pontosSaque, setPontosSaque] = useState("");
   const [chavePix, setChavePix] = useState("");
-  const [erroPix, setErroPix] = useState("");
+  const [erroModal, setErroModal] = useState("");
+  const compraPrevistaSegura = Number(pontosCompraPrevistos ?? 0) || 0;
+  const cltPrevistaSegura = Number(pontosCltPrevistos ?? 0) || 0;
 
-  const barras = useMemo(() => {
-    const grupos = [0, 0, 0, 0, 0, 0, 0];
+  const consultorasFiltradas = nomesConsultoras.filter((nome) =>
+    nome.toLowerCase().includes(busca.trim().toLowerCase()),
+  );
 
-    movimentos.forEach((movimento) => {
-      const data = new Date(movimento.data);
-      const dia = Number.isNaN(data.getTime()) ? 1 : data.getDate();
-      const indice = Math.min(6, Math.floor((Math.max(dia, 1) - 1) / 5));
-      grupos[indice] += Number(movimento.pontos || 0);
-    });
+  const saquesPendentes = saques.filter(
+    (saque) => saque.status === "SOLICITADO",
+  );
+  const saquesProcessados = saques.filter(
+    (saque) => saque.status !== "SOLICITADO",
+  );
 
-    const maior = Math.max(...grupos, 1);
+  const creditosLiberados = useMemo(
+    () => extrato.filter((item) => item.tipo === "CREDITO"),
+    [extrato],
+  );
 
-    return grupos.map((valor, indice) => ({
-      dia: ["01", "05", "10", "15", "20", "25", "30"][indice],
-      altura: valor > 0 ? Math.max(12, (valor / maior) * 100) : 0,
-    }));
-  }, [movimentos]);
+  const movimentosFiltrados = useMemo(() => {
+    if (filtroProduto === "compra") {
+      return movimentos.filter(
+        (item) => item.produto === "Compra de Dívida",
+      );
+    }
 
-  function enviarSaque(evento: FormEvent<HTMLFormElement>) {
+    if (filtroProduto === "clt") {
+      return movimentos.filter((item) => item.produto === "CLT");
+    }
+
+    return movimentos;
+  }, [movimentos, filtroProduto]);
+
+  function abrirConferencia() {
+    setPontosCompraLiberar(String(compraPrevistaSegura));
+    setPontosCltLiberar(String(cltPrevistaSegura));
+    setErroModal("");
+    setModalConferencia(true);
+  }
+
+  async function confirmarLiberacao(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
 
-    const pix = chavePix.trim();
+    const compra = Number(
+      String(pontosCompraLiberar).replace(/\./g, "").replace(",", "."),
+    );
+    const clt = Number(
+      String(pontosCltLiberar).replace(/\./g, "").replace(",", "."),
+    );
 
-    if (pix.length < 3) {
-      setErroPix("Informe uma chave PIX válida.");
+    if (!Number.isFinite(compra) || compra < 0) {
+      setErroModal("Informe uma pontuação válida para Compra.");
       return;
     }
 
-    onSolicitarSaque(pix);
-    setChavePix("");
-    setErroPix("");
-    setModalSaqueAberto(false);
+    if (!Number.isFinite(clt) || clt < 0) {
+      setErroModal("Informe uma pontuação válida para CLT.");
+      return;
+    }
+
+    try {
+      await onLiberarPremiacao(compra, clt);
+      setModalConferencia(false);
+    } catch (erro) {
+      setErroModal(
+        erro instanceof Error ? erro.message : "Não foi possível liberar.",
+      );
+    }
   }
 
-  return (
-    <div className="mpv3-page">
-      <section className="mpv3-cabecalho">
-        <div>
-          <span className="mpv3-etiqueta">CARTEIRA ELEVA</span>
+  async function enviarSaque(evento: FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    setErroModal("");
 
-          <h2>Olá, {nomeExibido || nomeUsuario || "Consultora"}!</h2>
+    const quantidade = Number(
+      String(pontosSaque).replace(/\./g, "").replace(",", "."),
+    );
 
-          <p>
-            Acompanhe seus ganhos, pontos e evolução mensal com dados reais.
-          </p>
-        </div>
+    if (!Number.isFinite(quantidade) || quantidade <= 0) {
+      setErroModal("Informe quantos pontos deseja sacar.");
+      return;
+    }
 
-        <div className="mpv3-admin-filtros">
-          {podeGerenciar && (
-            <label className="mpv3-seletor-admin">
-              <span>Consultora</span>
+    if (quantidade > saldoDisponivelSaque) {
+      setErroModal("A quantidade é maior que o saldo disponível.");
+      return;
+    }
 
-              <select
-                value={consultoraSelecionada}
-                onChange={(evento) =>
-                  onConsultoraChange(evento.target.value)
-                }
-              >
-                {nomesConsultoras.map((nome) => (
-                  <option key={nome} value={nome}>
-                    {nome}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
+    if (chavePix.trim().length < 3) {
+      setErroModal("Informe uma chave PIX válida.");
+      return;
+    }
 
-          <label className="mpv3-competencia">
-            <CalendarDays size={18} />
+    try {
+      await onSolicitarSaque(quantidade, chavePix.trim());
+      setModalSaque(false);
+      setPontosSaque("");
+      setChavePix("");
+    } catch (erro) {
+      setErroModal(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível solicitar o saque.",
+      );
+    }
+  }
 
-            <div>
-              <span>Competência atual</span>
-
-              <input
-                type="month"
-                value={competencia}
-                onChange={(evento) =>
-                  onCompetenciaChange(evento.target.value)
-                }
-              />
-            </div>
-
-            <ChevronRight size={17} />
-          </label>
-        </div>
-      </section>
-
-      <section className="mpv3-principal">
-        <div className="mpv3-cartao">
-          <div className="mpv3-cartao-brilho" />
-
-          <div className="mpv3-cartao-topo">
-            <div className="mpv3-marca">
-              <div className="mpv3-marca-icone">
-                <WalletCards size={22} />
-              </div>
-
-              <div>
-                <span>CARTEIRA ELEVA</span>
-                <strong>Conta de premiação</strong>
-              </div>
-            </div>
-
-            <div className="mpv3-cartao-status-acoes">
-              <span className="mpv3-status">
-                {pontosTotal >= meta ? "Meta ativada" : "Conta ativa"}
-              </span>
-
-              {podeGerenciar && (
-                <button
-                  type="button"
-                  className="mpv3-editar-pontos"
-                  onClick={() => setModalAjusteAberto(true)}
-                  aria-label="Ajustar pontos"
-                  title="Ajustar pontos"
-                >
-                  <Pencil size={17} />
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="mpv3-saldo">
-            <span>Premiação disponível</span>
-            <h3>{moeda(premioTotal)}</h3>
-
+  if (podeGerenciar) {
+    return (
+      <div className="premio-v4-page">
+        <section className="premio-v4-hero">
+          <div>
+            <span>GESTÃO DE PREMIAÇÃO</span>
+            <h2>Central de Premiação</h2>
             <p>
-              <Sparkles size={15} />
-              {pontos(pontosTotal)} pontos acumulados
+              O sistema calcula automaticamente. Você confere e só depois
+              libera os pontos para a colaboradora.
             </p>
           </div>
 
-          <div className="mpv3-cartao-rodape">
-            <div>
-              <span>Titular</span>
-              <strong>{nomeExibido}</strong>
-            </div>
-
-            <div>
-              <span>Perfil</span>
-              <strong>{perfilUsuario || "Consultora"}</strong>
-            </div>
-
-            <div>
+          <div className="premio-v4-periodo">
+            <label>
               <span>Competência</span>
-              <strong>{competenciaCurta(competencia)}</strong>
-            </div>
-          </div>
-        </div>
-
-        <aside className="mpv3-acoes">
-          <button
-            type="button"
-            disabled={!podeSolicitar}
-            onClick={() => {
-              if (podeSolicitar) setModalSaqueAberto(true);
-            }}
-          >
-            <div className="mpv3-acao-icone saque">
-              <PiggyBank size={21} />
-            </div>
-
-            <div>
-              <strong>
-                {solicitacaoPendente
-                  ? "Saque solicitado"
-                  : "Solicitar saque"}
-              </strong>
-
-              <span>
-                {solicitacaoPendente
-                  ? "Aguardando pagamento"
-                  : podeSolicitar
-                    ? "Receba por PIX"
-                    : "Meta ainda não ativada"}
-              </span>
-            </div>
-
-            <ChevronRight size={18} />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              document
-                .getElementById("extrato-premiacao")
-                ?.scrollIntoView({
-                  behavior: "smooth",
-                  block: "start",
-                });
-            }}
-          >
-            <div className="mpv3-acao-icone extrato">
-              <History size={21} />
-            </div>
-
-            <div>
-              <strong>Ver extrato</strong>
-              <span>Movimentações da competência</span>
-            </div>
-
-            <ChevronRight size={18} />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => router.push("/loja-premios")}
-          >
-            <div className="mpv3-acao-icone loja">
-              <Gift size={21} />
-            </div>
-
-            <div>
-              <strong>Loja de Prêmios</strong>
-              <span>Troque seus pontos</span>
-            </div>
-
-            <ChevronRight size={18} />
-          </button>
-        </aside>
-      </section>
-
-      <section className="mpv3-resumo">
-        <article>
-          <div className="mpv3-resumo-topo">
-            <div className="mpv3-resumo-icone entrada">
-              <ArrowDownLeft size={18} />
-            </div>
-          </div>
-
-          <span>Produção confirmada</span>
-          <strong>{moeda(producaoConfirmada)}</strong>
-          <small>{contratosConfirmados} contrato(s) pago(s)</small>
-        </article>
-
-        <article>
-          <div className="mpv3-resumo-topo">
-            <div className="mpv3-resumo-icone saida">
-              <ArrowUpRight size={18} />
-            </div>
-          </div>
-
-          <span>Saques pagos</span>
-          <strong>{moeda(saquesPagos)}</strong>
-          <small>Pagamentos concluídos</small>
-        </article>
-
-        <article>
-          <div className="mpv3-resumo-topo">
-            <div className="mpv3-resumo-icone formacao">
-              <Landmark size={18} />
-            </div>
-          </div>
-
-          <span>Em formação</span>
-          <strong>{moeda(producaoEmFormacao)}</strong>
-          <small>{contratosEmFormacao} contrato(s)</small>
-        </article>
-
-        <article>
-          <div className="mpv3-resumo-topo">
-            <div className="mpv3-resumo-icone pontos">
-              <Award size={18} />
-            </div>
-          </div>
-
-          <span>Pontos disponíveis</span>
-          <strong>{pontos(pontosTotal)}</strong>
-          <small>
-            Compra {pontos(pontosCompra)} · CLT {pontos(pontosClt)}
-          </small>
-        </article>
-      </section>
-
-      <section className="mpv3-conteudo">
-        <div className="mpv3-coluna-principal">
-          <section className="mpv3-grafico-card">
-            <div className="mpv3-secao-topo">
               <div>
-                <span>EVOLUÇÃO MENSAL</span>
-                <h3>Produção da competência</h3>
+                <CalendarDays size={17} />
+                <input
+                  type="month"
+                  value={competencia}
+                  onChange={(e) => onCompetenciaChange(e.target.value)}
+                />
               </div>
+            </label>
+            <button
+              type="button"
+              className="premio-v4-refresh"
+              onClick={() => void onAtualizar()}
+              disabled={processando}
+            >
+              <RefreshCcw
+                size={17}
+                className={processando ? "is-spinning" : ""}
+              />
+              {processando ? "Atualizando..." : "Atualizar e recalcular"}
+            </button>
+          </div>
+        </section>
 
-              <div className="mpv3-grafico-total">
-                <span>Produção digitada</span>
-                <strong>{moeda(producaoDigitada)}</strong>
-              </div>
-            </div>
+        <nav className="premio-v4-tabs">
+          <button
+            type="button"
+            className={abaAdmin === "conferencia" ? "active" : ""}
+            onClick={() => setAbaAdmin("conferencia")}
+          >
+            <ShieldCheck size={17} />
+            Conferência
+          </button>
+          <button
+            type="button"
+            className={abaAdmin === "liberados" ? "active" : ""}
+            onClick={() => setAbaAdmin("liberados")}
+          >
+            <CheckCircle2 size={17} />
+            Pontos liberados
+          </button>
+          <button
+            type="button"
+            className={abaAdmin === "saques" ? "active" : ""}
+            onClick={() => setAbaAdmin("saques")}
+          >
+            <WalletCards size={17} />
+            Solicitações de saque
+            {saquesPendentes.length > 0 && (
+              <b>{saquesPendentes.length}</b>
+            )}
+          </button>
+        </nav>
 
-            <div className="mpv3-grafico">
-              <div className="mpv3-grafico-linhas">
-                <span />
-                <span />
-                <span />
-                <span />
-              </div>
+        {abaAdmin === "conferencia" && (
+          <>
+            <section className="premio-v4-kpis">
+              <article>
+                <span>Produção válida Compra</span>
+                <strong>{moeda(producaoCompra)}</strong>
+                <small>{faixaCompra || "Abaixo da primeira faixa"}</small>
+              </article>
+              <article>
+                <span>Produção CLT</span>
+                <strong>{moeda(producaoClt)}</strong>
+                <small>{faixaClt || "Abaixo da primeira faixa"}</small>
+              </article>
+              <article className="internal">
+                <span>Comissão gerada para a empresa</span>
+                <strong>{moeda(comissaoEmpresa)}</strong>
+                <small>Informação interna da gestão</small>
+              </article>
+              <article className="points">
+                <span>Pontuação automática</span>
+                <strong>{pontos(pontosTotalPrevisto)} pts</strong>
+                <small>1 ponto = R$ 1,00</small>
+              </article>
+            </section>
 
-              <div className="mpv3-barras">
-                {barras.map((item) => (
-                  <div className="mpv3-barra-item" key={item.dia}>
-                    <div className="mpv3-barra-area">
-                      <div
-                        className="mpv3-barra"
-                        style={{ height: `${item.altura}%` }}
-                      />
+            <section className="premio-v4-layout">
+              <aside className="premio-v4-pessoas">
+                <div className="premio-v4-side-head">
+                  <span>COLABORADORAS</span>
+                  <h3>Conferência do mês</h3>
+                </div>
+
+                <div className="premio-v4-search">
+                  <Search size={16} />
+                  <input
+                    placeholder="Pesquisar colaboradora..."
+                    value={busca}
+                    onChange={(e) => setBusca(e.target.value)}
+                  />
+                </div>
+
+                <div className="premio-v4-pessoas-list">
+                  {consultorasFiltradas.map((nome) => (
+                    <button
+                      type="button"
+                      key={nome}
+                      className={
+                        nome === consultoraSelecionada ? "active" : ""
+                      }
+                      onClick={() => onConsultoraChange(nome)}
+                    >
+                      <span>{nome.charAt(0).toUpperCase()}</span>
+                      <div>
+                        <strong>{nome}</strong>
+                        <small>Abrir conferência</small>
+                      </div>
+                      <ChevronRight size={16} />
+                    </button>
+                  ))}
+                </div>
+              </aside>
+
+              <main className="premio-v4-main">
+                <section className="premio-v4-resumo">
+                  <div className="premio-v4-resumo-head">
+                    <div>
+                      <span>PRÉVIA AUTOMÁTICA</span>
+                      <h3>{nomeExibido}</h3>
+                      <p>
+                        {contratosConfirmados} contrato(s) confirmado(s) na
+                        competência.
+                      </p>
                     </div>
 
-                    <span>{item.dia}</span>
+                    <span
+                      className={
+                        premiacaoJaLiberada
+                          ? "premio-v4-status released"
+                          : "premio-v4-status"
+                      }
+                    >
+                      {premiacaoJaLiberada ? (
+                        <>
+                          <Check size={14} /> Liberada
+                        </>
+                      ) : (
+                        <>
+                          <Clock3 size={14} /> Aguardando conferência
+                        </>
+                      )}
+                    </span>
                   </div>
-                ))}
+
+                  <div className="premio-v4-resumo-grid">
+                    <article>
+                      <span>Digitadas</span>
+                      <strong>{moeda(producaoDigitada)}</strong>
+                      <small>{contratosDigitados} proposta(s) da competência</small>
+                    </article>
+                    <article>
+                      <span>Contratos pagos</span>
+                      <strong>{moeda(valorPagoBruto)}</strong>
+                      <small>
+                        {movimentos.filter((m) => m.produto === "Compra de Dívida").length} contrato(s) pago(s) até dia 19
+                        {contratosForaPrazo > 0
+                          ? ` • ${contratosForaPrazo} pago(s) fora do prazo`
+                          : ""}
+                      </small>
+                    </article>
+                    <article>
+                      <span>Aguardando pagar</span>
+                      <strong>{moeda(producaoEmFormacao)}</strong>
+                      <small>{contratosEmFormacao} proposta(s) ainda não paga(s)</small>
+                    </article>
+                    <article>
+                      <span>Premiação</span>
+                      <strong>{pontos(pontosCompraPrevistos + pontosCltPrevistos)} pts</strong>
+                      <small>{premiacaoJaLiberada ? "Premiação paga / liberada" : "Aguardando sua conferência"}</small>
+                    </article>
+                  </div>
+
+                  {complementoCompraComClt > 0 && (
+                    <div className="premio-v4-rule">
+                      <BadgeDollarSign size={18} />
+                      <div>
+                        <strong>Regra CLT + Compra abaixo de R$ 30 mil</strong>
+                        <span>
+                          O CLT ativou a premiação e a Compra gerou{" "}
+                          <b>{moeda(complementoCompraComClt)}</b> de
+                          complemento de 1%.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="premio-v4-total">
+                    <div>
+                      <span>Pontuação prevista</span>
+                      <strong>{pontos(pontosTotalPrevisto)} pts</strong>
+                      <small>
+                        Equivalente a {moeda(pontosTotalPrevisto)}
+                      </small>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={abrirConferencia}
+                      disabled={premiacaoJaLiberada || processando}
+                    >
+                      {premiacaoJaLiberada
+                        ? "Premiação já liberada"
+                        : "Conferir e liberar"}
+                    </button>
+                  </div>
+                </section>
+
+                <section className="premio-v4-detail">
+                  <div className="premio-v4-section-head">
+                    <div>
+                      <span>DETALHAMENTO DOS CONTRATOS</span>
+                      <h3>Como a produção foi formada</h3>
+                      <p>
+                        Os contratos não ganham pontos individualmente. Cada
+                        contrato forma a produção válida; a faixa é aplicada
+                        sobre o total.
+                      </p>
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        flexWrap: "wrap",
+                        justifyContent: "flex-end",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 5,
+                          padding: 4,
+                          border: "1px solid #dce5f2",
+                          borderRadius: 10,
+                          background: "#f7f9fc",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setFiltroProduto("todos")}
+                          style={{
+                            minHeight: 32,
+                            padding: "0 11px",
+                            border: 0,
+                            borderRadius: 7,
+                            background:
+                              filtroProduto === "todos" ? "#1f61ee" : "transparent",
+                            color:
+                              filtroProduto === "todos" ? "#ffffff" : "#6c7c94",
+                            cursor: "pointer",
+                            fontSize: 11,
+                            fontWeight: 800,
+                          }}
+                        >
+                          Todos
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setFiltroProduto("compra")}
+                          style={{
+                            minHeight: 32,
+                            padding: "0 11px",
+                            border: 0,
+                            borderRadius: 7,
+                            background:
+                              filtroProduto === "compra" ? "#1f61ee" : "transparent",
+                            color:
+                              filtroProduto === "compra" ? "#ffffff" : "#6c7c94",
+                            cursor: "pointer",
+                            fontSize: 11,
+                            fontWeight: 800,
+                          }}
+                        >
+                          Compra de Dívida
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setFiltroProduto("clt")}
+                          style={{
+                            minHeight: 32,
+                            padding: "0 11px",
+                            border: 0,
+                            borderRadius: 7,
+                            background:
+                              filtroProduto === "clt" ? "#1f61ee" : "transparent",
+                            color:
+                              filtroProduto === "clt" ? "#ffffff" : "#6c7c94",
+                            cursor: "pointer",
+                            fontSize: 11,
+                            fontWeight: 800,
+                          }}
+                        >
+                          CLT
+                        </button>
+                      </div>
+
+                      <b>{movimentosFiltrados.length}</b>
+                    </div>
+                  </div>
+
+                  <div className="premio-v4-rule">
+                    <BadgeDollarSign size={18} />
+                    <div>
+                      <strong>Produção válida para a faixa: {moeda(producaoCompra)}</strong>
+                      <span>
+                        Faixa automática: {pontosCompraPrevistos > 0 ? `${pontos(pontosCompraPrevistos)} pts` : "ainda não atingida"}.
+                        Os pontos são calculados sobre o total, não por contrato.
+                      </span>
+                    </div>
+                  </div>
+                  <div className="premio-v4-table-wrap">
+                    <table className="premio-v4-table">
+                      <thead>
+                        <tr>
+                          <th>Data</th>
+                          <th>Cliente</th>
+                          <th>Produto</th>
+                          <th>Valor contrato</th>
+                          <th>Peso tabela</th>
+                          <th>Produção válida</th>
+                          <th className="internal-col">Comissão empresa</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {movimentosFiltrados.length === 0 ? (
+                          <tr>
+                            <td colSpan={7}>
+                              <div className="premio-v4-empty">
+                                Nenhum contrato encontrado para o filtro selecionado.
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          movimentosFiltrados.map((item) => (
+                            <tr key={item.id}>
+                              <td>{dataPt(item.data)}</td>
+                              <td>
+                                <strong>{item.cliente}</strong>
+                                <small>
+                                  {item.tabela || item.descricao || "—"}
+                                </small>
+                              </td>
+                              <td>
+                                <span className="premio-v4-product">
+                                  {item.produto}
+                                </span>
+                              </td>
+                              <td>
+                                {item.produto === "Compra de Dívida"
+                                  ? moeda(item.valorContrato)
+                                  : "—"}
+                              </td>
+                              <td>
+                                {item.produto === "Compra de Dívida"
+                                  ? `${porcentagem(item.pesoTabela)}%`
+                                  : "—"}
+                              </td>
+                              <td>
+                                <b>{moeda(item.producaoValida)}</b>
+                              </td>
+                              <td className="internal-col">
+                                {item.produto === "Compra de Dívida"
+                                  ? moeda(item.comissaoEmpresa)
+                                  : "—"}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              </main>
+            </section>
+          </>
+        )}
+
+        {abaAdmin === "liberados" && (
+          <section className="premio-v4-panel">
+            <div className="premio-v4-section-head">
+              <div>
+                <span>HISTÓRICO INTERNO</span>
+                <h3>Pontos liberados</h3>
+                <p>Créditos já confirmados pela gestão.</p>
               </div>
+              <b>{creditosLiberados.length}</b>
             </div>
 
-            <div className="mpv3-grafico-rodape">
-              <span>{contratosDigitados} contrato(s) digitado(s)</span>
-              <strong>
-                {Math.round(progresso)}% da meta concluída
-              </strong>
+            <div className="premio-v4-history">
+              {creditosLiberados.length === 0 ? (
+                <div className="premio-v4-empty">
+                  Nenhuma premiação liberada ainda.
+                </div>
+              ) : (
+                creditosLiberados.map((item) => (
+                  <article key={item.id}>
+                    <div>
+                      <strong>{item.usuario_nome || "Colaboradora"}</strong>
+                      <span>
+                        {item.descricao || "Premiação liberada"} ·{" "}
+                        {dataPt(item.criado_em)}
+                      </span>
+                    </div>
+                    <b>+ {pontos(Number(item.pontos || 0))} pts</b>
+                  </article>
+                ))
+              )}
             </div>
           </section>
+        )}
 
-          <section
-            id="extrato-premiacao"
-            className="mpv3-extrato"
-          >
-            <div className="mpv3-secao-topo">
+        {abaAdmin === "saques" && (
+          <section className="premio-v4-panel">
+            <div className="premio-v4-section-head">
               <div>
-                <span>MOVIMENTAÇÕES</span>
-                <h3>Extrato da competência</h3>
+                <span>CONTROLE DE SAQUES</span>
+                <h3>Solicitações das colaboradoras</h3>
+                <p>
+                  Tudo que elas solicitarem aparece automaticamente aqui.
+                </p>
               </div>
-
-              <strong>{movimentos.length} lançamento(s)</strong>
+              <b>{saquesPendentes.length}</b>
             </div>
 
-            {movimentos.length === 0 ? (
-              <div className="mpv3-extrato-vazio">
-                Nenhum contrato pago gerou pontos nesta competência.
-              </div>
-            ) : (
-              <div className="mpv3-extrato-lista">
-                {movimentos.slice(0, 8).map((movimento) => (
-                  <article key={movimento.id}>
-                    <div className="mpv3-movimento-icone entrada">
-                      <ArrowDownLeft size={18} />
+            <div className="premio-v4-saque-list">
+              {saquesPendentes.length === 0 ? (
+                <div className="premio-v4-empty">
+                  Nenhuma solicitação pendente.
+                </div>
+              ) : (
+                saquesPendentes.map((saque) => (
+                  <article key={saque.id}>
+                    <div className="premio-v4-saque-user">
+                      <span>
+                        {saque.usuario_nome?.charAt(0).toUpperCase() || "U"}
+                      </span>
+                      <div>
+                        <strong>{saque.usuario_nome}</strong>
+                        <small>
+                          Solicitado em {dataPt(saque.solicitado_em)}
+                        </small>
+                      </div>
                     </div>
 
-                    <div className="mpv3-movimento-info">
-                      <strong>{movimento.descricao}</strong>
-                      <span>{movimento.produto}</span>
-                      <small>{dataMovimento(movimento.data)}</small>
-                    </div>
-
-                    <div className="mpv3-movimento-valor positivo">
+                    <div>
+                      <span>Pontos</span>
                       <strong>
-                        + {pontos(movimento.pontos)} pts
+                        {pontos(Number(saque.pontos_solicitados || 0))}
                       </strong>
-                      <span>Confirmado</span>
+                    </div>
+
+                    <div>
+                      <span>Valor</span>
+                      <strong>
+                        {moeda(
+                          Number(
+                            saque.valor_reais ||
+                              saque.pontos_solicitados ||
+                              0,
+                          ),
+                        )}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>PIX</span>
+                      <strong>{saque.chave_pix || "Não informado"}</strong>
+                    </div>
+
+                    <div className="premio-v4-saque-actions">
+                      <button
+                        type="button"
+                        className="pay"
+                        onClick={() =>
+                          void onProcessarSaque(saque.id, "PAGO")
+                        }
+                        disabled={processando}
+                      >
+                        <Check size={15} />
+                        Marcar pago
+                      </button>
+                      <button
+                        type="button"
+                        className="reject"
+                        onClick={() =>
+                          void onProcessarSaque(saque.id, "RECUSADO")
+                        }
+                        disabled={processando}
+                      >
+                        <X size={15} />
+                        Recusar
+                      </button>
                     </div>
                   </article>
+                ))
+              )}
+            </div>
+
+            {saquesProcessados.length > 0 && (
+              <div className="premio-v4-processed">
+                <h4>Histórico processado</h4>
+                {saquesProcessados.slice(0, 20).map((saque) => (
+                  <div key={saque.id}>
+                    <span>{saque.usuario_nome}</span>
+                    <span>{pontos(saque.pontos_solicitados)} pts</span>
+                    <b className={saque.status.toLowerCase()}>
+                      {saque.status}
+                    </b>
+                  </div>
                 ))}
               </div>
             )}
           </section>
+        )}
+
+        {modalConferencia && (
+          <div
+            className="premio-v4-modal-bg"
+            onClick={() => setModalConferencia(false)}
+          >
+            <form
+              className="premio-v4-modal"
+              onSubmit={confirmarLiberacao}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="premio-v4-modal-head">
+                <div>
+                  <span>CONFERÊNCIA FINAL</span>
+                  <h3>{nomeExibido}</h3>
+                  <p>
+                    O sistema calculou automaticamente. Você pode corrigir
+                    antes de liberar.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalConferencia(false)}
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="premio-v4-modal-grid">
+                <label>
+                  Pontos Compra
+                  <input
+                    value={pontosCompraLiberar}
+                    onChange={(e) =>
+                      setPontosCompraLiberar(e.target.value)
+                    }
+                  />
+                  <small>
+                    Automático: {pontos(compraPrevistaSegura)} pts
+                  </small>
+                </label>
+
+                <label>
+                  Pontos CLT / complemento
+                  <input
+                    value={pontosCltLiberar}
+                    onChange={(e) => setPontosCltLiberar(e.target.value)}
+                  />
+                  <small>
+                    Automático: {pontos(cltPrevistaSegura)} pts
+                  </small>
+                </label>
+              </div>
+
+              <div className="premio-v4-modal-total">
+                <span>Total a liberar</span>
+                <strong>
+                  {pontos(
+                    (Number(
+                      String(pontosCompraLiberar || "0").replace(",", "."),
+                    ) || 0) +
+                      (Number(
+                        String(pontosCltLiberar || "0").replace(",", "."),
+                      ) || 0),
+                  )}{" "}
+                  pts
+                </strong>
+              </div>
+
+              {erroModal && (
+                <div className="premio-v4-modal-error">{erroModal}</div>
+              )}
+
+              <div className="premio-v4-modal-actions">
+                <button
+                  type="button"
+                  onClick={() => setModalConferencia(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="primary"
+                  disabled={processando}
+                >
+                  Confirmar e liberar pontos
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const meusSaquesPendentes = saques.filter(
+    (saque) =>
+      saque.status === "SOLICITADO" &&
+      saque.usuario_nome &&
+      saque.usuario_nome.toLowerCase() === nomeUsuario.toLowerCase(),
+  );
+
+  return (
+    <div className="premio-v4-page colaborador">
+      <section className="premio-v4-colab-hero">
+        <div>
+          <span>MINHA PREMIAÇÃO</span>
+          <h2>Olá, {nomeExibido || nomeUsuario}!</h2>
+          <p>
+            Aqui aparecem somente os pontos que já foram conferidos e
+            liberados pela gestão.
+          </p>
         </div>
 
-        <aside className="mpv3-coluna-lateral">
-          <section className="mpv3-meta-card">
-            <div className="mpv3-secao-topo">
-              <div>
-                <span>MINHA META</span>
-                <h3>Progresso mensal</h3>
-              </div>
-
-              <Target size={21} />
-            </div>
-
-            <div
-              className="mpv3-meta-circulo"
-              style={{
-                background: `conic-gradient(#244dcc ${Math.min(
-                  100,
-                  progresso
-                )}%, #e8edf7 0)`,
-              }}
-            >
-              <div>
-                <strong>{Math.round(progresso)}%</strong>
-                <span>concluído</span>
-              </div>
-            </div>
-
-            <div className="mpv3-meta-valores">
-              <div>
-                <span>Pontos atuais</span>
-                <strong>{pontos(pontosTotal)}</strong>
-              </div>
-
-              <div>
-                <span>Meta mínima</span>
-                <strong>{pontos(meta)}</strong>
-              </div>
-            </div>
-
-            <div className="mpv3-falta-meta">
-              <TrendingUp size={18} />
-
-              <div>
-                <span>
-  {faltaParaMeta > 0
-    ? "Faltam para ativar a meta"
-    : "Meta mínima atingida"}
-</span>
-
-<strong>
-  {faltaParaMeta > 0
-    ? `${pontos(faltaParaMeta)} pontos`
-    : "Produção acima de R$ 30.000"}
-</strong>
-              </div>
-            </div>
-          </section>
-
-          <section className="mpv3-ranking-card">
-            <div className="mpv3-ranking-icone">
-              <Medal size={28} />
-            </div>
-
-            <span>POSIÇÃO NO RANKING</span>
-            <strong>
-              {posicaoRanking > 0
-                ? `${posicaoRanking}º lugar`
-                : "Sem posição"}
-            </strong>
-
-            <p>
-              {totalRanking > 0
-                ? `Entre ${totalRanking} consultora(s) nesta competência.`
-                : "Ainda não há dados suficientes para o ranking."}
-            </p>
-
-            <button
-              type="button"
-              onClick={() => router.push("/ranking")}
-            >
-              Ver ranking completo
-              <ChevronRight size={16} />
-            </button>
-          </section>
-
-          <section className="mpv3-conquista">
-            <div className="mpv3-conquista-icone">
-              <Award size={23} />
-            </div>
-
-            <div>
-              <span>PRÓXIMA CONQUISTA</span>
-              <strong>Meta de {pontos(meta)} pontos</strong>
-              <p>
-                {faltaParaMeta > 0
-                  ? `Faltam ${pontos(faltaParaMeta)} pontos.`
-                  : "Meta ativada nesta competência."}
-              </p>
-            </div>
-          </section>
-        </aside>
+        <label>
+          <CalendarDays size={17} />
+          <input
+            type="month"
+            value={competencia}
+            onChange={(e) => onCompetenciaChange(e.target.value)}
+          />
+        </label>
       </section>
 
-      {modalSaqueAberto && (
+      <section className="premio-v4-colab-cards">
+        <article className="wallet">
+          <div>
+            <Coins size={23} />
+            <span>PONTOS DISPONÍVEIS</span>
+          </div>
+          <strong>{pontos(saldoPontos)}</strong>
+          <p>1 ponto = R$ 1,00</p>
+          <footer>
+            <span>{nomeExibido}</span>
+            <b>{moeda(saldoPontos)}</b>
+          </footer>
+        </article>
+
+        <article>
+          <Landmark size={23} />
+          <span>Disponível para novo saque</span>
+          <strong>{pontos(saldoDisponivelSaque)} pts</strong>
+          <small>{moeda(saldoDisponivelSaque)}</small>
+        </article>
+
+        <article>
+          <History size={23} />
+          <span>Solicitações pendentes</span>
+          <strong>{meusSaquesPendentes.length}</strong>
+          <small>Aguardando a gestão</small>
+        </article>
+      </section>
+
+      <section className="premio-v4-colab-actions">
+        <button
+          type="button"
+          disabled={saldoDisponivelSaque <= 0}
+          onClick={() => {
+            setErroModal("");
+            setPontosSaque(
+              saldoDisponivelSaque > 0
+                ? String(saldoDisponivelSaque)
+                : "",
+            );
+            setModalSaque(true);
+          }}
+        >
+          <span>
+            <WalletCards size={21} />
+          </span>
+          <div>
+            <strong>Solicitar saque</strong>
+            <small>
+              Envie a solicitação para a gestão. O pagamento será baixado
+              pelo sistema.
+            </small>
+          </div>
+          <ChevronRight size={17} />
+        </button>
+      </section>
+
+      <section className="premio-v4-panel">
+        <div className="premio-v4-section-head">
+          <div>
+            <span>MEU EXTRATO</span>
+            <h3>Pontos e saques</h3>
+            <p>Histórico do que já foi liberado ou pago.</p>
+          </div>
+        </div>
+
+        <div className="premio-v4-history">
+          {extrato.length === 0 ? (
+            <div className="premio-v4-empty">
+              Nenhum lançamento disponível.
+            </div>
+          ) : (
+            extrato.slice(0, 30).map((item) => (
+              <article key={item.id}>
+                <div>
+                  <strong>{item.descricao || item.origem}</strong>
+                  <span>{dataPt(item.criado_em)}</span>
+                </div>
+                <b
+                  className={
+                    item.tipo === "DEBITO" ? "negative" : "positive"
+                  }
+                >
+                  {item.tipo === "DEBITO" ? "−" : "+"}{" "}
+                  {pontos(Math.abs(Number(item.pontos || 0)))} pts
+                </b>
+              </article>
+            ))
+          )}
+        </div>
+      </section>
+
+      {modalSaque && (
         <div
-          className="mpv3-modal-fundo"
-          onClick={() => setModalSaqueAberto(false)}
+          className="premio-v4-modal-bg"
+          onClick={() => setModalSaque(false)}
         >
           <form
-            className="mpv3-modal-saque"
-            onClick={(evento) => evento.stopPropagation()}
+            className="premio-v4-modal"
             onSubmit={enviarSaque}
+            onClick={(e) => e.stopPropagation()}
           >
-            <div className="mpv3-modal-topo">
+            <div className="premio-v4-modal-head">
               <div>
-                <span>CARTEIRA ELEVA</span>
-                <h3>Solicitar saque</h3>
-                <p>Informe a chave PIX para receber sua premiação.</p>
+                <span>SOLICITAR SAQUE</span>
+                <h3>Resgatar pontos</h3>
+                <p>
+                  1 ponto vale R$ 1,00. A solicitação aparecerá
+                  automaticamente para a gestão.
+                </p>
               </div>
-
-              <button
-                type="button"
-                onClick={() => setModalSaqueAberto(false)}
-                aria-label="Fechar"
-              >
+              <button type="button" onClick={() => setModalSaque(false)}>
                 ×
               </button>
             </div>
 
-            <div className="mpv3-modal-saldo">
-              <span>Valor disponível</span>
-              <strong>{moeda(premioTotal)}</strong>
+            <div className="premio-v4-modal-balance">
+              <span>Saldo disponível</span>
+              <strong>{pontos(saldoDisponivelSaque)} pts</strong>
+              <b>{moeda(saldoDisponivelSaque)}</b>
             </div>
 
-            <label className="mpv3-modal-campo">
-              Chave PIX
-
+            <label className="premio-v4-modal-field">
+              Quantos pontos deseja sacar?
               <input
-                type="text"
-                value={chavePix}
-                onChange={(evento) => {
-                  setChavePix(evento.target.value);
-                  setErroPix("");
-                }}
-                placeholder="CPF, celular, e-mail ou chave aleatória"
-                required
+                value={pontosSaque}
+                onChange={(e) => setPontosSaque(e.target.value)}
+                placeholder="Ex.: 500"
               />
-
-              {erroPix && <small>{erroPix}</small>}
             </label>
 
-            <div className="mpv3-modal-aviso">
-              A solicitação ficará aguardando aprovação da gestão.
-            </div>
+            <label className="premio-v4-modal-field">
+              Chave PIX
+              <input
+                value={chavePix}
+                onChange={(e) => setChavePix(e.target.value)}
+                placeholder="CPF, celular, e-mail ou chave aleatória"
+              />
+            </label>
 
-            <div className="mpv3-modal-acoes">
-              <button
-                type="button"
-                className="cancelar"
-                onClick={() => setModalSaqueAberto(false)}
-              >
+            {erroModal && (
+              <div className="premio-v4-modal-error">{erroModal}</div>
+            )}
+
+            <div className="premio-v4-modal-actions">
+              <button type="button" onClick={() => setModalSaque(false)}>
                 Cancelar
               </button>
-
-              <button type="submit" className="confirmar">
-                Solicitar saque
+              <button type="submit" className="primary">
+                Enviar solicitação
               </button>
             </div>
           </form>
         </div>
       )}
-
-      <AjustePontosModal
-        aberto={modalAjusteAberto}
-        consultora={nomeExibido}
-        competencia={competencia}
-        saldoAtual={pontosTotal}
-        criadoPor={nomeUsuario}
-        onFechar={() => setModalAjusteAberto(false)}
-        onAtualizado={async () => {
-          await onAtualizar();
-        }}
-      />
     </div>
   );
 }
