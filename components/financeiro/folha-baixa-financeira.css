@@ -1,0 +1,75 @@
+
+/* =========================================================
+   FOLHA — PENDENTES / PAGOS / BAIXA FINANCEIRA
+   ========================================================= */
+
+.payroll-history-title-v2{
+  align-items:center;
+  gap:14px;
+}
+
+.payroll-history-title-v2 > div:first-child{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.payroll-history-title-v2 > div:first-child > span{
+  color:#7d899c;
+  font-size:10px;
+  text-transform:capitalize;
+}
+
+.payroll-status-tabs{
+  display:flex;
+  gap:5px;
+  padding:4px;
+  border:1px solid #dce5f2;
+  border-radius:10px;
+  background:#f7f9fc;
+}
+
+.payroll-status-tabs button{
+  min-height:34px;
+  padding:0 11px;
+  border:0;
+  border-radius:7px;
+  background:transparent;
+  color:#65748b;
+  font:inherit;
+  font-size:9px;
+  font-weight:900;
+  cursor:pointer;
+}
+
+.payroll-status-tabs button.active{
+  background:#155eef;
+  color:#fff;
+  box-shadow:0 4px 10px rgba(21,94,239,.16);
+}
+
+.payroll-pay-button{
+  border-color:#b9d1ff !important;
+  background:#155eef !important;
+  color:#fff !important;
+  font-weight:900 !important;
+}
+
+.payroll-paid-badge{
+  display:inline-flex;
+  align-items:center;
+  min-height:31px;
+  padding:0 10px;
+  border-radius:999px;
+  background:#eaf8f0;
+  color:#0a8d48;
+  font-size:9px;
+  font-weight:900;
+}
+
+@media(max-width:900px){
+  .payroll-history-title-v2{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+}

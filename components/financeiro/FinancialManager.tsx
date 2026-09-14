@@ -1,4 +1,5 @@
 "use client";
+import "./folha-visual-refinado.css";
 
 import {
   FormEvent,
@@ -81,6 +82,10 @@ type RegistroFolha = {
   totalDia20: number;
   totalMensal: number;
   atualizadoEm: string;
+  pagamentoRealizado: boolean;
+  dataPagamentoRealizado: string;
+  valorPago: number;
+  movimentoId: string;
 
   // Campos antigos mantidos apenas para abrir registros já salvos.
   comissao?: number;
@@ -213,6 +218,49 @@ const numero = (valor: string) => {
 const hoje = () =>
   new Date().toISOString().slice(0, 10);
 
+const hojeBR = () =>
+  new Date().toLocaleDateString("pt-BR");
+
+function dataBRparaISO(valor: string) {
+  const partes = valor.trim().split("/");
+
+  if (partes.length !== 3) {
+    return "";
+  }
+
+  const [dia, mes, ano] = partes;
+
+  if (!/^\d{2}$/.test(dia) || !/^\d{2}$/.test(mes) || !/^\d{4}$/.test(ano)) {
+    return "";
+  }
+
+  const iso = `${ano}-${mes}-${dia}`;
+  const data = new Date(`${iso}T12:00:00`);
+
+  if (
+    Number.isNaN(data.getTime()) ||
+    data.getFullYear() !== Number(ano) ||
+    data.getMonth() + 1 !== Number(mes) ||
+    data.getDate() !== Number(dia)
+  ) {
+    return "";
+  }
+
+  return iso;
+}
+
+function dataISOparaBR(valor: string) {
+  if (!valor) return "";
+
+  const partes = valor.slice(0, 10).split("-");
+
+  if (partes.length !== 3) {
+    return valor;
+  }
+
+  return `${partes[2]}/${partes[1]}/${partes[0]}`;
+}
+
 const competenciaAtual = () =>
   new Date().toISOString().slice(0, 7);
 
@@ -239,7 +287,17 @@ function formatarCompetencia(valor: string) {
   });
 }
 
-export default function FinancialManager() {
+type FinancialManagerProps = {
+  abaExterna?: "movimentacoes" | "folha" | "premiacoes";
+  ocultarCabecalho?: boolean;
+  ocultarAbas?: boolean;
+};
+
+export default function FinancialManager({
+  abaExterna,
+  ocultarCabecalho = false,
+  ocultarAbas = false,
+}: FinancialManagerProps = {}) {
   const supabase = useMemo(() => createClient(), []);
 
   const [propostas, setPropostas] =
@@ -286,6 +344,16 @@ const [tipo, setTipo] =
   const [filtroDataInicial, setFiltroDataInicial] = useState("");
   const [filtroDataFinal, setFiltroDataFinal] = useState("");
   const [mensagem, setMensagem] = useState("");
+  const [abaFinanceiro, setAbaFinanceiro] = useState<
+    "movimentacoes" | "folha" | "premiacoes"
+  >("movimentacoes");
+  const [mostrarNovoLancamento, setMostrarNovoLancamento] = useState(false);
+
+  useEffect(() => {
+    if (abaExterna) {
+      setAbaFinanceiro(abaExterna);
+    }
+  }, [abaExterna]);
 
   const [usuarioFolhaId, setUsuarioFolhaId] =
     useState("");
@@ -312,6 +380,11 @@ const [descontoFaltas, setDescontoFaltas] =
 
 const [mensagemFolha, setMensagemFolha] =
   useState("");
+
+  const [filtroFolhaPagamento, setFiltroFolhaPagamento] =
+    useState<"pendentes" | "pagos">("pendentes");
+
+  const [buscaFolha, setBuscaFolha] = useState("");
 
   const [comissoes, setComissoes] =
     useState<RegistroComissao[]>([]);
@@ -566,6 +639,10 @@ const [mensagemFolha, setMensagemFolha] =
               atualizadoEm: String(
                 registro.atualizado_em || ""
               ),
+              pagamentoRealizado: Boolean(registro.pagamento_realizado),
+              dataPagamentoRealizado: String(registro.data_pagamento_realizado || ""),
+              valorPago: Number(registro.valor_pago || 0),
+              movimentoId: String(registro.movimento_id || ""),
             };
           });
 
@@ -1237,22 +1314,46 @@ const resumoRhDaFolha = useMemo(() => {
     ]
   );
 
-  const folhasOrdenadas = useMemo(
+  const folhasDaCompetencia = useMemo(
     () =>
-      [...folhas].sort((a, b) => {
-        const comparacaoCompetencia =
-          b.competencia.localeCompare(
-            a.competencia
-          );
-
-        if (comparacaoCompetencia !== 0) {
-          return comparacaoCompetencia;
-        }
-
-        return a.nome.localeCompare(b.nome);
-      }),
-    [folhas]
+      folhas
+        .filter((registro) => registro.competencia === competencia)
+        .sort((a, b) => a.nome.localeCompare(b.nome)),
+    [folhas, competencia]
   );
+
+  const folhasPendentes = useMemo(
+    () =>
+      folhasDaCompetencia.filter(
+        (registro) => !registro.pagamentoRealizado
+      ),
+    [folhasDaCompetencia]
+  );
+
+  const folhasPagas = useMemo(
+    () =>
+      folhasDaCompetencia.filter(
+        (registro) => registro.pagamentoRealizado
+      ),
+    [folhasDaCompetencia]
+  );
+
+  const folhasBase =
+    filtroFolhaPagamento === "pagos"
+      ? folhasPagas
+      : folhasPendentes;
+
+  const folhasExibidas = useMemo(() => {
+    const termo = buscaFolha.trim().toLowerCase();
+
+    if (!termo) {
+      return folhasBase;
+    }
+
+    return folhasBase.filter((registro) =>
+      registro.nome.toLowerCase().includes(termo)
+    );
+  }, [folhasBase, buscaFolha]);
 
   async function salvarLancamento(
     evento: FormEvent
@@ -1317,6 +1418,7 @@ const resumoRhDaFolha = useMemo(() => {
       setValor("");
       setData(hoje());
       setMensagem("Lançamento salvo com sucesso.");
+      setMostrarNovoLancamento(false);
     } catch (erro) {
       setMensagem(
         erro instanceof Error
@@ -1455,6 +1557,10 @@ const resumoRhDaFolha = useMemo(() => {
         totalMensal: Number(registroSalvo.total_mensal || 0),
         total: Number(registroSalvo.total_mensal || 0),
         atualizadoEm: String(registroSalvo.atualizado_em || ""),
+        pagamentoRealizado: Boolean(registroSalvo.pagamento_realizado),
+        dataPagamentoRealizado: String(registroSalvo.data_pagamento_realizado || ""),
+        valorPago: Number(registroSalvo.valor_pago || 0),
+        movimentoId: String(registroSalvo.movimento_id || ""),
       };
 
       setFolhas((atuais) => {
@@ -1486,9 +1592,160 @@ const resumoRhDaFolha = useMemo(() => {
     }
   }
 
+  async function marcarFolhaComoPaga(registro: RegistroFolha) {
+    if (registro.pagamentoRealizado) {
+      return;
+    }
+
+    const dataPagamentoBR = window.prompt(
+      `Data do pagamento de ${registro.nome} (DD/MM/AAAA):`,
+      hojeBR()
+    );
+
+    if (!dataPagamentoBR) {
+      return;
+    }
+
+    const dataPagamento = dataBRparaISO(dataPagamentoBR);
+
+    if (!dataPagamento) {
+      setMensagemFolha(
+        "Data inválida. Informe no formato DD/MM/AAAA, por exemplo 14/09/2026."
+      );
+      return;
+    }
+
+    const valorInformado = window.prompt(
+      `Valor efetivamente pago para ${registro.nome}:`,
+      Number(registro.totalDia05 || 0)
+        .toFixed(2)
+        .replace(".", ",")
+    );
+
+    if (!valorInformado) {
+      return;
+    }
+
+    const valorPago = numero(valorInformado);
+
+    if (valorPago <= 0) {
+      setMensagemFolha("Informe um valor de pagamento maior que zero.");
+      return;
+    }
+
+    try {
+      const { data: sessao } = await supabase.auth.getSession();
+
+      const { data: movimento, error: erroMovimento } =
+        await supabase
+          .from("movimentos_financeiros")
+          .insert({
+            tipo: "Saída",
+            produto: "",
+            banco: null,
+            parceiro: null,
+            categoria: "Folha de pagamento",
+            descricao: `Folha ${registro.nome} — ${formatarCompetencia(registro.competencia)}`,
+            valor: valorPago,
+            data: dataPagamento,
+            criado_por: sessao.session?.user.id || null,
+            atualizado_em: new Date().toISOString(),
+          })
+          .select("*")
+          .single();
+
+      if (erroMovimento || !movimento) {
+        throw new Error(
+          erroMovimento?.message ||
+            "Não foi possível gerar a saída da folha."
+        );
+      }
+
+      const { data: folhaAtualizada, error: erroFolha } =
+        await supabase
+          .from("folha_pagamentos")
+          .update({
+            pagamento_realizado: true,
+            data_pagamento_realizado: dataPagamento,
+            valor_pago: valorPago,
+            movimento_id: movimento.id,
+            atualizado_em: new Date().toISOString(),
+          })
+          .eq("id", registro.id)
+          .select("*")
+          .single();
+
+      if (erroFolha || !folhaAtualizada) {
+        await supabase
+          .from("movimentos_financeiros")
+          .delete()
+          .eq("id", movimento.id);
+
+        throw new Error(
+          erroFolha?.message ||
+            "Não foi possível confirmar o pagamento da folha."
+        );
+      }
+
+      setFolhas((atuais) =>
+        atuais.map((item) =>
+          item.id === registro.id
+            ? {
+                ...item,
+                pagamentoRealizado: true,
+                dataPagamentoRealizado: dataPagamento,
+                valorPago,
+                movimentoId: String(movimento.id),
+                atualizadoEm: String(
+                  folhaAtualizada.atualizado_em || ""
+                ),
+              }
+            : item
+        )
+      );
+
+      const novoLancamento: Lancamento = {
+        id: String(movimento.id),
+        tipo: "Saída",
+        produto: String(movimento.produto || ""),
+        banco: String(movimento.banco || ""),
+        parceiro: String(movimento.parceiro || ""),
+        categoria: String(movimento.categoria || "Folha de pagamento"),
+        descricao: String(movimento.descricao || ""),
+        valor: Number(movimento.valor || valorPago),
+        data: String(movimento.data || dataPagamento),
+      };
+
+      setLancamentos((atuais) => [
+        novoLancamento,
+        ...atuais.filter(
+          (item) => item.id !== novoLancamento.id
+        ),
+      ]);
+
+      setMensagemFolha(
+        `Pagamento de ${registro.nome} confirmado. A saída já foi lançada no Financeiro.`
+      );
+    } catch (erro) {
+      console.error("Erro ao dar baixa na folha:", erro);
+      setMensagemFolha(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível dar baixa na folha."
+      );
+    }
+  }
+
   function editarFolha(
     registro: RegistroFolha
   ) {
+    if (registro.pagamentoRealizado) {
+      setMensagemFolha(
+        "Esta folha já foi paga. Para preservar o financeiro, ela não pode ser editada."
+      );
+      return;
+    }
+
     setUsuarioFolhaId(registro.usuarioId);
     setCompetencia(registro.competencia);
 
@@ -1501,6 +1758,15 @@ const resumoRhDaFolha = useMemo(() => {
   async function excluirFolha(
     id: string
   ) {
+    const registro = folhas.find((item) => item.id === id);
+
+    if (registro?.pagamentoRealizado) {
+      setMensagemFolha(
+        "Esta folha já foi paga e possui uma saída financeira vinculada. Ela não pode ser excluída por aqui."
+      );
+      return;
+    }
+
     if (
       !window.confirm(
         "Deseja excluir este cálculo da folha?"
@@ -1716,8 +1982,68 @@ const resumoRhDaFolha = useMemo(() => {
       : saidasDisponiveis;
 
   return (
-    <div className="finance-page">
-      <section className="finance-grid">
+    <div className="finance-page finance-workspace">
+      {!ocultarCabecalho && (
+        <section className="finance-workspace-head">
+          <div>
+            <span>GESTÃO FINANCEIRA</span>
+            <h2>Operação financeira</h2>
+            <p>Movimentações, folha e premiações organizadas por área.</p>
+          </div>
+
+          {abaFinanceiro === "movimentacoes" && (
+            <button
+              type="button"
+              className="finance-primary-action"
+              onClick={() => setMostrarNovoLancamento((atual) => !atual)}
+            >
+              {mostrarNovoLancamento ? "Fechar lançamento" : "+ Nova movimentação"}
+            </button>
+          )}
+        </section>
+      )}
+
+      {!ocultarAbas && (
+      <nav className="finance-section-tabs" aria-label="Áreas do financeiro">
+        <button
+          type="button"
+          className={abaFinanceiro === "movimentacoes" ? "active" : ""}
+          onClick={() => setAbaFinanceiro("movimentacoes")}
+        >
+          Movimentações
+        </button>
+        <button
+          type="button"
+          className={abaFinanceiro === "folha" ? "active" : ""}
+          onClick={() => setAbaFinanceiro("folha")}
+        >
+          Folha
+        </button>
+        <button
+          type="button"
+          className={abaFinanceiro === "premiacoes" ? "active" : ""}
+          onClick={() => setAbaFinanceiro("premiacoes")}
+        >
+          Premiações
+        </button>
+      </nav>
+      )}
+
+      {ocultarCabecalho && abaFinanceiro === "movimentacoes" && (
+        <div className="finance-compact-actions">
+          <button
+            type="button"
+            className="finance-primary-action"
+            onClick={() => setMostrarNovoLancamento((atual) => !atual)}
+          >
+            {mostrarNovoLancamento ? "Fechar lançamento" : "+ Nova movimentação"}
+          </button>
+        </div>
+      )}
+
+      {abaFinanceiro === "movimentacoes" && (
+      <section className={`finance-grid ${mostrarNovoLancamento ? "" : "list-only"}`}>
+        {mostrarNovoLancamento && (
         <form
           className="finance-card"
           onSubmit={salvarLancamento}
@@ -1884,8 +2210,9 @@ const resumoRhDaFolha = useMemo(() => {
             </button>
           </div>
         </form>
+        )}
 
-        <section className="finance-card">
+        <section className="finance-card finance-movements-card">
           <div className="finance-list-heading">
             <div>
               <span>MOVIMENTAÇÕES</span>
@@ -2034,201 +2361,304 @@ const resumoRhDaFolha = useMemo(() => {
           )}
         </section>
       </section>
+      )}
 
-      <section className="finance-card payroll-card">
-        <div className="finance-list-heading">
-          <div>
-            <span>FOLHA E BENEFÍCIOS</span>
-            <h2>Folha — pagamento do dia 05</h2>
-          </div>
-          <b>{folhas.length}</b>
-        </div>
-
-        <div className="payroll-layout">
-          <form className="payroll-form" onSubmit={salvarFolha}>
-            <div className="payroll-form-grid">
-              <label>
-                Competência
-                <input
-                  type="month"
-                  value={competencia}
-                  onChange={(evento) =>
-                    setCompetencia(evento.target.value)
-                  }
-                />
-              </label>
-
-              <label>
-                Colaboradora
-                <select
-                  value={usuarioFolhaId}
-                  onChange={(evento) =>
-                    setUsuarioFolhaId(evento.target.value)
-                  }
-                >
-                  {!usuarios.length && (
-                    <option value="">Nenhuma usuária cadastrada</option>
-                  )}
-                  {usuarios.map((usuario) => (
-                    <option key={usuario.id} value={usuario.id}>
-                      {usuario.nome}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                Salário
-                <input
-                  value={salario}
-                  onChange={(evento) => setSalario(evento.target.value)}
-                  placeholder="Ex.: 1.621,00"
-                  inputMode="decimal"
-                />
-              </label>
-
-              <label>
-                Desconto do INSS
-                <input
-                  value={descontoInss}
-                  onChange={(evento) =>
-                    setDescontoInss(evento.target.value)
-                  }
-                  placeholder="Ex.: 121,58"
-                  inputMode="decimal"
-                />
-              </label>
-
-              <label>
-                Vale / adiantamento
-                <input
-                  value={descontoVale}
-                  onChange={(evento) =>
-                    setDescontoVale(evento.target.value)
-                  }
-                  placeholder="Ex.: 300,00"
-                  inputMode="decimal"
-                />
-              </label>
-
-              <label>
-                Desconto de faltas
-                <input
-                  value={descontoFaltas}
-                  onChange={(evento) =>
-                    setDescontoFaltas(evento.target.value)
-                  }
-                  placeholder="Ex.: 80,00"
-                  inputMode="decimal"
-                />
-              </label>
+      {abaFinanceiro === "folha" && (
+        <section className="payroll-modern-shell">
+          <div className="payroll-modern-left">
+            <div className="payroll-modern-head">
+              <div className="payroll-modern-icon">👥</div>
+              <div>
+                <span>CADASTRAR / EDITAR FOLHA</span>
+                <h2>Folha — pagamento do dia 05</h2>
+                <p>Preencha os dados da colaboradora para calcular a folha do mês.</p>
+              </div>
             </div>
 
-            <div className={`attendance-box ${assiduidadeAtiva ? "selected" : ""}`}>
-              <label className="attendance-switch">
-                <input
-                  type="checkbox"
-                  checked={assiduidadeAtiva}
-                  onChange={(evento) =>
-                    setAssiduidadeAtiva(evento.target.checked)
-                  }
-                />
-                <span>Recebe prêmio de assiduidade</span>
-              </label>
+            <form className="payroll-modern-form" onSubmit={salvarFolha}>
+              <div className="payroll-modern-grid">
+                <label>
+                  Competência
+                  <input
+                    type="month"
+                    value={competencia}
+                    onChange={(evento) => setCompetencia(evento.target.value)}
+                  />
+                </label>
 
-              <label>
-                Valor da assiduidade
-                <input
-                  value={valorAssiduidade}
-                  onChange={(evento) =>
-                    setValorAssiduidade(evento.target.value)
-                  }
-                  placeholder="Ex.: 200,00"
-                  inputMode="decimal"
-                  disabled={!assiduidadeAtiva}
-                />
-              </label>
-            </div>
+                <label>
+                  Colaboradora
+                  <select
+                    value={usuarioFolhaId}
+                    onChange={(evento) => setUsuarioFolhaId(evento.target.value)}
+                  >
+                    {!usuarios.length && (
+                      <option value="">Nenhuma usuária cadastrada</option>
+                    )}
+                    {usuarios.map((usuario) => (
+                      <option key={usuario.id} value={usuario.id}>
+                        {usuario.nome}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-            <div className="payroll-total">
-              <div>
-                <span>Salário — dia 05</span>
-                <strong>{moeda(calculoFolha.salario)}</strong>
+                <label>
+                  Salário
+                  <input
+                    value={salario}
+                    onChange={(evento) => setSalario(evento.target.value)}
+                    placeholder="Ex.: 1.621,00"
+                    inputMode="decimal"
+                  />
+                </label>
+
+                <label>
+                  Desconto do INSS
+                  <input
+                    value={descontoInss}
+                    onChange={(evento) => setDescontoInss(evento.target.value)}
+                    placeholder="Ex.: 121,58"
+                    inputMode="decimal"
+                  />
+                </label>
+
+                <label>
+                  Vale / adiantamento
+                  <input
+                    value={descontoVale}
+                    onChange={(evento) => setDescontoVale(evento.target.value)}
+                    placeholder="Ex.: 300,00"
+                    inputMode="decimal"
+                  />
+                </label>
+
+                <label>
+                  Desconto de faltas
+                  <input
+                    value={descontoFaltas}
+                    onChange={(evento) => setDescontoFaltas(evento.target.value)}
+                    placeholder="Ex.: 80,00"
+                    inputMode="decimal"
+                  />
+                </label>
               </div>
-              <div>
-                <span>Assiduidade — dia 05</span>
-                <strong>{moeda(calculoFolha.assiduidade)}</strong>
+
+              <div className={`payroll-modern-attendance ${assiduidadeAtiva ? "active" : ""}`}>
+                <label className="payroll-modern-switch">
+                  <input
+                    type="checkbox"
+                    checked={assiduidadeAtiva}
+                    onChange={(evento) => setAssiduidadeAtiva(evento.target.checked)}
+                  />
+                  <span className="switch-ui" />
+                  <strong>Recebe prêmio de assiduidade</strong>
+                </label>
+
+                <label>
+                  Valor da assiduidade
+                  <input
+                    value={valorAssiduidade}
+                    onChange={(evento) => setValorAssiduidade(evento.target.value)}
+                    placeholder="Ex.: 200,00"
+                    inputMode="decimal"
+                    disabled={!assiduidadeAtiva}
+                  />
+                </label>
               </div>
-              <div className="payroll-deduction">
-                <span>Descontos do dia 05</span>
-                <strong>− {moeda(calculoFolha.totalDescontosDia05)}</strong>
+
+              <div className="payroll-modern-summary">
+                <div>
+                  <span>Salário — dia 05</span>
+                  <strong>{moeda(calculoFolha.salario)}</strong>
+                </div>
+                <div>
+                  <span>Assiduidade — dia 05</span>
+                  <strong>{moeda(calculoFolha.assiduidade)}</strong>
+                </div>
+                <div>
+                  <span>Descontos do dia 05</span>
+                  <strong>− {moeda(calculoFolha.totalDescontosDia05)}</strong>
+                </div>
               </div>
-              <div className="payroll-grand-total">
+
+              <div className="payroll-modern-total">
                 <span>PAGAMENTO LÍQUIDO — DIA 05</span>
                 <strong>{moeda(calculoFolha.totalDia05)}</strong>
               </div>
-            </div>
 
-            {mensagemFolha && (
-              <div className="finance-message">{mensagemFolha}</div>
-            )}
+              {mensagemFolha && (
+                <div className="finance-message">{mensagemFolha}</div>
+              )}
 
-            <div className="finance-actions">
-              <button type="submit" disabled={!usuarios.length}>
-                Salvar folha do dia 05
-              </button>
-            </div>
-          </form>
-
-          <div className="payroll-history">
-            <div className="payroll-history-title">
-              <strong>Histórico da folha — dia 05</strong>
-              <span>{folhasOrdenadas.length} registros</span>
-            </div>
-
-            {!folhasOrdenadas.length ? (
-              <div className="finance-empty">
-                <strong>Nenhuma folha salva</strong>
+              <div className="payroll-modern-save">
+                <button type="submit" disabled={!usuarios.length}>
+                  Salvar folha do dia 05
+                </button>
               </div>
-            ) : (
-              <div className="payroll-list">
-                {folhasOrdenadas.map((registro) => (
-                  <article key={registro.id}>
-                    <div className="payroll-person">
-                      <div className="payroll-avatar">
-                        {registro.nome.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <strong>{registro.nome}</strong>
-                        <span>{formatarCompetencia(registro.competencia)}</span>
-                      </div>
-                    </div>
-
-                    <div className="payroll-values">
-                      <span>Salário: <strong>{moeda(registro.salario)}</strong></span>
-                      <span>Assiduidade: <strong>{registro.assiduidadeAtiva ? moeda(registro.valorAssiduidade) : "Não recebe"}</strong></span>
-                      <span>INSS: <strong>− {moeda(registro.descontoInss)}</strong></span>
-                      <span>Vale: <strong>− {moeda(registro.descontoVale)}</strong></span>
-                      <span>Faltas: <strong>− {moeda(registro.descontoFaltas)}</strong></span>
-                    </div>
-
-                    <div className="payroll-item-total">
-                      <span>Pagamento dia 05</span>
-                      <strong>{moeda(registro.totalDia05)}</strong>
-                      <div>
-                        <button type="button" onClick={() => editarFolha(registro)}>Editar</button>
-                        <button type="button" className="delete" onClick={() => excluirFolha(registro.id)}>Excluir</button>
-                      </div>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
+            </form>
           </div>
-        </div>
-      </section>
 
-      <section className="finance-card payroll-card commission-day20-card">
+          <div className="payroll-modern-right">
+            <div className="payroll-modern-status-head">
+              <div>
+                <span>FOLHA DA COMPETÊNCIA</span>
+                <h3>Folha da competência</h3>
+                <p>{formatarCompetencia(competencia)}</p>
+              </div>
+
+              <div className="payroll-modern-status-cards">
+                <article className="pending">
+                  <div className="status-icon">⌛</div>
+                  <div>
+                    <span>Pendentes</span>
+                    <strong>{folhasPendentes.length}</strong>
+                    <small>Aguardando pagamento</small>
+                  </div>
+                </article>
+
+                <article className="paid">
+                  <div className="status-icon">✓</div>
+                  <div>
+                    <span>Pagos</span>
+                    <strong>{folhasPagas.length}</strong>
+                    <small>Folha finalizada</small>
+                  </div>
+                </article>
+              </div>
+            </div>
+
+            <div className="payroll-modern-controls">
+              <div className="payroll-status-tabs modern">
+                <button
+                  type="button"
+                  className={filtroFolhaPagamento === "pendentes" ? "active" : ""}
+                  onClick={() => setFiltroFolhaPagamento("pendentes")}
+                >
+                  ⌛ Pendentes ({folhasPendentes.length})
+                </button>
+                <button
+                  type="button"
+                  className={filtroFolhaPagamento === "pagos" ? "active" : ""}
+                  onClick={() => setFiltroFolhaPagamento("pagos")}
+                >
+                  ✓ Pagos ({folhasPagas.length})
+                </button>
+              </div>
+
+              <label className="payroll-modern-search">
+                <span>⌕</span>
+                <input
+                  value={buscaFolha}
+                  onChange={(evento) => setBuscaFolha(evento.target.value)}
+                  placeholder="Pesquisar colaboradora..."
+                />
+              </label>
+            </div>
+
+            <div className="payroll-modern-list-panel">
+              {!folhasExibidas.length ? (
+                <div className="payroll-modern-empty">
+                  <div className="empty-icon">📄</div>
+                  <strong>
+                    {filtroFolhaPagamento === "pendentes"
+                      ? "Nenhuma folha pendente"
+                      : "Nenhum pagamento realizado"}
+                  </strong>
+                  <p>
+                    {filtroFolhaPagamento === "pendentes"
+                      ? `Todos os colaboradores da competência ${formatarCompetencia(competencia)} já foram pagos.`
+                      : `Ainda não existem pagamentos realizados em ${formatarCompetencia(competencia)}.`}
+                  </p>
+                  {filtroFolhaPagamento === "pendentes" && (
+                    <div className="payroll-modern-ok">
+                      ✓ A folha desta competência está em dia.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="payroll-modern-list">
+                  {folhasExibidas.map((registro) => (
+                    <article key={registro.id} className="payroll-modern-item">
+                      <div className="payroll-modern-item-head">
+                        <div className="payroll-modern-person">
+                          <div className="payroll-avatar">
+                            {registro.nome.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <strong>{registro.nome}</strong>
+                            <span>{formatarCompetencia(registro.competencia)}</span>
+                          </div>
+                        </div>
+
+                        <span className={`payroll-status-pill ${registro.pagamentoRealizado ? "paid" : "pending"}`}>
+                          {registro.pagamentoRealizado ? "✓ Pago" : "⌛ Pendente"}
+                        </span>
+                      </div>
+
+                      <div className="payroll-modern-values">
+                        <span>Salário <strong>{moeda(registro.salario)}</strong></span>
+                        <span>Assiduidade <strong>{registro.assiduidadeAtiva ? moeda(registro.valorAssiduidade) : "Não recebe"}</strong></span>
+                        <span>INSS <strong>− {moeda(registro.descontoInss)}</strong></span>
+                        <span>Vale <strong>− {moeda(registro.descontoVale)}</strong></span>
+                        <span>Faltas <strong>− {moeda(registro.descontoFaltas)}</strong></span>
+                      </div>
+
+                      <div className="payroll-modern-item-footer">
+                        <div>
+                          <span>
+                            {registro.pagamentoRealizado
+                              ? `Pago em ${dataISOparaBR(registro.dataPagamentoRealizado) || "—"}`
+                              : "Pagamento dia 05"}
+                          </span>
+                          <strong>
+                            {moeda(
+                              registro.pagamentoRealizado
+                                ? registro.valorPago
+                                : registro.totalDia05
+                            )}
+                          </strong>
+                        </div>
+
+                        <div className="payroll-modern-item-actions">
+                          {!registro.pagamentoRealizado ? (
+                            <>
+                              <button
+                                type="button"
+                                className="primary"
+                                onClick={() => void marcarFolhaComoPaga(registro)}
+                              >
+                                ▣&nbsp;&nbsp;Marcar como pago
+                              </button>
+                              <button type="button" className="edit" onClick={() => editarFolha(registro)}>
+                                ✎&nbsp;&nbsp;Editar
+                              </button>
+                              <button
+                                type="button"
+                                className="delete"
+                                onClick={() => excluirFolha(registro.id)}
+                              >
+                                ⌫&nbsp;&nbsp;Excluir
+                              </button>
+                            </>
+                          ) : (
+                            <span className="payroll-paid-badge">
+                              ✓ Pagamento realizado
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {abaFinanceiro === "premiacoes" && (
+      <section className="finance-card payroll-card commission-day20-card finance-tab-panel">
         <div className="finance-list-heading">
           <div>
             <span>COMISSÕES</span>
@@ -2343,6 +2773,7 @@ const resumoRhDaFolha = useMemo(() => {
           </div>
         </div>
       </section>
+      )}
 
     </div>
   );

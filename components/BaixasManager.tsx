@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./baixas.css";
+import "./baixas-financeiro-compacto.css";
 
 type BaixaPagamento = {
   id: string;
@@ -24,8 +25,6 @@ type BaixaPagamento = {
   status: string;
   observacao: string | null;
   data_emissao?: string;
-  convenio?: string;
-  codigo_tabela?: string;
 };
 
 type SituacaoFiltro =
@@ -68,12 +67,6 @@ function normalizar(valor: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase();
-}
-
-function chaveTabelaFlexivel(valor: string) {
-  return normalizar(valor)
-    .replace(/^(sp|ma|go|mg|pb|pe|pr|rj|es|df|ba|ce|pi|rn|sc|rs|mt|ms|pa|am|ro|rr|ap|ac|to)[\s_-]*/i, "")
-    .replace(/[^a-z0-9]/g, "");
 }
 
 function somenteNumeros(valor: string) {
@@ -148,7 +141,15 @@ function classeSituacao(situacao: SituacaoFiltro) {
   return "";
 }
 
-export default function BaixasManager() {
+type BaixasManagerProps = {
+  modoInicial?: SituacaoFiltro;
+  compacto?: boolean;
+};
+
+export default function BaixasManager({
+  modoInicial = "A_RECEBER",
+  compacto = false,
+}: BaixasManagerProps = {}) {
   const supabase = useMemo(() => createClient(), []);
 
   const [baixas, setBaixas] =
@@ -164,7 +165,7 @@ export default function BaixasManager() {
   const [filtroBanco, setFiltroBanco] =
     useState("TODOS");
   const [filtroSituacao, setFiltroSituacao] =
-    useState<SituacaoFiltro>("A_RECEBER");
+    useState<SituacaoFiltro>(modoInicial);
 
   const [dataInicial, setDataInicial] =
     useState("");
@@ -173,6 +174,9 @@ export default function BaixasManager() {
 
   const [selecionada, setSelecionada] =
     useState<BaixaPagamento | null>(null);
+
+  const [selecionadasIds, setSelecionadasIds] =
+    useState<Set<string>>(new Set());
 
   const [
     valorRecebidoEditavel,
@@ -211,183 +215,46 @@ export default function BaixasManager() {
         (data || []) as BaixaPagamento[];
 
       /*
-       * IMPORTANTE:
-       * A Baixa não tenta mais descobrir os dados direto pelas tabelas
-       * usando apenas banco + nome da tabela.
-       *
-       * Primeiro usamos a própria API de propostas para obter:
-       * - data de digitação;
-       * - tabela_banco_id (quando existir);
-       * - banco e tabela originais.
-       *
-       * Depois usamos /api/configuracoes para localizar a configuração
-       * exata da tabela e puxar convênio e código.
+       * A data de emissão é a data da digitação da proposta.
+       * Ela fica na tabela de propostas como data_cadastro.
+       * Buscamos somente as propostas necessárias e enriquecemos
+       * as linhas da baixa sem alterar a tabela baixas_pagamentos.
        */
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      const token = session?.access_token || "";
-
-      type PropostaApi = {
-        id: string;
-        numeroProposta?: string;
-        banco?: string;
-        tabela?: string;
-        tabelaBancoId?: string;
-        dataCadastro?: string;
-      };
-
-      type TabelaConfigApi = {
-        id: string;
-        banco: string;
-        nome: string;
-        orgao_convenio?: string | null;
-        codigo?: string | null;
-      };
-
-      let propostasApi: PropostaApi[] = [];
-      let tabelasApi: TabelaConfigApi[] = [];
-
-      if (token) {
-        const [respostaPropostas, respostaConfiguracoes] =
-          await Promise.all([
-            fetch("/api/propostas", {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-              credentials: "omit",
-              cache: "no-store",
-            }),
-            fetch("/api/configuracoes", {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-              credentials: "omit",
-              cache: "no-store",
-            }),
-          ]);
-
-        if (respostaPropostas.ok) {
-          const conteudoPropostas =
-            (await respostaPropostas.json()) as {
-              propostas?: PropostaApi[];
-            };
-
-          propostasApi = Array.isArray(
-            conteudoPropostas.propostas,
-          )
-            ? conteudoPropostas.propostas
-            : [];
-        }
-
-        if (respostaConfiguracoes.ok) {
-          const conteudoConfiguracoes =
-            (await respostaConfiguracoes.json()) as {
-              tabelas?: TabelaConfigApi[];
-            };
-
-          tabelasApi = Array.isArray(
-            conteudoConfiguracoes.tabelas,
-          )
-            ? conteudoConfiguracoes.tabelas
-            : [];
-        }
-      }
-
-      const propostaPorId = new Map(
-        propostasApi.map((proposta) => [
-          String(proposta.id || ""),
-          proposta,
-        ]),
+      const ids = Array.from(
+        new Set(
+          registros
+            .map((item) => item.proposta_id)
+            .filter(Boolean),
+        ),
       );
 
-      const propostaPorNumero = new Map(
-        propostasApi
-          .filter((proposta) =>
-            String(proposta.numeroProposta || "").trim(),
-          )
-          .map((proposta) => [
-            String(proposta.numeroProposta || "").trim(),
-            proposta,
-          ]),
-      );
+      let emissoes = new Map<string, string>();
 
-      const tabelaPorId = new Map(
-        tabelasApi.map((tabela) => [
-          String(tabela.id || ""),
-          tabela,
-        ]),
-      );
+      if (ids.length) {
+        const { data: propostas, error: erroPropostas } =
+          await supabase
+            .from("propostas")
+            .select("id, data_cadastro")
+            .in("id", ids);
 
-      function localizarTabela(
-        item: BaixaPagamento,
-        proposta?: PropostaApi,
-      ) {
-        const tabelaBancoId = String(
-          proposta?.tabelaBancoId || "",
-        ).trim();
-
-        // Propostas mais novas: vínculo exato com a configuração.
-        if (tabelaBancoId) {
-          const exata = tabelaPorId.get(tabelaBancoId);
-          if (exata) return exata;
+        if (!erroPropostas && propostas) {
+          emissoes = new Map(
+            propostas.map((item) => [
+              String(item.id),
+              String(item.data_cadastro || ""),
+            ]),
+          );
         }
-
-        const bancoBuscado = normalizar(
-          proposta?.banco || item.banco,
-        );
-
-        const nomeBuscado = chaveTabelaFlexivel(
-          proposta?.tabela || item.tabela,
-        );
-
-        if (!nomeBuscado) return undefined;
-
-        // Propostas antigas: banco + nome flexível.
-        return tabelasApi.find((tabela) => {
-          const mesmoBanco =
-            normalizar(tabela.banco) === bancoBuscado;
-
-          const nomeConfig =
-            chaveTabelaFlexivel(tabela.nome);
-
-          const mesmoNome =
-            nomeConfig === nomeBuscado ||
-            nomeConfig.endsWith(nomeBuscado) ||
-            nomeBuscado.endsWith(nomeConfig);
-
-          return mesmoBanco && mesmoNome;
-        });
       }
 
       setBaixas(
-        registros.map((item) => {
-          const proposta =
-            propostaPorId.get(
-              String(item.proposta_id || ""),
-            ) ||
-            propostaPorNumero.get(
-              String(item.numero_proposta || "").trim(),
-            );
-
-          const tabelaConfig = localizarTabela(
-            item,
-            proposta,
-          );
-
-          return {
-            ...item,
-            data_emissao:
-              String(proposta?.dataCadastro || ""),
-            convenio:
-              String(
-                tabelaConfig?.orgao_convenio || "",
-              ),
-            codigo_tabela:
-              String(tabelaConfig?.codigo || ""),
-          };
-        }),
+        registros.map((item) => ({
+          ...item,
+          data_emissao:
+            emissoes.get(item.proposta_id) ||
+            item.data_pagamento_proposta ||
+            "",
+        })),
       );
     } catch (erro) {
       console.error(erro);
@@ -478,6 +345,17 @@ export default function BaixasManager() {
         normalizar(item.tabela).includes(
           termo,
         );
+
+      // Número exato da proposta ignora os demais filtros.
+      const numeroPesquisado = somenteNumeros(busca);
+      const numeroDaProposta = somenteNumeros(item.numero_proposta);
+
+      if (
+        numeroPesquisado.length > 0 &&
+        numeroDaProposta === numeroPesquisado
+      ) {
+        return true;
+      }
 
       const correspondeBanco =
         filtroBanco === "TODOS" ||
@@ -570,6 +448,67 @@ export default function BaixasManager() {
       recebido,
     };
   }, [linhas]);
+
+  const selecionadas = useMemo(
+    () =>
+      linhas.filter((item) =>
+        selecionadasIds.has(item.id),
+      ),
+    [linhas, selecionadasIds],
+  );
+
+  const totalSelecionado = useMemo(
+    () =>
+      selecionadas.reduce(
+        (total, item) =>
+          total +
+          Number(item.comissao_prevista || 0),
+        0,
+      ),
+    [selecionadas],
+  );
+
+  const todasFiltradasSelecionadas =
+    filtradas.length > 0 &&
+    filtradas.every((item) =>
+      selecionadasIds.has(item.id),
+    );
+
+  function alternarSelecao(id: string) {
+    setSelecionadasIds((atual) => {
+      const proximo = new Set(atual);
+
+      if (proximo.has(id)) {
+        proximo.delete(id);
+      } else {
+        proximo.add(id);
+      }
+
+      return proximo;
+    });
+  }
+
+  function selecionarTodasFiltradas() {
+    setSelecionadasIds((atual) => {
+      const proximo = new Set(atual);
+
+      if (todasFiltradasSelecionadas) {
+        filtradas.forEach((item) =>
+          proximo.delete(item.id),
+        );
+      } else {
+        filtradas.forEach((item) =>
+          proximo.add(item.id),
+        );
+      }
+
+      return proximo;
+    });
+  }
+
+  function limparSelecao() {
+    setSelecionadasIds(new Set());
+  }
 
   function abrirRecebimento(
     item: BaixaPagamento,
@@ -713,6 +652,12 @@ export default function BaixasManager() {
       setSelecionada(null);
       setMotivoAlteracao("");
 
+      setSelecionadasIds((atual) => {
+        const proximo = new Set(atual);
+        proximo.delete(selecionada.id);
+        return proximo;
+      });
+
       await carregar();
     } catch (erro) {
       setMensagem(
@@ -741,43 +686,45 @@ export default function BaixasManager() {
   );
 
   return (
-    <div className="baixas-page baixas-livecred-eleva">
-      <section className="baixas-resumo-live">
-        <article>
+    <div className={`baixas-page baixas-livecred-eleva ${compacto ? "baixas-compacto-financeiro" : ""}`}>
+      {!compacto && (
+      <section className="baixas-resumo-live baixas-resumo-executivo">
+        <article className="resumo-a-receber-valor">
           <span>COMISSÕES À RECEBER</span>
-          <strong>
-            {moeda(
-              resumo.comissoesAReceber +
-                resumo.saldoParcial,
-            )}
-          </strong>
-          <small>
-            À receber + saldo dos parciais
-          </small>
-        </article>
-
-        <article>
-          <span>À RECEBER</span>
-          <strong>{resumo.aReceber}</strong>
-          <small>Contratos sem recebimento</small>
+          <strong>{moeda(resumo.comissoesAReceber)}</strong>
+          <b>{resumo.aReceber} contratos</b>
+          <small>Aguardando primeiro recebimento</small>
         </article>
 
         <article className="resumo-parcial">
-          <span>REC. PARCIAL</span>
-          <strong>{resumo.parciais}</strong>
-          <small>
-            Saldo: {moeda(resumo.saldoParcial)}
-          </small>
+          <span>REC. PARCIAL (SALDO RESTANTE)</span>
+          <strong>{moeda(resumo.saldoParcial)}</strong>
+          <b>{resumo.parciais} contratos</b>
+          <small>Saldo pendente dos pagamentos parciais</small>
+        </article>
+
+        <article className="resumo-total-recebido">
+          <span>TOTAL JÁ RECEBIDO</span>
+          <strong>{moeda(resumo.recebido)}</strong>
+          <b>{resumo.finalizadas} finalizados</b>
+          <small>Total efetivamente recebido em comissões</small>
         </article>
 
         <article className="resumo-finalizado">
           <span>FINALIZADOS</span>
           <strong>{resumo.finalizadas}</strong>
-          <small>
-            Recebido: {moeda(resumo.recebido)}
-          </small>
+          <b>100% recebidos</b>
+          <small>Contratos com comissão totalmente recebida</small>
+        </article>
+
+        <article className="resumo-a-receber-qtd">
+          <span>À RECEBER</span>
+          <strong>{resumo.aReceber}</strong>
+          <b>Em aberto</b>
+          <small>Contratos sem recebimento ainda</small>
         </article>
       </section>
+      )}
 
       <section className="baixas-live-card">
         <div className="baixas-live-actions">
@@ -845,22 +792,65 @@ export default function BaixasManager() {
 
           <div className="baixas-live-selected">
             <span>
-              {selecionada ? 1 : 0}
+              {selecionadasIds.size}
             </span>
-            SELECIONADO
+            {selecionadasIds.size === 1
+              ? "SELECIONADO"
+              : "SELECIONADOS"}
           </div>
         </div>
 
         <div className="baixas-live-total">
-          <span>
-            COMISSÕES À RECEBER
-          </span>
-          <strong>
-            {moeda(
-              resumo.comissoesAReceber +
-                resumo.saldoParcial,
+          <div className="baixas-live-total-principal">
+            <span>
+              {selecionadasIds.size > 0
+                ? "COMISSÕES SELECIONADAS"
+                : "COMISSÕES À RECEBER"}
+            </span>
+
+            <strong>
+              {selecionadasIds.size > 0
+                ? moeda(totalSelecionado)
+                : moeda(
+                    resumo.comissoesAReceber,
+                  )}
+            </strong>
+          </div>
+
+          <div className="baixas-live-selection-actions">
+            <button
+              type="button"
+              onClick={selecionarTodasFiltradas}
+              disabled={filtradas.length === 0}
+            >
+              {todasFiltradasSelecionadas
+                ? "Desmarcar filtradas"
+                : "Selecionar tudo"}
+            </button>
+
+            {selecionadasIds.size === 1 && (
+              <button
+                type="button"
+                className="baixas-live-action"
+                onClick={() => {
+                  const item = selecionadas[0];
+                  if (item) abrirRecebimento(item);
+                }}
+              >
+                Dar baixa no selecionado
+              </button>
             )}
-          </strong>
+
+            {selecionadasIds.size > 0 && (
+              <button
+                type="button"
+                className="secondary"
+                onClick={limparSelecao}
+              >
+                Limpar seleção
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="baixas-live-filtros">
@@ -958,20 +948,12 @@ export default function BaixasManager() {
             <thead>
               <tr>
                 <th></th>
-                <th>DATA / DIGITAÇÃO</th>
-                <th>CPF</th>
+                <th>EMISSÃO / CPF</th>
                 <th>CLIENTE</th>
-                <th>BANCO / TABELA / CONVÊNIO</th>
-                <th>CÓDIGO</th>
-                <th>VALOR BRUTO</th>
-                <th>VALOR LÍQUIDO</th>
-                <th>TX. COMISS.</th>
-                <th>COMISS. LÍQ.</th>
-                <th>RECEBIDO</th>
-                <th>SITUAÇÃO</th>
-                <th>ESTEIRA</th>
-                <th>DATA PAGAMENTO CLIENTE</th>
-                <th>DATA RECEBIMENTO COMISSÃO</th>
+                <th>BANCO / TABELA</th>
+                <th>VL. LIBERADO</th>
+                <th>COMISSÃO</th>
+                <th>RECEBIMENTO</th>
                 <th>AÇÃO</th>
               </tr>
             </thead>
@@ -980,7 +962,7 @@ export default function BaixasManager() {
               {carregando ? (
                 <tr>
                   <td
-                    colSpan={16}
+                    colSpan={8}
                     className="baixas-live-vazio"
                   >
                     Carregando comissões...
@@ -989,7 +971,7 @@ export default function BaixasManager() {
               ) : filtradas.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={16}
+                    colSpan={8}
                     className="baixas-live-vazio"
                   >
                     Nenhuma comissão encontrada nos filtros.
@@ -998,8 +980,7 @@ export default function BaixasManager() {
               ) : (
                 filtradas.map((item) => {
                   const ativa =
-                    selecionada?.id ===
-                    item.id;
+                    selecionadasIds.has(item.id);
 
                   return (
                     <tr
@@ -1010,142 +991,71 @@ export default function BaixasManager() {
                       onClick={() =>
                         abrirRecebimento(item)
                       }
+                      title="Clique na linha para informar o valor e a data do recebimento"
                     >
                       <td>
                         <input
-                          type="radio"
-                          name="baixa-selecionada"
+                          type="checkbox"
                           checked={ativa}
+                          onClick={(event) =>
+                            event.stopPropagation()
+                          }
                           onChange={() =>
-                            abrirRecebimento(
-                              item,
-                            )
+                            alternarSelecao(item.id)
                           }
                         />
                       </td>
 
-                      <td>
-                        {dataBR(
-                          item.data_emissao,
-                        )}
+                      <td className="baixa-emissao-cpf">
+                        <strong>{dataBR(item.data_emissao)}</strong>
+                        <small>{formatarCpf(item.cpf)}</small>
                       </td>
 
-                      <td>
-                        {formatarCpf(
-                          item.cpf,
-                        )}
+                      <td className="baixa-cliente">
+                        <strong>{item.cliente || "—"}</strong>
+                        <small>{item.consultora || "—"}</small>
                       </td>
 
-                      <td>
-                        <strong>
-                          {item.cliente || "—"}
-                        </strong>
-                        <small>
-                          {item.consultora || "—"}
-                        </small>
+                      <td className="baixa-banco">
+                        <strong>{item.banco || "—"}</strong>
+                        <small>{item.tabela || "—"}</small>
                       </td>
 
-                      <td>
-                        <strong>
-                          {item.banco || "—"}
-                        </strong>
-                        <small>
-                          {item.tabela || "Tabela não informada"}
-                        </small>
-                        <small>
-                          {item.convenio || "Convênio não informado"}
-                        </small>
+                      <td className="baixa-valor">
+                        <strong>{moeda(item.valor_operacao)}</strong>
                       </td>
 
-                      <td>
-                        <strong>
-                          {item.codigo_tabela || "—"}
-                        </strong>
-                      </td>
-
-                      <td>
-                        <strong>
-                          {moeda(
-                            item.valor_operacao,
-                          )}
-                        </strong>
-                      </td>
-
-                      <td>
-                        <strong>
-                          {moeda(
-                            item.valor_liquido,
-                          )}
-                        </strong>
-                      </td>
-
-                      <td>
-                        {item.taxaComissao
-                          .toFixed(2)
-                          .replace(".", ",")}
-                        %
-                      </td>
-
-                      <td>
+                      <td className="baixa-comissao">
                         <strong className="comissao-pill">
-                          {moeda(
-                            item.comissao_prevista,
-                          )}
+                          {moeda(item.comissao_prevista)}
                         </strong>
+                        <small>
+                          {item.taxaComissao.toFixed(2).replace(".", ",")}%
+                        </small>
                       </td>
 
-                      <td>
-                        {moeda(
-                          item.valor_recebido,
-                        )}
-                      </td>
-
-                      <td>
+                      <td className="baixa-recebimento">
+                        <strong>{moeda(item.valor_recebido)}</strong>
                         <span
                           className={`baixas-live-status ${classeSituacao(
                             item.situacaoExibicao,
                           )}`}
                         >
-                          {textoSituacao(
-                            item.situacaoExibicao,
-                          )}
+                          {textoSituacao(item.situacaoExibicao)}
                         </span>
                       </td>
 
-                      <td>
-                        <span className="baixas-live-esteira">
-                          ● Proposta Paga
-                        </span>
-                      </td>
-
-                      <td>
-                        <strong>
-                          {dataBR(
-                            item.data_pagamento_proposta,
-                          )}
-                        </strong>
-                      </td>
-
-                      <td>
-                        {dataBR(
-                          item.data_recebimento,
-                        )}
-                      </td>
-
-                      <td>
+                      <td className="baixa-acao">
                         <button
                           type="button"
                           className="baixas-live-action"
                           onClick={(event) => {
                             event.stopPropagation();
-                            abrirRecebimento(
-                              item,
-                            );
+                            abrirRecebimento(item);
                           }}
                         >
-                          {item.situacaoExibicao ===
-                          "A_RECEBER"
-                            ? "Receber"
+                          {item.situacaoExibicao === "A_RECEBER"
+                            ? "Dar baixa"
                             : "Editar"}
                         </button>
                       </td>
@@ -1200,7 +1110,7 @@ export default function BaixasManager() {
 
             <div className="baixas-live-modal-resumo">
               <article>
-                <span>DATA / DIGITAÇÃO</span>
+                <span>EMISSÃO</span>
                 <strong>
                   {dataBR(
                     selecionada.data_emissao,

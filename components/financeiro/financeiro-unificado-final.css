@@ -1,0 +1,888 @@
+
+.financeiro-unico-final{
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+
+.financeiro-unico-tabs{
+  display:flex;
+  gap:4px;
+  padding:5px;
+  border:1px solid #dce5f2;
+  border-radius:13px;
+  background:#fff;
+}
+
+.financeiro-unico-tabs button{
+  min-height:38px;
+  padding:0 15px;
+  border:0;
+  border-radius:9px;
+  background:transparent;
+  color:#61708a;
+  font:inherit;
+  font-size:10.5px;
+  font-weight:900;
+  cursor:pointer;
+}
+
+.financeiro-unico-tabs button.active{
+  background:#155eef;
+  color:#fff;
+  box-shadow:0 5px 14px rgba(21,94,239,.18);
+}
+
+.fin-home{
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+
+.fin-home-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  padding:20px;
+  border:1px solid #dce5f2;
+  border-radius:16px;
+  background:#fff;
+}
+
+.fin-home-top span,
+.fin-home-table-card header span,
+.fin-home-quick > span,
+.fin-placeholder > span{
+  color:#155eef;
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.1em;
+}
+
+.fin-home-top h2{
+  margin:5px 0 0;
+  color:#102d57;
+  font-size:24px;
+}
+
+.fin-home-top p{
+  margin:5px 0 0;
+  color:#71809a;
+  font-size:11px;
+}
+
+.fin-home-top button,
+.fin-home-table-card header button{
+  min-height:38px;
+  padding:0 14px;
+  border:0;
+  border-radius:9px;
+  background:#155eef;
+  color:#fff;
+  font:inherit;
+  font-size:10px;
+  font-weight:900;
+  cursor:pointer;
+}
+
+.fin-home-kpis{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px;
+}
+
+.fin-home-kpis article{
+  min-height:108px;
+  padding:17px 18px;
+  border:1px solid #dce5f2;
+  border-radius:15px;
+  background:#fff;
+  cursor:pointer;
+  transition:.15s ease;
+}
+
+.fin-home-kpis article:hover{
+  transform:translateY(-1px);
+  border-color:#bcd0ff;
+}
+
+.fin-home-kpis span,
+.fin-home-kpis small{
+  display:block;
+}
+
+.fin-home-kpis span{
+  color:#6c7b93;
+  font-size:10px;
+  font-weight:850;
+}
+
+.fin-home-kpis strong{
+  display:block;
+  margin-top:8px;
+  color:#102d57;
+  font-size:24px;
+  font-weight:950;
+  letter-spacing:-.5px;
+}
+
+.fin-home-kpis small{
+  margin-top:7px;
+  color:#8b97a9;
+  font-size:9px;
+}
+
+.fin-home-main{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 290px;
+  gap:12px;
+}
+
+.fin-home-table-card,
+.fin-home-quick,
+.fin-placeholder{
+  border:1px solid #dce5f2;
+  border-radius:15px;
+  background:#fff;
+}
+
+.fin-home-table-card header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:17px 18px;
+  border-bottom:1px solid #e7edf5;
+}
+
+.fin-home-table-card h3,
+.fin-home-quick h3{
+  margin:4px 0 0;
+  color:#102d57;
+  font-size:18px;
+}
+
+.fin-home-table{
+  width:100%;
+}
+
+.fin-home-table-head,
+.fin-home-table-row{
+  display:grid;
+  grid-template-columns:1fr 1.4fr .8fr .9fr 90px;
+  align-items:center;
+  gap:12px;
+  padding:0 18px;
+}
+
+.fin-home-table-head{
+  min-height:38px;
+  background:#f8faff;
+  color:#67758d;
+  font-size:8px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+
+.fin-home-table-row{
+  min-height:58px;
+  border-top:1px solid #edf1f6;
+  color:#243957;
+  font-size:10px;
+}
+
+.fin-home-table-row span strong,
+.fin-home-table-row span small{
+  display:block;
+}
+
+.fin-home-table-row span small{
+  margin-top:2px;
+  color:#8a96a8;
+  font-size:8px;
+}
+
+.fin-home-table-row .valor{
+  color:#102d57;
+  font-weight:900;
+}
+
+.fin-home-table-row button{
+  min-height:31px;
+  border:1px solid #bcd0ff;
+  border-radius:8px;
+  background:#f7f9ff;
+  color:#155eef;
+  font:inherit;
+  font-size:8px;
+  font-weight:900;
+  cursor:pointer;
+}
+
+.fin-home-empty{
+  padding:35px;
+  text-align:center;
+  color:#8a96a8;
+  font-size:10px;
+}
+
+.fin-home-quick{
+  padding:18px;
+}
+
+.fin-home-quick h3{
+  margin-bottom:14px;
+}
+
+.fin-home-quick button{
+  width:100%;
+  min-height:42px;
+  margin-top:8px;
+  border:1px solid #dce5f2;
+  border-radius:9px;
+  background:#fff;
+  color:#29405f;
+  font:inherit;
+  font-size:10px;
+  font-weight:850;
+  text-align:left;
+  padding:0 12px;
+  cursor:pointer;
+}
+
+.fin-home-quick button:hover{
+  border-color:#bcd0ff;
+  color:#155eef;
+  background:#f7f9ff;
+}
+
+.baixas-compacto-financeiro{
+  padding:0 !important;
+}
+
+.fin-placeholder{
+  padding:24px;
+}
+
+.fin-placeholder h2{
+  margin:6px 0 0;
+  color:#102d57;
+}
+
+.fin-placeholder p{
+  margin:7px 0 0;
+  color:#71809a;
+  font-size:11px;
+}
+
+@media(max-width:1050px){
+  .fin-home-kpis{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .fin-home-main{
+    grid-template-columns:1fr;
+  }
+}
+
+@media(max-width:700px){
+  .financeiro-unico-tabs{
+    overflow-x:auto;
+  }
+
+  .financeiro-unico-tabs button{
+    flex:0 0 auto;
+  }
+
+  .fin-home-top{
+    align-items:stretch;
+    flex-direction:column;
+  }
+
+  .fin-home-kpis{
+    grid-template-columns:1fr;
+  }
+
+  .fin-home-table{
+    overflow:auto;
+  }
+
+  .fin-home-table-head,
+  .fin-home-table-row{
+    min-width:760px;
+  }
+}
+
+
+/* =========================================================
+   VISÃO GERAL — MODERNA / SOFISTICADA
+   ========================================================= */
+.fin-home-modern{
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  gap:16px;
+}
+
+.fin-home-top.modern{
+  padding:22px 24px;
+  border-radius:18px;
+  box-shadow:0 10px 35px rgba(18,45,92,.045);
+}
+
+.fin-home-top.modern h2{
+  font-size:26px;
+  letter-spacing:-.65px;
+}
+
+.fin-home-top.modern p{
+  font-size:12px;
+  line-height:1.5;
+}
+
+.fin-top-actions{
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+
+.fin-top-actions > div{
+  text-align:right;
+}
+
+.fin-top-actions small{
+  display:block;
+  color:#8c98aa;
+  font-size:9px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+}
+
+.fin-top-actions strong{
+  display:block;
+  margin-top:4px;
+  color:#1d3557;
+  font-size:12px;
+  text-transform:capitalize;
+}
+
+.fin-home-kpis.modern{
+  gap:14px;
+}
+
+.fin-home-kpis.modern article{
+  min-height:118px;
+  padding:19px 20px;
+  border-radius:16px;
+  box-shadow:0 8px 26px rgba(18,45,92,.04);
+}
+
+.fin-home-kpis.modern span{
+  font-size:11px;
+}
+
+.fin-home-kpis.modern strong{
+  margin-top:10px;
+  font-size:27px;
+  letter-spacing:-.8px;
+}
+
+.fin-home-kpis.modern small{
+  margin-top:8px;
+  font-size:9.5px;
+}
+
+.fin-kpi-primary{
+  border-color:#bcd0ff !important;
+  background:linear-gradient(135deg,#f7f9ff,#fff) !important;
+}
+
+.fin-kpi-success{
+  border-color:#cdebd9 !important;
+  background:linear-gradient(135deg,#f4fbf7,#fff) !important;
+}
+
+.fin-kpi-success strong{color:#0b8d4c !important}
+.fin-kpi-danger{
+  border-color:#ffd4d9 !important;
+  background:linear-gradient(135deg,#fff7f8,#fff) !important;
+}
+.fin-kpi-danger strong{color:#c8303d !important}
+
+.fin-modern-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1.55fr) minmax(320px,.75fr);
+  gap:14px;
+}
+
+.fin-chart-card,
+.fin-commitments-card{
+  border:1px solid #dce5f2;
+  border-radius:18px;
+  background:#fff;
+  box-shadow:0 8px 26px rgba(18,45,92,.04);
+  overflow:hidden;
+}
+
+.fin-chart-card header,
+.fin-commitments-card header{
+  display:flex;
+  justify-content:space-between;
+  gap:16px;
+  align-items:flex-start;
+  padding:19px 20px 10px;
+}
+
+.fin-chart-card header span,
+.fin-commitments-card header span{
+  color:#155eef;
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.09em;
+}
+
+.fin-chart-card h3,
+.fin-commitments-card h3{
+  margin:5px 0 0;
+  color:#102d57;
+  font-size:19px;
+  letter-spacing:-.3px;
+}
+
+.fin-chart-card p{
+  margin:4px 0 0;
+  color:#8b96a7;
+  font-size:10px;
+}
+
+.fin-chart-legend{
+  display:flex;
+  gap:14px;
+  padding-top:4px;
+}
+
+.fin-chart-legend span{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  color:#66758d !important;
+  font-size:9px !important;
+  letter-spacing:0 !important;
+}
+
+.fin-chart-legend i{
+  width:8px;
+  height:8px;
+  border-radius:50%;
+}
+
+.fin-chart-legend i.recebido{background:#155eef}
+.fin-chart-legend i.despesa{background:#f28b36}
+
+.fin-bars{
+  height:205px;
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-around;
+  gap:16px;
+  padding:18px 24px 12px;
+  border-bottom:1px solid #edf1f6;
+  background:
+    linear-gradient(to top, #f4f7fb 1px, transparent 1px);
+  background-size:100% 25%;
+}
+
+.fin-bar-group{
+  flex:1;
+  min-width:50px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+}
+
+.fin-bar-values{
+  height:155px;
+  display:flex;
+  align-items:flex-end;
+  gap:5px;
+}
+
+.fin-bar{
+  width:17px;
+  min-height:2px;
+  border-radius:6px 6px 2px 2px;
+  transition:.18s ease;
+}
+
+.fin-bar:hover{filter:brightness(.94)}
+.fin-bar.recebido{background:#155eef}
+.fin-bar.despesa{background:#f28b36}
+
+.fin-bar-group > strong{
+  color:#66758d;
+  font-size:9px;
+  font-weight:800;
+  text-transform:capitalize;
+}
+
+.fin-chart-summary{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  padding:0 20px 18px;
+}
+
+.fin-chart-summary div{
+  padding:14px 14px 0;
+  border-right:1px solid #edf1f6;
+}
+
+.fin-chart-summary div:first-child{padding-left:0}
+.fin-chart-summary div:last-child{border-right:0}
+
+.fin-chart-summary span{
+  display:block;
+  color:#8490a3;
+  font-size:8.5px;
+  font-weight:800;
+}
+
+.fin-chart-summary strong{
+  display:block;
+  margin-top:5px;
+  color:#102d57;
+  font-size:16px;
+}
+
+.fin-commitments-card header button{
+  border:0;
+  background:transparent;
+  color:#155eef;
+  font:inherit;
+  font-size:9px;
+  font-weight:900;
+  cursor:pointer;
+}
+
+.fin-commitment-list{
+  padding:4px 16px 16px;
+}
+
+.fin-commitment-item{
+  display:grid;
+  grid-template-columns:44px minmax(0,1fr) auto;
+  align-items:center;
+  gap:11px;
+  min-height:62px;
+  padding:8px 4px;
+  border-top:1px solid #edf1f6;
+}
+
+.fin-date-pill{
+  display:grid;
+  place-items:center;
+  height:44px;
+  border-radius:11px;
+  background:#f0f4ff;
+  color:#155eef;
+}
+
+.fin-date-pill small{
+  font-size:7px;
+  font-weight:900;
+}
+
+.fin-date-pill strong{
+  font-size:15px;
+  line-height:1;
+}
+
+.fin-commitment-info strong,
+.fin-commitment-info small{
+  display:block;
+}
+
+.fin-commitment-info strong{
+  color:#203a5f;
+  font-size:10.5px;
+}
+
+.fin-commitment-info small{
+  margin-top:3px;
+  color:#8c97a8;
+  font-size:8px;
+}
+
+.fin-commitment-value{
+  color:#102d57;
+  font-size:11px;
+  white-space:nowrap;
+}
+
+.fin-home-table-card.modern{
+  border-radius:18px;
+  box-shadow:0 8px 26px rgba(18,45,92,.04);
+}
+
+@media(max-width:1100px){
+  .fin-modern-grid{grid-template-columns:1fr}
+}
+
+@media(max-width:760px){
+  .fin-top-actions{align-items:stretch;flex-direction:column}
+  .fin-top-actions > div{text-align:left}
+  .fin-chart-summary{grid-template-columns:1fr}
+  .fin-chart-summary div{border-right:0;border-bottom:1px solid #edf1f6;padding-left:0}
+}
+
+
+/* FILTRO DE COMPETÊNCIA / PERÍODO */
+.fin-period-control{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+  gap:10px;
+}
+
+.fin-period-buttons{
+  display:flex;
+  padding:4px;
+  border:1px solid #dce5f2;
+  border-radius:10px;
+  background:#f7f9fc;
+}
+
+.fin-period-buttons button{
+  min-height:32px;
+  padding:0 11px;
+  border:0;
+  border-radius:7px;
+  background:transparent;
+  color:#62718a;
+  font:inherit;
+  font-size:9px;
+  font-weight:900;
+  cursor:pointer;
+}
+
+.fin-period-buttons button.active{
+  background:#155eef;
+  color:#fff;
+}
+
+.fin-custom-dates{
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+
+.fin-custom-dates label{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  color:#8995a8;
+  font-size:7px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+
+.fin-custom-dates input{
+  min-height:34px;
+  padding:0 8px;
+  border:1px solid #dce5f2;
+  border-radius:8px;
+  background:#fff;
+  color:#183454;
+  font:inherit;
+  font-size:9px;
+  font-weight:750;
+}
+
+.fin-period-label{
+  min-width:112px;
+  text-align:right;
+}
+
+.fin-update-button{
+  min-height:36px !important;
+}
+
+@media(max-width:900px){
+  .fin-period-control{
+    align-items:stretch;
+    flex-direction:column;
+  }
+  .fin-custom-dates{
+    width:100%;
+  }
+  .fin-custom-dates label{
+    flex:1;
+  }
+  .fin-custom-dates input{
+    width:100%;
+  }
+  .fin-period-label{
+    text-align:left;
+  }
+}
+
+
+/* =========================================================
+   FILTRO DE PERÍODO — MAIOR E MAIS LEGÍVEL
+   ========================================================= */
+
+.fin-period-control{
+  gap:14px;
+}
+
+.fin-period-buttons{
+  padding:5px;
+  border-radius:12px;
+}
+
+.fin-period-buttons button{
+  min-height:40px;
+  padding:0 16px;
+  border-radius:9px;
+  font-size:11px;
+  font-weight:900;
+}
+
+.fin-custom-dates{
+  gap:10px;
+}
+
+.fin-custom-dates label{
+  gap:6px;
+  color:#5f6f88;
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.04em;
+}
+
+.fin-custom-dates input{
+  min-width:145px;
+  min-height:42px;
+  padding:0 12px;
+  border-radius:10px;
+  color:#17375d;
+  font-size:11px;
+  font-weight:800;
+}
+
+.fin-update-button{
+  min-height:42px !important;
+  padding:0 17px !important;
+  border-radius:10px !important;
+  font-size:11px !important;
+}
+
+.fin-period-label{
+  min-width:135px;
+}
+
+.fin-period-label small{
+  font-size:9px !important;
+}
+
+.fin-period-label strong{
+  margin-top:5px !important;
+  font-size:12px !important;
+}
+
+@media(max-width:900px){
+  .fin-period-buttons button{
+    min-height:42px;
+  }
+
+  .fin-custom-dates{
+    flex-wrap:wrap;
+  }
+
+  .fin-custom-dates input{
+    min-width:0;
+  }
+}
+
+
+/* =========================================================
+   RESUMO ABAIXO DO GRÁFICO — MAIS LEGÍVEL
+   ========================================================= */
+
+.fin-chart-summary{
+  padding:0 20px 18px;
+}
+
+.fin-chart-summary div{
+  min-height:72px;
+  padding:16px 18px 0;
+}
+
+.fin-chart-summary span{
+  font-size:10px;
+  font-weight:850;
+  color:#6b7890;
+}
+
+.fin-chart-summary strong{
+  margin-top:7px;
+  font-size:19px;
+  letter-spacing:-.3px;
+  color:#102d57;
+}
+
+.fin-chart-summary div:first-child{
+  background:linear-gradient(135deg,#fff9ef,#fff);
+  border-radius:12px 0 0 12px;
+}
+
+.fin-chart-summary div:first-child strong{
+  color:#c77800;
+}
+
+.fin-chart-summary div:nth-child(2) strong{
+  color:#17365d;
+}
+
+.fin-chart-summary div:last-child{
+  background:linear-gradient(135deg,#f5fbf7,#fff);
+  border-radius:0 12px 12px 0;
+}
+
+.fin-chart-summary div:last-child strong{
+  color:#0b8d4c;
+}
+
+
+/* =========================================================
+   ABAS DO FINANCEIRO — MAIS FORTES E LEGÍVEIS
+   ========================================================= */
+
+.financeiro-unico-tabs{
+  gap:6px;
+  padding:5px 7px;
+}
+
+.financeiro-unico-tabs button{
+  min-height:40px;
+  padding:0 14px;
+  border-radius:9px;
+  color:#1f2f49;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.01em;
+}
+
+.financeiro-unico-tabs button:hover{
+  background:#f3f6fb;
+  color:#0f2748;
+}
+
+.financeiro-unico-tabs button.active{
+  background:#155eef;
+  color:#fff;
+  font-weight:900;
+  box-shadow:0 4px 10px rgba(21,94,239,.16);
+}

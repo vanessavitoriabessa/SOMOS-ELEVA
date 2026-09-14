@@ -611,20 +611,33 @@ export default function FinancialDashboard() {
 
   return (
     <div className="financial-dashboard financial-dashboard-pro">
-      <div className="financial-dashboard-heading">
+      <div className="financial-dashboard-heading financial-dashboard-heading-v2">
         <div>
           <span>CENTRO FINANCEIRO</span>
           <h2>Visão geral da operação</h2>
-          <p>Produção, recebimentos, despesas e lucro da empresa.</p>
+          <p>Resumo executivo da produção, recebimentos e resultado financeiro.</p>
         </div>
 
-        <button type="button" onClick={() => void carregar()} disabled={carregando}>
-          {carregando ? "Atualizando..." : "Atualizar dados ↻"}
-        </button>
+        <div className="financial-heading-actions">
+          <div className="financial-update-status">
+            <small>Última atualização</small>
+            <strong>{ultimaAtualizacao ? `às ${ultimaAtualizacao}` : "agora"}</strong>
+          </div>
+
+          <button type="button" onClick={() => void carregar()} disabled={carregando}>
+            {carregando ? "Atualizando..." : "Atualizar"}
+          </button>
+        </div>
       </div>
 
-      <section className="financial-filter-card">
-        <div className="financial-filter-buttons">
+      <section className="financial-filter-card financial-filter-card-v2">
+        <div className="financial-filter-topline">
+          <div>
+            <span>PERÍODO DA ANÁLISE</span>
+            <small>Use um período rápido ou personalize as datas.</small>
+          </div>
+
+          <div className="financial-filter-buttons">
           {(["Hoje", "Mês", "Ano", "Personalizado"] as PeriodoFinanceiro[]).map(
             (item) => (
               <button
@@ -637,6 +650,7 @@ export default function FinancialDashboard() {
               </button>
             ),
           )}
+          </div>
         </div>
 
         <div className="financial-filter-grid">
@@ -682,217 +696,235 @@ export default function FinancialDashboard() {
 
       {mensagem && <div className="financial-dashboard-message">{mensagem}</div>}
 
-      <section className="financial-primary-cards">
-        <article>
-          <div className="financial-icon financial-icon-blue">▥</div>
+      <section className="fd-section">
+        <div className="fd-section-head">
           <div>
-            <span>
-              {produto === "CLT"
-                ? "Produção Valor Líquido CLT"
-                : produto === "Compra de Dívida"
-                  ? "Produção bruta — Compra de Dívida"
-                  : "Produção bruta"}
-            </span>
-            <strong>{moeda(indicadores.producaoBruta)}</strong>
-            <small>
-              {produto === "CLT"
-                ? "Soma dos valores aprovados/liberados CLT"
-                : produto === "Compra de Dívida"
-                  ? "Valor bruto dos contratos pagos"
-                  : "Compra bruta + valor aprovado CLT"}
-            </small>
+            <span>RESUMO FINANCEIRO</span>
+            <h3>Resultado do período</h3>
           </div>
-        </article>
+          <small>Visão de caixa e compromissos</small>
+        </div>
 
-        <article>
-          <div className="financial-icon financial-icon-blue">▤</div>
-          <div>
-            <span>
-              {produto === "CLT"
-                ? "Produção de Parcela CLT"
-                : produto === "Compra de Dívida"
-                  ? "Valor líquido — Compra de Dívida"
-                  : "Produção líquida"}
-            </span>
-            <strong>{moeda(indicadores.valorLiquido)}</strong>
-            <small>
-              {produto === "CLT"
-                ? "Soma das parcelas dos contratos CLT pagos"
-                : produto === "Compra de Dívida"
-                  ? "Valor líquido conforme tabela"
-                  : "Compra líquida + parcelas CLT"}
-            </small>
-          </div>
-        </article>
+        <div className="fd-card-grid fd-card-grid-4">
+          <article className="fd-metric-card">
+            <div className="fd-metric-icon positive">↓</div>
+            <div>
+              <span>Entradas</span>
+              <strong className="positive-text">{moeda(fluxo.entradas)}</strong>
+              <small>Receitas registradas</small>
+            </div>
+          </article>
 
-      
-        <article className="financial-kpi received financial-primary-received">
-          <div className="financial-icon financial-icon-green">↓</div>
-          <div>
-            <span>Comissão recebida</span>
-            <strong>{moeda(indicadores.comissaoRecebida)}</strong>
-            <small>Recebimentos no período</small>
-          </div>
-        </article>
-</section>
+          <article className="fd-metric-card">
+            <div className="fd-metric-icon negative">↑</div>
+            <div>
+              <span>Saídas</span>
+              <strong className="negative-text">{moeda(fluxo.saidas)}</strong>
+              <small>Despesas registradas</small>
+            </div>
+          </article>
 
-      <section className="financial-secondary-cards">
+          <article className="fd-metric-card">
+            <div className="fd-metric-icon receivable">◉</div>
+            <div>
+              <span>A receber</span>
+              <strong>{moeda(indicadores.aReceber)}</strong>
+              <small>Comissões pendentes</small>
+            </div>
+          </article>
 
-        <article className="financial-kpi financial-receivable-card">
-          <div className="financial-icon financial-icon-blue">◉</div>
-          <div>
-            <span>A receber</span>
-            <strong>{moeda(indicadores.aReceber)}</strong>
-            <small>Comissões pendentes</small>
-          </div>
-        </article>
+          <article className="fd-metric-card fd-profit-card">
+            <div className="fd-metric-icon result">◆</div>
+            <div>
+              <span>Lucro líquido</span>
+              <strong className={fluxo.lucroEmpresa < 0 ? "negative-text" : "positive-text"}>
+                {moeda(fluxo.lucroEmpresa)}
+              </strong>
+              <small>Resultado após todos os custos</small>
+            </div>
+          </article>
+        </div>
       </section>
 
-      <section className="financial-dashboard-main-grid single">
-        <article className="financial-dashboard-panel financial-flow-panel">
-          <div className="financial-dashboard-panel-title">
-            <div>
-              <span>FLUXO FINANCEIRO</span>
-              <h3>Entradas, despesas e lucro</h3>
-            </div>
+      <section className="fd-section">
+        <div className="fd-section-head">
+          <div>
+            <span>PRODUÇÃO</span>
+            <h3>Produção comercial</h3>
+          </div>
+          <small>Valores pagos no período selecionado</small>
+        </div>
 
-            <b>
-              {dataInicialFluxo || "—"} até {dataFinalFluxo || "—"}
-            </b>
+        <div className="fd-card-grid fd-card-grid-3">
+          <article className="fd-production-card">
+            <span>Compra de Dívida</span>
+            <strong>{moeda(indicadores.compraBruta)}</strong>
+            <small>Valor bruto dos contratos pagos</small>
+          </article>
+
+          <article className="fd-production-card">
+            <span>CLT</span>
+            <strong>{moeda(indicadores.cltValorLiquido)}</strong>
+            <small>Valor liberado/aprovado pago</small>
+          </article>
+
+          <article className="fd-production-card fd-production-total">
+            <span>Produção total</span>
+            <strong>{moeda(indicadores.producaoBruta)}</strong>
+            <small>Compra bruta + valor liberado CLT</small>
+          </article>
+        </div>
+      </section>
+
+      <section className="fd-section">
+        <div className="fd-section-head">
+          <div>
+            <span>CUSTOS DA OPERAÇÃO</span>
+            <h3>Compromissos do período</h3>
+          </div>
+          <small>Custos que impactam o resultado</small>
+        </div>
+
+        <div className="fd-card-grid fd-card-grid-4">
+          <article className="fd-cost-card">
+            <span>Folha</span>
+            <strong>{moeda(fluxo.folha)}</strong>
+            <small>Pagamento da equipe</small>
+          </article>
+
+          <article className="fd-cost-card">
+            <span>Premiações</span>
+            <strong>{moeda(fluxo.premiacoes)}</strong>
+            <small>Premiação de vendas</small>
+          </article>
+
+          <article className="fd-cost-card">
+            <span>Assiduidade</span>
+            <strong>{moeda(fluxo.assiduidade)}</strong>
+            <small>Prêmios de assiduidade</small>
+          </article>
+
+          <article className="fd-cost-card">
+            <span>Outras despesas</span>
+            <strong>{moeda(fluxo.saidas)}</strong>
+            <small>Saídas operacionais lançadas</small>
+          </article>
+        </div>
+      </section>
+
+      <section className="fd-section fd-flow-section">
+        <div className="fd-section-head">
+          <div>
+            <span>FLUXO DO MÊS</span>
+            <h3>Composição do resultado</h3>
+          </div>
+          <small>{dataInicialFluxo || "—"} até {dataFinalFluxo || "—"}</small>
+        </div>
+
+        <div className="fd-flow-toolbar">
+          <div className="financial-flow-filter-buttons">
+            <button
+              type="button"
+              className={periodoFluxo === "Hoje" ? "active" : ""}
+              onClick={() => mudarPeriodoFluxo("Hoje")}
+            >
+              Hoje
+            </button>
+
+            <button
+              type="button"
+              className={periodoFluxo === "Mês" ? "active" : ""}
+              onClick={() => mudarPeriodoFluxo("Mês")}
+            >
+              Este mês
+            </button>
+
+            <button
+              type="button"
+              className={periodoFluxo === "Ano" ? "active" : ""}
+              onClick={() => mudarPeriodoFluxo("Ano")}
+            >
+              Este ano
+            </button>
+
+            <button
+              type="button"
+              className={periodoFluxo === "Personalizado" ? "active" : ""}
+              onClick={() => setPeriodoFluxo("Personalizado")}
+            >
+              Personalizado
+            </button>
           </div>
 
-          <div className="financial-flow-filter">
-            <div className="financial-flow-filter-buttons">
-              <button
-                type="button"
-                className={periodoFluxo === "Hoje" ? "active" : ""}
-                onClick={() => mudarPeriodoFluxo("Hoje")}
-              >
-                Hoje
-              </button>
+          <div className="fd-flow-filters">
+            <input
+              type="date"
+              value={dataInicialFluxo}
+              onChange={(evento) => {
+                setPeriodoFluxo("Personalizado");
+                setDataInicialFluxo(evento.target.value);
+              }}
+            />
 
-              <button
-                type="button"
-                className={periodoFluxo === "Mês" ? "active" : ""}
-                onClick={() => mudarPeriodoFluxo("Mês")}
-              >
-                Este mês
-              </button>
+            <input
+              type="date"
+              value={dataFinalFluxo}
+              onChange={(evento) => {
+                setPeriodoFluxo("Personalizado");
+                setDataFinalFluxo(evento.target.value);
+              }}
+            />
 
-              <button
-                type="button"
-                className={periodoFluxo === "Ano" ? "active" : ""}
-                onClick={() => mudarPeriodoFluxo("Ano")}
-              >
-                Este ano
-              </button>
-
-              <button
-                type="button"
-                className={
-                  periodoFluxo === "Personalizado" ? "active" : ""
-                }
-                onClick={() => setPeriodoFluxo("Personalizado")}
-              >
-                Personalizado
-              </button>
-            </div>
-
-            <div className="financial-flow-filter-dates">
-              <label>
-                Data inicial
-                <input
-                  type="date"
-                  value={dataInicialFluxo}
-                  onChange={(evento) => {
-                    setPeriodoFluxo("Personalizado");
-                    setDataInicialFluxo(evento.target.value);
-                  }}
-                />
-              </label>
-
-              <label>
-                Data final
-                <input
-                  type="date"
-                  value={dataFinalFluxo}
-                  onChange={(evento) => {
-                    setPeriodoFluxo("Personalizado");
-                    setDataFinalFluxo(evento.target.value);
-                  }}
-                />
-              </label>
-
-              <label>
-                Produto
-                <select
-                  value={produtoFluxo}
-                  onChange={(evento) =>
-                    setProdutoFluxo(
-                      evento.target.value as ProdutoFinanceiro,
-                    )
-                  }
-                >
-                  <option>Todos</option>
-                  <option>Compra de Dívida</option>
-                  <option>CLT</option>
-                  <option>INSS</option>
-                  <option>Crédito Pessoal</option>
-                </select>
-              </label>
-            </div>
+            <select
+              value={produtoFluxo}
+              onChange={(evento) =>
+                setProdutoFluxo(evento.target.value as ProdutoFinanceiro)
+              }
+            >
+              <option>Todos</option>
+              <option>Compra de Dívida</option>
+              <option>CLT</option>
+              <option>INSS</option>
+              <option>Crédito Pessoal</option>
+            </select>
           </div>
+        </div>
 
-          <div className="financial-flow-list">
-            <div>
-              <i className="flow-icon income">↓</i>
-              <span><strong>Entradas</strong><small>Lançamentos de entrada</small></span>
-              <b className="positive-text">{moeda(fluxo.entradas)}</b>
-            </div>
-
-            <div>
-              <i className="flow-icon expense">↓</i>
-              <span><strong>Saídas</strong><small>Despesas lançadas</small></span>
-              <b className="negative-text">{moeda(fluxo.saidas)}</b>
-            </div>
-
-            <div>
-              <i className="flow-icon neutral">▣</i>
-              <span><strong>Premiação</strong><small>Premiação de vendas</small></span>
-              <b>{moeda(fluxo.premiacoes)}</b>
-            </div>
-
-            <div>
-              <i className="flow-icon payroll">▦</i>
-              <span><strong>Folha</strong><small>Folha sem assiduidade</small></span>
-              <b>{moeda(fluxo.folha)}</b>
-            </div>
-
-            <div>
-              <i className="flow-icon attendance">♙</i>
-              <span><strong>Assiduidade</strong><small>Prêmios de assiduidade</small></span>
-              <b>{moeda(fluxo.assiduidade)}</b>
-            </div>
+        <div className="fd-flow-board">
+          <div className="fd-flow-row">
+            <span>Entradas</span>
+            <strong className="positive-text">{moeda(fluxo.entradas)}</strong>
           </div>
-
-          <div className="financial-balance-box">
+          <div className="fd-flow-row">
+            <span>Saídas</span>
+            <strong className="negative-text">{moeda(fluxo.saidas)}</strong>
+          </div>
+          <div className="fd-flow-row">
+            <span>Premiações</span>
+            <strong>{moeda(fluxo.premiacoes)}</strong>
+          </div>
+          <div className="fd-flow-row">
+            <span>Folha</span>
+            <strong>{moeda(fluxo.folha)}</strong>
+          </div>
+          <div className="fd-flow-row">
+            <span>Assiduidade</span>
+            <strong>{moeda(fluxo.assiduidade)}</strong>
+          </div>
+          <div className="fd-flow-result">
             <div>
-              <strong>LUCRO DA EMPRESA</strong>
-              <span>Entradas − saídas − premiação − folha − assiduidade</span>
+              <span>Resultado líquido</span>
+              <small>Entradas − saídas − premiações − folha − assiduidade</small>
             </div>
-
-            <b className={fluxo.lucroEmpresa < 0 ? "negative-text" : "positive-text"}>
+            <strong className={fluxo.lucroEmpresa < 0 ? "negative-text" : "positive-text"}>
               {moeda(fluxo.lucroEmpresa)}
-            </b>
+            </strong>
           </div>
-        </article>
+        </div>
       </section>
 
       <footer className="financial-dashboard-footer">
-        <span>ⓘ Os valores obedecem aos filtros de período e produto.</span>
-        <span>
-          Última atualização: {ultimaAtualizacao ? `às ${ultimaAtualizacao}` : "agora"} ↻
-        </span>
+        <span>ⓘ Valores atualizados conforme período e produto selecionados.</span>
       </footer>
     </div>
   );

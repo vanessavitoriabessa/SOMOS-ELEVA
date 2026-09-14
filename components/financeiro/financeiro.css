@@ -471,3 +471,154 @@
     grid-column: 1 !important;
   }
 }
+
+/* =========================================================
+   FINANCEIRO V2 — WORKSPACE MODERNO
+   Organização por áreas, menos informação simultânea.
+   ========================================================= */
+
+.finance-workspace{
+  padding-top:8px;
+}
+
+.finance-workspace-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:20px;
+  margin:0 0 14px;
+  padding:20px 22px;
+  border:1px solid #dfe7f2;
+  border-radius:18px;
+  background:#fff;
+  box-shadow:0 8px 28px rgba(18,45,92,.045);
+}
+
+.finance-workspace-head span{
+  display:block;
+  color:#155eef;
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.1em;
+}
+
+.finance-workspace-head h2{
+  margin:5px 0 0;
+  color:#071b4d;
+  font-size:24px;
+  letter-spacing:-.35px;
+}
+
+.finance-workspace-head p{
+  margin:6px 0 0;
+  color:#71809a;
+  font-size:12px;
+}
+
+.finance-primary-action{
+  min-height:42px;
+  padding:0 17px;
+  border:0;
+  border-radius:11px;
+  background:#155eef;
+  color:#fff;
+  font:inherit;
+  font-size:12px;
+  font-weight:900;
+  cursor:pointer;
+  box-shadow:0 8px 18px rgba(21,94,239,.16);
+}
+
+.finance-section-tabs{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  margin-bottom:16px;
+  padding:6px;
+  border:1px solid #dfe7f2;
+  border-radius:14px;
+  background:#fff;
+}
+
+.finance-section-tabs button{
+  min-height:38px;
+  padding:0 16px;
+  border:0;
+  border-radius:9px;
+  background:transparent;
+  color:#60718b;
+  font:inherit;
+  font-size:11px;
+  font-weight:900;
+  cursor:pointer;
+}
+
+.finance-section-tabs button.active{
+  background:#edf3ff;
+  color:#155eef;
+  box-shadow:inset 0 0 0 1px #bfd1ff;
+}
+
+.finance-grid.list-only{
+  grid-template-columns:1fr;
+}
+
+.finance-grid.list-only .finance-movements-card{
+  min-height:520px;
+}
+
+.finance-movements-card{
+  box-shadow:0 8px 28px rgba(18,45,92,.045);
+}
+
+.finance-tab-panel{
+  margin-top:0;
+  box-shadow:0 8px 28px rgba(18,45,92,.045);
+}
+
+.finance-workspace .finance-card{
+  border-color:#dfe7f2;
+}
+
+.finance-workspace .finance-form-grid input,
+.finance-workspace .finance-form-grid select,
+.finance-workspace .finance-filters input,
+.finance-workspace .finance-filters select,
+.finance-workspace .payroll-form-grid input,
+.finance-workspace .payroll-form-grid select{
+  background:#fff;
+  border-color:#dce5f1;
+}
+
+.finance-workspace .finance-list article,
+.finance-workspace .payroll-list > article{
+  box-shadow:none;
+  transition:border-color .15s ease, transform .15s ease;
+}
+
+.finance-workspace .finance-list article:hover,
+.finance-workspace .payroll-list > article:hover{
+  border-color:#bfd1ff;
+}
+
+@media(max-width:760px){
+  .finance-workspace-head{
+    align-items:stretch;
+    flex-direction:column;
+  }
+
+  .finance-primary-action{
+    width:100%;
+  }
+
+  .finance-section-tabs{
+    display:grid;
+    grid-template-columns:1fr;
+  }
+}
+
+.finance-compact-actions{
+  display:flex;
+  justify-content:flex-end;
+  margin-bottom:12px;
+}

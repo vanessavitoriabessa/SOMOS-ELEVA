@@ -1,0 +1,171 @@
+
+/* =========================================================
+   BAIXA DE COMISSÕES — TABELA COMPACTA SEM SCROLL HORIZONTAL
+   ========================================================= */
+
+.baixas-compacto-financeiro .baixas-live-card{
+  overflow:hidden;
+}
+
+.baixas-compacto-financeiro .baixas-live-table-wrapper{
+  width:100%;
+  overflow-x:hidden !important;
+}
+
+.baixas-compacto-financeiro .baixas-live-table{
+  width:100%;
+  min-width:0 !important;
+  table-layout:fixed;
+}
+
+.baixas-compacto-financeiro .baixas-live-table th,
+.baixas-compacto-financeiro .baixas-live-table td{
+  padding:11px 10px;
+  vertical-align:middle;
+}
+
+.baixas-compacto-financeiro .baixas-live-table thead th{
+  white-space:normal;
+  line-height:1.15;
+  font-size:8px;
+}
+
+.baixas-compacto-financeiro .baixas-live-table tbody td{
+  font-size:9.5px;
+  line-height:1.25;
+}
+
+.baixas-compacto-financeiro .baixas-live-table tbody td strong{
+  font-size:10.5px;
+}
+
+.baixas-compacto-financeiro .baixas-live-table tbody td small{
+  display:block;
+  margin-top:3px;
+  color:#7f8da3;
+  font-size:8px;
+  line-height:1.15;
+}
+
+.baixas-compacto-financeiro .baixas-live-table th:nth-child(1),
+.baixas-compacto-financeiro .baixas-live-table td:nth-child(1){
+  width:36px;
+  text-align:center;
+}
+
+.baixas-compacto-financeiro .baixas-live-table th:nth-child(2),
+.baixas-compacto-financeiro .baixas-live-table td:nth-child(2){
+  width:115px;
+}
+
+.baixas-compacto-financeiro .baixas-live-table th:nth-child(3),
+.baixas-compacto-financeiro .baixas-live-table td:nth-child(3){
+  width:27%;
+}
+
+.baixas-compacto-financeiro .baixas-live-table th:nth-child(4),
+.baixas-compacto-financeiro .baixas-live-table td:nth-child(4){
+  width:19%;
+}
+
+.baixas-compacto-financeiro .baixas-live-table th:nth-child(5),
+.baixas-compacto-financeiro .baixas-live-table td:nth-child(5){
+  width:125px;
+}
+
+.baixas-compacto-financeiro .baixas-live-table th:nth-child(6),
+.baixas-compacto-financeiro .baixas-live-table td:nth-child(6){
+  width:130px;
+}
+
+.baixas-compacto-financeiro .baixas-live-table th:nth-child(7),
+.baixas-compacto-financeiro .baixas-live-table td:nth-child(7){
+  width:125px;
+}
+
+.baixas-compacto-financeiro .baixas-live-table th:nth-child(8),
+.baixas-compacto-financeiro .baixas-live-table td:nth-child(8){
+  width:88px;
+  text-align:right;
+}
+
+.baixas-compacto-financeiro .baixa-cliente strong,
+.baixas-compacto-financeiro .baixa-banco strong{
+  display:block;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+
+.baixas-compacto-financeiro .baixa-valor,
+.baixas-compacto-financeiro .baixa-comissao,
+.baixas-compacto-financeiro .baixa-recebimento{
+  white-space:nowrap;
+}
+
+.baixas-compacto-financeiro .baixa-comissao small{
+  color:#365dbe !important;
+  font-weight:800;
+}
+
+.baixas-compacto-financeiro .baixa-recebimento{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:5px;
+}
+
+.baixas-compacto-financeiro .baixas-live-status{
+  font-size:7.5px;
+  padding:5px 7px;
+}
+
+.baixas-compacto-financeiro .baixas-live-action{
+  min-width:72px;
+  min-height:31px;
+  padding:0 9px;
+  font-size:8px;
+}
+
+.baixas-compacto-financeiro .baixas-live-table tbody tr{
+  cursor:pointer;
+}
+
+.baixas-compacto-financeiro .baixas-live-table tbody tr:hover{
+  background:#f7f9ff;
+}
+
+/* filtros também ficam em uma linha mais eficiente */
+.baixas-compacto-financeiro .baixas-live-filtros{
+  grid-template-columns:minmax(260px,1.5fr) minmax(145px,.8fr) minmax(145px,.8fr) 135px 135px;
+  gap:8px;
+}
+
+@media (max-width:1180px){
+  .baixas-compacto-financeiro .baixas-live-table th:nth-child(2),
+  .baixas-compacto-financeiro .baixas-live-table td:nth-child(2){
+    width:105px;
+  }
+
+  .baixas-compacto-financeiro .baixas-live-table th:nth-child(5),
+  .baixas-compacto-financeiro .baixas-live-table td:nth-child(5),
+  .baixas-compacto-financeiro .baixas-live-table th:nth-child(6),
+  .baixas-compacto-financeiro .baixas-live-table td:nth-child(6),
+  .baixas-compacto-financeiro .baixas-live-table th:nth-child(7),
+  .baixas-compacto-financeiro .baixas-live-table td:nth-child(7){
+    width:112px;
+  }
+
+  .baixas-compacto-financeiro .baixas-live-filtros{
+    grid-template-columns:1.3fr 1fr 1fr;
+  }
+}
+
+@media (max-width:900px){
+  .baixas-compacto-financeiro .baixas-live-table-wrapper{
+    overflow-x:auto !important;
+  }
+
+  .baixas-compacto-financeiro .baixas-live-table{
+    min-width:900px !important;
+  }
+}

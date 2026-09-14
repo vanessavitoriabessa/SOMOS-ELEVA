@@ -6,7 +6,6 @@ const operation = [
   ["📄", "Propostas", "/propostas"],
   ["💳", "Compra de Dívida", "/propostas"],
   ["💼", "CLT", "/propostas"],
-  ["💰", "Baixa de pagamentos", "/baixas"],
   ["📞", "Esteira", "/esteira"],
 ];
 
@@ -21,8 +20,12 @@ const management = [
 function Menu({ items }: { items: string[][] }) {
   return (
     <nav className="menu-list">
-      {items.map(([icon, label, href], index) => (
-        <Link className={`menu-link ${label === "Dashboard" ? "active" : ""}`} href={href} key={label}>
+      {items.map(([icon, label, href]) => (
+        <Link
+          className={`menu-link ${label === "Dashboard" ? "active" : ""}`}
+          href={href}
+          key={label}
+        >
           <span className="menu-icon">{icon}</span>
           <span>{label}</span>
         </Link>
@@ -51,7 +54,10 @@ export default function Sidebar() {
       <div className="sidebar-footer">
         <div className="user-mini">
           <div className="user-avatar">T</div>
-          <div><strong>Tay</strong><span>Administradora</span></div>
+          <div>
+            <strong>Tay</strong>
+            <span>Administradora</span>
+          </div>
         </div>
         <button className="logout-button">Sair</button>
       </div>
