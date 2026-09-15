@@ -54,6 +54,7 @@ type ChavePermissaoMenu =
   | "clt"
   | "protocolos"
   | "ranking"
+  | "campanhas"
   | "minha_premiacao"
   | "loja_premios"
   | "financeiro"
@@ -73,6 +74,7 @@ const CHAVE_POR_ROTA: Record<string, ChavePermissaoMenu> = {
   "/clt": "clt",
   "/protocolos": "protocolos",
   "/ranking": "ranking",
+  "/campanhas": "campanhas",
   "/minha-premiacao": "minha_premiacao",
   "/loja-premios": "loja_premios",
   "/financeiro": "financeiro",
@@ -124,6 +126,11 @@ const itensGestao: ItemMenu[] = [
   {
     href: "/ranking",
     label: "Ranking",
+    icon: Trophy,
+  },
+  {
+    href: "/campanhas",
+    label: "Campanhas",
     icon: Trophy,
   },
   {
@@ -489,16 +496,16 @@ export default function AppShell({
 
     if (ehConsultora || ehOperacional) {
       return itensGestao.filter((item) =>
-        ["/minha-premiacao", "/loja-premios"].includes(item.href),
+        ["/campanhas", "/minha-premiacao", "/loja-premios"].includes(item.href),
       );
     }
 
     if (ehSupervisao) {
-      return itensGestao.filter((item) => item.href === "/ranking");
+      return itensGestao.filter((item) => ["/ranking", "/campanhas"].includes(item.href));
     }
 
     if (ehRh) {
-      return itensGestao.filter((item) => ["/ranking", "/rh"].includes(item.href));
+      return itensGestao.filter((item) => ["/ranking", "/campanhas", "/rh"].includes(item.href));
     }
 
     return [];
@@ -540,20 +547,20 @@ export default function AppShell({
     if (ehOperacional) {
       return !estaEmAlgumaRota(pathname, [
         "/dashboard", "/clientes", "/propostas", "/simulacao", "/esteira",
-        "/clt", "/protocolos", "/minha-premiacao", "/loja-premios", "/perfil",
+        "/clt", "/protocolos", "/campanhas", "/minha-premiacao", "/loja-premios", "/perfil",
       ]);
     }
 
     if (ehSupervisao) {
       return !estaEmAlgumaRota(pathname, [
         "/dashboard", "/clientes", "/propostas", "/simulacao", "/esteira",
-        "/clt", "/protocolos", "/ranking", "/perfil",
+        "/clt", "/protocolos", "/ranking", "/campanhas", "/perfil",
       ]);
     }
 
     if (ehRh) {
       return !estaEmAlgumaRota(pathname, [
-        "/dashboard", "/esteira", "/ranking", "/rh", "/perfil",
+        "/dashboard", "/esteira", "/ranking", "/campanhas", "/rh", "/perfil",
       ]);
     }
 

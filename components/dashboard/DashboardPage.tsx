@@ -993,14 +993,15 @@ export default function DashboardClient() {
               return false;
             }
 
-            // REGRA DO DASHBOARD:
-            // Digitadas = data de cadastro/digitação dentro do período.
-            // Pagas = data efetiva de pagamento dentro do período.
+            // COMPRA DE DÍVIDA:
+            // O período sempre representa a data de digitação/cadastro.
+            // Quando o status é Pagas, exige status Pago, mas mantém
+            // a competência pela data em que a proposta foi digitada.
             if (status === "Pagas") {
               return (
                 propostaCompraPaga(proposta.status) &&
                 estaNoPeriodo(
-                  converterData(proposta.dataPagamento),
+                  dataCompra(proposta),
                   periodo,
                   dataInicial,
                   dataFinal,
@@ -1695,7 +1696,7 @@ export default function DashboardClient() {
     const dentro=(d:Date|null)=>estaNoPeriodo(d,"Personalizado",periodoAnterior.inicio,periodoAnterior.fim);
     const compra=produto==="CLT"?[]:propostas.filter(p=>{
       const nome=nomeResponsavelCompra(p); if(!pertenceAoTime(nome)||(ehConsultora&&normalizarTexto(nome)!==user)) return false;
-      if(status==="Pagas") return propostaCompraPaga(p.status)&&dentro(converterData(p.dataPagamento));
+      if(status==="Pagas") return propostaCompraPaga(p.status)&&dentro(dataCompra(p));
       if(status==="Digitadas") return dentro(dataCompra(p));
       if(status==="Canceladas") return propostaCompraCancelada(p.status)&&dentro(converterData(p.dataCadastro||p.dataPagamento));
       if(status==="Em andamento") return !propostaCompraPaga(p.status)&&!propostaCompraCancelada(p.status)&&dentro(dataCompra(p));
@@ -2081,14 +2082,14 @@ export default function DashboardClient() {
           <div>
             <strong>
               {status === "Pagas"
-                ? "Filtrando pela data de pagamento"
+                ? produto === "CLT" ? "Filtrando pela data de pagamento" : "Filtrando pela data de digitação"
                 : status === "Digitadas"
                   ? "Filtrando pela data de digitação"
                   : "Filtro aplicado ao período selecionado"}
             </strong>
             <small>
               {status === "Pagas"
-                ? "Mostra Compra de Dívida e CLT efetivamente pagos dentro das datas escolhidas."
+                ? produto === "CLT" ? "Mostra CLT efetivamente pago dentro das datas escolhidas." : "Na Compra de Dívida, mostra propostas digitadas dentro das datas escolhidas que estejam com status Pago."
                 : status === "Digitadas"
                   ? "Mostra tudo que foi digitado/cadastrado dentro das datas escolhidas, mesmo que ainda não esteja pago."
                   : "Altere Produto, Time e Situação para refinar a leitura do Dashboard."}

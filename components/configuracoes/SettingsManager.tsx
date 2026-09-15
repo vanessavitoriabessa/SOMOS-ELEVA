@@ -56,6 +56,7 @@ type ChavePermissao =
   | "baixa_pagamentos"
   | "protocolos"
   | "ranking"
+  | "campanhas"
   | "minha_premiacao"
   | "loja_premios"
   | "financeiro"
@@ -81,6 +82,7 @@ const PERMISSOES_DISPONIVEIS: Array<{
   { chave: "baixa_pagamentos", titulo: "Baixa de pagamentos", grupo: "MENU" },
   { chave: "protocolos", titulo: "Protocolos", grupo: "MENU" },
   { chave: "ranking", titulo: "Ranking", grupo: "MENU" },
+  { chave: "campanhas", titulo: "Campanhas", grupo: "MENU" },
   { chave: "minha_premiacao", titulo: "Minha Premiação", grupo: "MENU" },
   { chave: "loja_premios", titulo: "Loja de Prêmios", grupo: "MENU" },
   { chave: "financeiro", titulo: "Financeiro", grupo: "MENU" },
