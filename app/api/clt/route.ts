@@ -22,6 +22,8 @@ type Perfil = {
   id: string;
   nome: string;
   perfil: string;
+  equipe?: string | null;
+  time_id?: string | null;
   ativo: boolean;
 };
 
@@ -147,6 +149,32 @@ function perfilEhConsultora(perfil: string) {
   return normalizarTexto(perfil).includes("consultor");
 }
 
+function perfilEhSupervisora(perfil: string) {
+  return normalizarTexto(perfil).includes("supervisor");
+}
+
+async function idsConsultorasDoTime(
+  supabase: ReturnType<typeof createAdminClient>,
+  perfil: Perfil,
+) {
+  if (!perfil.time_id) return [] as string[];
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, perfil, ativo, time_id")
+    .eq("ativo", true)
+    .eq("time_id", perfil.time_id);
+
+  if (error) {
+    throw new Error(`Não foi possível identificar as consultoras do time: ${error.message}`);
+  }
+
+  return (data || [])
+    .filter((item) => perfilEhConsultora(String(item.perfil || "")))
+    .map((item) => String(item.id))
+    .filter(Boolean);
+}
+
 function nomesCorrespondem(nomeA: unknown, nomeB: unknown) {
   const a = normalizarTexto(nomeA);
   const b = normalizarTexto(nomeB);
@@ -235,7 +263,7 @@ async function autenticar(request: NextRequest) {
 
   const { data: perfil, error: erroPerfil } = await supabase
   .from("profiles")
-  .select("id, nome, perfil, ativo")
+  .select("id, nome, perfil, equipe, time_id, ativo")
   .eq("id", dadosAutenticacao.user.id)
   .maybeSingle();
 
@@ -471,9 +499,15 @@ export async function GET(request: NextRequest) {
     const { supabase, perfil } = autenticacao;
 
     const linhas = await carregarTodosRegistrosClt(supabase);
-    const permitidas = perfilEhConsultora(perfil.perfil)
-      ? linhas.filter((linha) => podeAlterarRegistro(perfil, linha))
-      : linhas;
+
+    let permitidas = linhas;
+
+    if (perfilEhConsultora(perfil.perfil)) {
+      permitidas = linhas.filter((linha) => podeAlterarRegistro(perfil, linha));
+    } else if (perfilEhSupervisora(perfil.perfil)) {
+      const idsDoTime = new Set(await idsConsultorasDoTime(supabase, perfil));
+      permitidas = linhas.filter((linha) => Boolean(linha.consultora_id) && idsDoTime.has(String(linha.consultora_id)));
+    }
 
     return NextResponse.json({
       perfil: {
