@@ -46,6 +46,46 @@ type ItemMenu = {
   icon: LucideIcon;
 };
 
+type ChavePermissaoMenu =
+  | "dashboard"
+  | "clientes"
+  | "simulacao"
+  | "gestao_propostas"
+  | "clt"
+  | "protocolos"
+  | "ranking"
+  | "minha_premiacao"
+  | "loja_premios"
+  | "financeiro"
+  | "equipe"
+  | "rh"
+  | "dados_importados"
+  | "configuracoes";
+
+type PermissoesMenu = Partial<Record<ChavePermissaoMenu, boolean>>;
+
+const CHAVE_POR_ROTA: Record<string, ChavePermissaoMenu> = {
+  "/dashboard": "dashboard",
+  "/clientes": "clientes",
+  "/simulacao": "simulacao",
+  "/esteira": "gestao_propostas",
+  "/propostas": "gestao_propostas",
+  "/clt": "clt",
+  "/protocolos": "protocolos",
+  "/ranking": "ranking",
+  "/minha-premiacao": "minha_premiacao",
+  "/loja-premios": "loja_premios",
+  "/financeiro": "financeiro",
+  "/equipe": "equipe",
+  "/rh": "rh",
+  "/dados-importados": "dados_importados",
+  "/configuracoes": "configuracoes",
+};
+
+function chavePermissaoDaRota(rota: string) {
+  return CHAVE_POR_ROTA[rota] || null;
+}
+
 const itensOperacao: ItemMenu[] = [
   {
     href: "/dashboard",
@@ -241,6 +281,7 @@ export default function AppShell({
   const [foto, setFoto] = useState("");
   const [pontosHeader, setPontosHeader] = useState(0);
   const [permissaoCarregada, setPermissaoCarregada] = useState(false);
+  const [permissoesMenu, setPermissoesMenu] = useState<PermissoesMenu | null>(null);
 
   const ehAdministracao = perfilEhAdministracao(cargo);
   const ehConsultora = perfilEhConsultora(cargo);
@@ -314,8 +355,51 @@ export default function AppShell({
     (nomeResolvido === "Tay" ? "/avatar.png" : "")
 );
 
-    setPermissaoCarregada(true);
   }, []);
+
+  useEffect(() => {
+    let ativo = true;
+
+    async function carregarPermissoesDoPerfil() {
+      setPermissaoCarregada(false);
+
+      const chavesPossiveis = Array.from(
+        new Set(
+          [
+            cargo,
+            normalizarTexto(cargo) === "rh" ? "RH" : "",
+            normalizarTexto(cargo) === "rh" ? "Financeiro" : "",
+          ].filter(Boolean),
+        ),
+      );
+
+      let permissoesEncontradas: PermissoesMenu | null = null;
+
+      for (const chave of chavesPossiveis) {
+        const { data, error } = await supabase
+          .from("config_permissoes")
+          .select("permissoes")
+          .eq("perfil_chave", chave)
+          .maybeSingle();
+
+        if (!error && data?.permissoes && typeof data.permissoes === "object") {
+          permissoesEncontradas = data.permissoes as PermissoesMenu;
+          break;
+        }
+      }
+
+      if (!ativo) return;
+
+      setPermissoesMenu(permissoesEncontradas);
+      setPermissaoCarregada(true);
+    }
+
+    void carregarPermissoesDoPerfil();
+
+    return () => {
+      ativo = false;
+    };
+  }, [cargo, supabase]);
 
   useEffect(() => {
     function atualizarPontosHeader(event?: Event) {
@@ -357,70 +441,34 @@ export default function AppShell({
   });
 
   const itensOperacaoVisiveis = useMemo(() => {
+    if (permissoesMenu) {
+      return itensOperacao.filter((item) => {
+        const chave = chavePermissaoDaRota(item.href);
+        return chave ? permissoesMenu[chave] === true : false;
+      });
+    }
+
+    // Compatibilidade: se ainda não existir configuração salva para o perfil,
+    // mantém as regras antigas para não bloquear o usuário.
     if (ehAdministracao || ehCoordenacao) return itensOperacao;
 
     if (ehConsultora) {
-      const permitidos = [
-        "/dashboard",
-        "/clientes",
-        "/simulacao",
-        "/esteira",
-        "/clt",
-        "/protocolos",
-      ];
-
-      return itensOperacao.filter((item) =>
-        permitidos.includes(item.href)
-      );
+      const permitidos = ["/dashboard", "/clientes", "/simulacao", "/esteira", "/clt", "/protocolos"];
+      return itensOperacao.filter((item) => permitidos.includes(item.href));
     }
 
-    if (ehOperacional) {
-  const permitidos = [
-    "/dashboard",
-    "/clientes",
-    "/propostas",
-    "/simulacao",
-    "/esteira",
-    "/clt",
-    "/protocolos",
-  ];
-
-  return itensOperacao.filter((item) =>
-    permitidos.includes(item.href)
-  );
-}
-
-    if (ehSupervisao) {
-      const permitidos = [
-        "/dashboard",
-        "/clientes",
-        "/propostas",
-        "/simulacao",
-        "/esteira",
-        "/clt",
-        "/protocolos",
-      ];
-
-      return itensOperacao.filter((item) =>
-        permitidos.includes(item.href)
-      );
+    if (ehOperacional || ehSupervisao) {
+      const permitidos = ["/dashboard", "/clientes", "/esteira", "/simulacao", "/clt", "/protocolos"];
+      return itensOperacao.filter((item) => permitidos.includes(item.href));
     }
 
     if (ehRh) {
-  const permitidos = [
-    "/dashboard",
-    "/esteira",
-  ];
+      return itensOperacao.filter((item) => ["/dashboard", "/esteira"].includes(item.href));
+    }
 
-  return itensOperacao.filter((item) =>
-    permitidos.includes(item.href)
-  );
-}
-
-    return itensOperacao.filter(
-      (item) => item.href === "/dashboard"
-    );
+    return itensOperacao.filter((item) => item.href === "/dashboard");
   }, [
+    permissoesMenu,
     ehAdministracao,
     ehConsultora,
     ehSupervisao,
@@ -430,17 +478,18 @@ export default function AppShell({
   ]);
 
   const itensGestaoVisiveis = useMemo(() => {
-    if (ehAdministracao || ehCoordenacao) return itensGestao;
-
-    if (ehConsultora) {
-      return itensGestao.filter((item) =>
-        ["/minha-premiacao", "/loja-premios"].includes(item.href)
-      );
+    if (permissoesMenu) {
+      return itensGestao.filter((item) => {
+        const chave = chavePermissaoDaRota(item.href);
+        return chave ? permissoesMenu[chave] === true : false;
+      });
     }
 
-    if (ehOperacional) {
+    if (ehAdministracao || ehCoordenacao) return itensGestao;
+
+    if (ehConsultora || ehOperacional) {
       return itensGestao.filter((item) =>
-        ["/minha-premiacao", "/loja-premios"].includes(item.href)
+        ["/minha-premiacao", "/loja-premios"].includes(item.href),
       );
     }
 
@@ -449,20 +498,12 @@ export default function AppShell({
     }
 
     if (ehRh) {
-      if (ehRh) {
-  const permitidos = [
-    "/ranking",
-    "/rh",
-  ];
-
-  return itensGestao.filter((item) =>
-    permitidos.includes(item.href)
-  );
-}
+      return itensGestao.filter((item) => ["/ranking", "/rh"].includes(item.href));
     }
 
     return [];
   }, [
+    permissoesMenu,
     ehAdministracao,
     ehConsultora,
     ehSupervisao,
@@ -473,58 +514,54 @@ export default function AppShell({
 
   const rotaNegada = useMemo(() => {
     if (!permissaoCarregada) return false;
+
+    // Meu Perfil é sempre permitido para o próprio usuário.
+    if (rotaComecaCom(pathname, "/perfil")) return false;
+
+    if (permissoesMenu) {
+      const rotaConfigurada = Object.keys(CHAVE_POR_ROTA)
+        .sort((a, b) => b.length - a.length)
+        .find((rota) => rotaComecaCom(pathname, rota));
+
+      if (!rotaConfigurada) return true;
+
+      const chave = chavePermissaoDaRota(rotaConfigurada);
+      return !chave || permissoesMenu[chave] !== true;
+    }
+
+    // Fallback legado somente para perfis que ainda não possuem registro
+    // em config_permissoes.
     if (ehAdministracao || ehCoordenacao) return false;
 
     if (ehConsultora) {
-      return !estaEmAlgumaRota(
-        pathname,
-        ROTAS_PERMITIDAS_CONSULTORA
-      );
+      return !estaEmAlgumaRota(pathname, ROTAS_PERMITIDAS_CONSULTORA);
     }
 
     if (ehOperacional) {
       return !estaEmAlgumaRota(pathname, [
-        "/dashboard",
-        "/clientes",
-        "/propostas",
-        "/simulacao",
-        "/esteira",
-        "/clt",
-        "/protocolos",
-        "/minha-premiacao",
-        "/loja-premios",
-        "/perfil",
+        "/dashboard", "/clientes", "/propostas", "/simulacao", "/esteira",
+        "/clt", "/protocolos", "/minha-premiacao", "/loja-premios", "/perfil",
       ]);
     }
 
     if (ehSupervisao) {
       return !estaEmAlgumaRota(pathname, [
-        "/dashboard",
-        "/clientes",
-        "/propostas",
-        "/simulacao",
-        "/esteira",
-        "/clt",
-        "/protocolos",
-        "/ranking",
-        "/perfil",
+        "/dashboard", "/clientes", "/propostas", "/simulacao", "/esteira",
+        "/clt", "/protocolos", "/ranking", "/perfil",
       ]);
     }
 
-   if (ehRh) {
-  return !estaEmAlgumaRota(pathname, [
-    "/dashboard",
-    "/esteira",
-    "/ranking",
-    "/rh",
-    "/perfil",
-  ]);
-}
+    if (ehRh) {
+      return !estaEmAlgumaRota(pathname, [
+        "/dashboard", "/esteira", "/ranking", "/rh", "/perfil",
+      ]);
+    }
 
     return !rotaComecaCom(pathname, "/dashboard");
   }, [
     pathname,
     permissaoCarregada,
+    permissoesMenu,
     ehAdministracao,
     ehConsultora,
     ehSupervisao,
