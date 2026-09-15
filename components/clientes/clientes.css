@@ -134,3 +134,83 @@ font-weight:700;
 background:#dcfce7;
 color:#15803d;
 }
+/* =========================================================
+   CLIENTES — FILTRO DE CONSULTORAS MODERNO
+   Cole este bloco NO FINAL de clientes.css
+   ========================================================= */
+
+.toolbar .clientes-consultora-filter{
+  position:relative;
+  display:flex;
+  align-items:center;
+  min-width:280px;
+  height:48px;
+  border:1px solid #d8e2f0;
+  border-radius:14px;
+  background:#ffffff;
+  box-shadow:0 5px 16px rgba(31,57,128,.06);
+  transition:border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+  overflow:hidden;
+}
+
+.toolbar .clientes-consultora-filter:hover{
+  border-color:#b8cdf8;
+  box-shadow:0 8px 20px rgba(31,57,128,.09);
+}
+
+.toolbar .clientes-consultora-filter:focus-within{
+  border-color:#7fa7ff;
+  box-shadow:0 0 0 3px rgba(37,99,235,.09), 0 8px 20px rgba(31,57,128,.08);
+}
+
+.clientes-consultora-icon{
+  flex:0 0 auto;
+  display:grid;
+  place-items:center;
+  width:38px;
+  height:38px;
+  margin-left:5px;
+  border-radius:11px;
+  color:#2563eb;
+  background:linear-gradient(145deg,#edf4ff,#dce9ff);
+}
+
+.toolbar .clientes-consultora-select{
+  width:100%;
+  height:100%;
+  min-width:0;
+  padding:0 42px 0 12px;
+  border:0 !important;
+  outline:0 !important;
+  appearance:none;
+  -webkit-appearance:none;
+  background:transparent !important;
+  color:#102d57;
+  font-size:14px;
+  font-weight:800;
+  cursor:pointer;
+  box-shadow:none !important;
+}
+
+.clientes-consultora-chevron{
+  position:absolute;
+  right:14px;
+  top:50%;
+  transform:translateY(-50%);
+  color:#18365f;
+  pointer-events:none;
+}
+
+.clientes-consultora-filter.disabled{
+  opacity:.62;
+}
+
+.clientes-consultora-filter.disabled .clientes-consultora-select{
+  cursor:not-allowed;
+}
+
+@media(max-width:1000px){
+  .toolbar .clientes-consultora-filter{
+    min-width:240px;
+  }
+}

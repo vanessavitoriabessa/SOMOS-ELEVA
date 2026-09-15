@@ -2,6 +2,7 @@
 
 import "./clientes.css";
 import { createClient } from "@/lib/supabase/client";
+import { ChevronDown, UsersRound } from "lucide-react";
 import {
   FormEvent,
   useCallback,
@@ -24,12 +25,6 @@ type PerfilAtual = {
   id: string;
   nome: string;
   perfil: string;
-};
-
-type ConsultoraApi = {
-  id: string;
-  nome: string;
-  perfil?: string;
 };
 
 type RespostaClientes = {
@@ -61,8 +56,6 @@ export default function ClientesManager() {
   const supabase = useMemo(() => createClient(), []);
 
   const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [consultorasDisponiveis, setConsultorasDisponiveis] =
-  useState<ConsultoraApi[]>([]);
   const [perfilAtual, setPerfilAtual] =
     useState<PerfilAtual | null>(null);
   const [busca, setBusca] = useState("");
@@ -167,41 +160,6 @@ export default function ClientesManager() {
   useEffect(() => {
     void carregarClientes();
   }, [carregarClientes]);
-
-  useEffect(() => {
-  async function carregarConsultoras() {
-    try {
-      const token = await obterToken();
-
-      const resposta = await fetch("/api/consultoras", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-      });
-
-      const conteudo = await resposta.json();
-
-      if (!resposta.ok) {
-        throw new Error(
-          conteudo.erro ||
-            "Não foi possível carregar as consultoras.",
-        );
-      }
-
-      setConsultorasDisponiveis(
-        Array.isArray(conteudo.consultoras)
-          ? conteudo.consultoras
-          : [],
-      );
-    } catch (error) {
-      console.error(error);
-      setConsultorasDisponiveis([]);
-    }
-  }
-
-  void carregarConsultoras();
-}, [obterToken]);
 
   function abrirEdicao(cliente: Cliente) {
     setClienteEditando(cliente);
@@ -397,29 +355,21 @@ const listaConsultoras = useMemo(() => {
 
   const filtrados = useMemo(() => {
   const termo = busca.trim().toLowerCase();
-  const termoNumerico = busca.replace(/\D/g, "");
 
   return clientes.filter((cliente) => {
     const correspondeBusca =
       !termo ||
-      String(cliente.nome || "")
+      [
+        cliente.nome,
+        cliente.cpf,
+        cliente.telefone,
+        cliente.consultora,
+        cliente.produto,
+        cliente.status,
+      ]
+        .join(" ")
         .toLowerCase()
-        .includes(termo) ||
-      String(cliente.consultora || "")
-        .toLowerCase()
-        .includes(termo) ||
-      String(cliente.produto || "")
-        .toLowerCase()
-        .includes(termo) ||
-      String(cliente.status || "")
-        .toLowerCase()
-        .includes(termo) ||
-      String(cliente.cpf || "")
-        .replace(/\D/g, "")
-        .includes(termoNumerico) ||
-      String(cliente.telefone || "")
-        .replace(/\D/g, "")
-        .includes(termoNumerico);
+        .includes(termo);
 
     const correspondeConsultora =
       filtroConsultora === "Todas" ||
@@ -464,27 +414,45 @@ const listaConsultoras = useMemo(() => {
           }
           placeholder="Pesquisar nome, CPF, telefone ou consultora..."
         />
-<select
-  value={filtroConsultora}
-  onChange={(evento) =>
-    setFiltroConsultora(evento.target.value)
-  }
-  disabled={usuarioEhConsultora}
+<div
+  className={`clientes-consultora-filter ${
+    usuarioEhConsultora ? "disabled" : ""
+  }`}
 >
-  <option value="Todas">
-    Todas as consultoras ({clientes.length})
-  </option>
+  <span className="clientes-consultora-icon" aria-hidden="true">
+    <UsersRound size={20} strokeWidth={2.1} />
+  </span>
 
-  {consultorasDisponiveis.map((consultora) => (
-  <option
-    key={consultora.id}
-    value={consultora.nome}
+  <select
+    className="clientes-consultora-select"
+    value={filtroConsultora}
+    onChange={(evento) =>
+      setFiltroConsultora(evento.target.value)
+    }
+    disabled={usuarioEhConsultora}
+    aria-label="Filtrar por consultora"
   >
-    {consultora.nome}
-  </option>
-))}
+    <option value="Todas">
+      Todas as consultoras ({clientes.length})
+    </option>
 
-</select>
+    {listaConsultoras.map((consultora) => (
+      <option
+        key={consultora.nome}
+        value={consultora.nome}
+      >
+        {consultora.nome} ({consultora.quantidade})
+      </option>
+    ))}
+  </select>
+
+  <ChevronDown
+    className="clientes-consultora-chevron"
+    size={18}
+    strokeWidth={2.2}
+    aria-hidden="true"
+  />
+</div>
 
         <button
           className="button"
@@ -537,37 +505,18 @@ const listaConsultoras = useMemo(() => {
           </label>
 
           <label>
-  Consultora
-
-  <select
-    name="consultora"
-    defaultValue={
-      usuarioEhConsultora
-        ? perfilAtual?.nome || ""
-        : ""
-    }
-    disabled={salvando || usuarioEhConsultora}
-    required
-  >
-    <option value="">Selecione a consultora</option>
-
-    {usuarioEhConsultora && perfilAtual?.nome && (
-      <option value={perfilAtual.nome}>
-        {perfilAtual.nome}
-      </option>
-    )}
-
-    {!usuarioEhConsultora &&
-      consultorasDisponiveis.map((consultora) => (
-        <option
-          key={consultora.id}
-          value={consultora.nome}
-        >
-          {consultora.nome}
-        </option>
-      ))}
-  </select>
-</label>
+            Consultora
+            <input
+              name="consultora"
+              defaultValue={
+                usuarioEhConsultora
+                  ? perfilAtual?.nome || ""
+                  : ""
+              }
+              readOnly={usuarioEhConsultora}
+              disabled={salvando}
+            />
+          </label>
 
           <label>
             Produto
