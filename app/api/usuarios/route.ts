@@ -54,6 +54,11 @@ function perfilValido(
   );
 }
 
+function normalizarPerfilInterno(valor: string) {
+  const perfil = String(valor || "").trim();
+  return perfil === "Financeiro" ? "RH" : perfil;
+}
+
 async function autenticarAdministradora(
   request: NextRequest
 ) {
@@ -281,9 +286,9 @@ export async function POST(
       dados.senha || ""
     );
 
-    const perfil = String(
-      dados.perfil || ""
-    ).trim();
+    const perfil = normalizarPerfilInterno(
+      String(dados.perfil || "")
+    );
 
     const equipe = String(
       dados.equipe || ""
@@ -464,9 +469,9 @@ export async function PATCH(
       dados.senha || ""
     );
 
-    const perfil = String(
-      dados.perfil || ""
-    ).trim();
+    const perfil = normalizarPerfilInterno(
+      String(dados.perfil || "")
+    );
 
     const equipe = String(
       dados.equipe || ""

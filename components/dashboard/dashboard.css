@@ -2778,3 +2778,1082 @@
     grid-template-columns: 1fr !important;
   }
 }
+
+/* =========================================================
+   DASHBOARD CRM — REFINO EXECUTIVO 2026
+   ========================================================= */
+.eleva-dashboard{
+  padding:28px 30px 36px;
+  background:#f4f7fb;
+}
+
+.eleva-dashboard-title{
+  margin-bottom:20px;
+  padding:24px 26px;
+  border:1px solid #dfe7f2;
+  border-radius:18px;
+  background:linear-gradient(135deg,#ffffff 0%,#fbfdff 100%);
+  box-shadow:0 8px 28px rgba(24,52,94,.045);
+}
+
+.eleva-dashboard-title h2{
+  color:#102d57;
+  font-size:28px;
+  font-weight:950;
+  letter-spacing:-.5px;
+}
+
+.eleva-dashboard-title p{
+  max-width:720px;
+  color:#6f7d93;
+  font-size:13px;
+}
+
+.eleva-dashboard-title button{
+  min-height:42px;
+  border-color:#cddcff;
+  background:#155eef;
+  color:#fff;
+  box-shadow:0 7px 18px rgba(21,94,239,.15);
+}
+
+.eleva-dashboard-kpis{
+  gap:12px;
+}
+
+.eleva-dashboard-kpis article{
+  min-height:118px;
+  padding:18px;
+  border-color:#dfe6f0;
+  border-radius:16px;
+  box-shadow:0 7px 22px rgba(26,53,94,.045);
+}
+
+.eleva-dashboard-kpis strong{
+  font-size:24px;
+  letter-spacing:-.35px;
+}
+
+.eleva-performance{
+  padding:22px;
+  border-color:#dfe7f1;
+  box-shadow:0 8px 28px rgba(24,52,94,.045);
+}
+
+.eleva-filter-area{
+  margin:20px 0 10px;
+  padding:16px;
+  border-color:#dfe7f1;
+  background:#f7f9fc;
+}
+
+.eleva-filter-group > span,
+.eleva-filter-area label > span{
+  color:#4f607a;
+  font-size:10px;
+}
+
+.eleva-filter-area input,
+.eleva-filter-area select{
+  height:44px;
+  border-color:#d5dfec;
+  color:#142d50;
+  font-size:12px;
+  font-weight:750;
+}
+
+.eleva-period-buttons button{
+  min-height:40px;
+  color:#273b5a;
+  font-size:11px;
+  font-weight:850;
+}
+
+.dashboard-filter-rule{
+  display:flex;
+  align-items:center;
+  gap:11px;
+  margin:0 0 16px;
+  padding:11px 13px;
+  border:1px solid #d8e4fb;
+  border-radius:11px;
+  background:#f7faff;
+}
+
+.dashboard-filter-rule-icon{
+  display:grid;
+  place-items:center;
+  flex:0 0 30px;
+  width:30px;
+  height:30px;
+  border-radius:9px;
+  background:#e8f0ff;
+  color:#155eef;
+  font-size:17px;
+  font-weight:900;
+}
+
+.dashboard-filter-rule strong,
+.dashboard-filter-rule small{
+  display:block;
+}
+
+.dashboard-filter-rule strong{
+  color:#173963;
+  font-size:11px;
+  font-weight:900;
+}
+
+.dashboard-filter-rule small{
+  margin-top:2px;
+  color:#718097;
+  font-size:9.5px;
+}
+
+.eleva-filter-summary{
+  gap:10px;
+}
+
+.eleva-filter-summary article{
+  min-height:90px;
+  border-color:#dfe6f0;
+  border-radius:13px;
+  background:#fff;
+}
+
+.eleva-filter-summary span{
+  color:#66758d;
+  font-size:9px;
+}
+
+.eleva-filter-summary strong{
+  color:#155eef;
+  font-size:20px;
+}
+
+@media(max-width:760px){
+  .eleva-dashboard{
+    padding:14px;
+  }
+
+  .eleva-dashboard-title{
+    padding:18px;
+  }
+}
+
+
+/* =========================================================
+   DASHBOARD CRM — SEM VALORES DUPLICADOS
+   ========================================================= */
+
+.eleva-performance-head{
+  padding-bottom:2px;
+}
+
+.eleva-performance-badge{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:7px 10px;
+  border:1px solid #dbe5f4;
+  border-radius:10px;
+  background:#f8faff;
+}
+
+.eleva-performance-badge span{
+  color:#155eef;
+  font-size:10px;
+  font-weight:900;
+}
+
+.eleva-performance-badge small{
+  padding-left:8px;
+  border-left:1px solid #dce5f1;
+  color:#75839a;
+  font-size:9px;
+  font-weight:800;
+}
+
+.dashboard-period-summary{
+  margin:16px 0 22px;
+  overflow:hidden;
+  border:1px solid #dfe7f2;
+  border-radius:16px;
+  background:#fff;
+}
+
+.dashboard-period-summary-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:15px 17px 12px;
+  border-bottom:1px solid #edf1f6;
+}
+
+.dashboard-period-summary-head span{
+  color:#155eef;
+  font-size:8px;
+  font-weight:950;
+  letter-spacing:.8px;
+}
+
+.dashboard-period-summary-head h4{
+  margin:4px 0 0;
+  color:#112e55;
+  font-size:16px;
+  font-weight:950;
+}
+
+.dashboard-info-button{
+  display:grid;
+  place-items:center;
+  width:32px;
+  height:32px;
+  padding:0;
+  border:1px solid #d9e3f2;
+  border-radius:50%;
+  background:#f8faff;
+  color:#155eef;
+  font-size:13px;
+  font-weight:950;
+  cursor:help;
+}
+
+.dashboard-period-kpis{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(0,1fr));
+}
+
+.dashboard-period-kpis article{
+  min-width:0;
+  padding:17px 16px 16px;
+  border-right:1px solid #edf1f6;
+  background:#fff;
+}
+
+.dashboard-period-kpis article:last-child{
+  border-right:0;
+}
+
+.dashboard-period-kpis article.primary{
+  background:linear-gradient(135deg,#f1f6ff,#fff);
+}
+
+.dashboard-period-kpis span,
+.dashboard-period-kpis strong,
+.dashboard-period-kpis small{
+  display:block;
+}
+
+.dashboard-period-kpis span{
+  color:#748198;
+  font-size:8px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+
+.dashboard-period-kpis strong{
+  margin-top:7px;
+  color:#15365f;
+  font-size:17px;
+  font-weight:950;
+  letter-spacing:-.25px;
+  white-space:nowrap;
+}
+
+.dashboard-period-kpis article.primary strong{
+  color:#155eef;
+}
+
+.dashboard-period-kpis small{
+  margin-top:5px;
+  color:#9aa4b4;
+  font-size:8px;
+}
+
+.dashboard-secondary-metrics{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  border-top:1px solid #edf1f6;
+  background:#fafcff;
+}
+
+.dashboard-secondary-metrics > *{
+  min-height:48px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:0 16px;
+  border:0;
+  border-right:1px solid #edf1f6;
+  background:transparent;
+  text-align:left;
+}
+
+.dashboard-secondary-metrics > *:last-child{
+  border-right:0;
+}
+
+.dashboard-secondary-metrics button{
+  cursor:pointer;
+}
+
+.dashboard-secondary-metrics span{
+  color:#7c899d;
+  font-size:9px;
+  font-weight:850;
+}
+
+.dashboard-secondary-metrics strong{
+  color:#17375f;
+  font-size:11px;
+  font-weight:950;
+}
+
+.crm-combo-head-note{
+  display:flex;
+  align-items:baseline;
+  gap:6px;
+  padding:8px 11px;
+  border:1px solid #e0e7f1;
+  border-radius:10px;
+  background:#f9fbff;
+}
+
+.crm-combo-head-note span{
+  color:#155eef;
+  font-size:16px;
+  font-weight:950;
+}
+
+.crm-combo-head-note small{
+  color:#8290a4;
+  font-size:8px;
+  font-weight:800;
+}
+
+.crm-combo-column{
+  grid-template-rows:42px 1fr 44px !important;
+}
+
+.crm-combo-chart{
+  height:390px !important;
+}
+
+.crm-combo-gridlines{
+  inset:42px 18px 74px 18px !important;
+}
+
+.crm-combo-line-layer{
+  inset:36px 18px 75px 18px !important;
+  height:calc(100% - 111px) !important;
+}
+
+.crm-combo-value-labels{
+  display:none !important;
+}
+
+@media(max-width:1250px){
+  .dashboard-period-kpis{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+
+  .dashboard-period-kpis article:nth-child(3){
+    border-right:0;
+  }
+
+  .dashboard-period-kpis article:nth-child(-n+3){
+    border-bottom:1px solid #edf1f6;
+  }
+}
+
+@media(max-width:700px){
+  .dashboard-period-kpis{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .dashboard-period-kpis article{
+    border-bottom:1px solid #edf1f6;
+  }
+
+  .dashboard-secondary-metrics{
+    grid-template-columns:1fr;
+  }
+
+  .dashboard-secondary-metrics > *{
+    border-right:0;
+    border-bottom:1px solid #edf1f6;
+  }
+}
+
+
+/* =========================================================
+   DASHBOARD — NOVA ESTRUTURA EXECUTIVA
+   KPI NO TOPO + FILTROS COMPACTOS + GRÁFICOS EM DESTAQUE
+   ========================================================= */
+
+.dashboard-top-summary{
+  margin:0 0 16px;
+  overflow:hidden;
+  border:1px solid #dce5f1;
+  border-radius:18px;
+  background:#fff;
+  box-shadow:0 8px 26px rgba(22,49,89,.045);
+}
+
+.dashboard-top-summary-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:15px 18px 10px;
+}
+
+.dashboard-top-summary-head > div > span{
+  color:#155eef;
+  font-size:8px;
+  font-weight:950;
+  letter-spacing:.9px;
+}
+
+.dashboard-top-summary-head h4{
+  margin:4px 0 0;
+  color:#112e55;
+  font-size:17px;
+  font-weight:950;
+}
+
+.dashboard-top-kpis{
+  display:grid;
+  grid-template-columns:.72fr 1.18fr 1.18fr 1.18fr 1.18fr 1.28fr;
+  padding:0 10px 10px;
+  gap:8px;
+}
+
+.dashboard-top-kpis article{
+  min-width:0;
+  min-height:96px;
+  padding:15px 14px;
+  border:1px solid #e2e8f1;
+  border-radius:13px;
+  background:#fff;
+}
+
+.dashboard-top-kpis article.primary{
+  border-color:#c9d9ff;
+  background:linear-gradient(135deg,#edf4ff,#fff);
+}
+
+.dashboard-top-kpis span,
+.dashboard-top-kpis strong,
+.dashboard-top-kpis small{
+  display:block;
+}
+
+.dashboard-top-kpis span{
+  color:#748198;
+  font-size:8px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+
+.dashboard-top-kpis strong{
+  margin-top:8px;
+  color:#102f58;
+  font-size:18px;
+  font-weight:950;
+  letter-spacing:-.35px;
+  white-space:nowrap;
+}
+
+.dashboard-top-kpis article.primary strong{
+  color:#155eef;
+}
+
+.dashboard-top-kpis small{
+  margin-top:6px;
+  color:#929eb0;
+  font-size:8px;
+  line-height:1.35;
+}
+
+.dashboard-top-secondary{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  padding:0 18px 14px;
+}
+
+.dashboard-top-secondary > *{
+  min-height:32px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:0 11px;
+  border:1px solid #e0e7f0;
+  border-radius:9px;
+  background:#f9fbfd;
+}
+
+.dashboard-top-secondary button{
+  cursor:pointer;
+}
+
+.dashboard-top-secondary span{
+  color:#77859a;
+  font-size:8px;
+  font-weight:850;
+}
+
+.dashboard-top-secondary strong{
+  color:#18385f;
+  font-size:9px;
+  font-weight:950;
+}
+
+.eleva-performance{
+  margin-bottom:16px;
+  padding:16px 18px;
+  border-radius:16px;
+}
+
+.eleva-performance-head{
+  margin-bottom:10px;
+}
+
+.eleva-performance-head h3{
+  font-size:17px;
+}
+
+.eleva-filter-area{
+  margin:0;
+  display:grid;
+  grid-template-columns:1.6fr .75fr .75fr .85fr .9fr .9fr;
+  gap:10px;
+  padding:12px;
+  border-radius:13px;
+}
+
+.eleva-period-buttons{
+  display:flex;
+  flex-wrap:wrap;
+  gap:5px;
+}
+
+.eleva-period-buttons button{
+  min-height:36px;
+  padding:0 11px;
+}
+
+.eleva-filter-area input,
+.eleva-filter-area select{
+  height:39px;
+}
+
+.dashboard-filter-rule{
+  margin:9px 0 0;
+  padding:8px 11px;
+}
+
+.dashboard-filter-rule-icon{
+  width:26px;
+  height:26px;
+  flex-basis:26px;
+  font-size:14px;
+}
+
+.dashboard-filter-rule strong{
+  font-size:9.5px;
+}
+
+.dashboard-filter-rule small{
+  font-size:8px;
+}
+
+.crm-combo-card{
+  border-radius:18px;
+  box-shadow:0 8px 28px rgba(22,49,89,.045);
+}
+
+.crm-combo-head{
+  padding:18px 20px 12px;
+}
+
+.crm-combo-head h3{
+  font-size:19px;
+}
+
+.crm-combo-chart{
+  height:410px !important;
+}
+
+.eleva-table-title{
+  margin-top:22px;
+  padding-top:20px;
+  border-top:1px solid #e4eaf2;
+}
+
+@media(max-width:1300px){
+  .dashboard-top-kpis{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+
+  .eleva-filter-area{
+    grid-template-columns:1.5fr 1fr 1fr;
+  }
+}
+
+@media(max-width:760px){
+  .dashboard-top-kpis{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .dashboard-top-secondary{
+    align-items:stretch;
+    flex-direction:column;
+  }
+
+  .eleva-filter-area{
+    grid-template-columns:1fr;
+  }
+}
+
+
+/* =========================================================
+   CORREÇÃO DO GRÁFICO — BARRAS + CONTRATOS NA MESMA ÁREA
+   ========================================================= */
+
+.crm-combo-scroll{
+  overflow-x:auto;
+  overflow-y:hidden;
+}
+
+.crm-combo-chart{
+  position:relative;
+  height:420px !important;
+  padding:0 18px 0;
+}
+
+.crm-combo-gridlines{
+  position:absolute !important;
+  inset:42px 18px 58px 18px !important;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  pointer-events:none;
+}
+
+.crm-combo-line-layer{
+  position:absolute !important;
+  z-index:4 !important;
+  left:18px !important;
+  right:18px !important;
+  top:42px !important;
+  bottom:58px !important;
+  width:calc(100% - 36px) !important;
+  height:calc(100% - 100px) !important;
+  overflow:visible;
+  pointer-events:none;
+}
+
+.crm-combo-columns{
+  position:absolute !important;
+  z-index:3 !important;
+  inset:42px 18px 0 18px !important;
+  display:grid !important;
+  grid-template-columns:repeat(var(--crm-count, 8),minmax(120px,1fr));
+  align-items:stretch;
+}
+
+.crm-combo-column{
+  position:relative !important;
+  display:block !important;
+  min-width:120px;
+  height:378px !important;
+}
+
+.crm-combo-bars{
+  position:absolute !important;
+  left:50% !important;
+  bottom:58px !important;
+  width:76px !important;
+  height:calc(100% - 58px) !important;
+  transform:translateX(-50%);
+  display:flex !important;
+  align-items:flex-end !important;
+  justify-content:center !important;
+  gap:7px !important;
+}
+
+.crm-bar{
+  position:relative !important;
+  bottom:auto !important;
+  width:30px !important;
+  min-height:4px;
+  border-radius:7px 7px 2px 2px !important;
+}
+
+.crm-combo-name{
+  position:absolute !important;
+  left:4px !important;
+  right:4px !important;
+  bottom:18px !important;
+  min-height:22px;
+  display:flex;
+  align-items:flex-start;
+  justify-content:center;
+  color:#102d57;
+  font-size:9px;
+  font-weight:950;
+  text-align:center;
+  line-height:1.15;
+}
+
+.crm-contract-point{
+  z-index:6 !important;
+}
+
+.crm-combo-line{
+  fill:none;
+  vector-effect:non-scaling-stroke;
+}
+
+.crm-combo-legend{
+  padding-bottom:8px;
+}
+
+/* o ponto de contratos usa a mesma escala vertical do SVG */
+.crm-contract-point{
+  position:absolute !important;
+  left:50% !important;
+  transform:translate(-50%,-50%) !important;
+}
+
+@media(max-width:900px){
+  .crm-combo-chart{
+    min-width:1050px !important;
+  }
+}
+
+
+/* =========================================================
+   ARTE APROVADA — GRÁFICO ÚNICO / VENDEDORA OU PRODUTO
+   ========================================================= */
+.dashboard-top-kpis article{position:relative;min-height:104px}
+.dashboard-top-kpis article::before{display:grid;place-items:center;width:34px;height:34px;margin-bottom:9px;border-radius:10px;font-size:17px}
+.dashboard-top-kpis article:nth-child(1)::before{content:"📄";background:#e5efff}
+.dashboard-top-kpis article:nth-child(2)::before{content:"💰";background:#fff0d9}
+.dashboard-top-kpis article:nth-child(3)::before{content:"💵";background:#ddf6e9}
+.dashboard-top-kpis article:nth-child(4)::before{content:"🏦";background:#f0ddff}
+.dashboard-top-kpis article:nth-child(5)::before{content:"📈";background:#ffe3e6}
+.dashboard-top-kpis article:nth-child(6)::before{content:"📊";background:#e1efff}
+
+.crm-combo-card{border-radius:18px;background:#fff;box-shadow:0 8px 28px rgba(25,53,95,.045)}
+.crm-combo-head{align-items:center;padding:18px 20px 13px}
+.crm-combo-head h3{font-size:20px}
+.crm-combo-head p{margin-top:5px;color:#728098;font-size:10px}
+.crm-chart-controls{display:flex;align-items:center}
+.crm-chart-switch{display:flex;padding:3px;border:1px solid #d8e2f0;border-radius:11px;background:#f8faff}
+.crm-chart-switch button{min-height:36px;padding:0 15px;border:0;border-radius:8px;background:transparent;color:#52627c;font-size:10px;font-weight:900;cursor:pointer}
+.crm-chart-switch button.active{background:#155eef;color:#fff;box-shadow:0 5px 12px rgba(21,94,239,.18)}
+.crm-bar-bruto{background:#b9d5ff!important;border-color:#a9c8f7!important}
+.crm-bar-liquido{background:#155eef!important;border-color:#155eef!important}
+.crm-combo-line{stroke:#ff7a00!important;stroke-width:1.7!important}
+.crm-contract-point{border-color:#ff7a00!important;background:#fff!important}
+.crm-contract-point::after{background:#ff7a00!important}
+.crm-contract-point span{color:#d86100!important;font-weight:950!important}
+.eleva-table-title h3{font-size:19px}
+.eleva-table-title input{min-width:250px;min-height:42px;border-radius:10px}
+@media(max-width:900px){.crm-combo-head{align-items:flex-start;flex-direction:column}.crm-chart-switch{width:100%}.crm-chart-switch button{flex:1}}
+
+
+/* =========================================================
+   DASHBOARD — ACABAMENTO IGUAL À ARTE APROVADA
+   ÍCONES MODERNOS + TENDÊNCIA + GRÁFICO MAIOR
+   ========================================================= */
+
+/* KPI cards: remove emojis and use modern monochrome pictograms */
+.dashboard-top-kpis article::before{
+  font-family:Arial,Helvetica,sans-serif !important;
+  font-weight:900 !important;
+  font-size:18px !important;
+  line-height:1 !important;
+}
+
+.dashboard-top-kpis article:nth-child(1)::before{
+  content:"▤" !important;
+  color:#1769ff !important;
+  background:#e4efff !important;
+}
+.dashboard-top-kpis article:nth-child(2)::before{
+  content:"$" !important;
+  color:#f47a00 !important;
+  background:#fff0d8 !important;
+}
+.dashboard-top-kpis article:nth-child(3)::before{
+  content:"$" !important;
+  color:#05a957 !important;
+  background:#ddf6e9 !important;
+}
+.dashboard-top-kpis article:nth-child(4)::before{
+  content:"▥" !important;
+  color:#7a35dc !important;
+  background:#efe1ff !important;
+}
+.dashboard-top-kpis article:nth-child(5)::before{
+  content:"▥" !important;
+  color:#ed3f5c !important;
+  background:#ffe3e8 !important;
+}
+.dashboard-top-kpis article:nth-child(6)::before{
+  content:"◔" !important;
+  color:#1769ff !important;
+  background:#e3efff !important;
+}
+
+.dashboard-top-kpis article[data-trend]::after{
+  content:"↑ " attr(data-trend) "  ·  vs. período anterior";
+  display:block;
+  margin-top:9px;
+  color:#08a84f;
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.01em;
+}
+
+.dashboard-top-kpis strong{
+  font-size:19px !important;
+}
+
+/* Toggle icons drawn without emoji */
+.crm-chart-switch button{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  min-height:40px !important;
+  padding:0 17px !important;
+  font-size:11px !important;
+}
+
+.crm-chart-switch button::before{
+  display:inline-grid;
+  place-items:center;
+  width:18px;
+  height:18px;
+  font-family:Arial,Helvetica,sans-serif;
+  font-size:14px;
+  font-weight:900;
+}
+.crm-chart-switch button.seller::before{
+  content:"♙";
+}
+.crm-chart-switch button.product::before{
+  content:"◇";
+}
+
+/* Chart gets the visual prominence shown in the mockup */
+.crm-combo-card{
+  margin-top:16px;
+}
+.crm-combo-chart{
+  height:455px !important;
+}
+.crm-combo-column{
+  height:413px !important;
+}
+.crm-combo-gridlines{
+  inset:42px 18px 58px 18px !important;
+}
+.crm-combo-line-layer{
+  top:42px !important;
+  bottom:58px !important;
+  height:calc(100% - 100px) !important;
+}
+.crm-combo-bars{
+  bottom:58px !important;
+  height:calc(100% - 58px) !important;
+}
+.crm-bar{
+  width:34px !important;
+}
+.crm-combo-bars{
+  width:84px !important;
+}
+
+/* Cleaner executive spacing */
+.dashboard-top-summary{
+  margin-bottom:14px !important;
+}
+.eleva-performance{
+  margin-bottom:14px !important;
+}
+.crm-combo-legend{
+  padding:8px 20px 8px !important;
+}
+
+
+/* =========================================================
+   KPI TOP — REFINO iOS / APPLE-LIKE
+   Apenas visual: cards um pouco maiores + ícones sofisticados
+   ========================================================= */
+
+.dashboard-top-kpis{
+  gap:10px !important;
+}
+
+.dashboard-top-kpis article{
+  min-height:126px !important;
+  padding:16px 15px 14px !important;
+  border-radius:16px !important;
+  border:1px solid #dde6f2 !important;
+  background:#fff !important;
+  box-shadow:
+    0 1px 2px rgba(16,45,87,.025),
+    0 8px 24px rgba(16,45,87,.045) !important;
+}
+
+/* ícone estilo app iOS: quadrado arredondado, maior, limpo */
+.dashboard-top-kpis article::before{
+  display:grid !important;
+  place-items:center !important;
+  width:42px !important;
+  height:42px !important;
+  margin:0 0 12px !important;
+  border-radius:13px !important;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Arial,sans-serif !important;
+  font-size:20px !important;
+  font-weight:800 !important;
+  line-height:1 !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.75),
+    0 5px 12px rgba(20,50,90,.10) !important;
+}
+
+/* Contratos — documento azul */
+.dashboard-top-kpis article:nth-child(1)::before{
+  content:"≡" !important;
+  color:#fff !important;
+  background:linear-gradient(145deg,#56a0ff 0%,#1769f7 100%) !important;
+}
+
+/* Compra Bruto — moeda laranja */
+.dashboard-top-kpis article:nth-child(2)::before{
+  content:"$" !important;
+  color:#fff !important;
+  background:linear-gradient(145deg,#ffad43 0%,#f47700 100%) !important;
+}
+
+/* Compra Líquido — moeda verde */
+.dashboard-top-kpis article:nth-child(3)::before{
+  content:"$" !important;
+  color:#fff !important;
+  background:linear-gradient(145deg,#43d88c 0%,#08a958 100%) !important;
+}
+
+/* CLT Liberado — instituição roxa */
+.dashboard-top-kpis article:nth-child(4)::before{
+  content:"▥" !important;
+  color:#fff !important;
+  background:linear-gradient(145deg,#aa74f5 0%,#7137d7 100%) !important;
+}
+
+/* CLT Parcelas — gráfico coral */
+.dashboard-top-kpis article:nth-child(5)::before{
+  content:"▥" !important;
+  color:#fff !important;
+  background:linear-gradient(145deg,#ff7188 0%,#ed3d5b 100%) !important;
+}
+
+/* Produção Total — gráfico azul */
+.dashboard-top-kpis article:nth-child(6)::before{
+  content:"◔" !important;
+  color:#fff !important;
+  background:linear-gradient(145deg,#58a8ff 0%,#1769f7 100%) !important;
+}
+
+.dashboard-top-kpis span{
+  font-size:8.5px !important;
+  font-weight:900 !important;
+  color:#596a83 !important;
+}
+
+.dashboard-top-kpis strong{
+  margin-top:6px !important;
+  font-size:20px !important;
+  line-height:1.08 !important;
+  letter-spacing:-.35px !important;
+}
+
+.dashboard-top-kpis small{
+  margin-top:6px !important;
+  font-size:8.5px !important;
+  color:#8b98aa !important;
+}
+
+/* Tendência mais legível e elegante */
+.dashboard-top-kpis article[data-trend]::after{
+  content:"↑  " attr(data-trend) "   vs. período anterior" !important;
+  margin-top:9px !important;
+  color:#08a451 !important;
+  font-size:9px !important;
+  font-weight:850 !important;
+  line-height:1.25 !important;
+}
+
+/* Produção total com destaque sutil */
+.dashboard-top-kpis article.primary{
+  border-color:#bcd2ff !important;
+  background:linear-gradient(145deg,#f4f8ff 0%,#fff 72%) !important;
+}
+
+/* botões Por vendedora / Por produto também mais elegantes */
+.crm-chart-switch{
+  padding:4px !important;
+  border-radius:12px !important;
+  background:#f5f8fc !important;
+}
+
+.crm-chart-switch button{
+  min-height:42px !important;
+  padding:0 18px !important;
+  border-radius:9px !important;
+  font-size:11px !important;
+}
+
+.crm-chart-switch button::before{
+  width:20px !important;
+  height:20px !important;
+  border-radius:6px !important;
+  font-size:13px !important;
+}
+
+.crm-chart-switch button.active{
+  background:linear-gradient(145deg,#2678ff,#155eef) !important;
+  box-shadow:0 6px 14px rgba(21,94,239,.20) !important;
+}
+
+@media(max-width:1300px){
+  .dashboard-top-kpis article{
+    min-height:118px !important;
+  }
+}
+
+/* TENDÊNCIAS REAIS + CARDS SECUNDÁRIOS + CONSULTORAS */
+.dashboard-top-kpis article[data-trend]::after{content:attr(data-trend)!important}
+.dashboard-top-kpis article[data-direction="alta"]::after{color:#08a451!important}
+.dashboard-top-kpis article[data-direction="baixa"]::after{color:#d92d20!important}
+.dashboard-top-kpis article[data-direction="neutra"]::after{color:#7c899d!important}
+.dashboard-top-secondary{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important;padding:4px 10px 12px!important}
+.dashboard-top-secondary .secondary-card{min-height:74px!important;display:grid!important;grid-template-columns:42px 1fr auto!important;align-items:center!important;gap:12px!important;padding:12px 14px!important;border:1px solid #dfe7f2!important;border-radius:13px!important;background:#fff!important;text-align:left!important;cursor:pointer!important}
+.dashboard-top-secondary .secondary-card:hover{transform:translateY(-1px)!important;border-color:#bfd1f7!important;box-shadow:0 8px 18px rgba(22,49,89,.07)!important}
+.secondary-card-icon{display:grid!important;place-items:center!important;width:42px!important;height:42px!important;border-radius:12px!important;font-size:18px!important;font-weight:900!important}
+.secondary-card.danger .secondary-card-icon{background:#fff0f1!important;color:#e5484d!important}.secondary-card.team .secondary-card-icon{background:#edf4ff!important;color:#1769f7!important}.secondary-card.detail .secondary-card-icon{background:#eef9f4!important;color:#08a45b!important}
+.secondary-card-copy small,.secondary-card-copy strong{display:block!important}.secondary-card-copy small{color:#738198!important;font-size:9px!important;font-weight:850!important}.secondary-card-copy strong{margin-top:3px!important;color:#14345e!important;font-size:16px!important;font-weight:950!important}.secondary-card b{color:#155eef!important;font-size:9px!important;font-weight:900!important;white-space:nowrap!important}
+.active-consultants-modal{width:min(760px,94vw);max-height:82vh;overflow:hidden;border:1px solid #dfe6f1;border-radius:20px;background:#fff;box-shadow:0 28px 90px rgba(15,23,42,.28)}
+.active-consultants-head{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:22px 24px;border-bottom:1px solid #e8edf4}.active-consultants-head span{color:#155eef;font-size:9px;font-weight:950}.active-consultants-head h3{margin:5px 0 0;color:#102d57;font-size:23px}.active-consultants-head p{margin:6px 0 0;color:#738198;font-size:12px}.active-consultants-head button{width:40px;height:40px;border:1px solid #e1e7ef;border-radius:11px;background:#f7f9fc;font-size:23px;cursor:pointer}
+.active-consultants-grid{max-height:60vh;overflow:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:18px 20px 22px}.active-consultants-grid article{display:grid;grid-template-columns:42px 1fr auto;align-items:center;gap:11px;padding:12px;border:1px solid #e4eaf2;border-radius:13px;background:#fbfcff}.active-consultant-avatar{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:linear-gradient(145deg,#4b8cff,#155eef);color:#fff;font-size:14px;font-weight:950}.active-consultants-grid strong,.active-consultants-grid small{display:block}.active-consultants-grid strong{color:#14345e;font-size:11px}.active-consultants-grid small{margin-top:3px;color:#8b97a9;font-size:9px}.active-consultants-grid article>span{padding:5px 8px;border-radius:999px;background:#eaf8f1;color:#079653;font-size:8px;font-weight:900}.active-consultants-empty{grid-column:1/-1;padding:36px;text-align:center;color:#7b879d}
+@media(max-width:760px){.dashboard-top-secondary,.active-consultants-grid{grid-template-columns:1fr!important}}

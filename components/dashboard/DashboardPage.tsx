@@ -568,6 +568,9 @@ export default function DashboardClient() {
     setBusca,
   ] = useState("");
 
+  const [visaoGrafico, setVisaoGrafico] =
+    useState<"vendedora" | "produto">("vendedora");
+
   const [
     consultoraDetalhe,
     setConsultoraDetalhe,
@@ -582,6 +585,8 @@ export default function DashboardClient() {
     detalheSomenteCanceladas,
     setDetalheSomenteCanceladas,
   ] = useState(false);
+
+  const [consultorasAtivasAberto, setConsultorasAtivasAberto] = useState(false);
 
   async function obterSessao() {
     const {
@@ -988,52 +993,58 @@ export default function DashboardClient() {
               return false;
             }
 
+            // REGRA DO DASHBOARD:
+            // Digitadas = data de cadastro/digitação dentro do período.
+            // Pagas = data efetiva de pagamento dentro do período.
             if (status === "Pagas") {
-              if (!propostaCompraPaga(proposta.status)) {
-                return false;
-              }
+              return (
+                propostaCompraPaga(proposta.status) &&
+                estaNoPeriodo(
+                  converterData(proposta.dataPagamento),
+                  periodo,
+                  dataInicial,
+                  dataFinal,
+                )
+              );
+            }
 
-              // A Gestão de Propostas primeiro filtra pela DATA DE DIGITAÇÃO
-              // e depois aceita o pagamento até o dia 19 do mês seguinte.
-              if (
-                !estaNoPeriodo(
+            if (status === "Digitadas") {
+              return estaNoPeriodo(
+                dataCompra(proposta),
+                periodo,
+                dataInicial,
+                dataFinal,
+              );
+            }
+
+            if (status === "Canceladas") {
+              return (
+                propostaCompraCancelada(proposta.status) &&
+                estaNoPeriodo(
+                  converterData(
+                    proposta.dataCadastro || proposta.dataPagamento,
+                  ),
+                  periodo,
+                  dataInicial,
+                  dataFinal,
+                )
+              );
+            }
+
+            if (status === "Em andamento") {
+              return (
+                !propostaCompraPaga(proposta.status) &&
+                !propostaCompraCancelada(proposta.status) &&
+                estaNoPeriodo(
                   dataCompra(proposta),
                   periodo,
                   dataInicial,
                   dataFinal,
                 )
-              ) {
-                return false;
-              }
-
-              const limitePagamento =
-                limitePagamentoCompra(dataFinal);
-
-              const dataPagamento =
-                converterData(proposta.dataPagamento);
-
-              if (!dataPagamento) {
-                return false;
-              }
-
-              return (
-                !limitePagamento ||
-                dataPagamento <= limitePagamento
               );
             }
 
-            if (status === "Canceladas" && !propostaCompraCancelada(proposta.status)) {
-              return false;
-            }
-
-            if (
-              status === "Em andamento" &&
-              (propostaCompraPaga(proposta.status) ||
-                propostaCompraCancelada(proposta.status))
-            ) {
-              return false;
-            }
-
+            // "Todas": usa a data de digitação para mostrar tudo que entrou no período.
             return estaNoPeriodo(
               dataCompra(proposta),
               periodo,
@@ -1070,24 +1081,60 @@ export default function DashboardClient() {
               return false;
             }
 
-            if (status === "Pagas" && !propostaCltPaga(registro.status)) {
-              return false;
+            // CLT segue a mesma leitura do Dashboard:
+            // Digitadas = criadoEm; Pagas = dataPagamento.
+            if (status === "Pagas") {
+              return (
+                propostaCltPaga(registro.status) &&
+                estaNoPeriodo(
+                  converterData(registro.dataPagamento),
+                  periodo,
+                  dataInicial,
+                  dataFinal,
+                )
+              );
             }
 
-            if (status === "Canceladas" && !propostaCltCancelada(registro.status)) {
-              return false;
+            if (status === "Digitadas") {
+              return estaNoPeriodo(
+                converterData(registro.criadoEm),
+                periodo,
+                dataInicial,
+                dataFinal,
+              );
             }
 
-            if (
-              status === "Em andamento" &&
-              (propostaCltPaga(registro.status) ||
-                propostaCltCancelada(registro.status))
-            ) {
-              return false;
+            if (status === "Canceladas") {
+              return (
+                propostaCltCancelada(registro.status) &&
+                estaNoPeriodo(
+                  converterData(
+                    registro.atualizadoEm ||
+                      registro.criadoEm ||
+                      registro.dataPagamento,
+                  ),
+                  periodo,
+                  dataInicial,
+                  dataFinal,
+                )
+              );
+            }
+
+            if (status === "Em andamento") {
+              return (
+                !propostaCltPaga(registro.status) &&
+                !propostaCltCancelada(registro.status) &&
+                estaNoPeriodo(
+                  converterData(registro.criadoEm),
+                  periodo,
+                  dataInicial,
+                  dataFinal,
+                )
+              );
             }
 
             return estaNoPeriodo(
-              dataClt(registro),
+              converterData(registro.criadoEm),
               periodo,
               dataInicial,
               dataFinal,
@@ -1613,6 +1660,107 @@ export default function DashboardClient() {
     setDetalheSomenteCanceladas(false);
   }
 
+  const consultorasAtivas = useMemo(() => {
+    const mapa = new Map<string, { nome: string; time: string }>();
+    times.filter((time) => time.ativo !== false).forEach((time) => {
+      (time.membros || []).forEach((membro) => {
+        if (!perfilEhConsultora(membro.perfil || "")) return;
+        const nome = String(membro.nome || "").trim();
+        if (nome) mapa.set(normalizarTexto(nome), { nome, time: time.nome || "Sem time" });
+      });
+    });
+    return Array.from(mapa.values()).sort((a,b) => a.nome.localeCompare(b.nome,"pt-BR"));
+  }, [times]);
+
+  const periodoAnterior = useMemo(() => {
+    if (periodo === "Tudo") return null;
+    const hoje = new Date(); let ini: Date | null=null; let fim: Date | null=null;
+    if (periodo === "Hoje") { ini=new Date(hoje.getFullYear(),hoje.getMonth(),hoje.getDate()); fim=new Date(ini); }
+    else if (periodo === "Esta semana") { ini=inicioSemana(hoje); fim=fimSemana(hoje); }
+    else if (periodo === "Este mês") { ini=new Date(hoje.getFullYear(),hoje.getMonth(),1); fim=new Date(hoje.getFullYear(),hoje.getMonth()+1,0); }
+    else if (periodo === "Este ano") { ini=new Date(hoje.getFullYear(),0,1); fim=new Date(hoje.getFullYear(),11,31); }
+    else { ini=converterData(dataInicial); fim=converterData(dataFinal); }
+    if (!ini || !fim) return null;
+    ini.setHours(0,0,0,0); fim.setHours(23,59,59,999);
+    const dias=Math.floor((fim.getTime()-ini.getTime())/86400000)+1;
+    const antFim=new Date(ini); antFim.setDate(antFim.getDate()-1);
+    const antIni=new Date(antFim); antIni.setDate(antIni.getDate()-dias+1);
+    const iso=(d:Date)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    return {inicio:iso(antIni),fim:iso(antFim)};
+  }, [periodo,dataInicial,dataFinal]);
+
+  const resultadoAnterior = useMemo(() => {
+    if (!periodoAnterior) return {contratos:0,compraBruto:0,compraLiquido:0,cltLiberado:0,cltParcelas:0,producaoTotal:0};
+    const user=normalizarTexto(perfilAtual?.nome);
+    const dentro=(d:Date|null)=>estaNoPeriodo(d,"Personalizado",periodoAnterior.inicio,periodoAnterior.fim);
+    const compra=produto==="CLT"?[]:propostas.filter(p=>{
+      const nome=nomeResponsavelCompra(p); if(!pertenceAoTime(nome)||(ehConsultora&&normalizarTexto(nome)!==user)) return false;
+      if(status==="Pagas") return propostaCompraPaga(p.status)&&dentro(converterData(p.dataPagamento));
+      if(status==="Digitadas") return dentro(dataCompra(p));
+      if(status==="Canceladas") return propostaCompraCancelada(p.status)&&dentro(converterData(p.dataCadastro||p.dataPagamento));
+      if(status==="Em andamento") return !propostaCompraPaga(p.status)&&!propostaCompraCancelada(p.status)&&dentro(dataCompra(p));
+      return dentro(dataCompra(p));
+    });
+    const clt=produto==="Compra de Dívida"?[]:registrosClt.filter(r=>{
+      const nome=nomeResponsavelClt(r); if(!pertenceAoTime(nome)||(ehConsultora&&normalizarTexto(nome)!==user)) return false;
+      if(status==="Pagas") return propostaCltPaga(r.status)&&dentro(converterData(r.dataPagamento));
+      if(status==="Digitadas") return dentro(converterData(r.criadoEm));
+      if(status==="Canceladas") return propostaCltCancelada(r.status)&&dentro(converterData(r.atualizadoEm||r.criadoEm||r.dataPagamento));
+      if(status==="Em andamento") return !propostaCltPaga(r.status)&&!propostaCltCancelada(r.status)&&dentro(converterData(r.criadoEm));
+      return dentro(converterData(r.criadoEm));
+    });
+    const cb=compra.reduce((s,p)=>s+Number(p.valorContrato||0),0), cl=compra.reduce((s,p)=>s+valorFinalCompra(p),0);
+    const la=clt.reduce((s,r)=>s+Number(r.valorAprovado||0),0), lp=clt.reduce((s,r)=>s+Number(r.parcela||0),0);
+    return {contratos:compra.length+clt.length,compraBruto:cb,compraLiquido:cl,cltLiberado:la,cltParcelas:lp,producaoTotal:cl+lp};
+  }, [periodoAnterior,propostas,registrosClt,produto,status,perfilAtual,ehConsultora,timeSelecionado,nomesPermitidosTime]);
+
+  function tendencia(atual:number, anterior:number) {
+    if(!periodoAnterior) return {texto:"— sem comparação",direcao:"neutra"};
+    if(anterior===0) return atual===0?{texto:"→ 0% vs. período anterior",direcao:"neutra"}:{texto:"↑ novo vs. período anterior",direcao:"alta"};
+    const v=((atual-anterior)/Math.abs(anterior))*100, pct=Math.abs(v).toLocaleString("pt-BR",{maximumFractionDigits:1});
+    return v>0?{texto:`↑ ${pct}% vs. período anterior`,direcao:"alta"}:v<0?{texto:`↓ ${pct}% vs. período anterior`,direcao:"baixa"}:{texto:"→ 0% vs. período anterior",direcao:"neutra"};
+  }
+  const tendencias={
+    contratos:tendencia(resultado.totalPropostas,resultadoAnterior.contratos),
+    compraBruto:tendencia(resultado.totalCompraBruto,resultadoAnterior.compraBruto),
+    compraLiquido:tendencia(resultado.totalCompra,resultadoAnterior.compraLiquido),
+    cltLiberado:tendencia(resultado.totalCltLiquido,resultadoAnterior.cltLiberado),
+    cltParcelas:tendencia(resultado.totalClt,resultadoAnterior.cltParcelas),
+    producaoTotal:tendencia(producaoTotal,resultadoAnterior.producaoTotal),
+  };
+
+  const linhasGraficoProduto = useMemo(() => {
+    const totalContratosCompra = resultado.linhas.reduce(
+      (total, linha) => total + linha.propostasCompra,
+      0,
+    );
+    const totalContratosClt = resultado.linhas.reduce(
+      (total, linha) => total + linha.propostasClt,
+      0,
+    );
+
+    const compra = {
+      nome: "Compra de Dívida",
+      valorBruto: resultado.totalCompraBruto,
+      valorFinal: resultado.totalCompra,
+      propostas: totalContratosCompra,
+    };
+
+    const clt = {
+      nome: "CLT",
+      valorBruto: resultado.totalCltLiquido,
+      valorFinal: resultado.totalClt,
+      propostas: totalContratosClt,
+    };
+
+    if (produto === "Compra de Dívida") return [compra];
+    if (produto === "CLT") return [clt];
+    return [compra, clt];
+  }, [produto, resultado]);
+
+  const dadosGraficoAtual =
+    visaoGrafico === "produto" ? linhasGraficoProduto : linhasGrafico;
+
   return (
     <div className="eleva-dashboard">
       <section className="eleva-dashboard-title">
@@ -1622,13 +1770,13 @@ export default function DashboardClient() {
           </span>
 
           <h2>
-            Dashboard Eleva
+            Central de Performance
           </h2>
 
           <p>
             {ehConsultora
               ? `Olá, ${nomeUsuario}. Acompanhe seus resultados.`
-              : "Acompanhe a produção e o desempenho de toda a equipe."}
+              : "Acompanhe vendas digitadas, pagamentos e desempenho comercial em uma única visão."}
           </p>
         </div>
 
@@ -1652,158 +1800,102 @@ export default function DashboardClient() {
         </div>
       )}
 
-      <section className="eleva-dashboard-kpis">
-        <article className="eleva-kpi-clickable">
-          <div className="eleva-kpi-icon blue">
-            ◫
+        <section className="dashboard-top-summary">
+          <div className="dashboard-top-summary-head">
+            <div>
+              <span>RESUMO DO PERÍODO</span>
+              <h4>{status === "Pagas" ? "Produção paga" : status === "Digitadas" ? "Produção digitada" : "Produção selecionada"}</h4>
+            </div>
+
+            <button
+              type="button"
+              className="dashboard-info-button"
+              title={
+                produto === "CLT"
+                  ? "No CLT, o valor líquido é o valor aprovado/liberado e a produção considera também as parcelas."
+                  : produto === "Compra de Dívida"
+                    ? "Na Compra de Dívida, o bruto é o valor do contrato e o líquido segue a tabela."
+                    : "Produção Total = Compra de Dívida líquida + Produção de Parcela CLT."
+              }
+            >
+              i
+            </button>
           </div>
 
-          <div>
-            <span>
-              Contratos pagos
-            </span>
+          <div className="dashboard-top-kpis">
+            <article data-trend={tendencias.contratos.texto} data-direction={tendencias.contratos.direcao}>
+              <span>Contratos</span>
+              <strong>{numero(resultado.totalPropostas)}</strong>
+              <small>{status === "Pagas" ? "pagos no período" : "no período"}</small>
+            </article>
 
-            <strong>
-              {numero(
-                resultado.totalPropostas,
-              )}
-            </strong>
+            <article data-trend={tendencias.compraBruto.texto} data-direction={tendencias.compraBruto.direcao}>
+              <span>Compra — Bruto</span>
+              <strong>{moeda(resultado.totalCompraBruto)}</strong>
+              <small>valor dos contratos</small>
+            </article>
 
-            <small>
-              Contratos considerados no período
-            </small>
+            <article data-trend={tendencias.compraLiquido.texto} data-direction={tendencias.compraLiquido.direcao}>
+              <span>Compra — Líquido</span>
+              <strong>{moeda(resultado.totalCompra)}</strong>
+              <small>produção conforme tabela</small>
+            </article>
+
+            <article data-trend={tendencias.cltLiberado.texto} data-direction={tendencias.cltLiberado.direcao}>
+              <span>CLT — Liberado</span>
+              <strong>{moeda(resultado.totalCltLiquido)}</strong>
+              <small>valor aprovado/liberado</small>
+            </article>
+
+            <article data-trend={tendencias.cltParcelas.texto} data-direction={tendencias.cltParcelas.direcao}>
+              <span>CLT — Parcelas</span>
+              <strong>{moeda(resultado.totalClt)}</strong>
+              <small>produção de parcela</small>
+            </article>
+
+            <article className="primary" data-trend={tendencias.producaoTotal.texto} data-direction={tendencias.producaoTotal.direcao}>
+              <span>Produção Total</span>
+              <strong>{moeda(producaoTotal)}</strong>
+              <small>Compra líquida + parcelas CLT</small>
+            </article>
           </div>
 
-          <button
-            type="button"
-            className="eleva-kpi-link"
-            onClick={() =>
-              abrirDetalhes(null, false)
-            }
-          >
-            Ver propostas
-          </button>
-        </article>
-
-        <article>
-          <div className="eleva-kpi-icon orange">
-            R$
+          <div className="dashboard-top-secondary">
+            <button type="button" className="secondary-card danger" onClick={() => abrirDetalhes(null, true)}>
+              <span className="secondary-card-icon">×</span>
+              <span className="secondary-card-copy"><small>Canceladas</small><strong>{numero(cancelamentosPeriodo.total)}</strong></span>
+              <b>Ver propostas →</b>
+            </button>
+            <button type="button" className="secondary-card team" onClick={() => setConsultorasAtivasAberto(true)}>
+              <span className="secondary-card-icon">◎</span>
+              <span className="secondary-card-copy"><small>Consultoras ativas</small><strong>{consultorasAtivas.length || resultado.equipesAtivas}</strong></span>
+              <b>Ver equipe →</b>
+            </button>
+            <button type="button" className="secondary-card detail" onClick={() => abrirDetalhes(null, false)}>
+              <span className="secondary-card-icon">↗</span>
+              <span className="secondary-card-copy"><small>Detalhamento</small><strong>Propostas</strong></span>
+              <b>Abrir →</b>
+            </button>
           </div>
+        </section>
 
-          <div>
-            <span>
-              {produto === "Compra de Dívida"
-                ? "Produção bruta"
-                : produto === "CLT"
-                  ? "Valor líquido CLT"
-                  : "Produção total"}
-            </span>
 
-            <strong>
-              {moeda(
-                produto === "Compra de Dívida"
-                  ? resultado.totalCompraBruto
-                  : produto === "CLT"
-                    ? resultado.totalCltLiquido
-                    : producaoTotal,
-              )}
-            </strong>
-
-            <small>
-              {produto === "Compra de Dívida"
-                ? "Valor bruto dos contratos pagos"
-                : produto === "CLT"
-                  ? "Valor aprovado/liberado dos contratos CLT pagos"
-                  : "Compra líquida + parcelas CLT"}
-            </small>
-          </div>
-        </article>
-
-        <article>
-          <div className="eleva-kpi-icon green">
-            $
-          </div>
-
-          <div>
-            <span>
-              Compra de Dívida — Líquido
-            </span>
-
-            <strong>
-              {moeda(
-                resultado.totalCompra,
-              )}
-            </strong>
-
-            <small>
-              Produção líquida conforme tabela
-            </small>
-          </div>
-        </article>
-
-        <article className="eleva-kpi-highlight eleva-kpi-clickable">
-          <div className="eleva-kpi-icon red">
-            ×
-          </div>
-
-          <div>
-            <span>
-              Canceladas
-            </span>
-
-            <strong>
-              {numero(
-                cancelamentosPeriodo.total,
-              )}
-            </strong>
-
-            <small>
-              Cancelamentos no período
-            </small>
-          </div>
-
-          <button
-            type="button"
-            className="eleva-kpi-link danger"
-            onClick={() =>
-              abrirDetalhes(null, true)
-            }
-          >
-            Ver canceladas
-          </button>
-        </article>
-      </section>
 
       <section className="eleva-performance">
         <div className="eleva-performance-head">
           <div>
             <span>
-              DESEMPENHO
+              FILTROS
             </span>
 
             <h3>
-              Produção Financeira
+              Análise do período
             </h3>
           </div>
 
-          <div className="eleva-performance-total">
-            <small>
-              {produto === "Compra de Dívida"
-                ? "Produção bruta"
-                : produto === "CLT"
-                  ? "Valor líquido CLT"
-                  : "Produção total"}
-            </small>
-
-            <strong>
-              {moeda(
-                produto === "Compra de Dívida"
-                  ? resultado.totalCompraBruto
-                  : produto === "CLT"
-                    ? resultado.totalCltLiquido
-                    : producaoTotal,
-              )}
-            </strong>
+          <div className="eleva-performance-badge">
+            <span>{status}</span>
+            <small>{periodo}</small>
           </div>
         </div>
 
@@ -1962,6 +2054,10 @@ export default function DashboardClient() {
               }
             >
               <option>
+                Digitadas
+              </option>
+
+              <option>
                 Pagas
               </option>
 
@@ -1980,196 +2076,31 @@ export default function DashboardClient() {
           </label>
         </div>
 
-        <div className="eleva-filter-summary">
-          {produto === "Todos" && (
-            <>
-              <article>
-                <span>
-                  Compra de Dívida — Bruto
-                </span>
-
-                <strong>
-                  {moeda(
-                    resultado.totalCompraBruto,
-                  )}
-                </strong>
-              </article>
-
-              <article>
-                <span>
-                  Compra de Dívida — Líquido
-                </span>
-
-                <strong>
-                  {moeda(
-                    resultado.totalCompra,
-                  )}
-                </strong>
-              </article>
-
-              <article>
-                <span>
-                  Valor Líquido CLT
-                </span>
-
-                <strong>
-                  {moeda(
-                    resultado.totalCltLiquido,
-                  )}
-                </strong>
-              </article>
-
-              <article>
-                <span>
-                  Produção de Parcela CLT
-                </span>
-
-                <strong>
-                  {moeda(
-                    resultado.totalClt,
-                  )}
-                </strong>
-              </article>
-
-              <article>
-                <span>
-                  Produção Total
-                </span>
-
-                <strong>
-                  {moeda(
-                    producaoTotal,
-                  )}
-                </strong>
-              </article>
-
-              <article>
-                <span>
-                  Consultoras ativas
-                </span>
-
-                <strong>
-                  {resultado.equipesAtivas}
-                </strong>
-              </article>
-            </>
-          )}
-
-          {produto === "Compra de Dívida" && (
-            <>
-              <article>
-                <span>
-                  Compra de Dívida — Bruto
-                </span>
-
-                <strong>
-                  {moeda(
-                    resultado.totalCompraBruto,
-                  )}
-                </strong>
-              </article>
-
-              <article>
-                <span>
-                  Compra de Dívida — Líquido
-                </span>
-
-                <strong>
-                  {moeda(
-                    resultado.totalCompra,
-                  )}
-                </strong>
-              </article>
-
-              <article>
-                <span>
-                  Produção Total
-                </span>
-
-                <strong>
-                  {moeda(
-                    producaoTotal,
-                  )}
-                </strong>
-              </article>
-
-              <article>
-                <span>
-                  Consultoras ativas
-                </span>
-
-                <strong>
-                  {resultado.equipesAtivas}
-                </strong>
-              </article>
-            </>
-          )}
-
-          {produto === "CLT" && (
-            <>
-              <article>
-                <span>
-                  Produção Valor Líquido CLT
-                </span>
-
-                <strong>
-                  {moeda(
-                    resultado.totalCltLiquido,
-                  )}
-                </strong>
-              </article>
-
-              <article>
-                <span>
-                  Produção de Parcela CLT
-                </span>
-
-                <strong>
-                  {moeda(
-                    resultado.totalClt,
-                  )}
-                </strong>
-              </article>
-
-              <article>
-                <span>
-                  Produção Total
-                </span>
-
-                <strong>
-                  {moeda(
-                    producaoTotal,
-                  )}
-                </strong>
-              </article>
-
-              <article>
-                <span>
-                  Consultoras ativas
-                </span>
-
-                <strong>
-                  {resultado.equipesAtivas}
-                </strong>
-              </article>
-            </>
-          )}
-        </div>
-
-        <div style={{ margin: "14px 0 18px", padding: "12px 14px", border: "1px solid #dfe6f2", borderRadius: 12, background: "#f8fafc", color: "#526077", fontSize: 13 }}>
-          <strong style={{ color: "#183b73" }}>Como os valores são calculados:</strong>{" "}
-          {produto === "CLT"
-            ? "No CLT, Produção Valor Líquido CLT é a soma dos valores aprovados/liberados dos contratos pagos; Produção de Parcela CLT é a soma das parcelas cadastradas."
-            : produto === "Compra de Dívida"
-              ? "Na Compra de Dívida, o valor bruto é o valor do contrato e o valor líquido é calculado conforme a tabela."
-              : "Em Todos, o Valor Líquido CLT aparece para conferência. A Produção Total soma Compra de Dívida — Líquido + Produção de Parcela CLT."}
+        <div className="dashboard-filter-rule">
+          <span className="dashboard-filter-rule-icon">⌁</span>
+          <div>
+            <strong>
+              {status === "Pagas"
+                ? "Filtrando pela data de pagamento"
+                : status === "Digitadas"
+                  ? "Filtrando pela data de digitação"
+                  : "Filtro aplicado ao período selecionado"}
+            </strong>
+            <small>
+              {status === "Pagas"
+                ? "Mostra Compra de Dívida e CLT efetivamente pagos dentro das datas escolhidas."
+                : status === "Digitadas"
+                  ? "Mostra tudo que foi digitado/cadastrado dentro das datas escolhidas, mesmo que ainda não esteja pago."
+                  : "Altere Produto, Time e Situação para refinar a leitura do Dashboard."}
+            </small>
+          </div>
         </div>
 
         {carregando ? (
           <div className="eleva-dashboard-empty">
             Carregando os dados do Dashboard...
           </div>
-        ) : linhasGrafico.length === 0 ? (
+        ) : dadosGraficoAtual.length === 0 ? (
           <div className="eleva-dashboard-empty">
             Nenhuma produção encontrada no período selecionado.
           </div>
@@ -2178,27 +2109,21 @@ export default function DashboardClient() {
             <div className="crm-combo-head">
               <div>
                 <span className="crm-combo-eyebrow">PERFORMANCE COMERCIAL</span>
-                <h3>Produção por consultora</h3>
+                <h3>Evolução da produção</h3>
                 <p>
-                  {rotulosProduto.descricao}
+                  Visualize a produção por vendedora ou por produto no período selecionado.
                 </p>
               </div>
 
-              <div className="crm-combo-summary">
-                <article>
-                  <span>{rotulosProduto.resumoPrimario}</span>
-                  <strong>{moeda(resultado.totalBruto)}</strong>
-                </article>
-
-                <article>
-                  <span>{rotulosProduto.resumoSecundario}</span>
-                  <strong>{moeda(resultado.totalFinal)}</strong>
-                </article>
-
-                <article>
-                  <span>Contratos</span>
-                  <strong>{numero(resultado.totalPropostas)}</strong>
-                </article>
+              <div className="crm-chart-controls">
+                <div className="crm-chart-switch">
+                  <button type="button" className={`seller ${visaoGrafico === "vendedora" ? "active" : ""}`} onClick={() => setVisaoGrafico("vendedora")}>
+                    Por vendedora
+                  </button>
+                  <button type="button" className={`product ${visaoGrafico === "produto" ? "active" : ""}`} onClick={() => setVisaoGrafico("produto")}>
+                    Por produto
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -2225,26 +2150,27 @@ export default function DashboardClient() {
                 style={{
                   minWidth: `${Math.max(
                     1050,
-                    linhasGrafico.length * 175,
+                    dadosGraficoAtual.length * 175,
                   )}px`,
+                  ["--crm-count" as string]: Math.max(dadosGraficoAtual.length, 1),
                 }}
               >
                 {(() => {
                   const maiorValor = Math.max(
-                    ...linhasGrafico.map((linha) =>
+                    ...dadosGraficoAtual.map((linha) =>
                       Math.max(linha.valorBruto, linha.valorFinal),
                     ),
                     1,
                   );
 
                   const maiorContratos = Math.max(
-                    ...linhasGrafico.map((linha) => linha.propostas),
+                    ...dadosGraficoAtual.map((linha) => linha.propostas),
                     1,
                   );
 
-                  const pontos = linhasGrafico
+                  const pontos = dadosGraficoAtual
                     .map((linha, indice) => {
-                      const passo = 100 / linhasGrafico.length;
+                      const passo = 100 / dadosGraficoAtual.length;
                       const x = passo * indice + passo / 2;
                       const y = 88 - (linha.propostas / maiorContratos) * 62;
                       return `${x},${y}`;
@@ -2273,7 +2199,7 @@ export default function DashboardClient() {
                       </svg>
 
                       <div className="crm-combo-columns">
-                        {linhasGrafico.map((linha, indice) => {
+                        {dadosGraficoAtual.map((linha, indice) => {
                           const alturaBruto = Math.max(
                             5,
                             (linha.valorBruto / maiorValor) * 100,
@@ -2300,20 +2226,6 @@ export default function DashboardClient() {
                                 }}
                               >
                                 <span>{linha.propostas}</span>
-                              </div>
-
-                              <div className="crm-combo-value-labels">
-                                <span>
-                                  {rotulosProduto.tituloPrimario.toUpperCase()}
-                                </span>
-                                <strong>{moeda(linha.valorBruto)}</strong>
-
-                                <span>
-                                  {rotulosProduto.tituloSecundario.toUpperCase()}
-                                </span>
-                                <strong className="liquido">
-                                  {moeda(linha.valorFinal)}
-                                </strong>
                               </div>
 
                               <div className="crm-combo-bars">
@@ -2569,6 +2481,27 @@ export default function DashboardClient() {
         </div>
       </section>
 
+      {consultorasAtivasAberto && (
+        <div className="eleva-detail-overlay" role="dialog" aria-modal="true" onClick={() => setConsultorasAtivasAberto(false)}>
+          <div className="active-consultants-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="active-consultants-head">
+              <div><span>EQUIPE COMERCIAL</span><h3>Consultoras ativas</h3><p>{consultorasAtivas.length} consultora(s) ativa(s) cadastrada(s) nos times da empresa.</p></div>
+              <button type="button" onClick={() => setConsultorasAtivasAberto(false)}>×</button>
+            </div>
+            <div className="active-consultants-grid">
+              {consultorasAtivas.map((consultora) => (
+                <article key={`${consultora.time}-${consultora.nome}`}>
+                  <div className="active-consultant-avatar">{consultora.nome.charAt(0).toUpperCase()}</div>
+                  <div><strong>{consultora.nome}</strong><small>{consultora.time}</small></div>
+                  <span>Ativa</span>
+                </article>
+              ))}
+              {consultorasAtivas.length === 0 && <div className="active-consultants-empty">Nenhuma consultora ativa foi encontrada nos times cadastrados.</div>}
+            </div>
+          </div>
+        </div>
+      )}
+
       {detalheAberto && (
         <div
           className="eleva-detail-overlay"
@@ -2615,7 +2548,7 @@ export default function DashboardClient() {
             </div>
 
             <div className="eleva-detail-summary">
-              <article>
+              <article data-trend="10%">
                 <span>
                   Quantidade
                 </span>

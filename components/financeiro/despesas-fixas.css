@@ -345,3 +345,43 @@
 .df-due strong{
   font-size:13px;
 }
+
+/* EDIÇÃO DE DESPESA FIXA */
+.df-actions .edit{
+  border:1px solid #c9d8f5;
+  background:#f6f9ff;
+  color:#155eef;
+  font-weight:850;
+}
+
+.df-actions .edit:hover{
+  border-color:#8eb1ff;
+  background:#edf4ff;
+}
+
+.df-editing-banner{
+  grid-column:1/-1;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:11px 14px;
+  border:1px solid #bfd2ff;
+  border-radius:11px;
+  background:#f1f6ff;
+}
+
+.df-editing-banner strong{
+  color:#155eef;
+  font-size:11px;
+}
+
+.df-editing-banner span{
+  color:#61718a;
+  font-size:10px;
+}
+
+.df-cancel-edit{
+  border:1px solid #dce4ef !important;
+  background:#fff !important;
+  color:#53627a !important;
+}

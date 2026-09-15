@@ -142,6 +142,11 @@ function compactarFoto(arquivo: File): Promise<string> {
   });
 }
 
+function normalizarPerfilLegado(perfil: string) {
+  const valor = String(perfil || "").trim();
+  return valor.toLowerCase() === "financeiro" ? "RH" : valor;
+}
+
 export default function PerfilPage() {
   const [perfil, setPerfil] =
     useState<DadosPerfil>(perfilInicial);
@@ -230,10 +235,11 @@ export default function PerfilPage() {
         usuarioEncontrado?.nome ||
         perfilInicial.nome,
 
-      cargo:
-        localStorage.getItem("somos-eleva-cargo") ||
+      cargo: normalizarPerfilLegado(
         usuarioEncontrado?.perfil ||
-        perfilInicial.cargo,
+        localStorage.getItem("somos-eleva-cargo") ||
+        perfilInicial.cargo
+      ),
 
       matricula:
         matriculaSalva ||
@@ -382,7 +388,7 @@ export default function PerfilPage() {
         formulario.nome.trim() || perfilInicial.nome,
 
       cargo:
-        formulario.cargo.trim() || perfilInicial.cargo,
+        normalizarPerfilLegado(formulario.cargo.trim()) || perfilInicial.cargo,
 
       matricula:
         formulario.matricula.trim() ||

@@ -192,7 +192,16 @@ function perfilEhOperacional(perfil: string) {
 
 function perfilEhRh(perfil: string) {
   const texto = normalizarTexto(perfil);
-  return texto === "rh" || texto.includes("recursos humanos");
+  return (
+    texto === "rh" ||
+    texto === "financeiro" ||
+    texto.includes("recursos humanos")
+  );
+}
+
+function normalizarPerfilLegado(perfil: string) {
+  const valor = String(perfil || "").trim();
+  return normalizarTexto(valor) === "financeiro" ? "RH" : valor;
 }
 
 function perfilEhCoordenacao(perfil: string) {
@@ -279,11 +288,12 @@ export default function AppShell({
       nomeSalvo?.trim() ||
       nomeBonito(usuarioLogado);
 
-    const cargoResolvido =
+    const cargoResolvido = normalizarPerfilLegado(
       usuarioEncontrado?.perfil?.trim() ||
       usuarioEncontrado?.cargo?.trim() ||
       cargoSalvo?.trim() ||
-      "Consultora";
+      "Consultora"
+    );
 
     setNome(nomeResolvido);
     setCargo(cargoResolvido);
