@@ -436,7 +436,7 @@ const [arquivos, setArquivos] = useState({
   rgFrente: null as File | null,
   rgVerso: null as File | null,
   cnh: null as File | null,
-  contracheque: null as File |null,
+  contracheques: [] as File[],
 });
 
   const obterToken = useCallback(async () => {
@@ -1143,7 +1143,7 @@ function preencherClienteNoFormulario(cliente: Cliente) {
     rgFrente: null,
     rgVerso: null,
     cnh: null,
-    contracheque: null,
+    contracheques: [],
   });
 
   setBuscaCliente("");
@@ -1351,43 +1351,85 @@ senhaConsignacao: form.senhaConsignacao.trim(),
               : "Não foi possível salvar a proposta.")
         );
       }
-const documentos = [
+const documentosUnicos = [
   { tipo: "rg-frente", arquivo: arquivos.rgFrente },
   { tipo: "rg-verso", arquivo: arquivos.rgVerso },
   { tipo: "cnh", arquivo: arquivos.cnh },
-  { tipo: "contracheque", arquivo: arquivos.contracheque },
 ];
 
-for (const documento of documentos) {
-  if (editando || !documento.arquivo) continue;
+if (!editando) {
+  for (const documento of documentosUnicos) {
+    if (!documento.arquivo) continue;
 
-  const extensao =
-    documento.arquivo.name.split(".").pop() || "jpg";
+    const extensao =
+      documento.arquivo.name.split(".").pop() || "jpg";
 
-  const caminho =
-    `${propostaId}/${documento.tipo}.${extensao}`;
+    const caminho =
+      `${propostaId}/${documento.tipo}.${extensao}`;
 
-  const { error: erroUpload } =
-    await supabase.storage
-      .from("propostas")
-      .upload(caminho, documento.arquivo, {
-        upsert: true,
+    const { error: erroUpload } =
+      await supabase.storage
+        .from("propostas")
+        .upload(caminho, documento.arquivo, {
+          upsert: true,
+        });
+
+    if (erroUpload) {
+      throw new Error(
+        `Erro ao enviar ${documento.tipo}: ${erroUpload.message}`
+      );
+    }
+
+    const { error: erroDocumento } = await supabase
+      .from("proposta_documentos")
+      .insert({
+        proposta_id: propostaId,
+        tipo: documento.tipo,
+        nome_arquivo: documento.arquivo.name,
+        caminho,
       });
 
-  if (erroUpload) {
-    throw new Error(
-      `Erro ao enviar ${documento.tipo}: ${erroUpload.message}`
-    );
+    if (erroDocumento) {
+      throw new Error(
+        `Erro ao registrar ${documento.tipo}: ${erroDocumento.message}`
+      );
+    }
   }
 
-  await supabase
-    .from("proposta_documentos")
-    .insert({
-      proposta_id: propostaId,
-      tipo: documento.tipo,
-      nome_arquivo: documento.arquivo.name,
-      caminho,
-    });
+  for (let indice = 0; indice < arquivos.contracheques.length; indice += 1) {
+    const arquivo = arquivos.contracheques[indice];
+    const extensao = arquivo.name.split(".").pop() || "jpg";
+    const caminho =
+      `${propostaId}/contracheque-${indice + 1}-${crypto.randomUUID()}.${extensao}`;
+
+    const { error: erroUpload } =
+      await supabase.storage
+        .from("propostas")
+        .upload(caminho, arquivo, {
+          upsert: false,
+        });
+
+    if (erroUpload) {
+      throw new Error(
+        `Erro ao enviar contracheque ${indice + 1}: ${erroUpload.message}`
+      );
+    }
+
+    const { error: erroDocumento } = await supabase
+      .from("proposta_documentos")
+      .insert({
+        proposta_id: propostaId,
+        tipo: "contracheque",
+        nome_arquivo: arquivo.name,
+        caminho,
+      });
+
+    if (erroDocumento) {
+      throw new Error(
+        `Erro ao registrar contracheque ${indice + 1}: ${erroDocumento.message}`
+      );
+    }
+  }
 }
       await carregarPropostas();
 
@@ -1399,7 +1441,7 @@ for (const documento of documentos) {
   rgFrente: null,
   rgVerso: null,
   cnh: null,
-  contracheque: null,
+  contracheques: [],
 });
     } catch (erro) {
       setMensagem(
@@ -2715,23 +2757,70 @@ for (const documento of documentos) {
       <small>Imagem ou PDF</small>
     </label>
 
-    <label className="documento-upload">
+    <div className="documento-upload documento-upload-multiplo">
       <span>Contracheque</span>
 
-      <input
-  type="file"
-  accept="image/*,.pdf"
-  onChange={(e) =>
-    setArquivos({
-      ...arquivos,
-      contracheque: e.target.files?.[0] ?? null,
-    })
-  }
-/>
+      <label className="documento-upload-seletor">
+        <input
+          type="file"
+          accept="image/*,.pdf"
+          multiple
+          onChange={(e) => {
+            const selecionados = Array.from(e.target.files || []);
 
-      <strong>Selecionar arquivo</strong>
-      <small>Imagem ou PDF</small>
-    </label>
+            if (selecionados.length) {
+              setArquivos((atuais) => ({
+                ...atuais,
+                contracheques: [
+                  ...atuais.contracheques,
+                  ...selecionados,
+                ],
+              }));
+            }
+
+            e.target.value = "";
+          }}
+        />
+
+        <strong>
+          {arquivos.contracheques.length
+            ? "+ Adicionar mais arquivos"
+            : "Selecionar arquivos"}
+        </strong>
+        <small>Várias imagens ou PDFs</small>
+      </label>
+
+      {arquivos.contracheques.length > 0 && (
+        <div className="contracheques-selecionados">
+          {arquivos.contracheques.map((arquivo, indice) => (
+            <div
+              className="contracheque-item"
+              key={`${arquivo.name}-${arquivo.lastModified}-${indice}`}
+            >
+              <span title={arquivo.name}>
+                {indice + 1}. {arquivo.name}
+              </span>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setArquivos((atuais) => ({
+                    ...atuais,
+                    contracheques: atuais.contracheques.filter(
+                      (_, itemIndice) => itemIndice !== indice
+                    ),
+                  }))
+                }
+                aria-label={`Remover ${arquivo.name}`}
+                title="Remover arquivo"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   </div>
 </div>
     </div>

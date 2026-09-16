@@ -854,3 +854,66 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ===== CONTRACHEQUE COM MÚLTIPLOS ARQUIVOS ===== */
+.documento-upload-multiplo{
+  cursor:default;
+}
+
+.documento-upload-seletor{
+  width:100%;
+  min-height:86px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  cursor:pointer;
+}
+
+.documento-upload-seletor input{
+  display:none;
+}
+
+.contracheques-selecionados{
+  width:100%;
+  margin-top:12px;
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+}
+
+.contracheque-item{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:8px 10px;
+  border:1px solid #d8e3f5;
+  border-radius:9px;
+  background:#fff;
+}
+
+.contracheque-item span{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:12px;
+  font-weight:700;
+  color:#17345f;
+}
+
+.contracheque-item button{
+  flex:0 0 auto;
+  width:28px;
+  height:28px;
+  border:1px solid #ffd0cc;
+  border-radius:7px;
+  background:#fff5f4;
+  color:#d92d20;
+  font-size:18px;
+  font-weight:800;
+  cursor:pointer;
+}
