@@ -54,8 +54,23 @@ async function ctx(request: NextRequest) {
   return {
     s,
     p,
-    admin: p.perfil === "Administradora",
+    admin: String(p.perfil || "").trim() === "Administradora",
   };
+}
+
+function perfilPodeVerTodasCampanhas(perfil?: string | null) {
+  const texto = String(perfil || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+  return [
+    "administradora",
+    "supervisora",
+    "operacional",
+    "coordenadora",
+  ].includes(texto);
 }
 
 const pack = (body: any, userId: string) => ({
@@ -170,18 +185,32 @@ export async function GET(request: NextRequest) {
         foto_url: perfil.foto_url || null,
       }));
 
-    const campanhas = (campanhasResponse.data || []).map((item: any) => ({
-      ...item,
-      participantes: (item.campanhas_participantes || []).map(
-        (participante: any) => participante.profile_id,
-      ),
-      campanhas_participantes: undefined,
-    }));
+    const podeVerTodas = perfilPodeVerTodasCampanhas(c.p.perfil);
+
+    const campanhas = (campanhasResponse.data || [])
+      .map((item: any) => ({
+        ...item,
+        participantes: (item.campanhas_participantes || []).map(
+          (participante: any) => participante.profile_id,
+        ),
+        campanhas_participantes: undefined,
+      }))
+      .filter((campanha: any) => {
+        // Administradora, Supervisora, Operacional e Coordenadora
+        // enxergam todas as campanhas.
+        if (podeVerTodas) return true;
+
+        // Demais usuários só recebem as campanhas
+        // em que o próprio usuário foi selecionado.
+        return Array.isArray(campanha.participantes) &&
+          campanha.participantes.includes(c.p.id);
+      });
 
     return NextResponse.json({
       campanhas,
       vendedoras,
       podeEditar: c.admin,
+      podeVerTodas,
     });
   } catch (error) {
     return bad(
