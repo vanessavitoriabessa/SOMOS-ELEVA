@@ -8,6 +8,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -430,8 +431,14 @@ function limparPeriodo() {
   const [form, setForm] = useState<Formulario>(FORMULARIO_VAZIO);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
+  const salvandoRef = useRef(false);
+  const [nomeUsuarioAtual, setNomeUsuarioAtual] = useState("");
   const [mensagem, setMensagem] = useState("");
 const [buscaCliente, setBuscaCliente] = useState("");
+const [etapaModal, setEtapaModal] = useState(1);
+const [clienteNovo, setClienteNovo] = useState(false);
+const [buscandoCep, setBuscandoCep] = useState(false);
+const [mensagemCep, setMensagemCep] = useState("");
 const [arquivos, setArquivos] = useState({
   rgFrente: null as File | null,
   rgVerso: null as File | null,
@@ -556,6 +563,11 @@ const [arquivos, setArquivos] = useState({
       }
 
       const perfilDaApi = String(conteudo.perfil?.perfil || "").trim();
+      const nomeDaApi = String(conteudo.perfil?.nome || "").trim();
+
+      if (nomeDaApi) {
+        setNomeUsuarioAtual(nomeDaApi);
+      }
 
       if (perfilDaApi) {
         setPerfilAtual(perfilDaApi);
@@ -986,6 +998,33 @@ const [arquivos, setArquivos] = useState({
   const podeVerComissaoEmpresa =
     permissoesPerfil?.ver_comissao_empresa ?? ehAdminPadrao;
 
+  const podeEditarTodasPropostas = [
+    "administradora",
+    "administrador",
+    "admin",
+    "supervisora",
+    "supervisor",
+    "supervisora de vendas",
+    "operacional",
+  ].includes(perfilNormalizado);
+
+  function podeEditarProposta(proposta: Proposta) {
+    if (podeEditarTodasPropostas) return true;
+
+    const perfilEhConsultora = [
+      "consultora",
+      "consultora de vendas",
+      "vendedora",
+    ].includes(perfilNormalizado);
+
+    if (!perfilEhConsultora) return false;
+
+    return (
+      normalizarPerfil(proposta.vendedora || "") ===
+      normalizarPerfil(nomeUsuarioAtual || "")
+    );
+  }
+
 async function buscarClientePorCpf() {
   const cpfNumeros = apenasNumeros(buscaCliente);
 
@@ -1052,8 +1091,9 @@ async function buscarClientePorCpf() {
         ufCliente: "",
       }));
 
+      setClienteNovo(true);
       setMensagem(
-        "Cliente não encontrado. Confira o CPF cadastrado na página Clientes.",
+        "Cliente não encontrado. Cadastre o cliente aqui mesmo e continue a proposta.",
       );
       return;
     }
@@ -1105,6 +1145,7 @@ async function buscarClientePorCpf() {
 }
 
 function preencherClienteNoFormulario(cliente: Cliente) {
+  setClienteNovo(false);
   setForm((atual) => ({
     ...atual,
     clienteId: cliente.id,
@@ -1131,6 +1172,8 @@ function preencherClienteNoFormulario(cliente: Cliente) {
 
   function abrirNovaProposta() {
   setEditando(null);
+  setEtapaModal(1);
+  setClienteNovo(false);
   setOrgaoConvenio("");
   setForm({
     ...FORMULARIO_VAZIO,
@@ -1152,6 +1195,13 @@ function preencherClienteNoFormulario(cliente: Cliente) {
 }
 
   function abrirEdicaoProposta(proposta: Proposta) {
+    if (!podeEditarProposta(proposta)) {
+      setMensagem("Você só pode editar as propostas cadastradas por você.");
+      return;
+    }
+
+    setEtapaModal(3);
+    setClienteNovo(false);
     const cliente = clientes.find((item) => item.id === proposta.clienteId);
 
     const tabelaAtual = tabelasConfiguradas.find(
@@ -1209,109 +1259,240 @@ function preencherClienteNoFormulario(cliente: Cliente) {
   async function salvarProposta(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
 
+    // Bloqueio síncrono: evita dois POSTs mesmo em clique duplo muito rápido.
+    if (salvandoRef.current) return;
+
     if (!form.cpfCliente.trim()) {
-  setMensagem("Informe o CPF do cliente.");
-  return;
-}
+      setMensagem("Informe o CPF do cliente.");
+      setEtapaModal(1);
+      return;
+    }
 
-if (!form.nomeCliente.trim()) {
-  setMensagem("Informe o nome do cliente.");
-  return;
-}
+    if (!form.nomeCliente.trim()) {
+      setMensagem("Informe o nome do cliente.");
+      setEtapaModal(1);
+      return;
+    }
 
-if (!form.telefoneCliente.trim()) {
-  setMensagem("Informe o telefone do cliente.");
-  return;
-}
+    if (!form.telefoneCliente.trim()) {
+      setMensagem("Informe o telefone do cliente.");
+      setEtapaModal(1);
+      return;
+    }
+
+    if (!form.rgCliente.trim()) {
+      setMensagem("Informe o RG do cliente.");
+      setEtapaModal(1);
+      return;
+    }
+
+    if (!form.dataNascimentoCliente) {
+      setMensagem("Informe a data de nascimento do cliente.");
+      setEtapaModal(1);
+      return;
+    }
+
+    if (!form.nomeMaeCliente.trim()) {
+      setMensagem("Informe o nome da mãe do cliente.");
+      setEtapaModal(1);
+      return;
+    }
+
+    if (!form.emailCliente.trim()) {
+      setMensagem("Informe o e-mail do cliente.");
+      setEtapaModal(1);
+      return;
+    }
 
     if (!form.vendedora) {
       setMensagem("Selecione a consultora.");
+      setEtapaModal(3);
       return;
     }
 
     if (!form.banco.trim()) {
       setMensagem("Informe o banco.");
+      setEtapaModal(3);
       return;
     }
 
     if (!orgaoConvenio) {
       setMensagem("Selecione o órgão / convênio.");
+      setEtapaModal(3);
       return;
     }
 
     if (!tabelaSelecionada) {
       setMensagem("Selecione a tabela.");
+      setEtapaModal(3);
       return;
     }
 
     if (valorContrato <= 0) {
       setMensagem("Informe o valor do contrato.");
+      setEtapaModal(3);
       return;
     }
 
+    if (!form.senhaConsignacao.trim()) {
+      setMensagem("A senha da consignação é obrigatória.");
+      setEtapaModal(3);
+      return;
+    }
+
+    if (editando && !podeEditarProposta(editando)) {
+      setMensagem("Você só pode editar as propostas cadastradas por você.");
+      return;
+    }
+
+    salvandoRef.current = true;
     setSalvando(true);
     setMensagem("");
 
+    const propostaId = editando?.id || crypto.randomUUID();
+    const caminhosEnviados: string[] = [];
+    let propostaCriadaNestaTentativa = false;
+    let clienteCriadoNestaTentativa = "";
+
     try {
       const token = await obterToken();
-const dadosCliente = {
-  nome: form.nomeCliente.trim(),
-  cpf: apenasNumeros(form.cpfCliente),
-  rg: form.rgCliente.trim(),
-  telefone: form.telefoneCliente.trim(),
-  telefone2: form.telefone2Cliente.trim(),
-  email: form.emailCliente.trim(),
-  nome_mae: form.nomeMaeCliente.trim(),
-  nome_pai: form.nomePaiCliente.trim(),
-  data_nascimento: form.dataNascimentoCliente || null,
-  cep: form.cepCliente.trim(),
-  endereco: form.enderecoCliente.trim(),
-  numero: form.numeroCliente.trim(),
-  complemento: form.complementoCliente.trim(),
-  bairro: form.bairroCliente.trim(),
-  cidade: form.cidadeCliente.trim(),
-  uf: form.ufCliente.trim(),
-};
 
-let clienteId = form.clienteId;
+      /*
+       * NOVA PROPOSTA:
+       * primeiro enviamos os arquivos. A proposta só é criada no banco
+       * depois que os uploads terminarem. Assim, erro de RG/CNH/contracheque
+       * não deixa proposta incompleta aparecendo na Gestão de Propostas.
+       */
+      const documentosParaRegistrar: Array<{
+        tipo: string;
+        nome_arquivo: string;
+        caminho: string;
+      }> = [];
 
-if (clienteId) {
-  const { error: erroAtualizarCliente } = await supabase
-    .from("clientes")
-    .update(dadosCliente)
-    .eq("id", clienteId);
+      if (!editando) {
+        const documentosUnicos = [
+          { tipo: "rg-frente", arquivo: arquivos.rgFrente },
+          { tipo: "rg-verso", arquivo: arquivos.rgVerso },
+          { tipo: "cnh", arquivo: arquivos.cnh },
+        ];
 
-  if (erroAtualizarCliente) {
-    throw new Error(
-      `Não foi possível atualizar o cliente: ${erroAtualizarCliente.message}`
-    );
-  }
-} else {
-  const { data: clienteCriado, error: erroCriarCliente } = await supabase
-    .from("clientes")
-    .insert(dadosCliente)
-    .select("id")
-    .single();
+        for (const documento of documentosUnicos) {
+          if (!documento.arquivo) continue;
 
-  if (erroCriarCliente || !clienteCriado?.id) {
-    throw new Error(
-      `Não foi possível cadastrar o cliente: ${
-        erroCriarCliente?.message || "cliente sem identificação"
-      }`
-    );
-  }
+          const extensao =
+            documento.arquivo.name.split(".").pop() || "jpg";
+          const caminho =
+            `${propostaId}/${documento.tipo}-${crypto.randomUUID()}.${extensao}`;
 
-  clienteId = String(clienteCriado.id);
-}
-      const propostaId = editando?.id || crypto.randomUUID();
+          const { error: erroUpload } = await supabase.storage
+            .from("propostas")
+            .upload(caminho, documento.arquivo, {
+              upsert: false,
+            });
 
-const proposta: Proposta = {
-  id: propostaId,
-  numeroProposta: form.numeroProposta.trim(),
+          if (erroUpload) {
+            throw new Error(
+              `Erro ao enviar ${documento.tipo}: ${erroUpload.message}`,
+            );
+          }
+
+          caminhosEnviados.push(caminho);
+          documentosParaRegistrar.push({
+            tipo: documento.tipo,
+            nome_arquivo: documento.arquivo.name,
+            caminho,
+          });
+        }
+
+        for (
+          let indice = 0;
+          indice < arquivos.contracheques.length;
+          indice += 1
+        ) {
+          const arquivo = arquivos.contracheques[indice];
+          const extensao = arquivo.name.split(".").pop() || "jpg";
+          const caminho =
+            `${propostaId}/contracheque-${indice + 1}-${crypto.randomUUID()}.${extensao}`;
+
+          const { error: erroUpload } = await supabase.storage
+            .from("propostas")
+            .upload(caminho, arquivo, {
+              upsert: false,
+            });
+
+          if (erroUpload) {
+            throw new Error(
+              `Erro ao enviar contracheque ${indice + 1}: ${erroUpload.message}`,
+            );
+          }
+
+          caminhosEnviados.push(caminho);
+          documentosParaRegistrar.push({
+            tipo: "contracheque",
+            nome_arquivo: arquivo.name,
+            caminho,
+          });
+        }
+      }
+
+      const dadosCliente = {
+        nome: form.nomeCliente.trim(),
+        cpf: apenasNumeros(form.cpfCliente),
+        rg: form.rgCliente.trim(),
+        telefone: form.telefoneCliente.trim(),
+        telefone2: form.telefone2Cliente.trim(),
+        email: form.emailCliente.trim(),
+        nome_mae: form.nomeMaeCliente.trim(),
+        nome_pai: form.nomePaiCliente.trim(),
+        data_nascimento: form.dataNascimentoCliente || null,
+        cep: form.cepCliente.trim(),
+        endereco: form.enderecoCliente.trim(),
+        numero: form.numeroCliente.trim(),
+        complemento: form.complementoCliente.trim(),
+        bairro: form.bairroCliente.trim(),
+        cidade: form.cidadeCliente.trim(),
+        uf: form.ufCliente.trim(),
+      };
+
+      let clienteId = form.clienteId;
+
+      if (clienteId) {
+        const { error: erroAtualizarCliente } = await supabase
+          .from("clientes")
+          .update(dadosCliente)
+          .eq("id", clienteId);
+
+        if (erroAtualizarCliente) {
+          throw new Error(
+            `Não foi possível atualizar o cliente: ${erroAtualizarCliente.message}`,
+          );
+        }
+      } else {
+        const { data: clienteCriado, error: erroCriarCliente } = await supabase
+          .from("clientes")
+          .insert(dadosCliente)
+          .select("id")
+          .single();
+
+        if (erroCriarCliente || !clienteCriado?.id) {
+          throw new Error(
+            `Não foi possível cadastrar o cliente: ${
+              erroCriarCliente?.message || "cliente sem identificação"
+            }`,
+          );
+        }
+
+        clienteId = String(clienteCriado.id);
+        clienteCriadoNestaTentativa = clienteId;
+      }
+
+      const proposta: Proposta = {
+        id: propostaId,
+        numeroProposta: form.numeroProposta.trim(),
         clienteId,
-cliente: form.nomeCliente.trim(),
-cpf: apenasNumeros(form.cpfCliente),
-telefone: form.telefoneCliente.trim(),
+        cliente: form.nomeCliente.trim(),
+        cpf: apenasNumeros(form.cpfCliente),
+        telefone: form.telefoneCliente.trim(),
         vendedora: form.vendedora,
         banco: form.banco.trim(),
         tabelaBancoId:
@@ -1323,13 +1504,15 @@ telefone: form.telefoneCliente.trim(),
         valorContrato,
         valorMeta,
         status: form.status,
-dataSolicitacao: form.dataSolicitacao,
-dataCadastro: form.dataDigitacao,
-dataPagamento:
-  tipoDoStatus(form.status) === "PAGO" ? form.dataPagamento || hojeIso() : "",
-observacao: form.observacao.trim(),
-senhaContracheque: form.senhaContracheque.trim(),
-senhaConsignacao: form.senhaConsignacao.trim(),
+        dataSolicitacao: form.dataSolicitacao,
+        dataCadastro: form.dataDigitacao,
+        dataPagamento:
+          tipoDoStatus(form.status) === "PAGO"
+            ? form.dataPagamento || hojeIso()
+            : "",
+        observacao: form.observacao.trim(),
+        senhaContracheque: form.senhaContracheque.trim(),
+        senhaConsignacao: form.senhaConsignacao.trim(),
       };
 
       const resposta = await fetch("/api/propostas", {
@@ -1348,89 +1531,63 @@ senhaConsignacao: form.senhaConsignacao.trim(),
           conteudo.erro ||
             (editando
               ? "Não foi possível atualizar a proposta."
-              : "Não foi possível salvar a proposta.")
+              : "Não foi possível salvar a proposta."),
         );
       }
-const documentosUnicos = [
-  { tipo: "rg-frente", arquivo: arquivos.rgFrente },
-  { tipo: "rg-verso", arquivo: arquivos.rgVerso },
-  { tipo: "cnh", arquivo: arquivos.cnh },
-];
 
-if (!editando) {
-  for (const documento of documentosUnicos) {
-    if (!documento.arquivo) continue;
+      propostaCriadaNestaTentativa = !editando;
 
-    const extensao =
-      documento.arquivo.name.split(".").pop() || "jpg";
+      // Só registra os documentos depois que a proposta foi criada com sucesso.
+      if (!editando && documentosParaRegistrar.length) {
+        const { error: erroDocumentos } = await supabase
+          .from("proposta_documentos")
+          .insert(
+            documentosParaRegistrar.map((documento) => ({
+              proposta_id: propostaId,
+              ...documento,
+            })),
+          );
 
-    const caminho =
-      `${propostaId}/${documento.tipo}.${extensao}`;
+        if (erroDocumentos) {
+          // Tenta desfazer a proposta recém-criada para ela não ficar
+          // aparecendo como cadastro concluído quando o processo falhou.
+          try {
+            await fetch("/api/propostas", {
+              method: "DELETE",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                id: propostaId,
+                rollback: true,
+              }),
+            });
+          } catch (erroRollback) {
+            console.error("Falha ao desfazer proposta incompleta:", erroRollback);
+          }
 
-    const { error: erroUpload } =
-      await supabase.storage
-        .from("propostas")
-        .upload(caminho, documento.arquivo, {
-          upsert: true,
-        });
+          if (clienteCriadoNestaTentativa) {
+            try {
+              await supabase
+                .from("clientes")
+                .delete()
+                .eq("id", clienteCriadoNestaTentativa);
+              clienteCriadoNestaTentativa = "";
+            } catch (erroClienteRollback) {
+              console.error(
+                "Falha ao desfazer cliente de proposta incompleta:",
+                erroClienteRollback,
+              );
+            }
+          }
 
-    if (erroUpload) {
-      throw new Error(
-        `Erro ao enviar ${documento.tipo}: ${erroUpload.message}`
-      );
-    }
+          throw new Error(
+            `Erro ao registrar documentos: ${erroDocumentos.message}`,
+          );
+        }
+      }
 
-    const { error: erroDocumento } = await supabase
-      .from("proposta_documentos")
-      .insert({
-        proposta_id: propostaId,
-        tipo: documento.tipo,
-        nome_arquivo: documento.arquivo.name,
-        caminho,
-      });
-
-    if (erroDocumento) {
-      throw new Error(
-        `Erro ao registrar ${documento.tipo}: ${erroDocumento.message}`
-      );
-    }
-  }
-
-  for (let indice = 0; indice < arquivos.contracheques.length; indice += 1) {
-    const arquivo = arquivos.contracheques[indice];
-    const extensao = arquivo.name.split(".").pop() || "jpg";
-    const caminho =
-      `${propostaId}/contracheque-${indice + 1}-${crypto.randomUUID()}.${extensao}`;
-
-    const { error: erroUpload } =
-      await supabase.storage
-        .from("propostas")
-        .upload(caminho, arquivo, {
-          upsert: false,
-        });
-
-    if (erroUpload) {
-      throw new Error(
-        `Erro ao enviar contracheque ${indice + 1}: ${erroUpload.message}`
-      );
-    }
-
-    const { error: erroDocumento } = await supabase
-      .from("proposta_documentos")
-      .insert({
-        proposta_id: propostaId,
-        tipo: "contracheque",
-        nome_arquivo: arquivo.name,
-        caminho,
-      });
-
-    if (erroDocumento) {
-      throw new Error(
-        `Erro ao registrar contracheque ${indice + 1}: ${erroDocumento.message}`
-      );
-    }
-  }
-}
       await carregarPropostas();
 
       setModalAberto(false);
@@ -1438,18 +1595,56 @@ if (!editando) {
       setOrgaoConvenio("");
       setForm(FORMULARIO_VAZIO);
       setArquivos({
-  rgFrente: null,
-  rgVerso: null,
-  cnh: null,
-  contracheques: [],
-});
+        rgFrente: null,
+        rgVerso: null,
+        cnh: null,
+        contracheques: [],
+      });
+      setEtapaModal(1);
+      setClienteNovo(false);
+      setMensagem(
+        editando
+          ? "Proposta atualizada com sucesso."
+          : "Proposta finalizada e cadastrada com sucesso.",
+      );
     } catch (erro) {
+      /*
+       * Se a proposta ainda NÃO foi criada, qualquer arquivo enviado nesta
+       * tentativa é removido. Portanto nada incompleto fica para trás.
+       */
+      if (!propostaCriadaNestaTentativa && caminhosEnviados.length) {
+        try {
+          await supabase.storage
+            .from("propostas")
+            .remove(caminhosEnviados);
+        } catch (erroLimpeza) {
+          console.error("Não foi possível limpar uploads incompletos:", erroLimpeza);
+        }
+      }
+
+      // Se o cliente foi criado durante esta tentativa, mas a proposta não
+      // chegou ao estado finalizado, desfaz o cliente novo também.
+      if (!propostaCriadaNestaTentativa && clienteCriadoNestaTentativa) {
+        try {
+          await supabase
+            .from("clientes")
+            .delete()
+            .eq("id", clienteCriadoNestaTentativa);
+        } catch (erroClienteRollback) {
+          console.error(
+            "Não foi possível limpar cliente de proposta incompleta:",
+            erroClienteRollback,
+          );
+        }
+      }
+
       setMensagem(
         erro instanceof Error
           ? erro.message
-          : "Não foi possível salvar a proposta."
+          : "Não foi possível finalizar a proposta.",
       );
     } finally {
+      salvandoRef.current = false;
       setSalvando(false);
     }
   }
@@ -1580,6 +1775,91 @@ if (!editando) {
     } finally {
       setCancelando(false);
     }
+  }
+
+  async function buscarEnderecoPorCep(cepInformado: string) {
+    const cep = apenasNumeros(cepInformado).slice(0, 8);
+
+    if (cep.length !== 8) {
+      setMensagemCep("");
+      return;
+    }
+
+    setBuscandoCep(true);
+    setMensagemCep("Buscando endereço...");
+
+    try {
+      const resposta = await fetch(`/api/cep?cep=${cep}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      const dados = (await resposta.json()) as {
+        erro?: string;
+        cep?: string;
+        endereco?: string;
+        complemento?: string;
+        bairro?: string;
+        cidade?: string;
+        uf?: string;
+      };
+
+      if (!resposta.ok) {
+        setMensagemCep(
+          dados.erro || "CEP não encontrado. Preencha o endereço manualmente.",
+        );
+        return;
+      }
+
+      setForm((atual) => ({
+        ...atual,
+        cepCliente: String(dados.cep || cep).replace(/\D/g, "").replace(
+          /^(\d{5})(\d{3})$/,
+          "$1-$2",
+        ),
+        enderecoCliente: String(dados.endereco || ""),
+        bairroCliente: String(dados.bairro || ""),
+        cidadeCliente: String(dados.cidade || ""),
+        ufCliente: String(dados.uf || "").toUpperCase().slice(0, 2),
+        complementoCliente:
+          atual.complementoCliente || String(dados.complemento || ""),
+      }));
+
+      setMensagemCep("✓ Endereço encontrado.");
+    } catch (erro) {
+      console.error("Erro ao buscar CEP:", erro);
+      setMensagemCep(
+        "Não foi possível consultar o CEP agora. Preencha o endereço manualmente.",
+      );
+    } finally {
+      setBuscandoCep(false);
+    }
+  }
+
+  function avancarEtapaModal() {
+    setMensagem("");
+    if (etapaModal === 1) {
+      if (!form.nomeCliente.trim()) { setMensagem("Informe o nome completo do cliente."); return; }
+      if (apenasNumeros(form.cpfCliente).length !== 11) { setMensagem("Informe um CPF válido para continuar."); return; }
+      if (!form.rgCliente.trim()) { setMensagem("Informe o RG do cliente."); return; }
+      if (!form.dataNascimentoCliente) { setMensagem("Informe a data de nascimento do cliente."); return; }
+      if (!form.nomeMaeCliente.trim()) { setMensagem("Informe o nome da mãe do cliente."); return; }
+      if (!form.telefoneCliente.trim()) { setMensagem("Informe o telefone principal do cliente."); return; }
+      if (!form.emailCliente.trim()) { setMensagem("Informe o e-mail do cliente."); return; }
+    }
+    if (etapaModal === 3) {
+      if (!form.vendedora) { setMensagem("Selecione a consultora."); return; }
+      if (!form.banco.trim()) { setMensagem("Selecione o banco."); return; }
+      if (!orgaoConvenio) { setMensagem("Selecione o órgão / convênio."); return; }
+      if (!tabelaSelecionada) { setMensagem("Selecione a tabela."); return; }
+      if (valorContrato <= 0) { setMensagem("Informe o valor do contrato."); return; }
+      if (!form.senhaConsignacao.trim()) { setMensagem("Informe a senha da consignação para continuar."); return; }
+    }
+    setEtapaModal((atual) => Math.min(5, atual + 1));
+  }
+  function voltarEtapaModal() {
+    setMensagem("");
+    setEtapaModal((atual) => Math.max(1, atual - 1));
   }
 
   return (
@@ -1897,13 +2177,19 @@ if (!editando) {
                           ◉
                         </button>
 
-                        <button
-                          type="button"
-                          title="Editar"
-                          onClick={() => abrirEdicaoProposta(proposta)}
-                        >
-                          ✎
-                        </button>
+                        {podeEditarProposta(proposta) && (
+                          <button
+                            type="button"
+                            title={
+                              podeEditarTodasPropostas
+                                ? "Editar proposta"
+                                : "Editar minha proposta"
+                            }
+                            onClick={() => abrirEdicaoProposta(proposta)}
+                          >
+                            ✎
+                          </button>
+                        )}
 
                         {podeCancelarProposta &&
                           proposta.status !== "CANCELADA" && (
@@ -2068,8 +2354,20 @@ if (!editando) {
               </button>
             </header>
 
-            <form onSubmit={salvarProposta}>
+            <div className="proposta-wizard">
+              {["Cliente","Endereço","Proposta","Documentos","Revisão"].map((titulo, indice) => (
+                <button type="button" key={titulo} className={`proposta-wizard-step ${etapaModal===indice+1?"active":etapaModal>indice+1?"done":""}`} onClick={()=>{ if(indice+1<=etapaModal || editando) setEtapaModal(indice+1); }}>
+                  <b>{etapaModal>indice+1?"✓":indice+1}</b><span>{titulo}</span>
+                </button>
+              ))}
+            </div>
+
+            <form onSubmit={salvarProposta} className="proposta-wizard-form">
+              <div className="proposta-wizard-scroll">
   <div className="modal-form-grid">
+{etapaModal === 1 && (
+    <div className="proposta-etapa-conteudo proposta-cliente-layout">
+      <div className="proposta-cliente-principal">
     {/* BUSCA DO CLIENTE PELO CPF */}
     <div className="busca-cliente-topo">
       {mensagem && (
@@ -2128,6 +2426,11 @@ if (!editando) {
       </div>
     </div>
 
+    <div className={`cliente-status-wizard ${form.clienteId?"found":clienteNovo?"new":"idle"}`}>
+      <div><strong>{form.clienteId?"✓ Cliente encontrado":clienteNovo?"+ Novo cliente":"Busque o cliente pelo CPF"}</strong><span>{form.clienteId?"Dados carregados automaticamente.":clienteNovo?"Preencha os dados abaixo. O cliente será criado junto com a proposta.":"Se não existir, você cadastra aqui sem sair da proposta."}</span></div>
+      {!form.clienteId && !clienteNovo && apenasNumeros(form.cpfCliente).length===11 && <button type="button" onClick={()=>setClienteNovo(true)}>Cadastrar cliente agora</button>}
+    </div>
+
     {/* DADOS DO CLIENTE */}
     <div className="secao-modal">
       <div className="secao-modal-titulo">
@@ -2139,9 +2442,10 @@ if (!editando) {
 
       <div className="modal-form-grid">
         <label>
-          Nome completo
+          Nome completo <strong className="campo-obrigatorio">*</strong>
           <input
             value={form.nomeCliente}
+            required
             onChange={(evento) =>
               setForm({
                 ...form,
@@ -2153,7 +2457,7 @@ if (!editando) {
         </label>
 
         <label>
-          CPF
+          CPF <strong className="campo-obrigatorio">*</strong>
           <input
             value={formatarCpf(form.cpfCliente)}
             readOnly
@@ -2162,9 +2466,10 @@ if (!editando) {
         </label>
 
         <label>
-          RG
+          RG <strong className="campo-obrigatorio">*</strong>
           <input
             value={form.rgCliente}
+            required
             onChange={(evento) =>
               setForm({
                 ...form,
@@ -2176,10 +2481,11 @@ if (!editando) {
         </label>
 
         <label>
-          Data de nascimento
+          Data de nascimento <strong className="campo-obrigatorio">*</strong>
           <input
             type="date"
             value={form.dataNascimentoCliente}
+            required
             onChange={(evento) =>
               setForm({
                 ...form,
@@ -2191,9 +2497,10 @@ if (!editando) {
         </label>
 
         <label>
-          Nome da mãe
+          Nome da mãe <strong className="campo-obrigatorio">*</strong>
           <input
             value={form.nomeMaeCliente}
+            required
             onChange={(evento) =>
               setForm({
                 ...form,
@@ -2219,10 +2526,11 @@ if (!editando) {
         </label>
 
         <label>
-          Telefone
+          Telefone <strong className="campo-obrigatorio">*</strong>
           <input
             type="tel"
             value={form.telefoneCliente}
+            required
             onChange={(evento) =>
               setForm({
                 ...form,
@@ -2250,10 +2558,11 @@ if (!editando) {
         </label>
 
         <label className="campo-largura-total">
-          E-mail
+          E-mail <strong className="campo-obrigatorio">*</strong>
           <input
             type="email"
             value={form.emailCliente}
+            required
             onChange={(evento) =>
               setForm({
                 ...form,
@@ -2266,6 +2575,33 @@ if (!editando) {
       </div>
     </div>
 
+      </div>
+      <aside className="proposta-cliente-sidebar">
+        <div className="cliente-side-card cliente-side-identidade">
+          <div className="cliente-side-icon">👤</div>
+          <div>
+            <strong>{form.clienteId ? "Cliente identificado" : "Novo cliente"}</strong>
+            <span>{form.clienteId ? (form.nomeCliente || "Dados carregados") : "Informe o CPF para buscar ou cadastre um novo cliente."}</span>
+          </div>
+        </div>
+        <div className="cliente-side-card">
+          <h4>💡 Dicas</h4>
+          <ul>
+            <li>Utilize o CPF para buscar o cliente no sistema</li>
+            <li>Se não encontrar, preencha os dados nesta tela</li>
+            <li>Confira se as informações estão corretas</li>
+            <li>O cliente será salvo junto com a proposta</li>
+          </ul>
+        </div>
+        <div className="cliente-side-card cliente-side-seguranca">
+          <div className="cliente-side-icon">🔒</div>
+          <div><strong>Cadastro integrado</strong><span>Os dados ficam vinculados ao cliente e à proposta.</span></div>
+        </div>
+      </aside>
+    </div>
+  )}
+{etapaModal === 2 && (
+  <div className="proposta-etapa-conteudo">
     {/* ENDEREÇO */}
     <div className="secao-modal">
       <div className="secao-modal-titulo">
@@ -2280,15 +2616,44 @@ if (!editando) {
           CEP
           <input
             value={form.cepCliente}
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                cepCliente: evento.target.value,
-              })
-            }
+            inputMode="numeric"
+            onChange={(evento) => {
+              const numeros = apenasNumeros(evento.target.value).slice(0, 8);
+              const formatado =
+                numeros.length > 5
+                  ? `${numeros.slice(0, 5)}-${numeros.slice(5)}`
+                  : numeros;
+
+              setForm((atual) => ({
+                ...atual,
+                cepCliente: formatado,
+              }));
+
+              setMensagemCep("");
+
+              if (numeros.length === 8) {
+                void buscarEnderecoPorCep(numeros);
+              }
+            }}
+            onBlur={() => {
+              const numeros = apenasNumeros(form.cepCliente);
+
+              if (numeros.length === 8 && !buscandoCep) {
+                void buscarEnderecoPorCep(numeros);
+              }
+            }}
             placeholder="00000-000"
             maxLength={9}
           />
+          {mensagemCep && (
+            <small
+              className={`cep-feedback ${
+                mensagemCep.startsWith("✓") ? "sucesso" : ""
+              }`}
+            >
+              {buscandoCep ? "Buscando endereço..." : mensagemCep}
+            </small>
+          )}
         </label>
 
         <label>
@@ -2382,6 +2747,9 @@ if (!editando) {
       </div>
     </div>
 
+
+</div>)}
+{etapaModal === 3 && (<div className="proposta-etapa-conteudo">
     {/* DADOS DA PROPOSTA */}
     <div className="secao-modal">
       <div className="secao-modal-titulo">
@@ -2409,6 +2777,10 @@ if (!editando) {
           Consultora
           <select
             value={form.vendedora}
+            disabled={
+              Boolean(editando) &&
+              !podeEditarTodasPropostas
+            }
             onChange={(evento) =>
               setForm({
                 ...form,
@@ -2661,9 +3033,10 @@ if (!editando) {
         </label>
 
         <label>
-          Senha da consignação
+          Senha da consignação <strong className="campo-obrigatorio">*</strong>
           <input
             type="text"
+            required
             value={form.senhaConsignacao}
             onChange={(evento) =>
               setForm({
@@ -2696,69 +3069,195 @@ if (!editando) {
           placeholder="Digite informações importantes sobre a proposta"
         />
       </label>
-      <div className="secao-documentos">
+    </div>
+  </div>)}
+      {etapaModal === 4 && (<div className="proposta-etapa-conteudo">
+<div className="secao-documentos">
   <div className="secao-modal-titulo">
     <span>📎 DOCUMENTOS</span>
     <p>Anexe os documentos necessários para a proposta.</p>
   </div>
 
   <div className="documentos-grid">
-    <label className="documento-upload">
-      <span>RG frente</span>
+    <div className={`documento-upload ${arquivos.rgFrente ? "documento-anexado" : ""}`}>
+      {arquivos.rgFrente ? (
+        <>
+          <div className="documento-check">✓</div>
+          <span>RG FRENTE ANEXADO</span>
+          <strong className="documento-nome-arquivo">{arquivos.rgFrente?.name}</strong>
 
-      <input
-  type="file"
-  accept="image/*,.pdf"
-  onChange={(e) =>
-    setArquivos({
-      ...arquivos,
-      rgFrente: e.target.files?.[0] ?? null,
-    })
-  }
-/>
+          <div className="documento-acoes-anexo">
+            <label className="documento-trocar">
+              Trocar arquivo
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                onChange={(e) =>
+                  setArquivos((atuais) => ({
+                    ...atuais,
+                    rgFrente: e.target.files?.[0] ?? null,
+                  }))
+                }
+              />
+            </label>
 
-      <strong>Selecionar arquivo</strong>
-      <small>Imagem ou PDF</small>
-    </label>
+            <button
+              type="button"
+              className="documento-remover"
+              onClick={() =>
+                setArquivos((atuais) => ({
+                  ...atuais,
+                  rgFrente: null,
+                }))
+              }
+            >
+              Remover
+            </button>
+          </div>
+        </>
+      ) : (
+        <label className="documento-upload-vazio">
+          <span>RG FRENTE</span>
+          <strong>Selecionar arquivo</strong>
+          <small>Imagem ou PDF</small>
+          <input
+            type="file"
+            accept="image/*,.pdf"
+            onChange={(e) =>
+              setArquivos((atuais) => ({
+                ...atuais,
+                rgFrente: e.target.files?.[0] ?? null,
+              }))
+            }
+          />
+        </label>
+      )}
+    </div>
 
-    <label className="documento-upload">
-      <span>RG verso</span>
+    <div className={`documento-upload ${arquivos.rgVerso ? "documento-anexado" : ""}`}>
+      {arquivos.rgVerso ? (
+        <>
+          <div className="documento-check">✓</div>
+          <span>RG VERSO ANEXADO</span>
+          <strong className="documento-nome-arquivo">{arquivos.rgVerso?.name}</strong>
 
-      <input
-        type="file"
-        accept="image/*,.pdf"
-        onChange={(e) =>
-          setArquivos({
-            ...arquivos,
-            rgVerso: e.target.files?.[0] ?? null,
-          })
-        }
-      />
+          <div className="documento-acoes-anexo">
+            <label className="documento-trocar">
+              Trocar arquivo
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                onChange={(e) =>
+                  setArquivos((atuais) => ({
+                    ...atuais,
+                    rgVerso: e.target.files?.[0] ?? null,
+                  }))
+                }
+              />
+            </label>
 
-      <strong>Selecionar arquivo</strong>
-      <small>Imagem ou PDF</small>
-    </label>
+            <button
+              type="button"
+              className="documento-remover"
+              onClick={() =>
+                setArquivos((atuais) => ({
+                  ...atuais,
+                  rgVerso: null,
+                }))
+              }
+            >
+              Remover
+            </button>
+          </div>
+        </>
+      ) : (
+        <label className="documento-upload-vazio">
+          <span>RG VERSO</span>
+          <strong>Selecionar arquivo</strong>
+          <small>Imagem ou PDF</small>
+          <input
+            type="file"
+            accept="image/*,.pdf"
+            onChange={(e) =>
+              setArquivos((atuais) => ({
+                ...atuais,
+                rgVerso: e.target.files?.[0] ?? null,
+              }))
+            }
+          />
+        </label>
+      )}
+    </div>
 
-    <label className="documento-upload">
-      <span>CNH</span>
+    <div className={`documento-upload ${arquivos.cnh ? "documento-anexado" : ""}`}>
+      {arquivos.cnh ? (
+        <>
+          <div className="documento-check">✓</div>
+          <span>CNH ANEXADO</span>
+          <strong className="documento-nome-arquivo">{arquivos.cnh?.name}</strong>
 
-      <input
-  type="file"
-  accept="image/*,.pdf"
-  onChange={(e) =>
-    setArquivos({
-      ...arquivos,
-      cnh: e.target.files?.[0] ?? null,
-    })
-  }
-/>
+          <div className="documento-acoes-anexo">
+            <label className="documento-trocar">
+              Trocar arquivo
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                onChange={(e) =>
+                  setArquivos((atuais) => ({
+                    ...atuais,
+                    cnh: e.target.files?.[0] ?? null,
+                  }))
+                }
+              />
+            </label>
 
-      <strong>Selecionar arquivo</strong>
-      <small>Imagem ou PDF</small>
-    </label>
+            <button
+              type="button"
+              className="documento-remover"
+              onClick={() =>
+                setArquivos((atuais) => ({
+                  ...atuais,
+                  cnh: null,
+                }))
+              }
+            >
+              Remover
+            </button>
+          </div>
+        </>
+      ) : (
+        <label className="documento-upload-vazio">
+          <span>CNH</span>
+          <strong>Selecionar arquivo</strong>
+          <small>Imagem ou PDF</small>
+          <input
+            type="file"
+            accept="image/*,.pdf"
+            onChange={(e) =>
+              setArquivos((atuais) => ({
+                ...atuais,
+                cnh: e.target.files?.[0] ?? null,
+              }))
+            }
+          />
+        </label>
+      )}
+    </div>
 
-    <div className="documento-upload documento-upload-multiplo">
-      <span>Contracheque</span>
+    <div className={`documento-upload documento-upload-multiplo ${
+      arquivos.contracheques.length ? "documento-anexado-multiplo" : ""
+    }`}>
+      {arquivos.contracheques.length > 0 && (
+        <>
+          <div className="documento-check">✓</div>
+          <span>
+            {arquivos.contracheques.length}{" "}
+            {arquivos.contracheques.length === 1
+              ? "ARQUIVO ANEXADO"
+              : "ARQUIVOS ANEXADOS"}
+          </span>
+        </>
+      )}
 
       <label className="documento-upload-seletor">
         <input
@@ -2787,7 +3286,11 @@ if (!editando) {
             ? "+ Adicionar mais arquivos"
             : "Selecionar arquivos"}
         </strong>
-        <small>Várias imagens ou PDFs</small>
+        <small>
+          {arquivos.contracheques.length
+            ? "Contracheque • várias imagens ou PDFs"
+            : "Contracheque • várias imagens ou PDFs"}
+        </small>
       </label>
 
       {arquivos.contracheques.length > 0 && (
@@ -2823,37 +3326,40 @@ if (!editando) {
     </div>
   </div>
 </div>
-    </div>
+  </div>)}
+   {etapaModal === 5 && (
+     <div className="proposta-etapa-conteudo">
+       <div className="revisao-proposta">
+         <div className="revisao-cabecalho"><div><span>REVISÃO FINAL</span><h3>Confira antes de salvar</h3></div><b>✓ Tudo pronto</b></div>
+         <section><header><strong>👤 Cliente</strong><button type="button" onClick={() => setEtapaModal(1)}>Editar</button></header><p><b>{form.nomeCliente || "—"}</b> • {formatarCpf(form.cpfCliente)} • {form.telefoneCliente || "—"}</p></section>
+         <section><header><strong>📍 Endereço</strong><button type="button" onClick={() => setEtapaModal(2)}>Editar</button></header><p>{[form.enderecoCliente, form.numeroCliente, form.bairroCliente, form.cidadeCliente, form.ufCliente].filter(Boolean).join(" • ") || "—"}</p></section>
+         <section><header><strong>📄 Proposta</strong><button type="button" onClick={() => setEtapaModal(3)}>Editar</button></header>
+           <div className="revisao-grid"><div><span>Consultora</span><b>{form.vendedora || "—"}</b></div><div><span>Banco</span><b>{form.banco || "—"}</b></div><div><span>Tabela</span><b>{form.tabela || "—"}</b></div><div><span>Valor</span><b>{moeda(valorContrato)}</b></div><div><span>Valor para meta</span><b>{moeda(valorMeta)}</b></div><div><span>Status</span><b>{form.status}</b></div></div>
+         </section>
+         <section><header><strong>📎 Documentos</strong><button type="button" onClick={() => setEtapaModal(4)}>Editar</button></header><p>RG frente: {arquivos.rgFrente ? "✓" : "—"} • RG verso: {arquivos.rgVerso ? "✓" : "—"} • CNH: {arquivos.cnh ? "✓" : "—"} • Contracheques: {arquivos.contracheques.length}</p></section>
+       </div>
+     </div>
+   )}
   </div>
 
-  {mensagem && (
+   {mensagem && (
     <div className="esteira-mensagem">
       {mensagem}
     </div>
   )}
 
-  <footer>
-    <button
-      type="button"
-      className="botao-secundario"
-      onClick={() => setModalAberto(false)}
-    >
-      Cancelar
-    </button>
-
-    <button
-      type="submit"
-      className="botao-principal"
-      disabled={salvando}
-    >
-      {salvando
-        ? editando
-          ? "Atualizando..."
-          : "Salvando..."
-        : editando
-          ? "Salvar alterações"
-          : "Salvar proposta"}
-    </button>
+                </div>
+  <footer className="proposta-wizard-footer">
+    <button type="button" className="botao-secundario" onClick={() => setModalAberto(false)}>Cancelar</button>
+    <div className="proposta-wizard-footer-right">
+      <span>Etapa {etapaModal} de 5</span>
+      {etapaModal > 1 && <button type="button" className="botao-secundario" onClick={voltarEtapaModal}>← Voltar</button>}
+      {etapaModal < 5 ? (
+        <button type="button" className="botao-principal" onClick={avancarEtapaModal}>{etapaModal === 4 ? "Revisar →" : "Continuar →"}</button>
+      ) : (
+        <button type="submit" className="botao-principal" disabled={salvando}>{salvando ? "Salvando..." : editando ? "Salvar alterações" : "✓ Salvar proposta"}</button>
+      )}
+    </div>
   </footer>
 </form>
           </div>

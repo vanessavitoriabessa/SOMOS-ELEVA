@@ -917,3 +917,740 @@
   font-weight:800;
   cursor:pointer;
 }
+
+
+/* ============================================================
+   NOVA PROPOSTA — WIZARD LIMPO E ISOLADO
+   Estrutura: cabeçalho + etapas + conteúdo rolável + rodapé.
+   ============================================================ */
+
+.esteira-profissional .nova-proposta-modal{
+  width:min(1380px,96vw)!important;
+  max-width:1380px!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:94vh!important;
+  padding:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  overflow:hidden!important;
+  border-radius:20px!important;
+  background:#fff!important;
+  box-shadow:0 24px 70px rgba(9,30,57,.24)!important;
+}
+
+.esteira-profissional .nova-proposta-modal > header{
+  flex:0 0 auto!important;
+  width:100%!important;
+  box-sizing:border-box!important;
+  padding:20px 28px 18px!important;
+  border-bottom:1px solid #e4eaf2!important;
+}
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard{
+  flex:0 0 auto!important;
+  width:100%!important;
+  box-sizing:border-box!important;
+  display:grid!important;
+  grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  gap:12px!important;
+  padding:12px 28px!important;
+  border-bottom:1px solid #e5edf7!important;
+  background:#fbfdff!important;
+}
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-step{
+  width:100%!important;
+  min-width:0!important;
+  min-height:48px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:9px!important;
+  padding:8px 12px!important;
+  border:0!important;
+  border-radius:12px!important;
+  background:transparent!important;
+  color:#71819a!important;
+  font-size:13px!important;
+  font-weight:800!important;
+  cursor:pointer!important;
+}
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-step b{
+  width:30px!important;
+  height:30px!important;
+  flex:0 0 30px!important;
+  display:grid!important;
+  place-items:center!important;
+  border:1px solid #cbd9ec!important;
+  border-radius:50%!important;
+  background:#fff!important;
+  color:#5f7492!important;
+}
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-step.active{
+  background:#eaf2ff!important;
+  color:#155eef!important;
+}
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-step.active b{
+  border-color:#2468f2!important;
+  background:#2468f2!important;
+  color:#fff!important;
+}
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-step.done{
+  color:#168452!important;
+}
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-step.done b{
+  border-color:#a9e4c5!important;
+  background:#eafaf2!important;
+  color:#168452!important;
+}
+
+/* O form não ocupa artificialmente toda a altura da tela. */
+.esteira-profissional .nova-proposta-modal .proposta-wizard-form{
+  flex:0 1 auto!important;
+  width:100%!important;
+  min-height:0!important;
+  max-height:calc(94vh - 145px)!important;
+  margin:0!important;
+  padding:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  overflow:hidden!important;
+  gap:0!important;
+}
+
+/* Somente o miolo rola. */
+.esteira-profissional .nova-proposta-modal .proposta-wizard-scroll{
+  flex:0 1 auto!important;
+  width:100%!important;
+  min-height:0!important;
+  max-height:calc(94vh - 225px)!important;
+  box-sizing:border-box!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  padding:18px 28px 20px!important;
+  background:#fff!important;
+  scrollbar-gutter:stable!important;
+}
+
+/* Neutraliza a grade externa antiga. */
+.esteira-profissional .nova-proposta-modal .proposta-wizard-scroll > .modal-form-grid{
+  display:block!important;
+  width:100%!important;
+  min-width:0!important;
+  max-width:none!important;
+  margin:0!important;
+  padding:0!important;
+}
+
+.esteira-profissional .nova-proposta-modal .proposta-etapa-conteudo{
+  display:block!important;
+  width:100%!important;
+  min-width:0!important;
+  max-width:none!important;
+  height:auto!important;
+  min-height:0!important;
+  margin:0!important;
+  padding:0!important;
+}
+
+.esteira-profissional .nova-proposta-modal .secao-modal,
+.esteira-profissional .nova-proposta-modal .secao-documentos{
+  width:100%!important;
+  max-width:none!important;
+  min-height:0!important;
+  height:auto!important;
+  box-sizing:border-box!important;
+  margin:0!important;
+  padding:20px!important;
+  border:1px solid #dfe6f1!important;
+  border-radius:14px!important;
+  background:#fff!important;
+}
+
+.esteira-profissional .nova-proposta-modal .secao-documentos{
+  margin-top:0!important;
+  padding-top:20px!important;
+}
+
+.esteira-profissional .nova-proposta-modal .secao-modal > .modal-form-grid{
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:14px 18px!important;
+  width:100%!important;
+  max-width:none!important;
+}
+
+.esteira-profissional .nova-proposta-modal input,
+.esteira-profissional .nova-proposta-modal select{
+  height:42px!important;
+  box-sizing:border-box!important;
+}
+
+/* CLIENTE */
+.esteira-profissional .nova-proposta-modal .proposta-cliente-layout{
+  display:grid!important;
+  grid-template-columns:minmax(0,2.15fr) minmax(300px,.85fr)!important;
+  gap:22px!important;
+  width:100%!important;
+  align-items:start!important;
+}
+
+.esteira-profissional .nova-proposta-modal .proposta-cliente-principal{
+  width:100%!important;
+  min-width:0!important;
+}
+
+.esteira-profissional .nova-proposta-modal .proposta-cliente-principal .busca-cliente-topo{
+  display:grid!important;
+  grid-template-columns:minmax(260px,1.35fr) 175px minmax(260px,.9fr)!important;
+  gap:12px!important;
+  width:100%!important;
+  margin:0 0 14px!important;
+  align-items:end!important;
+}
+
+.esteira-profissional .nova-proposta-modal .busca-cliente-topo > *{
+  width:100%!important;
+  min-width:0!important;
+  max-width:none!important;
+}
+
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard{
+  width:100%!important;
+  box-sizing:border-box!important;
+  margin:0 0 14px!important;
+  padding:12px 14px!important;
+  border:1px solid #d7e4f6!important;
+  border-radius:12px!important;
+  background:#f7fbff!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:14px!important;
+}
+
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard > div{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:3px!important;
+}
+
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard.found{
+  background:#effcf5!important;
+  border-color:#a9e4c5!important;
+}
+
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard.new{
+  background:#fff9ed!important;
+  border-color:#f5d89a!important;
+}
+
+.esteira-profissional .nova-proposta-modal .proposta-cliente-sidebar{
+  width:100%!important;
+  min-width:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  gap:14px!important;
+  position:sticky!important;
+  top:0!important;
+}
+
+.esteira-profissional .nova-proposta-modal .cliente-side-card{
+  width:100%!important;
+  box-sizing:border-box!important;
+  padding:16px!important;
+  border:1px solid #d8e5f6!important;
+  border-radius:14px!important;
+  background:#f7faff!important;
+  color:#17345f!important;
+}
+
+.esteira-profissional .nova-proposta-modal .cliente-side-identidade,
+.esteira-profissional .nova-proposta-modal .cliente-side-seguranca{
+  display:flex!important;
+  align-items:flex-start!important;
+  gap:12px!important;
+}
+
+.esteira-profissional .nova-proposta-modal .cliente-side-icon{
+  width:42px!important;
+  height:42px!important;
+  flex:0 0 42px!important;
+  display:grid!important;
+  place-items:center!important;
+  border-radius:50%!important;
+  background:#e5efff!important;
+}
+
+.esteira-profissional .nova-proposta-modal .cliente-side-card h4{
+  margin:0 0 10px!important;
+  padding-bottom:9px!important;
+  border-bottom:1px solid #dbe6f5!important;
+  color:#155eef!important;
+}
+
+.esteira-profissional .nova-proposta-modal .cliente-side-card ul{
+  list-style:none!important;
+  margin:0!important;
+  padding:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  gap:9px!important;
+}
+
+.esteira-profissional .nova-proposta-modal .cliente-side-card li{
+  position:relative!important;
+  padding-left:23px!important;
+  color:#35516f!important;
+  font-size:12px!important;
+  line-height:1.45!important;
+}
+
+.esteira-profissional .nova-proposta-modal .cliente-side-card li::before{
+  content:"✓"!important;
+  position:absolute!important;
+  left:0!important;
+  top:0!important;
+  width:16px!important;
+  height:16px!important;
+  display:grid!important;
+  place-items:center!important;
+  border-radius:50%!important;
+  background:#dff0ff!important;
+  color:#1769e8!important;
+  font-size:9px!important;
+  font-weight:900!important;
+}
+
+.esteira-profissional .nova-proposta-modal .cliente-side-seguranca{
+  background:#effcf5!important;
+  border-color:#bdebd1!important;
+}
+
+/* REVISÃO */
+.esteira-profissional .nova-proposta-modal .revisao-proposta{
+  width:100%!important;
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:14px!important;
+}
+
+.esteira-profissional .nova-proposta-modal .revisao-cabecalho{
+  grid-column:1/-1!important;
+  display:flex!important;
+  justify-content:space-between!important;
+  align-items:center!important;
+  padding:16px!important;
+  border:1px solid #bce8cf!important;
+  border-radius:14px!important;
+  background:#f1fcf6!important;
+}
+
+.esteira-profissional .nova-proposta-modal .revisao-proposta section{
+  padding:16px!important;
+  border:1px solid #dce6f3!important;
+  border-radius:14px!important;
+  background:#fff!important;
+}
+
+.esteira-profissional .nova-proposta-modal .revisao-proposta section header{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  margin-bottom:10px!important;
+}
+
+.esteira-profissional .nova-proposta-modal .revisao-proposta section header button{
+  width:auto!important;
+  height:auto!important;
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+  color:#1464ea!important;
+  font-size:12px!important;
+  font-weight:800!important;
+}
+
+.esteira-profissional .nova-proposta-modal .revisao-grid{
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:9px!important;
+}
+
+.esteira-profissional .nova-proposta-modal .revisao-grid div{
+  padding:9px!important;
+  border-radius:9px!important;
+  background:#f7faff!important;
+}
+
+.esteira-profissional .nova-proposta-modal .revisao-grid span{
+  display:block!important;
+  margin-bottom:3px!important;
+  color:#7a899f!important;
+  font-size:11px!important;
+}
+
+/* RODAPÉ: fica no fluxo e nunca cobre os campos. */
+.esteira-profissional .nova-proposta-modal .proposta-wizard-footer{
+  flex:0 0 auto!important;
+  width:100%!important;
+  min-height:60px!important;
+  height:auto!important;
+  box-sizing:border-box!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:12px!important;
+  margin:0!important;
+  padding:10px 28px!important;
+  position:static!important;
+  inset:auto!important;
+  border-top:1px solid #e4ebf5!important;
+  background:#fff!important;
+  z-index:10!important;
+}
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-footer-right{
+  display:flex!important;
+  align-items:center!important;
+  gap:10px!important;
+}
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-footer-right > span{
+  color:#7889a1!important;
+  font-size:11px!important;
+  font-weight:700!important;
+}
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-footer .botao-principal,
+.esteira-profissional .nova-proposta-modal .proposta-wizard-footer .botao-secundario{
+  min-height:40px!important;
+  padding:0 16px!important;
+}
+
+/* CEP + obrigatórios */
+.cep-feedback{
+  display:block;
+  margin-top:6px;
+  color:#9a6700;
+  font-size:11px;
+  line-height:1.35;
+  font-weight:700;
+}
+.cep-feedback.sucesso{color:#168653}
+.campo-obrigatorio{
+  color:#e53935!important;
+  font-weight:900!important;
+  margin-left:3px!important;
+}
+
+@media(max-width:1050px){
+  .esteira-profissional .nova-proposta-modal .proposta-cliente-layout{
+    grid-template-columns:1fr!important;
+  }
+
+  .esteira-profissional .nova-proposta-modal .proposta-cliente-sidebar{
+    position:static!important;
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+
+  .esteira-profissional .nova-proposta-modal .cliente-side-seguranca{
+    grid-column:1/-1!important;
+  }
+}
+
+@media(max-width:760px){
+  .esteira-profissional .nova-proposta-modal{
+    width:98vw!important;
+    max-height:98vh!important;
+  }
+
+  .esteira-profissional .nova-proposta-modal .proposta-wizard{
+    grid-template-columns:repeat(5,auto)!important;
+    overflow-x:auto!important;
+    padding:10px 14px!important;
+  }
+
+  .esteira-profissional .nova-proposta-modal .proposta-wizard-step span{
+    display:none!important;
+  }
+
+  .esteira-profissional .nova-proposta-modal .proposta-wizard-scroll{
+    padding:14px!important;
+  }
+
+  .esteira-profissional .nova-proposta-modal .secao-modal > .modal-form-grid,
+  .esteira-profissional .nova-proposta-modal .proposta-cliente-principal .busca-cliente-topo,
+  .esteira-profissional .nova-proposta-modal .proposta-cliente-sidebar,
+  .esteira-profissional .nova-proposta-modal .revisao-proposta,
+  .esteira-profissional .nova-proposta-modal .revisao-grid{
+    grid-template-columns:1fr!important;
+  }
+
+  .esteira-profissional .nova-proposta-modal .revisao-cabecalho,
+  .esteira-profissional .nova-proposta-modal .cliente-side-seguranca{
+    grid-column:auto!important;
+  }
+
+  .esteira-profissional .nova-proposta-modal .proposta-wizard-footer{
+    padding:9px 14px!important;
+  }
+
+  .esteira-profissional .nova-proposta-modal .proposta-wizard-footer-right > span{
+    display:none!important;
+  }
+}
+
+/* ============================================================
+   NOVA PROPOSTA — AJUSTE VISUAL DO CADASTRO DE CLIENTE
+   ============================================================ */
+
+/* Card "Busque o cliente pelo CPF" */
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  align-items:center!important;
+  gap:18px!important;
+  min-height:58px!important;
+  padding:12px 14px!important;
+}
+
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard > div{
+  min-width:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:flex-start!important;
+  gap:3px!important;
+}
+
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard > div strong{
+  display:block!important;
+  margin:0!important;
+  color:#173a70!important;
+  font-size:14px!important;
+  line-height:1.25!important;
+}
+
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard > div span{
+  display:block!important;
+  margin:0!important;
+  color:#637792!important;
+  font-size:11px!important;
+  line-height:1.4!important;
+}
+
+/* Botão "+ Cadastrar cliente agora" */
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard > button{
+  appearance:none!important;
+  width:auto!important;
+  min-width:190px!important;
+  height:40px!important;
+  min-height:40px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:7px!important;
+  margin:0!important;
+  padding:0 16px!important;
+  border:1px solid #2468f2!important;
+  border-radius:10px!important;
+  background:#2468f2!important;
+  color:#fff!important;
+  font-family:inherit!important;
+  font-size:12px!important;
+  font-weight:800!important;
+  line-height:1!important;
+  text-decoration:none!important;
+  white-space:nowrap!important;
+  cursor:pointer!important;
+  box-shadow:0 4px 10px rgba(36,104,242,.14)!important;
+}
+
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard > button::before{
+  content:"+"!important;
+  display:inline-block!important;
+  color:#fff!important;
+  font-size:17px!important;
+  font-weight:500!important;
+  line-height:1!important;
+}
+
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard > button:hover{
+  border-color:#174fd2!important;
+  background:#174fd2!important;
+}
+
+/* Card lateral "Novo cliente" */
+.esteira-profissional .nova-proposta-modal .cliente-side-identidade{
+  display:grid!important;
+  grid-template-columns:42px minmax(0,1fr)!important;
+  align-items:start!important;
+  column-gap:12px!important;
+}
+
+.esteira-profissional .nova-proposta-modal .cliente-side-identidade > div:last-child{
+  min-width:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:flex-start!important;
+  gap:4px!important;
+}
+
+.esteira-profissional .nova-proposta-modal .cliente-side-identidade strong{
+  display:block!important;
+  width:100%!important;
+  margin:0!important;
+  color:#17345f!important;
+  font-size:14px!important;
+  font-weight:800!important;
+  line-height:1.25!important;
+}
+
+.esteira-profissional .nova-proposta-modal .cliente-side-identidade span{
+  display:block!important;
+  width:100%!important;
+  margin:0!important;
+  color:#637792!important;
+  font-size:11px!important;
+  line-height:1.5!important;
+  white-space:normal!important;
+}
+
+@media(max-width:760px){
+  .esteira-profissional .nova-proposta-modal .cliente-status-wizard{
+    grid-template-columns:1fr!important;
+  }
+
+  .esteira-profissional .nova-proposta-modal .cliente-status-wizard > button{
+    width:100%!important;
+    min-width:0!important;
+  }
+}
+
+/* ============================================================
+   DOCUMENTOS — ESTADO VISUAL APÓS ANEXAR
+   ============================================================ */
+.documento-upload-vazio{
+  width:100%;
+  min-height:108px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  cursor:pointer;
+  text-align:center;
+}
+
+.documento-upload-vazio input,
+.documento-trocar input{
+  display:none!important;
+}
+
+.documento-anexado,
+.documento-anexado-multiplo{
+  border:1px solid #9fdfbd!important;
+  background:#f0fcf5!important;
+  cursor:default!important;
+}
+
+.documento-anexado:hover,
+.documento-anexado-multiplo:hover{
+  border-color:#78cf9f!important;
+  background:#ecfaf2!important;
+  transform:none!important;
+}
+
+.documento-check{
+  width:32px;
+  height:32px;
+  flex:0 0 32px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  background:#18a765;
+  color:#fff;
+  font-size:18px;
+  font-weight:900;
+}
+
+.documento-anexado > span,
+.documento-anexado-multiplo > span{
+  color:#168653!important;
+  font-size:12px!important;
+  font-weight:900!important;
+}
+
+.documento-nome-arquivo{
+  display:block!important;
+  max-width:90%!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  color:#315c48!important;
+  font-size:11px!important;
+  font-weight:700!important;
+  text-transform:none!important;
+}
+
+.documento-acoes-anexo{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  margin-top:5px;
+}
+
+.documento-trocar,
+.documento-remover{
+  width:auto!important;
+  min-height:32px!important;
+  height:32px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  padding:0 11px!important;
+  border-radius:8px!important;
+  font-family:inherit!important;
+  font-size:10px!important;
+  font-weight:800!important;
+  text-transform:none!important;
+  cursor:pointer!important;
+}
+
+.documento-trocar{
+  border:1px solid #a8c9ff!important;
+  background:#fff!important;
+  color:#155eef!important;
+}
+
+.documento-remover{
+  border:1px solid #f2b8b5!important;
+  background:#fff!important;
+  color:#d92d20!important;
+}
+
+.documento-anexado-multiplo .documento-upload-seletor{
+  min-height:48px!important;
+}
+
+.documento-anexado-multiplo .documento-upload-seletor strong{
+  color:#168653!important;
+}
+
+.documento-anexado-multiplo .contracheques-selecionados{
+  margin-top:8px!important;
+}
+
+.documento-anexado-multiplo .contracheque-item{
+  border-color:#b9e6cc!important;
+  background:#fff!important;
+}
+
