@@ -10,9 +10,9 @@ type Vendedora={id:string;nome:string;equipe?:string|null;time_id?:string|null;f
 type PropostaCompra={vendedora?:string;consultora?:string;tabela?:string;percentualTabela?:number;valorContrato?:number;valorMeta?:number;status?:string;dataCadastro?:string;dataPagamento?:string};
 type RegistroClt={consultora?:string;parcela?:number;status?:string;criadoEm?:string;dataPagamento?:string};
 type LinhaRanking={nome:string;compra:number;clt:number;producao:number;contratos:number;percentualMeta:number;faltaMeta:number};
-type C={id:string;nome:string;descricao:string|null;capa_url:string|null;capa_ajuste?:"conter"|"preencher";capa_zoom?:number;premio_titulo:string|null;premio_descricao:string|null;meta_valor:number;data_inicio:string|null;data_fim:string|null;produto:string;status_proposta:string;criterio_ranking:string;tipo_ranking:string;situacao:string;fixada?:boolean;participantes?:string[]};
+type C={id:string;nome:string;descricao:string|null;capa_url:string|null;capa_ajuste?:"conter"|"preencher";capa_zoom?:number;premio_titulo:string|null;premio_descricao:string|null;meta_valor:number;data_inicio:string|null;data_fim:string|null;produto:string;status_proposta:string;criterio_ranking:string;tipo_ranking:string;situacao:string;fixada?:boolean;capa_pos_x?:number;capa_pos_y?:number;participantes?:string[]};
 
-const blank={nome:"",descricao:"",capa_url:"",capa_ajuste:"conter" as "conter"|"preencher",capa_zoom:100,premio_titulo:"",premio_descricao:"",meta_valor:"",data_inicio:"",data_fim:"",produto:"Todos",status_proposta:"Paga",criterio_ranking:"Produção",tipo_ranking:"Vendedora",situacao:"Rascunho",participantes:[] as string[]};
+const blank={nome:"",descricao:"",capa_url:"",capa_ajuste:"conter" as "conter"|"preencher",capa_zoom:100,premio_titulo:"",premio_descricao:"",meta_valor:"",data_inicio:"",data_fim:"",produto:"Todos",status_proposta:"Paga",criterio_ranking:"Produção",tipo_ranking:"Vendedora",situacao:"Rascunho",capa_pos_x:50,capa_pos_y:50,participantes:[] as string[]};
 
 const br=(x:string|null)=>x?x.slice(0,10).split("-").reverse().join("/"):"A definir";
 const money=(n:number)=>Number(n||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
@@ -91,7 +91,7 @@ export default function Campanhas(){
   return[...map.values()].map(l=>{const producao=l.compra+l.clt;return{...l,producao,percentualMeta:meta>0?producao/meta*100:0,faltaMeta:Math.max(meta-producao,0)}}).sort((a,b)=>b.producao-a.producao);
  }
 
- function open(c?:C){setBuscaVendedora("");if(c){setEdit(c);setF({...blank,...c,meta_valor:String(c.meta_valor||""),descricao:c.descricao||"",capa_url:c.capa_url||"",capa_ajuste:c.capa_ajuste||"conter",capa_zoom:Number(c.capa_zoom||100),premio_titulo:c.premio_titulo||"",premio_descricao:c.premio_descricao||"",data_inicio:c.data_inicio||"",data_fim:c.data_fim||"",criterio_ranking:"Produção",tipo_ranking:"Vendedora",participantes:c.participantes||[]})}else{setEdit(null);setF(blank)}setModal(true)}
+ function open(c?:C){setBuscaVendedora("");if(c){setEdit(c);setF({...blank,...c,meta_valor:String(c.meta_valor||""),descricao:c.descricao||"",capa_url:c.capa_url||"",capa_ajuste:c.capa_ajuste||"conter",capa_zoom:Number(c.capa_zoom||100),capa_pos_x:Number(c.capa_pos_x??50),capa_pos_y:Number(c.capa_pos_y??50),premio_titulo:c.premio_titulo||"",premio_descricao:c.premio_descricao||"",data_inicio:c.data_inicio||"",data_fim:c.data_fim||"",criterio_ranking:"Produção",tipo_ranking:"Vendedora",participantes:c.participantes||[]})}else{setEdit(null);setF(blank)}setModal(true)}
 
  async function uploadCover(e:ChangeEvent<HTMLInputElement>){const file=e.target.files?.[0];if(!file)return;if(!["image/jpeg","image/png","image/webp"].includes(file.type)){setMsg("Use uma imagem JPG, PNG ou WEBP.");return}if(file.size>10*1024*1024){setMsg("A capa deve ter no máximo 10 MB.");return}setUploading(true);try{const ext=file.name.split(".").pop()?.toLowerCase()||"jpg";const name=`${Date.now()}-${crypto.randomUUID()}.${ext}`;const{error}=await s.storage.from("campanhas-capas").upload(name,file,{contentType:file.type,cacheControl:"3600",upsert:false});if(error)throw error;const{data}=s.storage.from("campanhas-capas").getPublicUrl(name);setF({...f,capa_url:data.publicUrl});}catch(e){setMsg(e instanceof Error?e.message:"Erro ao enviar capa")}finally{setUploading(false);e.target.value=""}}
 
@@ -120,7 +120,7 @@ export default function Campanhas(){
   const ranking=rankingDaCampanha(campanha),lider=ranking[0]||null,producaoLider=lider?.producao||0,percentualLider=lider?.percentualMeta||0;
   return <section className="active-campaign-block" key={campanha.id}>
    <section className={`hero hero-real-image ${campanha.capa_url?"has-cover":""}`}>
-    {campanha.capa_url&&<div className="hero-cover-stage"><img src={campanha.capa_url} alt={`Capa da campanha ${campanha.nome}`} className={`hero-cover-img ${campanha.capa_ajuste==="preencher"?"fill":"contain"}`} style={{transform:`scale(${Number(campanha.capa_zoom||100)/100})`}}/></div>}
+    {campanha.capa_url&&<div className="hero-cover-stage"><img src={campanha.capa_url} alt={`Capa da campanha ${campanha.nome}`} className="hero-cover-img campaign-cover-natural"/></div>}
     <div className="hero-shade"/>
     <div className="hero-copy"><b>● CAMPANHA ATIVA {campanha.fixada&&<span className="campaign-pinned-label">• 📌 FIXADA</span>}</b><h2>{campanha.nome}</h2><p>{campanha.descricao}</p></div>
     {admin&&<div className="hero-admin-actions">
@@ -145,19 +145,15 @@ export default function Campanhas(){
    <label>Nome<input required value={f.nome} onChange={e=>setF({...f,nome:e.target.value})}/></label>
    <label>Descrição<textarea value={f.descricao} onChange={e=>setF({...f,descricao:e.target.value})}/></label>
    <div className="cover-field"><b>Capa da campanha</b>
-   {f.capa_url?<div className={`cover-preview cover-${f.capa_ajuste}`}>
-     <img src={f.capa_url} alt="Prévia da capa" style={{objectFit:f.capa_ajuste==="preencher"?"cover":"contain",transform:`scale(${Number(f.capa_zoom||100)/100})`}}/>
+   {f.capa_url?<div className="cover-preview cover-preview-natural">
+     <img src={f.capa_url} alt="Prévia da capa"/>
      <button type="button" onClick={()=>setF({...f,capa_url:""})}>Remover capa</button>
-   </div>:<div className="cover-empty"><ImagePlus/><span>Nenhuma capa selecionada</span></div>}
-   <div className="cover-tools">
-    <div className="cover-fit">
-     <span>Enquadramento</span>
-     <button type="button" className={f.capa_ajuste==="conter"?"active":""} onClick={()=>setF({...f,capa_ajuste:"conter"})}>Caber inteira</button>
-     <button type="button" className={f.capa_ajuste==="preencher"?"active":""} onClick={()=>setF({...f,capa_ajuste:"preencher"})}>Preencher</button>
+    </div>:<div className="cover-empty"><ImagePlus/><span>Nenhuma capa selecionada</span></div>}
+    <div className="cover-simple-info">
+     <strong>Imagem completa, sem cortes</strong>
+     <span>A capa será exibida na proporção original da arte.</span>
     </div>
-    <label className="cover-zoom"><span>Tamanho da imagem <strong>{f.capa_zoom}%</strong></span><div><button type="button" onClick={()=>setF({...f,capa_zoom:Math.max(50,Number(f.capa_zoom)-5)})}>−</button><input type="range" min="50" max="180" step="5" value={f.capa_zoom} onChange={e=>setF({...f,capa_zoom:Number(e.target.value)})}/><button type="button" onClick={()=>setF({...f,capa_zoom:Math.min(180,Number(f.capa_zoom)+5)})}>+</button></div></label>
-   </div>
-   <label className="upload-btn"><Upload/>{uploading?"Enviando...":"Selecionar imagem"}<input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={uploadCover}/></label>
+    <label className="upload-btn"><Upload/>{uploading?"Enviando...":"Selecionar imagem"}<input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={uploadCover}/></label>
   </div>
   </section>
 

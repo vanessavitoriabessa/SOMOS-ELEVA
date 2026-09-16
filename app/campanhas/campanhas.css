@@ -443,4 +443,220 @@
     align-items:flex-end !important;
   }
 }
+.cover-position-tools{margin-top:14px;padding:14px;border:1px solid #d8e4f5;border-radius:14px;background:#f8fbff}.cover-position-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.cover-position-head>div{display:flex;flex-direction:column;gap:2px}.cover-position-head small{color:#71819a;font-size:12px}.cover-position-head button{border:1px solid #cfe0f7;background:#fff;color:#155ed4;border-radius:10px;padding:9px 13px;font-weight:800;cursor:pointer}.cover-position-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.cover-position-grid button{min-height:54px;border:1px solid #cfe0f7;background:#fff;color:#0e356f;border-radius:11px;font-size:20px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px}.cover-position-grid button:hover,.cover-position-grid button.center{border-color:#2468f2;background:#edf4ff;color:#145ee8}.cover-position-grid small{font-size:11px;font-weight:800}.cover-position-values{margin-top:10px;text-align:center;color:#65758d;font-size:12px}.cover-preview{overflow:hidden!important}.cover-preview img{width:100%!important;height:100%!important}@media(max-width:720px){.cover-position-grid{grid-template-columns:repeat(2,1fr)}.cover-position-grid .center{grid-column:1/-1}}
+
+/* =========================================================
+   CAPA DA CAMPANHA — EXIBIR A ARTE INTEIRA, SEM CORTES
+   Este bloco deve ficar NO FINAL de campanhas.css
+   ========================================================= */
+
+.hero.hero-real-image.has-cover{
+  height:auto !important;
+  min-height:0 !important;
+  aspect-ratio:auto !important;
+  overflow:hidden !important;
+  background:#0b3f96 !important;
+  position:relative !important;
+}
+
+/* A área da capa passa a acompanhar a proporção real da imagem. */
+.hero.hero-real-image.has-cover .hero-cover-stage{
+  position:relative !important;
+  inset:auto !important;
+  width:100% !important;
+  height:auto !important;
+  min-height:0 !important;
+  overflow:hidden !important;
+  display:block !important;
+  background:#0b3f96 !important;
+}
+
+/* Regra principal: largura total e altura automática.
+   Não usa cover, não usa contain dentro de uma altura fixa,
+   não usa zoom e não corta a imagem. */
+.hero.hero-real-image.has-cover .hero-cover-img,
+.hero.hero-real-image.has-cover .campaign-cover-natural{
+  position:relative !important;
+  inset:auto !important;
+  display:block !important;
+  width:100% !important;
+  max-width:100% !important;
+  height:auto !important;
+  min-height:0 !important;
+  max-height:none !important;
+  object-fit:unset !important;
+  object-position:center !important;
+  transform:none !important;
+  margin:0 !important;
+}
+
+/* Mantém o sombreado por cima da arte sem definir a altura do banner. */
+.hero.hero-real-image.has-cover .hero-shade{
+  position:absolute !important;
+  inset:0 !important;
+  z-index:2 !important;
+  pointer-events:none !important;
+}
+
+/* Nome/status continuam sobre a imagem. */
+.hero.hero-real-image.has-cover .hero-copy{
+  position:absolute !important;
+  z-index:5 !important;
+  left:30px !important;
+  top:30px !important;
+  max-width:55% !important;
+}
+
+/* Botões administrativos continuam sobre a imagem. */
+.hero.hero-real-image.has-cover .hero-admin-actions{
+  position:absolute !important;
+  z-index:20 !important;
+  top:24px !important;
+  right:24px !important;
+}
+
+/* Em telas menores, preserva a imagem inteira também. */
+@media(max-width:900px){
+  .hero.hero-real-image.has-cover .hero-cover-img,
+  .hero.hero-real-image.has-cover .campaign-cover-natural{
+    width:100% !important;
+    height:auto !important;
+    object-fit:unset !important;
+    transform:none !important;
+  }
+
+  .hero.hero-real-image.has-cover .hero-copy{
+    left:18px !important;
+    top:18px !important;
+    max-width:65% !important;
+  }
+
+  .hero.hero-real-image.has-cover .hero-admin-actions{
+    top:14px !important;
+    right:14px !important;
+  }
+}
+
+/* ===== CAPA SIMPLES: SEM PREENCHER, ZOOM OU POSIÇÃO ===== */
+.cover-preview-natural{position:relative!important;width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;padding:12px!important;overflow:visible!important;display:block!important;background:#eef5ff!important;border:1px solid #d5e3f6!important;border-radius:14px!important}
+.cover-preview-natural img{position:relative!important;display:block!important;width:100%!important;max-width:100%!important;height:auto!important;max-height:none!important;object-fit:unset!important;object-position:center!important;transform:none!important;margin:0 auto!important;border-radius:10px!important}
+.cover-preview-natural>button{position:absolute!important;z-index:3!important;top:22px!important;right:22px!important}
+.cover-simple-info{margin-top:12px;padding:12px 14px;border:1px solid #d7e5f7;border-radius:12px;background:#f7fbff;display:flex;flex-direction:column;gap:3px}
+.cover-simple-info strong{color:#0c356f;font-size:13px}.cover-simple-info span{color:#71819a;font-size:12px}
+.hero.hero-real-image.has-cover{height:auto!important;min-height:0!important;aspect-ratio:auto!important;overflow:hidden!important}
+.hero.hero-real-image.has-cover .hero-cover-stage{position:relative!important;inset:auto!important;width:100%!important;height:auto!important;min-height:0!important;display:block!important;overflow:hidden!important}
+.hero.hero-real-image.has-cover .hero-cover-stage img,.hero.hero-real-image.has-cover .hero-cover-img,.hero.hero-real-image.has-cover .campaign-cover-natural{position:relative!important;inset:auto!important;display:block!important;width:100%!important;height:auto!important;max-width:100%!important;max-height:none!important;object-fit:unset!important;object-position:center!important;transform:none!important;margin:0!important}
+
+/* ============================================================
+   CORREÇÃO FINAL — BANNER PUBLICADO IGUAL À PRÉVIA
+   IMPORTANTE: manter este bloco como a ÚLTIMA regra do arquivo.
+   ============================================================ */
+
+/* A regra antiga .hero adiciona padding:34px e display:flex.
+   Para capa com imagem, removemos isso completamente. */
+.camp .hero.hero-real-image.has-cover{
+  position:relative !important;
+  display:block !important;
+  width:100% !important;
+  height:auto !important;
+  min-height:0 !important;
+  max-height:none !important;
+  aspect-ratio:auto !important;
+  padding:0 !important;
+  margin:0 !important;
+  overflow:hidden !important;
+  background:#0b3f96 !important;
+  border-radius:18px !important;
+  isolation:isolate !important;
+}
+
+/* O stage deixa de ser absoluto e passa a definir a altura real do banner. */
+.camp .hero.hero-real-image.has-cover .hero-cover-stage{
+  position:relative !important;
+  inset:auto !important;
+  z-index:0 !important;
+  display:block !important;
+  width:100% !important;
+  height:auto !important;
+  min-height:0 !important;
+  max-height:none !important;
+  padding:0 !important;
+  margin:0 !important;
+  overflow:visible !important;
+  background:transparent !important;
+}
+
+/* A própria imagem determina a altura. Nada de cover, zoom ou height:100%. */
+.camp .hero.hero-real-image.has-cover .hero-cover-stage > img,
+.camp .hero.hero-real-image.has-cover img.hero-cover-img,
+.camp .hero.hero-real-image.has-cover img.campaign-cover-natural{
+  position:relative !important;
+  inset:auto !important;
+  display:block !important;
+  width:100% !important;
+  max-width:100% !important;
+  height:auto !important;
+  min-height:0 !important;
+  max-height:none !important;
+  object-fit:fill !important;
+  object-position:center center !important;
+  transform:none !important;
+  transform-origin:center center !important;
+  margin:0 !important;
+  padding:0 !important;
+}
+
+/* Camadas de texto e botões ficam por cima sem alterar a altura da arte. */
+.camp .hero.hero-real-image.has-cover .hero-shade{
+  position:absolute !important;
+  inset:0 !important;
+  z-index:1 !important;
+  pointer-events:none !important;
+}
+
+.camp .hero.hero-real-image.has-cover .hero-copy{
+  position:absolute !important;
+  z-index:5 !important;
+  left:30px !important;
+  top:30px !important;
+  max-width:55% !important;
+  margin:0 !important;
+}
+
+.camp .hero.hero-real-image.has-cover .hero-admin-actions{
+  position:absolute !important;
+  z-index:20 !important;
+  top:24px !important;
+  right:24px !important;
+  margin:0 !important;
+}
+
+/* Neutraliza especificamente os limites antigos de desktop/notebook/mobile. */
+@media(min-width:1200px){
+  .camp .hero.hero-real-image.has-cover{
+    max-height:none !important;
+    aspect-ratio:auto !important;
+  }
+}
+@media(max-width:1199px){
+  .camp .hero.hero-real-image.has-cover{
+    max-height:none !important;
+    aspect-ratio:auto !important;
+  }
+}
+@media(max-width:800px){
+  .camp .hero.hero-real-image.has-cover{
+    max-height:none !important;
+    aspect-ratio:auto !important;
+  }
+  .camp .hero.hero-real-image.has-cover .hero-copy{
+    left:18px !important;
+    top:18px !important;
+    max-width:65% !important;
+  }
+  .camp .hero.hero-real-image.has-cover .hero-admin-actions{
+    top:14px !important;
+    right:14px !important;
+  }
+}
 

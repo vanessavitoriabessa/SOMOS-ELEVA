@@ -54,23 +54,8 @@ async function ctx(request: NextRequest) {
   return {
     s,
     p,
-    admin: String(p.perfil || "").trim() === "Administradora",
+    admin: p.perfil === "Administradora",
   };
-}
-
-function perfilPodeVerTodasCampanhas(perfil?: string | null) {
-  const texto = String(perfil || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-
-  return [
-    "administradora",
-    "supervisora",
-    "operacional",
-    "coordenadora",
-  ].includes(texto);
 }
 
 const pack = (body: any, userId: string) => ({
@@ -79,6 +64,8 @@ const pack = (body: any, userId: string) => ({
   capa_url: String(body.capa_url || "").trim() || null,
   capa_ajuste: body.capa_ajuste === "preencher" ? "preencher" : "conter",
   capa_zoom: Math.max(50, Math.min(Number(body.capa_zoom || 100), 180)),
+  capa_pos_x: Math.max(0, Math.min(Number(body.capa_pos_x ?? 50), 100)),
+  capa_pos_y: Math.max(0, Math.min(Number(body.capa_pos_y ?? 50), 100)),
   premio_titulo: String(body.premio_titulo || "").trim() || null,
   premio_descricao: String(body.premio_descricao || "").trim() || null,
   meta_valor: Number(body.meta_valor || 0),
@@ -185,32 +172,18 @@ export async function GET(request: NextRequest) {
         foto_url: perfil.foto_url || null,
       }));
 
-    const podeVerTodas = perfilPodeVerTodasCampanhas(c.p.perfil);
-
-    const campanhas = (campanhasResponse.data || [])
-      .map((item: any) => ({
-        ...item,
-        participantes: (item.campanhas_participantes || []).map(
-          (participante: any) => participante.profile_id,
-        ),
-        campanhas_participantes: undefined,
-      }))
-      .filter((campanha: any) => {
-        // Administradora, Supervisora, Operacional e Coordenadora
-        // enxergam todas as campanhas.
-        if (podeVerTodas) return true;
-
-        // Demais usuários só recebem as campanhas
-        // em que o próprio usuário foi selecionado.
-        return Array.isArray(campanha.participantes) &&
-          campanha.participantes.includes(c.p.id);
-      });
+    const campanhas = (campanhasResponse.data || []).map((item: any) => ({
+      ...item,
+      participantes: (item.campanhas_participantes || []).map(
+        (participante: any) => participante.profile_id,
+      ),
+      campanhas_participantes: undefined,
+    }));
 
     return NextResponse.json({
       campanhas,
       vendedoras,
       podeEditar: c.admin,
-      podeVerTodas,
     });
   } catch (error) {
     return bad(
