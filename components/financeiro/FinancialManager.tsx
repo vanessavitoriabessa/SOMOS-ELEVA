@@ -10,6 +10,7 @@ import {
 } from "react";
 import { createClient } from "@/lib/supabase/client";
 import "./financeiro.css";
+import FiscalControls from "./FiscalControls";
 
 type Proposta = {
   id: string;
@@ -288,7 +289,7 @@ function formatarCompetencia(valor: string) {
 }
 
 type FinancialManagerProps = {
-  abaExterna?: "movimentacoes" | "folha" | "premiacoes";
+  abaExterna?: "movimentacoes" | "folha" | "premiacoes" | "fiscal";
   ocultarCabecalho?: boolean;
   ocultarAbas?: boolean;
 };
@@ -345,7 +346,7 @@ const [tipo, setTipo] =
   const [filtroDataFinal, setFiltroDataFinal] = useState("");
   const [mensagem, setMensagem] = useState("");
   const [abaFinanceiro, setAbaFinanceiro] = useState<
-    "movimentacoes" | "folha" | "premiacoes"
+    "movimentacoes" | "folha" | "premiacoes" | "fiscal"
   >("movimentacoes");
   const [mostrarNovoLancamento, setMostrarNovoLancamento] = useState(false);
 
@@ -1739,15 +1740,13 @@ const resumoRhDaFolha = useMemo(() => {
   function editarFolha(
     registro: RegistroFolha
   ) {
-    if (registro.pagamentoRealizado) {
-      setMensagemFolha(
-        "Esta folha já foi paga. Para preservar o financeiro, ela não pode ser editada."
-      );
-      return;
-    }
-
     setUsuarioFolhaId(registro.usuarioId);
     setCompetencia(registro.competencia);
+    setMensagemFolha(
+      registro.pagamentoRealizado
+        ? "Editando uma folha já paga. Ao salvar, o status de pagamento será preservado."
+        : ""
+    );
 
     window.scrollTo({
       top: document.body.scrollHeight / 3,
@@ -1760,22 +1759,33 @@ const resumoRhDaFolha = useMemo(() => {
   ) {
     const registro = folhas.find((item) => item.id === id);
 
-    if (registro?.pagamentoRealizado) {
-      setMensagemFolha(
-        "Esta folha já foi paga e possui uma saída financeira vinculada. Ela não pode ser excluída por aqui."
-      );
+    if (!registro) {
+      setMensagemFolha("Folha não encontrada.");
       return;
     }
 
-    if (
-      !window.confirm(
-        "Deseja excluir este cálculo da folha?"
-      )
-    ) {
+    const aviso = registro.pagamentoRealizado
+      ? `Esta folha de ${registro.nome} já foi paga. Ao excluir, a saída financeira vinculada também será excluída. Deseja continuar?`
+      : `Deseja excluir a folha de ${registro.nome} — ${formatarCompetencia(registro.competencia)}?`;
+
+    if (!window.confirm(aviso)) {
       return;
     }
 
     try {
+      if (registro.movimentoId) {
+        const { error: erroMovimento } = await supabase
+          .from("movimentos_financeiros")
+          .delete()
+          .eq("id", registro.movimentoId);
+
+        if (erroMovimento) {
+          throw new Error(
+            `Não foi possível excluir a saída financeira vinculada: ${erroMovimento.message}`
+          );
+        }
+      }
+
       const { error } = await supabase
         .from("folha_pagamentos")
         .delete()
@@ -1786,13 +1796,19 @@ const resumoRhDaFolha = useMemo(() => {
       }
 
       setFolhas((atuais) =>
-        atuais.filter(
-          (registro) => registro.id !== id
-        )
+        atuais.filter((item) => item.id !== id)
       );
 
+      if (registro.movimentoId) {
+        setLancamentos((atuais) =>
+          atuais.filter((item) => item.id !== registro.movimentoId)
+        );
+      }
+
       setMensagemFolha(
-        "Cálculo da folha excluído."
+        registro.pagamentoRealizado
+          ? "Folha paga e saída financeira vinculada excluídas."
+          : "Folha excluída."
       );
     } catch (erro) {
       console.error("Erro ao excluir folha:", erro);
@@ -2025,6 +2041,13 @@ const resumoRhDaFolha = useMemo(() => {
           onClick={() => setAbaFinanceiro("premiacoes")}
         >
           Premiações
+        </button>
+        <button
+          type="button"
+          className={abaFinanceiro === "fiscal" ? "active" : ""}
+          onClick={() => setAbaFinanceiro("fiscal")}
+        >
+          Controle Fiscal
         </button>
       </nav>
       )}
@@ -2621,31 +2644,37 @@ const resumoRhDaFolha = useMemo(() => {
                         </div>
 
                         <div className="payroll-modern-item-actions">
-                          {!registro.pagamentoRealizado ? (
-                            <>
-                              <button
-                                type="button"
-                                className="primary"
-                                onClick={() => void marcarFolhaComoPaga(registro)}
-                              >
-                                ▣&nbsp;&nbsp;Marcar como pago
-                              </button>
-                              <button type="button" className="edit" onClick={() => editarFolha(registro)}>
-                                ✎&nbsp;&nbsp;Editar
-                              </button>
-                              <button
-                                type="button"
-                                className="delete"
-                                onClick={() => excluirFolha(registro.id)}
-                              >
-                                ⌫&nbsp;&nbsp;Excluir
-                              </button>
-                            </>
-                          ) : (
+                          {!registro.pagamentoRealizado && (
+                            <button
+                              type="button"
+                              className="primary"
+                              onClick={() => void marcarFolhaComoPaga(registro)}
+                            >
+                              ▣&nbsp;&nbsp;Marcar como pago
+                            </button>
+                          )}
+
+                          {registro.pagamentoRealizado && (
                             <span className="payroll-paid-badge">
                               ✓ Pagamento realizado
                             </span>
                           )}
+
+                          <button
+                            type="button"
+                            className="edit"
+                            onClick={() => editarFolha(registro)}
+                          >
+                            ✎&nbsp;&nbsp;Editar
+                          </button>
+
+                          <button
+                            type="button"
+                            className="delete"
+                            onClick={() => void excluirFolha(registro.id)}
+                          >
+                            ⌫&nbsp;&nbsp;Excluir
+                          </button>
                         </div>
                       </div>
                     </article>
@@ -2655,6 +2684,10 @@ const resumoRhDaFolha = useMemo(() => {
             </div>
           </div>
         </section>
+      )}
+
+      {abaFinanceiro === "fiscal" && (
+        <FiscalControls />
       )}
 
       {abaFinanceiro === "premiacoes" && (

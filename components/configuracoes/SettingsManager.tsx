@@ -103,6 +103,8 @@ type TipoConfigFinanceiro =
   | "produto"
   | "banco"
   | "parceiro"
+  | "fornecedor_neo"
+  | "fornecedor_3rn"
   | "categoria_entrada"
   | "categoria_saida";
 
@@ -1645,6 +1647,8 @@ export default function SettingsManager() {
       produto: [],
       banco: [],
       parceiro: [],
+      fornecedor_neo: [],
+      fornecedor_3rn: [],
       categoria_entrada: [],
       categoria_saida: [],
     };
@@ -3375,7 +3379,7 @@ export default function SettingsManager() {
                 <span>CONFIGURAÇÃO FINANCEIRA</span>
                 <h2>Cadastros financeiros</h2>
                 <p>
-                  Organize produtos, parceiros, bancos e categorias usados no Financeiro.
+                  Organize produtos, parceiros, fornecedores de notas, bancos e categorias usados no Financeiro.
                 </p>
               </div>
             </div>
@@ -3386,6 +3390,8 @@ export default function SettingsManager() {
                   ["produto", "Produtos", "P"],
                   ["banco", "Bancos", "B"],
                   ["parceiro", "Parceiros", "P"],
+                  ["fornecedor_neo", "Fornec. NEO", "N"],
+                  ["fornecedor_3rn", "Fornec. 3RN", "3"],
                   ["categoria_entrada", "Entradas", "E"],
                   ["categoria_saida", "Saídas", "S"],
                 ] as Array<[TipoConfigFinanceiro, string, string]>
@@ -3432,6 +3438,8 @@ export default function SettingsManager() {
                   <option value="produto">Produto</option>
                   <option value="banco">Banco do Financeiro</option>
                   <option value="parceiro">Parceiro</option>
+                  <option value="fornecedor_neo">Fornecedor de Nota Fiscal — NEO</option>
+                  <option value="fornecedor_3rn">Fornecedor de Nota Fiscal — 3RN</option>
                   <option value="categoria_entrada">Categoria de entrada</option>
                   <option value="categoria_saida">Categoria de saída</option>
                 </select>
@@ -3472,6 +3480,8 @@ export default function SettingsManager() {
                     ["produto", "Produtos financeiros", "Produtos disponíveis para lançamentos"],
                     ["banco", "Bancos do Financeiro", "Instituições usadas nos recebimentos"],
                     ["parceiro", "Parceiros", "Parceiros comerciais e operacionais"],
+                    ["fornecedor_neo", "Fornecedores NEO", "Fornecedores usados nas notas fiscais da NEO"],
+                    ["fornecedor_3rn", "Fornecedores 3RN", "Fornecedores usados nas notas fiscais da 3RN"],
                     ["categoria_entrada", "Categorias de entrada", "Tipos de receitas"],
                     ["categoria_saida", "Categorias de saída", "Tipos de despesas"],
                   ] as Array<[TipoConfigFinanceiro, string, string]>
@@ -3494,6 +3504,8 @@ export default function SettingsManager() {
                 ["produto", "Produtos financeiros", "Defina os produtos disponíveis nos lançamentos.", "P"],
                 ["banco", "Bancos do Financeiro", "Controle quais bancos aparecem na área financeira.", "B"],
                 ["parceiro", "Parceiros", "Cadastre parceiros usados nas movimentações.", "P"],
+                ["fornecedor_neo", "Fornecedores de Nota Fiscal — NEO", "Cadastre os fornecedores que poderão ser selecionados nas notas da NEO.", "N"],
+                ["fornecedor_3rn", "Fornecedores de Nota Fiscal — 3RN", "Cadastre os fornecedores que poderão ser selecionados nas notas da 3RN.", "3"],
                 ["categoria_entrada", "Categorias de entrada", "Organize todas as receitas do sistema.", "E"],
                 ["categoria_saida", "Categorias de saída", "Organize todas as despesas do sistema.", "S"],
               ] as Array<[TipoConfigFinanceiro, string, string, string]>

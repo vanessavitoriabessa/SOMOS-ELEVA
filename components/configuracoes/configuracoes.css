@@ -3753,3 +3753,18 @@
     flex-direction:column;
   }
 }
+
+
+/* FORNECEDORES DE NOTA FISCAL — NEO / 3RN */
+.settings-v7-finance-kpis{
+  grid-template-columns:repeat(7,minmax(95px,1fr)) !important;
+}
+@media(max-width:1550px){
+  .settings-v7-finance-kpis{grid-template-columns:repeat(4,minmax(110px,1fr)) !important;}
+}
+@media(max-width:900px){
+  .settings-v7-finance-kpis{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
+}
+@media(max-width:650px){
+  .settings-v7-finance-kpis{grid-template-columns:1fr !important;}
+}
