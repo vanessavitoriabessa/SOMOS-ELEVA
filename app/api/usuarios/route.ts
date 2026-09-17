@@ -160,13 +160,17 @@ async function autenticarAdministradora(
 
   if (
     !perfilAdministradora ||
-    perfilAdministradora.perfil !==
-      "Administradora" ||
+    ![
+      "Administradora",
+      "Coordenadora",
+    ].includes(
+      String(perfilAdministradora.perfil || "")
+    ) ||
     !perfilAdministradora.ativo
   ) {
     return {
       resposta: respostaErro(
-        "Somente uma Administradora ativa pode gerenciar usuários.",
+        "Somente Administradora ou Coordenadora ativa pode gerenciar usuários.",
         403
       ),
     };
