@@ -63,6 +63,7 @@ type ChavePermissao =
   | "equipe"
   | "rh"
   | "dados_importados"
+    | "gerenciador_whatsapps"
   | "configuracoes"
   | "ver_comissao_banco"
   | "ver_comissao_empresa";
@@ -85,7 +86,8 @@ const PERMISSOES_DISPONIVEIS: Array<{
   { chave: "campanhas", titulo: "Campanhas", grupo: "MENU" },
   { chave: "minha_premiacao", titulo: "Minha Premiação", grupo: "MENU" },
   { chave: "loja_premios", titulo: "Loja de Prêmios", grupo: "MENU" },
-  { chave: "financeiro", titulo: "Financeiro", grupo: "MENU" },
+   { chave: "financeiro", titulo: "Financeiro", grupo: "MENU" },
+  { chave: "gerenciador_whatsapps", titulo: "Gerenciador de WhatsApps", grupo: "MENU" },
   { chave: "equipe", titulo: "Equipe", grupo: "MENU" },
   { chave: "rh", titulo: "RH", grupo: "MENU" },
   { chave: "dados_importados", titulo: "Dados importados", grupo: "MENU" },

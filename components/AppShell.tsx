@@ -61,6 +61,7 @@ type ChavePermissaoMenu =
   | "equipe"
   | "rh"
   | "dados_importados"
+  | "gerenciador_whatsapps"
   | "configuracoes";
 
 type PermissoesMenu = Partial<Record<ChavePermissaoMenu, boolean>>;
@@ -81,6 +82,7 @@ const CHAVE_POR_ROTA: Record<string, ChavePermissaoMenu> = {
   "/equipe": "equipe",
   "/rh": "rh",
   "/dados-importados": "dados_importados",
+    "/gerenciador-whatsapps": "gerenciador_whatsapps",
   "/configuracoes": "configuracoes",
 };
 
@@ -148,6 +150,11 @@ const itensGestao: ItemMenu[] = [
     label: "Financeiro",
     icon: CircleDollarSign,
   },
+  {
+  href: "/gerenciador-whatsapps",
+  label: "Gerenciador de WhatsApps",
+  icon: Workflow,
+},
   {
     href: "/equipe",
     label: "Equipe",
