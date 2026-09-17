@@ -129,6 +129,7 @@ async function autenticarAdministradora(
     !perfilAdministradora ||
     ![
       "Administradora",
+      "Coordenadora",
       "Supervisora",
     ].includes(
       String(
@@ -342,7 +343,7 @@ export async function GET(
       },
       times: timesComDetalhes,
       supervisoras:
-        perfil === "Administradora"
+        ["Administradora", "Coordenadora"].includes(perfil)
           ? supervisores
           : [],
     });
@@ -375,10 +376,10 @@ export async function POST(
     } = autenticacao;
 
     if (
-      perfil !== "Administradora"
+      !["Administradora", "Coordenadora"].includes(perfil)
     ) {
       return respostaErro(
-        "Somente uma Administradora pode criar times.",
+        "Somente Administradora ou Coordenadora pode criar times.",
         403,
       );
     }
@@ -536,10 +537,10 @@ export async function PATCH(
     } = autenticacao;
 
     if (
-      perfil !== "Administradora"
+      !["Administradora", "Coordenadora"].includes(perfil)
     ) {
       return respostaErro(
-        "Somente uma Administradora pode alterar times.",
+        "Somente Administradora ou Coordenadora pode alterar times.",
         403,
       );
     }
@@ -746,10 +747,10 @@ export async function DELETE(
     } = autenticacao;
 
     if (
-      perfil !== "Administradora"
+      !["Administradora", "Coordenadora"].includes(perfil)
     ) {
       return respostaErro(
-        "Somente uma Administradora pode excluir times.",
+        "Somente Administradora ou Coordenadora pode excluir times.",
         403,
       );
     }
