@@ -999,14 +999,16 @@ const [arquivos, setArquivos] = useState({
     permissoesPerfil?.ver_comissao_empresa ?? ehAdminPadrao;
 
   const podeEditarTodasPropostas = [
-    "administradora",
-    "administrador",
-    "admin",
-    "supervisora",
-    "supervisor",
-    "supervisora de vendas",
-    "operacional",
-  ].includes(perfilNormalizado);
+  "administradora",
+  "administrador",
+  "admin",
+  "coordenadora",
+  "coordenador",
+  "supervisora",
+  "supervisor",
+  "supervisora de vendas",
+  "operacional",
+].includes(perfilNormalizado);
 
   function podeEditarProposta(proposta: Proposta) {
     if (podeEditarTodasPropostas) return true;
