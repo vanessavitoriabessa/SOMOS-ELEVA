@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const URL_API =
-  "https://elevapromotora.com.br/landing-whatsapp-teste/api-whatsapps.php";
+  "https://elevapromotora.com.br/servidor-publico/api-whatsapps.php";
 
 export const dynamic = "force-dynamic";
 
