@@ -11,6 +11,7 @@ import {
 } from "react";
 import { createClient } from "@/lib/supabase/client";
 import "./rh-moderno.css";
+import ControlePontoRH from "./ControlePontoRH";
 
 type StatusColaboradora =
   | "Ativa"
@@ -84,6 +85,8 @@ type RegistroRH = {
   cancelaAssiduidade: boolean;
   descricao: string;
   criadoEm: string;
+  descontadoNaFolha: boolean;
+  dataDesconto: string;
 };
 
 type FormularioColaboradora = {
@@ -302,7 +305,7 @@ function criarColaboradoraDoUsuario(
   };
 }
 
-type AbaRH = "visao" | "colaboradoras" | "registros" | "ferias" | "aniversarios";
+type AbaRH = "visao" | "colaboradoras" | "registros" | "ponto" | "ferias" | "aniversarios";
 type AbaFicha = "resumo" | "pessoal" | "contrato" | "historico";
 type IconeNome = "pessoas" | "mais" | "busca" | "calendario" | "relogio" | "carteira" | "alerta" | "presente" | "seta" | "fechar" | "editar" | "painel" | "arquivo";
 
@@ -442,6 +445,7 @@ export default function RHManager() {
   const [filtroTipoRegistro, setFiltroTipoRegistro] = useState("");
   const [filtroPessoaRegistro, setFiltroPessoaRegistro] = useState("");
   const [mesHistorico, setMesHistorico] = useState("");
+  const [filtroDescontoVale, setFiltroDescontoVale] = useState<"pendentes" | "descontados" | "todos">("pendentes");
   const [mesAniversarios, setMesAniversarios] = useState(competenciaAtual().slice(5, 7));
   const [paginaPessoas, setPaginaPessoas] = useState(1);
   const [paginaRegistros, setPaginaRegistros] = useState(1);
@@ -622,6 +626,8 @@ export default function RHManager() {
           ),
           descricao: String(registro.descricao || ""),
           criadoEm: String(registro.criado_em || ""),
+          descontadoNaFolha: Boolean(registro.descontado_na_folha),
+          dataDesconto: String(registro.data_desconto || ""),
         }));
 
         // Migra automaticamente o que já existia no navegador.
@@ -732,6 +738,8 @@ export default function RHManager() {
                   descricao: registro.descricao || "",
                   criado_em:
                     new Date().toISOString(),
+                  descontado_na_folha: false,
+                  data_desconto: null,
                 })
               );
 
@@ -1279,6 +1287,8 @@ export default function RHManager() {
         formRegistro.cancelaAssiduidade,
       descricao: formRegistro.descricao.trim(),
       criadoEm: new Date().toISOString(),
+      descontadoNaFolha: false,
+      dataDesconto: "",
     };
 
     if (salvandoEvento) return;
@@ -1305,6 +1315,8 @@ export default function RHManager() {
             novoRegistro.cancelaAssiduidade,
           descricao: novoRegistro.descricao,
           criado_em: novoRegistro.criadoEm,
+          descontado_na_folha: false,
+          data_desconto: null,
         });
 
       if (error) throw error;
@@ -1334,6 +1346,25 @@ export default function RHManager() {
     } finally {
       setSalvandoEvento(false);
     }
+  }
+
+  async function marcarValeDescontado(item: RegistroRH) {
+    if (item.tipo !== "Vale" || item.descontadoNaFolha) return;
+    const dataDesconto = hoje();
+    const { error } = await supabase
+      .from("rh_registros")
+      .update({ descontado_na_folha: true, data_desconto: dataDesconto })
+      .eq("id", item.id);
+    if (error) {
+      setAvisoRH("Não foi possível marcar o vale como descontado.");
+      return;
+    }
+    setRegistros((atuais) => atuais.map((registro) =>
+      registro.id === item.id
+        ? { ...registro, descontadoNaFolha: true, dataDesconto }
+        : registro
+    ));
+    setAvisoRH("Vale marcado como descontado na folha.");
   }
 
   async function excluirRegistro(id: string) {
@@ -1386,9 +1417,10 @@ export default function RHManager() {
     return (!filtroTipoRegistro || item.tipo === filtroTipoRegistro) &&
       (!filtroPessoaRegistro || item.colaboradoraId === filtroPessoaRegistro) &&
       (!mesHistorico || item.competencia === mesHistorico) &&
+      (filtroTipoRegistro !== "Vale" || filtroDescontoVale === "todos" || (filtroDescontoVale === "descontados" ? item.descontadoNaFolha : !item.descontadoNaFolha)) &&
       (abaRH !== "ferias" || item.tipo === "Férias" || item.tipo === "Afastamento") &&
       (!termo || normalizarRH(`${item.nome} ${item.matricula} ${item.tipo} ${item.descricao}`).includes(termo));
-  }), [registrosOrdenados, buscaRegistro, filtroTipoRegistro, filtroPessoaRegistro, mesHistorico, abaRH]);
+  }), [registrosOrdenados, buscaRegistro, filtroTipoRegistro, filtroPessoaRegistro, mesHistorico, abaRH, filtroDescontoVale]);
   const totalPaginasRegistros = Math.max(1, Math.ceil(listaHistoricoRH.length / 10));
   const paginaRegistrosAtual = Math.min(paginaRegistros, totalPaginasRegistros);
   const registrosPagina = listaHistoricoRH.slice((paginaRegistrosAtual - 1) * 10, paginaRegistrosAtual * 10);
@@ -1463,9 +1495,9 @@ export default function RHManager() {
       <span className={`hrm-record-icon hrm-tone-${item.tipo === "Vale" ? "blue" : item.tipo === "Falta" || item.tipo === "Advertência" ? "amber" : "slate"}`}><IconeRH nome={item.tipo === "Vale" ? "carteira" : item.tipo === "Atraso" ? "relogio" : "calendario"} /></span>
       <div className="hrm-record-main"><strong>{pessoa?.nome || item.nome}</strong><span>{item.tipo} · {dataRH(item.data)} · Competência {formatarCompetencia(item.competencia)}</span>
         {item.descricao && <p>{item.descricao}</p>}
-        <div className="hrm-tags">{item.justificada && <span>Justificada</span>}{item.descontarNaFolha && <span>Marcado para desconto</span>}{item.cancelaAssiduidade && <span>Assiduidade sinalizada</span>}</div>
+        <div className="hrm-tags">{item.justificada && <span>Justificada</span>}{item.tipo === "Vale" && item.descontarNaFolha && !item.descontadoNaFolha && <span className="hrm-tag-pendente">PENDENTE NA FOLHA</span>}{item.tipo === "Vale" && item.descontadoNaFolha && <span className="hrm-tag-descontado">✓ DESCONTADO NA FOLHA · {dataRH(item.dataDesconto)}</span>}{item.cancelaAssiduidade && <span>Assiduidade sinalizada</span>}</div>
       </div>
-      <div className="hrm-record-value"><strong>{item.valor > 0 ? moeda(item.valor) : `${item.quantidade} ${item.unidade}`}</strong>{excluir && <button type="button" className="hrm-text-danger" onClick={() => void excluirRegistro(item.id)} disabled={Boolean(excluindoRH)}>{excluindoRH === item.id ? "Aguarde…" : "Excluir registro"}</button>}</div>
+      <div className="hrm-record-value"><strong>{item.valor > 0 ? moeda(item.valor) : `${item.quantidade} ${item.unidade}`}</strong>{item.tipo === "Vale" && item.descontarNaFolha && !item.descontadoNaFolha && <button type="button" className="hrm-link" onClick={() => void marcarValeDescontado(item)}>Marcar como descontado</button>}{excluir && <button type="button" className="hrm-text-danger" onClick={() => void excluirRegistro(item.id)} disabled={Boolean(excluindoRH)}>{excluindoRH === item.id ? "Aguarde…" : "Excluir registro"}</button>}</div>
     </article>;
   }
 
@@ -1498,7 +1530,7 @@ export default function RHManager() {
 
       <nav className="hrm-navigation" aria-label="Áreas do RH">
         {([
-          ["visao", "Visão geral", "painel"], ["colaboradoras", "Colaboradoras", "pessoas"], ["registros", "Frequência e vales", "relogio"], ["ferias", "Férias e afastamentos", "calendario"], ["aniversarios", "Aniversários", "presente"],
+          ["visao", "Visão geral", "painel"], ["colaboradoras", "Colaboradoras", "pessoas"], ["registros", "Frequência e vales", "relogio"], ["ponto", "Bate-ponto", "relogio"], ["ferias", "Férias e afastamentos", "calendario"], ["aniversarios", "Aniversários", "presente"],
         ] as Array<[AbaRH, string, IconeNome]>).map(([aba, nome, icone]) => <button type="button" key={aba} className={abaRH === aba ? "active" : ""} aria-pressed={abaRH === aba} onClick={() => selecionarAbaRH(aba)}><IconeRH nome={icone} tamanho={18}/>{nome}</button>)}
       </nav>
 
@@ -1537,6 +1569,8 @@ export default function RHManager() {
 
       {abaRH === "colaboradoras" && painelEquipeRH}
 
+      {abaRH === "ponto" && <ControlePontoRH colaboradoras={colaboradoras.map(({id,nome,status})=>({id,nome,status}))} />}
+
       {(abaRH === "registros" || abaRH === "ferias") && <>
         {abaRH === "ferias" && <section className="hrm-panel"><div className="hrm-section-heading"><div><span className="hrm-eyebrow">SITUAÇÃO DA EQUIPE</span><h2>Férias e afastamentos</h2><p>Fichas com esses status neste momento, independentemente da competência.</p></div><button type="button" className="hrm-button hrm-primary" onClick={() => abrirRegistroRH("Férias")} disabled={!dadosProntosRH || !colaboradoras.length}><IconeRH nome="mais" tamanho={17}/>Registrar férias</button></div>
           <div className="hrm-away-grid">{pessoasFeriasRH.map((pessoa) => <button type="button" className="hrm-away-person" key={pessoa.id} onClick={() => abrirFichaRH(pessoa)}><AvatarRH pessoa={pessoa}/><span><strong>{pessoa.nome}</strong><StatusRH status={pessoa.status}/></span></button>)}</div>
@@ -1549,6 +1583,7 @@ export default function RHManager() {
             <select aria-label="Tipo do registro" value={filtroTipoRegistro} onChange={(e) => setFiltroTipoRegistro(e.target.value)}><option value="">Todos os tipos</option>{TIPOS_REGISTRO.filter((tipo) => abaRH !== "ferias" || tipo === "Férias" || tipo === "Afastamento").map((tipo) => <option key={tipo}>{tipo}</option>)}</select>
             <input type="month" value={mesHistorico} onChange={(e) => setMesHistorico(e.target.value)} aria-label="Competência do histórico" title="Em branco: todas as competências"/>
           </div>
+          {filtroTipoRegistro === "Vale" && <div className="hrm-filter-state"><span>Status dos vales</span><div><button type="button" className={filtroDescontoVale==="pendentes" ? "active" : ""} onClick={()=>setFiltroDescontoVale("pendentes")}>Pendentes</button><button type="button" className={filtroDescontoVale==="descontados" ? "active" : ""} onClick={()=>setFiltroDescontoVale("descontados")}>Descontados</button><button type="button" className={filtroDescontoVale==="todos" ? "active" : ""} onClick={()=>setFiltroDescontoVale("todos")}>Todos</button></div></div>}
           <div className="hrm-filter-state"><span>{mesHistorico ? `Competência: ${formatarCompetencia(mesHistorico)}` : "Todas as competências"} · {dadosProntosRH ? `${listaHistoricoRH.length} registro(s)` : "Consultando…"}</span><button type="button" className="hrm-link" onClick={() => {setBuscaRegistro("");setFiltroPessoaRegistro("");setFiltroTipoRegistro("");setMesHistorico("");}}>Limpar filtros</button></div>
           {!dadosProntosRH ? <div className="hrm-empty">{carregandoRH ? "Carregando histórico…" : "Não foi possível carregar os registros."}</div> : !listaHistoricoRH.length ? <div className="hrm-empty"><IconeRH nome="arquivo" tamanho={28}/><strong>Nenhum registro neste filtro</strong><p>Revise os filtros ou cadastre uma ocorrência.</p></div> : <>{registrosPagina.map((item) => renderRegistroRH(item))}<footer className="hrm-pagination"><span>{(paginaRegistrosAtual-1)*10+1}–{Math.min(paginaRegistrosAtual*10,listaHistoricoRH.length)} de {listaHistoricoRH.length} registros</span><div><button type="button" disabled={paginaRegistrosAtual === 1} onClick={() => setPaginaRegistros(paginaRegistrosAtual-1)}>Anterior</button><span>{paginaRegistrosAtual} / {totalPaginasRegistros}</span><button type="button" disabled={paginaRegistrosAtual === totalPaginasRegistros} onClick={() => setPaginaRegistros(paginaRegistrosAtual+1)}>Próxima</button></div></footer></>}
         </section>

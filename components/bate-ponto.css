@@ -1,0 +1,349 @@
+.bp{display:grid;gap:18px}.bp *{box-sizing:border-box}.bp-card{background:#fff;border:1px solid #e3eaf3;border-radius:18px;padding:22px}.bp-card>header{display:flex;justify-content:space-between;gap:20px;align-items:center}.bp-card>header b{font-size:10px;letter-spacing:.12em;color:#2454eb}.bp-card h2{margin:4px 0;font-size:22px;color:#142e50}.bp-card p{margin:0;color:#64758d;font-size:12px}.bp-card button,.bp-config button{border:1px solid #2454eb;border-radius:10px;background:#2454eb;color:#fff;padding:10px 14px;font-weight:800;cursor:pointer}.bp-config{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr)) auto;gap:10px;margin-top:20px;align-items:end}.bp label{display:grid;gap:6px;font-size:11px;font-weight:800;color:#39506e}.bp input,.bp select,.bp textarea{border:1px solid #dce4f0;border-radius:9px;padding:10px;min-height:42px;font:inherit;background:#fff;color:#142e50}.bp-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.bp-kpis article{background:#fff;border:1px solid #e3eaf3;border-radius:15px;padding:18px}.bp-kpis span{display:block;color:#64758d;font-size:11px}.bp-kpis strong{display:block;color:#142e50;font-size:24px;margin-top:8px}.bp-filtros{display:flex;gap:10px;margin-bottom:15px}.bp-filtros input{width:190px}.bp-filtros select{width:280px}.bp-table{overflow:auto}.bp-table table{width:100%;border-collapse:collapse;font-size:11px;white-space:nowrap}.bp-table th{text-align:left;color:#7d8ca2;font-size:9px;padding:11px;border-bottom:1px solid #e3eaf3}.bp-table td{padding:12px 11px;border-bottom:1px solid #edf1f7}.bp-table td.pos{color:#078447;font-weight:800}.bp-table td.neg{color:#d14b4b;font-weight:800}.bp-status{padding:5px 8px;border-radius:999px;font-weight:800}.bp-status.normal{background:#e9f9f0;color:#078447}.bp-status.devendo{background:#fff7e7;color:#b96a00}.bp-status.falta{background:#fff0f0;color:#c93c3c}.bp-status.extra{background:#edf3ff;color:#2454eb}.bp-table td button{background:#fff;color:#2454eb;border:1px solid #cbd9f5;padding:6px 9px;border-radius:7px}.bp-table td button.del{color:#d14b4b;border-color:#ffd1d1}.bp-msg{padding:12px 14px;background:#edf5ff;border:1px solid #dce8ff;border-radius:10px;color:#315482}.bp-bg{position:fixed;inset:0;background:#0d204a70;display:grid;place-items:center;z-index:9999}.bp-modal{width:min(760px,calc(100vw - 32px));background:#fff;border-radius:18px;overflow:hidden}.bp-modal>header,.bp-modal>footer{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid #e3eaf3}.bp-modal>footer{justify-content:flex-end;border-bottom:0;border-top:1px solid #e3eaf3;gap:10px}.bp-modal>header button{border:0;background:#f2f5fa;border-radius:8px;width:34px;height:34px}.bp-modal>footer button{padding:10px 15px;border-radius:9px;border:1px solid #dce4f0;background:#fff;font-weight:800}.bp-modal>footer button:last-child{background:#2454eb;color:#fff;border-color:#2454eb}.bp-form{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;padding:22px}.bp-form .wide{grid-column:1/-1}.bp-form textarea{min-height:90px}.bp-form .check{display:flex;flex-direction:row;align-items:center}.bp-form .check input{min-height:auto;width:18px;height:18px}@media(max-width:900px){.bp-config,.bp-kpis{grid-template-columns:repeat(2,1fr)}.bp-config button{grid-column:1/-1}.bp-form{grid-template-columns:1fr}.bp-form .wide{grid-column:auto}}
+.bp-fechamento{border-color:#cadbff}.bp-close-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:18px}.bp-close-grid>div{padding:16px;border-radius:12px;background:#f7f9fd;border:1px solid #e4eaf4}.bp-close-grid span{display:block;font-size:11px;color:#65758b}.bp-close-grid strong{display:block;margin-top:7px;font-size:21px;color:#142e50}@media(max-width:900px){.bp-close-grid{grid-template-columns:repeat(2,1fr)}}
+/* BATE-PONTO V3 — organização compacta */
+.bp-jornada-compacta{padding:17px 20px}
+.bp-jornada-resumo{display:flex;align-items:center;justify-content:space-between;gap:20px}
+.bp-jornada-resumo b,.bp-registro-home b{font-size:9px;letter-spacing:.12em;color:#2454eb}
+.bp-jornada-resumo h2,.bp-registro-home h2{font-size:18px;margin:4px 0;color:#142e50}
+.bp-jornada-resumo p,.bp-registro-home p{margin:0;color:#64758d;font-size:11px}
+.bp-jornada-resumo button,.bp-registro-home button{border:1px solid #2454eb;background:#2454eb;color:#fff;border-radius:10px;padding:10px 15px;font-weight:800;cursor:pointer;white-space:nowrap}
+.bp-subtabs{display:grid;grid-template-columns:1fr 1fr;background:#fff;border:1px solid #e3eaf3;border-radius:14px;padding:6px}
+.bp-subtabs button{border:0;background:transparent;border-radius:10px;min-height:43px;color:#60708a;font-size:11px;font-weight:900;cursor:pointer}
+.bp-subtabs button.on{background:#2454eb;color:#fff;box-shadow:0 5px 14px #2454eb22}
+.bp-registro-home{display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:105px}
+@media(max-width:800px){.bp-jornada-resumo,.bp-registro-home{align-items:flex-start;flex-direction:column}.bp-subtabs{grid-template-columns:1fr}}
+.bp-jornadas-head{display:flex;align-items:center;justify-content:space-between;gap:18px}.bp-jornadas-head b{font-size:9px;letter-spacing:.12em;color:#2454eb}.bp-jornadas-head h2{margin:4px 0;color:#142e50;font-size:18px}.bp-jornadas-head p{margin:0;color:#64758d;font-size:11px}.bp-jornadas-head>button{background:#2454eb;color:#fff;border:0;border-radius:10px;padding:10px 15px;font-weight:900}.bp-jornadas-lista{display:grid;gap:9px;margin-top:15px}.bp-jornadas-lista article{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:12px 14px;border:1px solid #e3eaf3;border-radius:11px;background:#f9fbfe}.bp-jornadas-lista article div:first-child{display:grid;gap:2px}.bp-jornadas-lista strong{color:#142e50}.bp-jornadas-lista span,.bp-jornadas-lista small{color:#64758d;font-size:10px}.bp-jornadas-lista article button{background:#fff;color:#2454eb;border:1px solid #cbd9f5;border-radius:7px;padding:6px 9px;font-weight:800;margin-left:5px}.bp-jornadas-lista article button.del{color:#d14b4b;border-color:#ffd1d1}
+.bp-equipe-lista{display:grid;gap:8px;padding:20px;max-height:58vh;overflow:auto}.bp-equipe-lista label{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid #e3eaf3;border-radius:10px;background:#fff;cursor:pointer}.bp-equipe-lista label:hover{background:#f8faff}.bp-equipe-lista label.ocupado{border-color:#f1dfb9;background:#fffaf0}.bp-equipe-lista input{width:18px;height:18px;min-height:auto}.bp-equipe-lista span{display:grid;gap:3px}.bp-equipe-lista b{color:#142e50}.bp-equipe-lista small{color:#8a6a2b;font-size:10px}
+/* BATE-PONTO V6 — jornadas recolhidas */
+.bp-jornadas-resumo{display:flex;align-items:center;justify-content:space-between;gap:20px}
+.bp-jornadas-resumo b{font-size:9px;letter-spacing:.12em;color:#2454eb}
+.bp-jornadas-resumo h2{margin:4px 0;color:#142e50;font-size:18px}
+.bp-jornadas-resumo p{margin:0;color:#64758d;font-size:11px}
+.bp-jornadas-resumo-acoes{display:flex;gap:9px}
+.bp-jornadas-resumo-acoes button{border:1px solid #2454eb;background:#2454eb;color:#fff;border-radius:10px;padding:10px 14px;font-weight:900;cursor:pointer}
+.bp-jornadas-resumo-acoes button.sec{background:#fff;color:#2454eb;border-color:#cbd9f5}
+.bp-modal-jornadas{width:min(980px,calc(100vw - 32px))}
+.bp-jornadas-modal-lista{display:grid;gap:9px;padding:18px 22px;max-height:62vh;overflow:auto;background:#f7f9fd}
+.bp-jornadas-modal-lista article{display:flex;align-items:center;justify-content:space-between;gap:18px;background:#fff;border:1px solid #e2e9f4;border-radius:12px;padding:13px 14px}
+.bp-jornadas-modal-lista article>div:first-child{display:grid;gap:3px;min-width:0}
+.bp-jornadas-modal-lista strong{font-size:13px;color:#142e50}
+.bp-jornadas-modal-lista span,.bp-jornadas-modal-lista small{font-size:10px;color:#64758d}
+.bp-jornadas-modal-lista .acoes{display:flex;gap:6px;flex-shrink:0}
+.bp-jornadas-modal-lista .acoes button{background:#fff;color:#2454eb;border:1px solid #cbd9f5;border-radius:8px;padding:7px 10px;font-weight:800;cursor:pointer}
+.bp-jornadas-modal-lista .acoes button.del{color:#d14b4b;border-color:#ffd1d1}
+.bp-vazio{text-align:center;color:#718199;padding:25px}
+@media(max-width:800px){.bp-jornadas-resumo{align-items:flex-start;flex-direction:column}.bp-jornadas-resumo-acoes{width:100%;flex-wrap:wrap}.bp-jornadas-modal-lista article{align-items:flex-start;flex-direction:column}.bp-jornadas-modal-lista .acoes{flex-wrap:wrap}}
+/* BATE-PONTO V7 — fechamento financeiro */
+.bp-fin-config{display:grid;grid-template-columns:220px 220px minmax(220px,1fr);gap:12px;margin-top:18px;align-items:end}
+.bp-fin-config>div{min-height:64px;padding:11px 14px;border:1px solid #dce5f3;border-radius:11px;background:#f7faff}
+.bp-fin-config>div span{display:block;font-size:10px;color:#64758d}.bp-fin-config>div strong{display:block;margin-top:5px;color:#142e50;font-size:17px}
+.bp-close-grid-fin{grid-template-columns:repeat(3,1fr)}
+.bp-close-grid-fin small{display:block;margin-top:5px;color:#2454eb;font-size:10px;font-weight:800}
+.bp-total-receber{margin-top:14px;padding:17px 20px;border-radius:13px;background:#2454eb;color:#fff;display:grid;grid-template-columns:1fr auto;align-items:center;gap:3px 20px}
+.bp-total-receber span{font-size:10px;font-weight:900;letter-spacing:.08em}.bp-total-receber strong{font-size:27px}.bp-total-receber small{grid-column:1/-1;opacity:.82;font-size:9px}
+@media(max-width:850px){.bp-fin-config,.bp-close-grid-fin{grid-template-columns:1fr 1fr}}
+/* BATE-PONTO V8 — fechamento compacto + espelho maior */
+.bp-fechamento-compacto{padding:15px 18px}
+.bp-fechamento-topo{display:grid;grid-template-columns:minmax(260px,1fr) auto auto;align-items:center;gap:16px}
+.bp-fechamento-topo>b,.bp-fechamento-topo div>b{font-size:9px;letter-spacing:.12em;color:#2454eb}
+.bp-fechamento-topo h2{font-size:17px;margin:3px 0;color:#142e50}
+.bp-fechamento-topo p{font-size:10px;margin:0;color:#64758d}
+.bp-fechamento-total-mini{display:grid;gap:2px;min-width:190px;padding:9px 13px;border-radius:10px;background:#edf3ff;border:1px solid #d9e5ff}
+.bp-fechamento-total-mini span{font-size:9px;color:#58709b;font-weight:800;text-transform:uppercase}
+.bp-fechamento-total-mini strong{font-size:20px;color:#2454eb}
+.bp-detalhes-btn{border:1px solid #cbd9f5!important;background:#fff!important;color:#2454eb!important;border-radius:9px!important;padding:9px 12px!important;font-weight:900!important;cursor:pointer}
+.bp-fechamento-detalhes{margin-top:14px;padding-top:14px;border-top:1px solid #e7edf6}
+.bp-fechamento-detalhes .bp-fin-config{margin-top:0}
+.bp-fechamento-detalhes .bp-close-grid{margin-top:12px}
+.bp-espelho-grande{padding:20px 22px}
+.bp-espelho-grande .bp-filtros{margin-bottom:18px}
+.bp-espelho-grande .bp-filtros input,.bp-espelho-grande .bp-filtros select{min-height:46px;font-size:13px}
+.bp-espelho-grande .bp-table table{font-size:13px;min-width:1450px}
+.bp-espelho-grande .bp-table th{font-size:10px;padding:13px 12px;font-weight:900}
+.bp-espelho-grande .bp-table td{padding:15px 12px;font-size:12px;line-height:1.35}
+.bp-espelho-grande .bp-table td b{font-size:12px}
+.bp-espelho-grande .bp-status{font-size:10px;padding:6px 10px}
+.bp-espelho-grande .bp-table td button{font-size:11px;padding:8px 11px;font-weight:800}
+.bp-espelho-grande .bp-table th:nth-child(2),.bp-espelho-grande .bp-table td:nth-child(2){min-width:205px}
+.bp-espelho-grande .bp-table th:nth-child(3),.bp-espelho-grande .bp-table td:nth-child(3){min-width:245px}
+.bp-espelho-grande .bp-table th:nth-child(14),.bp-espelho-grande .bp-table td:nth-child(14){min-width:150px}
+@media(max-width:900px){.bp-fechamento-topo{grid-template-columns:1fr}.bp-fechamento-total-mini{min-width:0}.bp-espelho-grande{padding:15px}}
+/* BATE-PONTO V9 — resumo compacto + fechamento em modal */
+.bp-resumo-faixa{display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border:1px solid #e3eaf3;border-radius:13px;overflow:hidden}
+.bp-resumo-faixa>div{padding:11px 16px;border-right:1px solid #edf1f7;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.bp-resumo-faixa>div:last-child{border-right:0}.bp-resumo-faixa span{font-size:10px;color:#6a7b92}.bp-resumo-faixa strong{font-size:17px;color:#142e50}
+.bp-fechamento-faixa{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:16px;background:#fff;border:1px solid #d9e5ff;border-radius:13px;padding:11px 15px}
+.bp-fechamento-faixa-info{display:grid;gap:2px}.bp-fechamento-faixa-info b{font-size:9px;letter-spacing:.11em;color:#2454eb}.bp-fechamento-faixa-info span{font-size:10px;color:#64758d}
+.bp-fechamento-faixa-total{display:grid;gap:1px;text-align:right}.bp-fechamento-faixa-total span{font-size:9px;color:#64758d;text-transform:uppercase;font-weight:800}.bp-fechamento-faixa-total strong{font-size:20px;color:#2454eb}
+.bp-fechamento-faixa>button{border:1px solid #cbd9f5;background:#f7faff;color:#2454eb;border-radius:9px;padding:9px 12px;font-weight:900;cursor:pointer}
+.bp-modal-fechamento{width:min(900px,calc(100vw - 32px));box-shadow:0 28px 80px #0c234044}
+.bp-modal-fechamento>header{padding:20px 24px;background:linear-gradient(180deg,#fff,#f8faff)}
+.bp-modal-fechamento>header h2{margin:3px 0;font-size:22px;color:#142e50}.bp-modal-fechamento>header small{color:#718198}.bp-modal-eyebrow{font-size:9px;letter-spacing:.13em;color:#2454eb}
+.bp-fechamento-modal-body{padding:20px 24px;background:#f7f9fd}
+.bp-fin-config-modal{grid-template-columns:1fr 1fr 1.15fr;margin:0 0 14px}
+.bp-modal-metricas{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.bp-modal-metricas article{background:#fff;border:1px solid #e2e9f4;border-radius:12px;padding:14px}
+.bp-modal-metricas span{display:block;font-size:10px;color:#6a7b92}.bp-modal-metricas strong{display:block;margin-top:5px;font-size:21px;color:#142e50}.bp-modal-metricas small{display:block;margin-top:4px;color:#2454eb;font-weight:800}
+.bp-modal-total{margin-top:12px;background:#2454eb;color:#fff;border-radius:13px;padding:15px 18px;display:flex;align-items:center;justify-content:space-between;gap:20px}
+.bp-modal-total span{display:block;font-size:10px;font-weight:900;letter-spacing:.08em}.bp-modal-total small{display:block;margin-top:3px;opacity:.8;font-size:9px}.bp-modal-total>strong{font-size:28px}
+.bp-espelho-grande{padding:20px 22px}.bp-espelho-grande .bp-filtros{margin-bottom:18px}.bp-espelho-grande .bp-filtros input,.bp-espelho-grande .bp-filtros select{min-height:46px;font-size:13px}
+.bp-espelho-grande .bp-table table{font-size:13px;min-width:1450px}.bp-espelho-grande .bp-table th{font-size:10px;padding:13px 12px;font-weight:900}.bp-espelho-grande .bp-table td{padding:15px 12px;font-size:12px;line-height:1.35}.bp-espelho-grande .bp-table td button{font-size:11px;padding:8px 11px;font-weight:800}
+@media(max-width:850px){.bp-resumo-faixa{grid-template-columns:1fr 1fr}.bp-fechamento-faixa{grid-template-columns:1fr}.bp-fechamento-faixa-total{text-align:left}.bp-fin-config-modal,.bp-modal-metricas{grid-template-columns:1fr 1fr}}
+/* V9.1 — Fechamento mensal realmente compacto */
+
+.bp-fechamento-faixa {
+  width: fit-content;
+  min-width: 520px;
+  max-width: 620px;
+
+  display: grid;
+  grid-template-columns: auto auto auto;
+  align-items: center;
+  gap: 18px;
+
+  padding: 10px 14px;
+  border-radius: 12px;
+}
+
+.bp-fechamento-faixa-info {
+  min-width: 210px;
+}
+
+.bp-fechamento-faixa-info b {
+  font-size: 9px;
+}
+
+.bp-fechamento-faixa-info span {
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.bp-fechamento-faixa-total {
+  min-width: 105px;
+}
+
+.bp-fechamento-faixa-total span {
+  font-size: 8px;
+}
+
+.bp-fechamento-faixa-total strong {
+  font-size: 18px;
+}
+
+.bp-fechamento-faixa > button {
+  padding: 7px 10px !important;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .bp-fechamento-faixa {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    grid-template-columns: 1fr;
+  }
+}
+/* BATE-PONTO V10 — calendário mensal completo */
+.bp-calendario-info{display:flex;align-items:center;gap:10px;margin:2px 0 14px;padding:9px 12px;border-radius:9px;background:#f7faff;border:1px solid #e4ebf7}.bp-calendario-info b{font-size:9px;letter-spacing:.08em;color:#2454eb}.bp-calendario-info span{font-size:10px;color:#65758b}.bp-calendario-aviso{padding:20px;text-align:center;color:#718198;background:#f8faff;border:1px dashed #cfdaea;border-radius:10px}.bp-dia-pendente{background:#fffdf8}.bp-dia-fimsemana{background:#f8fafc}.bp-status.pendente{background:#fff3d9;color:#a86500}.bp-status.feriado{background:#eeeaff;color:#6d45c5}.bp-status.folga{background:#edf2f7;color:#607087}.bp-status.atestado{background:#e8f5ff;color:#2873a6}.bp-espelho-grande .bp-table td[colspan]{text-align:center;color:#9aa6b6}.bp-espelho-grande .bp-table td:last-child button{min-width:74px}
+.bp-fechamento-individual{max-width:760px}.bp-resultado-mini{display:grid;gap:1px;text-align:right;padding:7px 11px;border-radius:9px}.bp-resultado-mini span{font-size:8px;font-weight:900}.bp-resultado-mini strong{font-size:17px}.bp-resultado-mini.deve{background:#fff0f0;color:#c83c3c}.bp-resultado-mini.recebe{background:#eaf9f0;color:#087d45}.bp-resultado-mini.zerado{background:#f1f4f8;color:#607087}.bp-resultado-final{margin-top:14px;padding:17px 18px;border-radius:13px;display:flex;align-items:center;justify-content:space-between;gap:20px}.bp-resultado-final span{display:block;font-size:9px;font-weight:900;letter-spacing:.08em}.bp-resultado-final strong{display:block;margin-top:4px;font-size:16px}.bp-resultado-final>b{font-size:27px}.bp-resultado-final.deve{background:#fff0f0;color:#bd3434;border:1px solid #ffd5d5}.bp-resultado-final.recebe{background:#eaf9f0;color:#087b44;border:1px solid #ccefdc}.bp-resultado-final.zerado{background:#f1f4f8;color:#53647b;border:1px solid #e0e6ee}.bp-aviso-fechamento{margin:10px 2px 0;font-size:9px;color:#7a8799}.bp-modal-fechamento footer button:last-child{background:#2454eb;color:#fff;border-color:#2454eb}
+/* V13 — origem das horas extras */
+.bp-origem-extras{margin-top:14px;background:#fff;border:1px solid #e2e9f4;border-radius:12px;overflow:hidden}.bp-origem-extras-head{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:#f7f9fd;border-bottom:1px solid #e7edf6}.bp-origem-extras-head b{font-size:9px;letter-spacing:.08em;color:#2454eb}.bp-origem-extras-head span{font-size:11px;font-weight:900;color:#142e50}.bp-extra-dia{display:grid;grid-template-columns:1fr auto auto;gap:18px;align-items:center;padding:10px 14px;border-bottom:1px solid #edf1f6;font-size:10px;color:#64758d}.bp-extra-dia:last-child{border-bottom:0}.bp-extra-dia b{color:#142e50}.bp-extra-dia strong{color:#07934e;font-size:12px}.bp-extra-vazio{padding:14px;text-align:center;color:#7b899b;font-size:10px}
+
+/* ============================================================
+   ESPELHO DO PONTO — LAYOUT LIMPO FINAL
+   Substitui os ajustes V16/V17/V18 antigos.
+   ============================================================ */
+
+.bp-espelho-grande{
+  width:100%;
+  max-width:100%;
+  padding:18px 20px 24px;
+  overflow:hidden;
+  background:#fff;
+  border:1px solid #e1e8f2;
+  border-radius:18px;
+}
+
+.bp-espelho-grande .bp-filtros{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  margin:0 0 16px;
+}
+.bp-espelho-grande .bp-filtros input{
+  width:250px;
+  height:50px;
+  min-height:50px;
+  padding:0 16px;
+  font-size:14px;
+  font-weight:700;
+  border:1px solid #d6e1f0;
+  border-radius:12px;
+}
+.bp-espelho-grande .bp-filtros select{
+  width:390px;
+  height:50px;
+  min-height:50px;
+  padding:0 16px;
+  font-size:14px;
+  font-weight:700;
+  border:1px solid #d6e1f0;
+  border-radius:12px;
+}
+
+.bp-calendario-info{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  min-height:50px;
+  margin:0 0 16px;
+  padding:0 18px;
+  background:#f7faff;
+  border:1px solid #dce7f7;
+  border-radius:12px;
+}
+.bp-calendario-info>div:first-child{display:flex;align-items:center;gap:18px;min-width:0}
+.bp-calendario-info b{font-size:12px;letter-spacing:.03em;color:#075be8;white-space:nowrap}
+.bp-calendario-info>div:first-child span{font-size:11px;color:#667892;white-space:nowrap}
+.bp-legenda{display:flex;align-items:center;justify-content:flex-end;gap:18px;flex-wrap:nowrap}
+.bp-legenda span{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:800;color:#405574;white-space:nowrap}
+.bp-legenda i{display:block;width:10px;height:10px;min-width:10px;border-radius:50%}
+.bp-legenda i.normal{background:#0aa15a}.bp-legenda i.devendo{background:#e89b00}.bp-legenda i.extra{background:#ee4b4b}.bp-legenda i.fim{background:#71859c}.bp-legenda i.feriado{background:#8a45eb}
+
+.bp-table-espelho{
+  width:100%;
+  max-width:100%;
+  overflow:hidden;
+  border:1px solid #dce5f0;
+  border-radius:14px;
+  background:#fff;
+}
+.bp-table-espelho table{
+  width:100%;
+  min-width:0;
+  table-layout:fixed;
+  border-collapse:separate;
+  border-spacing:0;
+}
+.bp-table-espelho th,.bp-table-espelho td{
+  box-sizing:border-box;
+  border-right:1px solid #e4ebf4;
+  border-bottom:1px solid #e4ebf4;
+  vertical-align:middle;
+}
+.bp-table-espelho th:last-child,.bp-table-espelho td:last-child{border-right:0}
+.bp-table-espelho tbody tr:last-child td{border-bottom:0}
+
+.bp-table-espelho thead th{
+  background:#f8fafd;
+  color:#405574;
+  text-align:center;
+  font-weight:900;
+  white-space:nowrap;
+}
+.bp-table-espelho .bp-head-grupo th{height:42px;padding:8px 5px;font-size:11px}
+.bp-table-espelho .bp-head-sub th{height:36px;padding:7px 4px;font-size:9px;background:#f2f6fc}
+.bp-table-espelho .bp-horarios-grupo{background:#eaf2ff;color:#355274;font-size:12px}
+
+/* colunas proporcionais — soma 100% */
+.bp-table-espelho th:nth-child(1),.bp-table-espelho td:nth-child(1){width:7%}
+.bp-table-espelho th:nth-child(2),.bp-table-espelho td:nth-child(2){width:5%}
+.bp-table-espelho .bp-horarios-grupo{width:28%}
+.bp-table-espelho .bp-head-sub th{width:7%}
+.bp-table-espelho tbody td:nth-child(3),
+.bp-table-espelho tbody td:nth-child(4),
+.bp-table-espelho tbody td:nth-child(5),
+.bp-table-espelho tbody td:nth-child(6){width:7%}
+.bp-table-espelho th:nth-child(7),.bp-table-espelho td:nth-child(7){width:8%}
+.bp-table-espelho th:nth-child(8),.bp-table-espelho td:nth-child(8){width:6%}
+.bp-table-espelho th:nth-child(9),.bp-table-espelho td:nth-child(9){width:8%}
+.bp-table-espelho th:nth-child(10),.bp-table-espelho td:nth-child(10){width:7%}
+.bp-table-espelho th:nth-child(11),.bp-table-espelho td:nth-child(11){width:10%}
+.bp-table-espelho th:nth-child(12),.bp-table-espelho td:nth-child(12){width:12%}
+.bp-table-espelho th:nth-child(13),.bp-table-espelho td:nth-child(13){width:9%}
+
+.bp-table-espelho tbody td{
+  height:54px;
+  padding:8px 6px;
+  font-size:11px;
+  color:#173250;
+  text-align:center;
+  white-space:nowrap;
+  overflow:hidden;
+}
+.bp-table-espelho tbody td:first-child{font-weight:800}
+.bp-table-espelho tbody td:nth-child(2){font-weight:700}
+
+/* pílulas internas como na referência */
+.bp-table-espelho tbody td:nth-child(3),
+.bp-table-espelho tbody td:nth-child(4),
+.bp-table-espelho tbody td:nth-child(5),
+.bp-table-espelho tbody td:nth-child(6){background:#fbfcfe}
+
+.bp-table-espelho tbody td:nth-child(7){color:#075be8;font-size:12px;font-weight:900}
+.bp-table-espelho tbody td:nth-child(8){color:#008f46;font-size:12px;font-weight:900}
+.bp-table-espelho tbody td:nth-child(9){color:#008f46;font-size:12px;font-weight:900}
+.bp-table-espelho tbody td:nth-child(10){color:#e54242;font-size:12px;font-weight:900}
+
+.bp-table-espelho .bp-status{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+  max-width:110px;
+  min-height:28px;
+  padding:5px 8px;
+  border-radius:999px;
+  font-size:10px;
+  line-height:1;
+  font-weight:900;
+  white-space:nowrap;
+}
+.bp-table-espelho tbody td:nth-child(12){
+  text-align:left;
+  padding-left:12px;
+  padding-right:8px;
+  font-size:10px;
+  line-height:1.25;
+  white-space:normal;
+  overflow-wrap:break-word;
+}
+.bp-table-espelho td:last-child{text-align:center}
+.bp-table-espelho td:last-child button{
+  width:82px;
+  min-width:0;
+  height:32px;
+  padding:0 8px;
+  background:#fff;
+  color:#075be8;
+  border:1px solid #82abff;
+  border-radius:9px;
+  font-size:10px;
+  font-weight:900;
+  white-space:nowrap;
+}
+.bp-table-espelho .bp-dia-fimsemana td{background:#f7f9fc;color:#60758e}
+.bp-table-espelho .bp-dia-pendente td{background:#fffdf8}
+
+@media(max-width:1100px){
+  .bp-espelho-grande{padding:14px}
+  .bp-table-espelho tbody td{font-size:9px;padding:6px 3px}
+  .bp-table-espelho tbody td:nth-child(7),
+  .bp-table-espelho tbody td:nth-child(8),
+  .bp-table-espelho tbody td:nth-child(9),
+  .bp-table-espelho tbody td:nth-child(10){font-size:10px}
+  .bp-table-espelho .bp-status{font-size:8px}
+  .bp-table-espelho td:last-child button{width:68px;font-size:8px}
+  .bp-legenda{gap:10px}
+  .bp-legenda span{font-size:9px}
+}
+@media(max-width:850px){
+  .bp-espelho-grande,.bp-table-espelho{overflow:auto}
+  .bp-table-espelho table{min-width:1050px}
+  .bp-calendario-info{align-items:flex-start;flex-direction:column;padding-top:12px;padding-bottom:12px}
+  .bp-legenda{justify-content:flex-start;flex-wrap:wrap}
+  .bp-espelho-grande .bp-filtros{align-items:stretch;flex-direction:column}
+  .bp-espelho-grande .bp-filtros input,.bp-espelho-grande .bp-filtros select{width:100%}
+}
