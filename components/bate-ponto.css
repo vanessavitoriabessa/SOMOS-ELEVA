@@ -347,3 +347,4 @@
   .bp-espelho-grande .bp-filtros{align-items:stretch;flex-direction:column}
   .bp-espelho-grande .bp-filtros input,.bp-espelho-grande .bp-filtros select{width:100%}
 }
+.bp-novo-tipo-dia{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:8px}.bp-novo-tipo-dia input{min-width:0}.bp-novo-tipo-dia button{min-width:105px;border:1px solid #2458ee!important;background:#2458ee!important;color:#fff!important;border-radius:9px!important;padding:0 12px!important;font-weight:800!important;font-size:11px!important}.bp-novo-tipo-dia button:hover{filter:brightness(.97)}

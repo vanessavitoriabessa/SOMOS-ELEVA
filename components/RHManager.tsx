@@ -12,6 +12,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import "./rh-moderno.css";
 import ControlePontoRH from "./ControlePontoRH";
+import OcorrenciasEmpresaRH from "./OcorrenciasEmpresaRH";
 
 type StatusColaboradora =
   | "Ativa"
@@ -305,7 +306,7 @@ function criarColaboradoraDoUsuario(
   };
 }
 
-type AbaRH = "visao" | "colaboradoras" | "registros" | "ponto" | "ferias" | "aniversarios";
+type AbaRH = "visao" | "colaboradoras" | "registros" | "ponto" | "ocorrencias" | "ferias" | "aniversarios";
 type AbaFicha = "resumo" | "pessoal" | "contrato" | "historico";
 type IconeNome = "pessoas" | "mais" | "busca" | "calendario" | "relogio" | "carteira" | "alerta" | "presente" | "seta" | "fechar" | "editar" | "painel" | "arquivo";
 
@@ -1530,7 +1531,7 @@ export default function RHManager() {
 
       <nav className="hrm-navigation" aria-label="Áreas do RH">
         {([
-          ["visao", "Visão geral", "painel"], ["colaboradoras", "Colaboradoras", "pessoas"], ["registros", "Frequência e vales", "relogio"], ["ponto", "Bate-ponto", "relogio"], ["ferias", "Férias e afastamentos", "calendario"], ["aniversarios", "Aniversários", "presente"],
+          ["visao", "Visão geral", "painel"], ["colaboradoras", "Colaboradoras", "pessoas"], ["registros", "Frequência e vales", "relogio"], ["ponto", "Bate-ponto", "relogio"], ["ocorrencias", "Ocorrências", "alerta"], ["ferias", "Férias e afastamentos", "calendario"], ["aniversarios", "Aniversários", "presente"],
         ] as Array<[AbaRH, string, IconeNome]>).map(([aba, nome, icone]) => <button type="button" key={aba} className={abaRH === aba ? "active" : ""} aria-pressed={abaRH === aba} onClick={() => selecionarAbaRH(aba)}><IconeRH nome={icone} tamanho={18}/>{nome}</button>)}
       </nav>
 
@@ -1570,6 +1571,8 @@ export default function RHManager() {
       {abaRH === "colaboradoras" && painelEquipeRH}
 
       {abaRH === "ponto" && <ControlePontoRH colaboradoras={colaboradoras.map(({id,nome,status})=>({id,nome,status}))} />}
+
+      {abaRH === "ocorrencias" && <OcorrenciasEmpresaRH />}
 
       {(abaRH === "registros" || abaRH === "ferias") && <>
         {abaRH === "ferias" && <section className="hrm-panel"><div className="hrm-section-heading"><div><span className="hrm-eyebrow">SITUAÇÃO DA EQUIPE</span><h2>Férias e afastamentos</h2><p>Fichas com esses status neste momento, independentemente da competência.</p></div><button type="button" className="hrm-button hrm-primary" onClick={() => abrirRegistroRH("Férias")} disabled={!dadosProntosRH || !colaboradoras.length}><IconeRH nome="mais" tamanho={17}/>Registrar férias</button></div>
