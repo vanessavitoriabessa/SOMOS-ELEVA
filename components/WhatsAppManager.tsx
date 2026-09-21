@@ -12,6 +12,7 @@ type WhatsAppItem = {
   numero_tipo?: string;
   numero_info?: string;
   consultor?: string;
+    mensagem?: string;
 };
 
 type WhatsAppData = {
@@ -29,6 +30,7 @@ type Formulario = {
   identificacao: string;
   numero_tipo: string;
   consultor: string;
+    mensagem: string;
 };
 
 const URL_API = "/api/whatsapps";
@@ -57,6 +59,7 @@ const FORMULARIO_VAZIO: Formulario = {
   identificacao: "",
   numero_tipo: "",
   consultor: "",
+  mensagem: "",
 };
 
 function formatarTelefone(numero: string) {
@@ -280,6 +283,7 @@ export default function WhatsAppManager() {
       numero_tipo: formulario.numero_tipo,
       numero_info: "",
       consultor: formulario.consultor,
+      mensagem: formulario.mensagem.trim(),
     });
 
     if (sucesso) {
@@ -319,6 +323,7 @@ export default function WhatsAppManager() {
       identificacao: item.identificacao || "",
       numero_tipo: item.numero_tipo || "",
       consultor: item.consultor || "",
+        mensagem: item.mensagem || "",
     });
 
     setMensagem("");
@@ -346,9 +351,10 @@ export default function WhatsAppManager() {
       identificacao_tipo: formEdicao.identificacao_tipo,
       identificacao: formEdicao.identificacao.trim(),
       numero_tipo: formEdicao.numero_tipo,
-      numero_info: "",
-      consultor: formEdicao.consultor,
-    });
+numero_info: "",
+consultor: formEdicao.consultor,
+mensagem: formEdicao.mensagem.trim(),
+});
 
     if (sucesso) {
       fecharEdicao();
@@ -1041,6 +1047,53 @@ export default function WhatsAppManager() {
             </select>
           </div>
 
+          <div>
+            <label
+              style={{
+                display: "block",
+                marginBottom: 8,
+                color: "#08275c",
+                fontWeight: 800,
+              }}
+            >
+              Mensagem que será enviada pelo cliente
+            </label>
+
+            <textarea
+              value={formulario.mensagem}
+              placeholder="Ex.: Olá, tudo bem?"
+              onChange={(event) =>
+                setFormulario((atual) => ({
+                  ...atual,
+                  mensagem: event.target.value,
+                }))
+              }
+              maxLength={200}
+              style={{
+                width: "100%",
+                minHeight: 80,
+                padding: 13,
+                resize: "vertical",
+                border: "1px solid #cbd7f1",
+                borderRadius: 9,
+                fontFamily: "inherit",
+                fontSize: 15,
+                outline: "none",
+              }}
+            />
+
+            <div
+              style={{
+                marginTop: 5,
+                color: "#667085",
+                fontSize: 12,
+              }}
+            >
+              Esta mensagem aparecerá preenchida quando o cliente for
+              direcionado para este WhatsApp.
+            </div>
+          </div>
+
           {formulario.consultor === "__incluir__" && (
             <div
               style={{
@@ -1498,7 +1551,52 @@ export default function WhatsAppManager() {
                   ))}
                 </select>
               </div>
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: 8,
+                    color: "#08275c",
+                    fontWeight: 800,
+                  }}
+                >
+                  Mensagem que será enviada pelo cliente
+                </label>
 
+                <textarea
+                  value={formEdicao.mensagem}
+                  placeholder="Ex.: Olá, tudo bem?"
+                  onChange={(event) =>
+                    setFormEdicao((atual) => ({
+                      ...atual,
+                      mensagem: event.target.value,
+                    }))
+                  }
+                  maxLength={200}
+                  style={{
+                    width: "100%",
+                    minHeight: 80,
+                    padding: 13,
+                    resize: "vertical",
+                    border: "1px solid #cbd7f1",
+                    borderRadius: 9,
+                    fontFamily: "inherit",
+                    fontSize: 15,
+                    outline: "none",
+                  }}
+                />
+
+                <div
+                  style={{
+                    marginTop: 5,
+                    color: "#667085",
+                    fontSize: 12,
+                  }}
+                >
+                  Esta será a mensagem preenchida automaticamente quando
+                  o cliente for direcionado para este WhatsApp.
+                </div>
+              </div>
               <div
                 style={{
                   display: "flex",
