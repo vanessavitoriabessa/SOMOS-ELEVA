@@ -35,8 +35,10 @@ export default function FiscalControls({
  useEffect(()=>{setAba(abaInicial)},[abaInicial]);
  const [produto,setProduto]=useState<Produto|"Geral">("CLT");
  const [ordem,setOrdem]=useState<"recentes"|"antigas">("recentes");
- const [filtroPeriodo,setFiltroPeriodo]=useState<"todos"|"mes">("todos");
+ const [filtroPeriodo,setFiltroPeriodo]=useState<"todos"|"periodo">("periodo");
  const [mesFiltro,setMesFiltro]=useState(mes());
+ const [dataInicialFiltro,setDataInicialFiltro]=useState("");
+ const [dataFinalFiltro,setDataFinalFiltro]=useState("");
  const [modal,setModal]=useState(false);
  const [editando,setEditando]=useState<Nota|null>(null);
  const [notas,setNotas]=useState<Nota[]>([]);
@@ -82,15 +84,18 @@ export default function FiscalControls({
  const lista=useMemo(()=>{
    const filtradas=notas.filter(x=>{
      const produtoOk=produto==="Geral" ? true : x.produto===produto;
-     const mesOk=filtroPeriodo==="todos" ? true : x.inicio.slice(0,7)===mesFiltro;
-     return produtoOk&&mesOk;
+      const periodoOk=filtroPeriodo==="todos"
+        ? true
+        : (!dataInicialFiltro || x.inicio>=dataInicialFiltro) &&
+          (!dataFinalFiltro || x.inicio<=dataFinalFiltro);
+      return produtoOk&&periodoOk;
    });
    return [...filtradas].sort((a,b)=>{
      const dataA=new Date(a.inicio||"1900-01-01").getTime();
      const dataB=new Date(b.inicio||"1900-01-01").getTime();
      return ordem==="recentes" ? dataB-dataA : dataA-dataB;
    });
- },[notas,produto,ordem,filtroPeriodo,mesFiltro]);
+ },[notas,produto,ordem,filtroPeriodo,dataInicialFiltro,dataFinalFiltro]);
  const totalNotas=lista.reduce((s,x)=>s+x.valor,0), totalProd=lista.reduce((s,x)=>s+(x.produto==="CLT"?x.liquido:x.bruto),0), totalParcela=lista.reduce((s,x)=>s+x.parcela,0), totalIr=lista.reduce((s,x)=>s+x.ir,0);
  function abrirNovaNota(){
    setEditando(null);
@@ -203,9 +208,10 @@ export default function FiscalControls({
    <div className="fc-list-toolbar fc-filter-toolbar">
      <div><strong>{produto==="Geral"?"Todas as notas — Geral":"Todas as notas"}</strong><span>{lista.length} {lista.length===1?"nota encontrada":"notas encontradas"}</span></div>
      <div className="fc-filter-group">
-       <label>Filtrar<select value={filtroPeriodo} onChange={e=>setFiltroPeriodo(e.target.value as "todos"|"mes")}><option value="todos">Todos os períodos</option><option value="mes">Filtrar por mês</option></select></label>
-       {filtroPeriodo==="mes"&&<label>Mês / ano<input type="month" value={mesFiltro} onChange={e=>setMesFiltro(e.target.value)}/></label>}
-       <label>Ordenar<select value={ordem} onChange={e=>setOrdem(e.target.value as "recentes"|"antigas")}><option value="recentes">Mais recentes primeiro</option><option value="antigas">Mais antigas primeiro</option></select></label>
+       <label>EMISSÃO DE<input type="date" value={dataInicialFiltro} onChange={e=>{setDataInicialFiltro(e.target.value);setFiltroPeriodo("periodo")}}/></label>
+        <label>EMISSÃO ATÉ<input type="date" min={dataInicialFiltro||undefined} value={dataFinalFiltro} onChange={e=>{setDataFinalFiltro(e.target.value);setFiltroPeriodo("periodo")}}/></label>
+        {(dataInicialFiltro||dataFinalFiltro)&&<button type="button" className="fc-clear-period" onClick={()=>{setDataInicialFiltro("");setDataFinalFiltro("");setFiltroPeriodo("todos")}}>Limpar período</button>}
+        <label>Ordenar<select value={ordem} onChange={e=>setOrdem(e.target.value as "recentes"|"antigas")}><option value="recentes">Mais recentes primeiro</option><option value="antigas">Mais antigas primeiro</option></select></label>
      </div>
    </div>
    <div className="fc-table"><table><thead><tr><th>#</th><th>Fornecedor</th><th>Valor nota</th><th>Qtd.</th><th>Referência</th><th>{produto==="CLT"?"Produção líquida":"Valor bruto"}</th>{produto==="CLT"&&<th>Parcela</th>}<th>IR</th><th>Comprovante</th><th>Ações</th></tr></thead><tbody>{lista.length?lista.map((x,i)=><tr key={x.id}><td>{i+1}</td><td>{x.fornecedor}</td><td>{moeda(x.valor)}</td><td>{x.qtd}</td><td>{x.inicio} a {x.fim}</td><td>{moeda(x.produto==="CLT"?x.liquido:x.bruto)}</td>{produto==="CLT"&&<td>{moeda(x.parcela)}</td>}<td>{moeda(x.ir)}</td><td>{x.comprovante?"✓ Anexado":"—"}</td><td><div className="fc-actions"><button type="button" className="fc-edit" onClick={()=>abrirEdicao(x)}>Editar</button><button type="button" className="fc-delete" onClick={()=>void excluirNota(x)}>Excluir</button></div></td></tr>):<tr><td colSpan={10}>Nenhuma nota cadastrada.</td></tr>}</tbody></table></div>

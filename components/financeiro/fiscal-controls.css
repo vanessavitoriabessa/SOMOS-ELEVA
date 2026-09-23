@@ -400,3 +400,394 @@
   min-height:34px;padding:0 13px;font-weight:900;cursor:pointer;
 }
 @media(max-width:800px){.fc-inss-suggestions{grid-template-columns:1fr}}
+/* SIMPLES NACIONAL — STATUS + ALÍQUOTA */
+.fc-status-simples{display:inline-flex;align-items:center;justify-content:center;min-width:92px;padding:6px 10px;border-radius:999px;font-size:11px;font-weight:900}
+.fc-status-simples.pago{background:#e7f8ed;color:#07883f;border:1px solid #bfe9ce}
+.fc-status-simples.pendente{background:#fff5dc;color:#ad6800;border:1px solid #f0d49a}
+.fc-status-simples.atrasado{background:#ffeaea;color:#d92d20;border:1px solid #ffc8c4}
+.fc-actions .fc-marcar-pago,.fc-installment-card .fc-marcar-pago{background:#0a9b4b!important;border-color:#0a9b4b!important;color:#fff!important;font-weight:900!important}
+.fc-actions .fc-reabrir,.fc-installment-card .fc-reabrir{background:#fff!important;color:#42556f!important;border:1px solid #cfd9e7!important}
+.fc-aliquota{display:inline-flex;align-items:center;justify-content:center;min-width:70px;padding:6px 10px;border-radius:999px;background:#edf4ff;color:#1456e8;font-weight:900}
+.fc-aliquota-preview{min-height:42px;border:1px solid #d7e2f0;border-radius:10px;background:#f7faff;padding:8px 12px;display:flex;align-items:center;gap:10px}
+.fc-aliquota-preview strong{font-size:16px;color:#1456e8}.fc-aliquota-preview small{font-size:10px;color:#6a7b91}
+.fc-simples-atrasado td{background:#fffafa}
+/* =========================================================
+   SIMPLES NACIONAL — VISUAL V3
+   Moderno, limpo e integrado ao restante do Financeiro
+   Cole NO FINAL de components/fiscal-controls.css
+   ========================================================= */
+
+/* Tabela mais leve */
+.fc-simples-v2 .fc-table {
+  border: 1px solid #e2e9f3 !important;
+  border-radius: 16px !important;
+  overflow: hidden !important;
+  background: #fff !important;
+}
+
+.fc-simples-v2 .fc-table table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+}
+
+.fc-simples-v2 .fc-table thead th {
+  background: #f7f9fc !important;
+  color: #687b95 !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: .025em !important;
+  text-transform: uppercase !important;
+  border-bottom: 1px solid #e4ebf4 !important;
+  padding: 14px 14px !important;
+}
+
+.fc-simples-v2 .fc-table tbody td {
+  padding: 15px 14px !important;
+  border-bottom: 1px solid #edf1f6 !important;
+  color: #183354 !important;
+  font-size: 12px !important;
+  vertical-align: middle !important;
+}
+
+.fc-simples-v2 .fc-table tbody tr:last-child td {
+  border-bottom: 0 !important;
+}
+
+.fc-simples-v2 .fc-table tbody tr:hover td {
+  background: #fbfcff !important;
+}
+
+/* Não pinta a linha inteira de vermelho quando atrasado */
+.fc-simples-v2 .fc-simples-atrasado td {
+  background: #fff !important;
+}
+
+/* Alíquota */
+.fc-simples-v2 .fc-aliquota {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 68px !important;
+  height: 28px !important;
+  padding: 0 10px !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: #eef4ff !important;
+  color: #1559d6 !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+}
+
+/* Status */
+.fc-simples-v2 .fc-status-simples {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 92px !important;
+  height: 29px !important;
+  padding: 0 11px !important;
+  border-radius: 9px !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  border: 1px solid transparent !important;
+}
+
+.fc-simples-v2 .fc-status-simples.pago {
+  background: #edf8f1 !important;
+  color: #17834a !important;
+  border-color: #d5efdf !important;
+}
+
+.fc-simples-v2 .fc-status-simples.pendente {
+  background: #fff8e9 !important;
+  color: #a56808 !important;
+  border-color: #f3e2b9 !important;
+}
+
+.fc-simples-v2 .fc-status-simples.atrasado {
+  background: #fff0f0 !important;
+  color: #d54343 !important;
+  border-color: #f5d1d1 !important;
+}
+
+/* Grupo de ações */
+.fc-simples-v2 .fc-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  flex-wrap: nowrap !important;
+}
+
+.fc-simples-v2 .fc-actions button,
+.fc-simples-v2 .fc-installment-card td button {
+  min-height: 32px !important;
+  padding: 0 12px !important;
+  border-radius: 8px !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  box-shadow: none !important;
+  transition: background .15s ease, border-color .15s ease, color .15s ease !important;
+}
+
+/* Marcar pago — discreto, sem bloco verde forte */
+.fc-simples-v2 .fc-actions .fc-marcar-pago,
+.fc-simples-v2 .fc-installment-card .fc-marcar-pago {
+  background: #f1faf4 !important;
+  color: #148447 !important;
+  border: 1px solid #bfe5cc !important;
+}
+
+.fc-simples-v2 .fc-actions .fc-marcar-pago:hover,
+.fc-simples-v2 .fc-installment-card .fc-marcar-pago:hover {
+  background: #e7f6ec !important;
+  border-color: #9fd6b2 !important;
+}
+
+/* Reabrir */
+.fc-simples-v2 .fc-actions .fc-reabrir,
+.fc-simples-v2 .fc-installment-card .fc-reabrir {
+  background: #f7f9fc !important;
+  color: #536981 !important;
+  border: 1px solid #d8e1ec !important;
+}
+
+.fc-simples-v2 .fc-actions .fc-reabrir:hover,
+.fc-simples-v2 .fc-installment-card .fc-reabrir:hover {
+  background: #eef2f7 !important;
+}
+
+/* Editar */
+.fc-simples-v2 .fc-actions button:not(.fc-marcar-pago):not(.fc-reabrir):not(.fc-delete),
+.fc-simples-v2 .fc-edit {
+  background: #fff !important;
+  color: #1d5ed8 !important;
+  border: 1px solid #c9daf8 !important;
+}
+
+.fc-simples-v2 .fc-edit:hover {
+  background: #f5f8ff !important;
+  border-color: #a9c4f3 !important;
+}
+
+/* Excluir */
+.fc-simples-v2 .fc-delete {
+  background: #fff !important;
+  color: #d54b4b !important;
+  border: 1px solid #f0caca !important;
+}
+
+.fc-simples-v2 .fc-delete:hover {
+  background: #fff6f6 !important;
+  border-color: #e8b3b3 !important;
+}
+
+/* Parcelamento */
+.fc-simples-v2 .fc-installment-card {
+  border: 1px solid #e1e9f3 !important;
+  border-radius: 16px !important;
+  background: #fff !important;
+  box-shadow: 0 4px 16px rgba(28, 57, 91, .035) !important;
+  overflow: hidden !important;
+}
+
+.fc-simples-v2 .fc-installment-card > header {
+  padding: 18px 20px !important;
+  background: #fbfcfe !important;
+  border-bottom: 1px solid #e7edf5 !important;
+}
+
+.fc-simples-v2 .fc-installment-card > header h4 {
+  margin: 0 0 4px !important;
+  color: #173454 !important;
+  font-size: 15px !important;
+}
+
+.fc-simples-v2 .fc-installment-card > header p {
+  margin: 0 !important;
+  color: #657991 !important;
+  font-size: 11px !important;
+}
+
+.fc-simples-v2 .fc-installment-card > header > div:last-child {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.fc-simples-v2 .fc-installment-card > header > div:last-child > b {
+  display: inline-flex !important;
+  align-items: center !important;
+  min-height: 32px !important;
+  padding: 0 11px !important;
+  border-radius: 8px !important;
+  background: #f3f6fa !important;
+  border: 1px solid #e0e7f0 !important;
+  color: #415a77 !important;
+  font-size: 10px !important;
+}
+
+/* Novo parcelamento mantém o azul institucional, porém mais elegante */
+.fc-simples-v2 .fc-section-title > button {
+  min-height: 42px !important;
+  padding: 0 17px !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: #2463eb !important;
+  color: #fff !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  box-shadow: 0 5px 14px rgba(36, 99, 235, .14) !important;
+}
+
+/* Modal: alíquota calculada */
+.fc-simples-v2 .fc-aliquota-preview {
+  min-height: 43px !important;
+  border: 1px solid #dce5f0 !important;
+  border-radius: 10px !important;
+  background: #f8faff !important;
+  padding: 7px 12px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+}
+
+.fc-simples-v2 .fc-aliquota-preview strong {
+  color: #1559d6 !important;
+  font-size: 15px !important;
+  font-weight: 900 !important;
+}
+
+.fc-simples-v2 .fc-aliquota-preview small {
+  color: #7a8ca3 !important;
+  font-size: 9px !important;
+}
+
+/* Em telas menores, mantém legibilidade */
+@media (max-width: 1100px) {
+  .fc-simples-v2 .fc-table thead th,
+  .fc-simples-v2 .fc-table tbody td {
+    padding-left: 9px !important;
+    padding-right: 9px !important;
+  }
+
+  .fc-simples-v2 .fc-actions {
+    gap: 5px !important;
+  }
+
+  .fc-simples-v2 .fc-actions button {
+    padding-left: 9px !important;
+    padding-right: 9px !important;
+  }
+}
+/* INSS / FGTS — PARCELAMENTOS V2 */
+.fc-inss-status{display:inline-flex;align-items:center;justify-content:center;min-width:88px;height:29px;padding:0 11px;border-radius:9px;font-size:10px;font-weight:800;border:1px solid transparent}
+.fc-inss-status.pago{background:#edf8f1;color:#17834a;border-color:#d5efdf}
+.fc-inss-status.pendente{background:#fff8e9;color:#a56808;border-color:#f3e2b9}
+.fc-inss-status.atrasado{background:#fff0f0;color:#d54343;border-color:#f5d1d1}
+.fc-inss-pay{min-width:112px!important;height:34px!important;border-radius:8px!important;background:#f1faf4!important;color:#148447!important;border:1px solid #bfe5cc!important;font-weight:800!important;box-shadow:none!important}
+.fc-inss-pay:hover{background:#e7f6ec!important;border-color:#9fd6b2!important}
+.fc-inss-reopen{min-width:88px!important;height:34px!important;border-radius:8px!important;background:#f7f9fc!important;color:#536981!important;border:1px solid #d8e1ec!important;font-weight:800!important}
+.fc-inss-installment>header{padding:18px 20px!important;align-items:center!important}
+.fc-inss-installment>header h4{font-size:17px!important;font-weight:850!important;color:#122f52!important}
+.fc-inss-installment>header p{font-size:12px!important;color:#60758e!important}
+.fc-inss-summary{display:inline-flex!important;align-items:center!important;min-height:36px!important;padding:0 13px!important;border-radius:9px!important;background:#f5f7fb!important;border:1px solid #dce5ef!important;color:#152f50!important;font-size:12px!important;font-weight:900!important;letter-spacing:0!important}
+.fc-inss-installment .fc-table th{font-size:10px!important;color:#71839a!important}
+.fc-inss-installment .fc-table td{font-size:12px!important;color:#173454!important}
+.fc-filter-group{align-items:end!important}.fc-filter-group label{display:grid!important;gap:6px!important;font-size:10px!important;font-weight:900!important;color:#19395f!important;text-transform:uppercase!important;letter-spacing:.03em!important}.fc-filter-group label input[type="date"]{width:150px!important;min-height:42px!important;padding:0 12px!important;border:1px solid #cfdaea!important;border-radius:9px!important;background:#fff!important;color:#173454!important;font-size:12px!important;font-weight:700!important}.fc-filter-group label input[type="date"]:focus{outline:none!important;border-color:#7ca2ff!important;box-shadow:0 0 0 3px rgba(36,99,235,.10)!important}.fc-clear-period{height:42px!important;padding:0 12px!important;border:1px solid #d7e1ee!important;border-radius:9px!important;background:#fff!important;color:#58708d!important;font-size:10px!important;font-weight:800!important}
+/* =========================================================
+   SIMPLES NACIONAL — RESUMO PAGOS / PENDENTES
+   Cole no final de components/fiscal-controls.css
+   ========================================================= */
+
+.fc-kpis-simples-resumo {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+}
+
+.fc-kpis-simples-resumo article {
+  min-height: 82px !important;
+  padding: 16px 18px !important;
+  border-radius: 14px !important;
+}
+
+.fc-kpis-simples-resumo article span {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+}
+
+.fc-kpis-simples-resumo article strong {
+  display: block !important;
+  margin-top: 5px !important;
+  font-size: 20px !important;
+  font-weight: 900 !important;
+  letter-spacing: -.02em !important;
+}
+
+.fc-kpis-simples-resumo .fc-kpi-pago {
+  background: #f2faf5 !important;
+  border-color: #d7eddf !important;
+}
+
+.fc-kpis-simples-resumo .fc-kpi-pago span {
+  color: #527563 !important;
+}
+
+.fc-kpis-simples-resumo .fc-kpi-pago strong {
+  color: #148447 !important;
+}
+
+.fc-kpis-simples-resumo .fc-kpi-pendente {
+  background: #fffdf8 !important;
+  border-color: #ebe3cf !important;
+}
+
+.fc-kpis-simples-resumo .fc-kpi-pendente span {
+  color: #756b55 !important;
+}
+
+.fc-kpis-simples-resumo .fc-kpi-pendente strong {
+  color: #173454 !important;
+}
+
+.fc-kpis-simples-resumo .fc-kpi-total {
+  box-shadow: 0 4px 14px rgba(24, 51, 84, .04) !important;
+}
+
+@media (max-width: 1050px) {
+  .fc-kpis-simples-resumo {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 650px) {
+  .fc-kpis-simples-resumo {
+    grid-template-columns: 1fr !important;
+  }
+}
+/* SIMPLES NACIONAL — RESUMO FINAL COM 4 CARDS */
+.fc-kpis-simples-resumo.fc-kpis-simples-quatro{
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:12px!important;
+}
+.fc-kpis-simples-quatro article{
+  min-height:92px!important;
+}
+.fc-kpis-simples-quatro article small{
+  display:block!important;
+  margin-top:5px!important;
+  font-size:9px!important;
+  font-weight:600!important;
+  color:#8190a3!important;
+}
+@media(max-width:1100px){
+  .fc-kpis-simples-resumo.fc-kpis-simples-quatro{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+}
+@media(max-width:650px){
+  .fc-kpis-simples-resumo.fc-kpis-simples-quatro{
+    grid-template-columns:1fr!important;
+  }
+}
