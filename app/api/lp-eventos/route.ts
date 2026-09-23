@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = createAdminClient();
 
-    const { error } = await supabase.from("lp_eventos").insert({
+    const { error } = await supabase.from("lp_eventos").upsert({
       tentativa_id: tentativaId,
       telefone,
       plano: texto(dados.plano, 10) || null,
@@ -112,7 +112,9 @@ export async function POST(request: NextRequest) {
         texto(dados.retrabalho_status, 50) || null,
 
       origem: "servidor-publico",
-    });
+}, {
+  onConflict: "tentativa_id",
+});
 
     if (error) {
       console.error("Falha ao registrar evento da LP:", error.message);
