@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
       fallback?: boolean;
 retrabalho_status?: string;
 rodizio_recuperado?: boolean;
+rodizio_falhou?: boolean;
 erro_rodizio?: string;
     };
 
@@ -114,6 +115,7 @@ retrabalho_status:
   texto(dados.retrabalho_status, 50) || null,
 
 rodizio_recuperado: Boolean(dados.rodizio_recuperado),
+rodizio_falhou: Boolean(dados.rodizio_falhou),
 
 erro_rodizio:
   texto(dados.erro_rodizio, 500) || null,
