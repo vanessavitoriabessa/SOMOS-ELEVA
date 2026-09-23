@@ -1,6 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+
+const supabase = createClient();
 
 type WhatsAppItem = {
   id: number;
@@ -33,7 +36,49 @@ type Formulario = {
     mensagem: string;
 };
 
+type MonitorResumo = {
+  tentativas: number;
+  telefones_unicos: number;
+  clientes_repetidos: number;
+  salvos_hyperflow: number;
+  plano_a: number;
+  plano_b: number;
+  fallback: number;
+  falhas_sem_atendimento: number;
+  retrabalhos_pendentes: number;
+  rodizio_recuperado: number;
+  rodizio_falhou: number;
+};
+
+type MonitorEvento = {
+  id: number;
+  tentativa_id: string;
+  criado_em: string;
+  telefone: string;
+  plano: string | null;
+  etapa: string;
+  erro: string | null;
+  destino_numero: string | null;
+  destino_nome: string | null;
+  destino_consultor: string | null;
+  resultado: string;
+  fallback: boolean;
+  retrabalho_status: string | null;
+  rodizio_recuperado: boolean;
+  rodizio_falhou: boolean;
+  erro_rodizio: string | null;
+};
+
+type MonitorData = {
+  sucesso: boolean;
+  erro?: string;
+  resumo: MonitorResumo;
+  eventos: MonitorEvento[];
+  falhas: MonitorEvento[];
+};
+
 const URL_API = "/api/whatsapps";
+const URL_MONITOR = "/api/lp-eventos";
 
 const CONSULTORES = [
   "Ana Carolina",
@@ -109,6 +154,54 @@ function textoTipoNumero(item: WhatsAppItem) {
   return "Não informado";
 }
 
+
+function dataBrasiliaDeslocada(dias: number) {
+  const agora = new Date();
+  agora.setDate(agora.getDate() + dias);
+
+  return agora.toLocaleDateString("en-CA", {
+    timeZone: "America/Sao_Paulo",
+  });
+}
+
+function formatarDataHoraBrasilia(valor: string) {
+  if (!valor) return "—";
+
+  const data = new Date(valor);
+
+  if (Number.isNaN(data.getTime())) return valor;
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(data);
+}
+
+function textoResultadoMonitor(item: MonitorEvento) {
+  if (item.resultado === "plano_a_whatsapp") {
+    return "WhatsApp aberto normalmente";
+  }
+
+  if (item.resultado === "plano_b_websdk") {
+    return "Atendimento iniciado pelo WebSDK";
+  }
+
+  if (item.resultado === "fallback_whatsapp") {
+    return "Cliente encaminhado pelo fallback WhatsApp";
+  }
+
+  if (item.resultado === "falha_sem_atendimento") {
+    return "Atendimento NÃO iniciado";
+  }
+
+  return item.resultado || "Em processamento";
+}
+
 export default function WhatsAppManager() {
   const [dados, setDados] = useState<WhatsAppData | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -127,6 +220,16 @@ export default function WhatsAppManager() {
     useState<Formulario>(FORMULARIO_VAZIO);
 
   const [novoConsultor, setNovoConsultor] = useState("");
+
+  const hoje = new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/Sao_Paulo",
+  });
+
+  const [dataInicioMonitor, setDataInicioMonitor] = useState(hoje);
+  const [dataFimMonitor, setDataFimMonitor] = useState(hoje);
+  const [monitor, setMonitor] = useState<MonitorData | null>(null);
+  const [carregandoMonitor, setCarregandoMonitor] = useState(false);
+  const [erroMonitor, setErroMonitor] = useState("");
 
     async function carregar() {
     try {
@@ -161,8 +264,89 @@ export default function WhatsAppManager() {
     }
   }
 
+  async function carregarMonitor(
+    inicio = dataInicioMonitor,
+    fim = dataFimMonitor,
+  ) {
+    try {
+      setCarregandoMonitor(true);
+      setErroMonitor("");
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const token = session?.access_token;
+
+      if (!token) {
+        throw new Error(
+          "Sua sessão não foi encontrada. Entre novamente no sistema.",
+        );
+      }
+
+      const resposta = await fetch(
+        `${URL_MONITOR}?inicio=${encodeURIComponent(
+          inicio,
+        )}&fim=${encodeURIComponent(fim)}`,
+        {
+          method: "GET",
+          cache: "no-store",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      const json = (await resposta.json()) as MonitorData;
+
+      if (!resposta.ok || json.sucesso === false) {
+        throw new Error(
+          json.erro || "Não foi possível carregar o Monitor da LP.",
+        );
+      }
+
+      setMonitor(json);
+    } catch (error) {
+      setMonitor(null);
+      setErroMonitor(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível carregar o Monitor da LP.",
+      );
+    } finally {
+      setCarregandoMonitor(false);
+    }
+  }
+
+  function aplicarPeriodoMonitor(tipo: "hoje" | "ontem" | "7dias") {
+    if (tipo === "hoje") {
+      const data = dataBrasiliaDeslocada(0);
+      setDataInicioMonitor(data);
+      setDataFimMonitor(data);
+      void carregarMonitor(data, data);
+      return;
+    }
+
+    if (tipo === "ontem") {
+      const data = dataBrasiliaDeslocada(-1);
+      setDataInicioMonitor(data);
+      setDataFimMonitor(data);
+      void carregarMonitor(data, data);
+      return;
+    }
+
+    const fim = dataBrasiliaDeslocada(0);
+    const inicio = dataBrasiliaDeslocada(-6);
+
+    setDataInicioMonitor(inicio);
+    setDataFimMonitor(fim);
+    void carregarMonitor(inicio, fim);
+  }
+
   useEffect(() => {
     void carregar();
+    void carregarMonitor();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -432,6 +616,497 @@ mensagem: formEdicao.mensagem.trim(),
           {erro}
         </div>
       )}
+
+      <section
+        style={{
+          padding: 22,
+          background: "#ffffff",
+          border: "1px solid #dbe5f5",
+          borderRadius: 18,
+          boxShadow: "0 8px 24px rgba(15, 23, 42, 0.04)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 16,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h2
+              style={{
+                margin: 0,
+                color: "#08275c",
+                fontSize: 22,
+                fontWeight: 900,
+              }}
+            >
+              Monitor da LP
+            </h2>
+
+            <div
+              style={{
+                marginTop: 5,
+                color: "#667085",
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              Acompanhe os atendimentos da landing page Servidor Público.
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void carregarMonitor()}
+            disabled={carregandoMonitor}
+            style={{
+              padding: "11px 16px",
+              border: 0,
+              borderRadius: 9,
+              background: "#155eef",
+              color: "#ffffff",
+              fontWeight: 800,
+              cursor: carregandoMonitor ? "wait" : "pointer",
+              opacity: carregandoMonitor ? 0.7 : 1,
+            }}
+          >
+            {carregandoMonitor ? "ATUALIZANDO..." : "ATUALIZAR"}
+          </button>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap",
+            marginTop: 18,
+          }}
+        >
+          {[
+            ["Hoje", "hoje"],
+            ["Ontem", "ontem"],
+            ["Últimos 7 dias", "7dias"],
+          ].map(([titulo, tipo]) => (
+            <button
+              key={tipo}
+              type="button"
+              onClick={() =>
+                aplicarPeriodoMonitor(
+                  tipo as "hoje" | "ontem" | "7dias",
+                )
+              }
+              disabled={carregandoMonitor}
+              style={{
+                padding: "10px 14px",
+                border: "1px solid #cddcff",
+                borderRadius: 9,
+                background: "#eef4ff",
+                color: "#155eef",
+                fontWeight: 800,
+                cursor: "pointer",
+              }}
+            >
+              {titulo}
+            </button>
+          ))}
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: 12,
+            marginTop: 14,
+            alignItems: "end",
+          }}
+        >
+          <label
+            style={{
+              display: "grid",
+              gap: 6,
+              color: "#344054",
+              fontSize: 12,
+              fontWeight: 800,
+            }}
+          >
+            DATA INICIAL
+            <input
+              type="date"
+              value={dataInicioMonitor}
+              onChange={(event) =>
+                setDataInicioMonitor(event.target.value)
+              }
+              style={{
+                padding: 11,
+                border: "1px solid #cbd7f1",
+                borderRadius: 9,
+                fontSize: 14,
+              }}
+            />
+          </label>
+
+          <label
+            style={{
+              display: "grid",
+              gap: 6,
+              color: "#344054",
+              fontSize: 12,
+              fontWeight: 800,
+            }}
+          >
+            DATA FINAL
+            <input
+              type="date"
+              value={dataFimMonitor}
+              onChange={(event) =>
+                setDataFimMonitor(event.target.value)
+              }
+              style={{
+                padding: 11,
+                border: "1px solid #cbd7f1",
+                borderRadius: 9,
+                fontSize: 14,
+              }}
+            />
+          </label>
+
+          <button
+            type="button"
+            onClick={() =>
+              void carregarMonitor(
+                dataInicioMonitor,
+                dataFimMonitor,
+              )
+            }
+            disabled={carregandoMonitor}
+            style={{
+              minHeight: 42,
+              padding: "11px 18px",
+              border: 0,
+              borderRadius: 9,
+              background: "#3b404a",
+              color: "#ffffff",
+              fontWeight: 800,
+              cursor: carregandoMonitor ? "wait" : "pointer",
+            }}
+          >
+            FILTRAR PERÍODO
+          </button>
+        </div>
+
+        {erroMonitor && (
+          <div
+            style={{
+              marginTop: 16,
+              padding: "12px 14px",
+              background: "#ffe9e7",
+              color: "#b42318",
+              borderRadius: 10,
+              fontWeight: 700,
+            }}
+          >
+            {erroMonitor}
+          </div>
+        )}
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+            gap: 12,
+            marginTop: 18,
+          }}
+        >
+          {[
+            ["Tentativas na LP", monitor?.resumo.tentativas ?? 0, "#08275c"],
+            ["Telefones únicos", monitor?.resumo.telefones_unicos ?? 0, "#08275c"],
+            ["Clientes repetidos", monitor?.resumo.clientes_repetidos ?? 0, "#08275c"],
+            ["Salvos na Hyperflow", monitor?.resumo.salvos_hyperflow ?? 0, "#08783e"],
+            ["Plano A → WhatsApp", monitor?.resumo.plano_a ?? 0, "#08783e"],
+            ["Plano B → WebSDK", monitor?.resumo.plano_b ?? 0, "#155eef"],
+            ["Fallback → WhatsApp", monitor?.resumo.fallback ?? 0, "#a66400"],
+            ["Falhas sem atendimento", monitor?.resumo.falhas_sem_atendimento ?? 0, "#b42318"],
+            ["Retrabalhos pendentes", monitor?.resumo.retrabalhos_pendentes ?? 0, "#a66400"],
+            ["Rodízio recuperado 2ª tentativa", monitor?.resumo.rodizio_recuperado ?? 0, "#08783e"],
+            ["Falha técnica do rodízio", monitor?.resumo.rodizio_falhou ?? 0, "#b42318"],
+          ].map(([titulo, valor, cor]) => (
+            <div
+              key={String(titulo)}
+              style={{
+                minHeight: 104,
+                padding: 16,
+                background: "#f8faff",
+                border: "1px solid #dbe5f5",
+                borderRadius: 14,
+              }}
+            >
+              <div
+                style={{
+                  color: "#667085",
+                  fontSize: 12,
+                  fontWeight: 800,
+                  lineHeight: 1.35,
+                }}
+              >
+                {titulo}
+              </div>
+
+              <strong
+                style={{
+                  display: "block",
+                  marginTop: 10,
+                  color: String(cor),
+                  fontSize: 27,
+                  fontWeight: 900,
+                }}
+              >
+                {valor}
+              </strong>
+            </div>
+          ))}
+        </div>
+
+        <div
+          style={{
+            marginTop: 24,
+            paddingTop: 20,
+            borderTop: "1px solid #e4eaf3",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <h3
+                style={{
+                  margin: 0,
+                  color: "#08275c",
+                  fontSize: 18,
+                  fontWeight: 900,
+                }}
+              >
+                Falhas da LP
+              </h3>
+              <div
+                style={{
+                  marginTop: 4,
+                  color: "#667085",
+                  fontSize: 12,
+                }}
+              >
+                Fallbacks, falhas sem atendimento e ocorrências do rodízio.
+              </div>
+            </div>
+
+            <div
+              style={{
+                color: "#667085",
+                fontSize: 12,
+                fontWeight: 700,
+              }}
+            >
+              {monitor?.falhas.length ?? 0} ocorrência(s)
+            </div>
+          </div>
+
+          {!carregandoMonitor &&
+            monitor &&
+            monitor.falhas.length === 0 && (
+              <div
+                style={{
+                  marginTop: 14,
+                  padding: 18,
+                  background: "#f7f9fc",
+                  borderRadius: 12,
+                  color: "#667085",
+                  textAlign: "center",
+                  fontWeight: 700,
+                }}
+              >
+                Nenhuma falha ou contingência no período selecionado.
+              </div>
+            )}
+
+          {(monitor?.falhas.length ?? 0) > 0 && (
+            <div
+              style={{
+                marginTop: 14,
+                overflowX: "auto",
+                border: "1px solid #e4eaf3",
+                borderRadius: 12,
+              }}
+            >
+              <table
+                style={{
+                  width: "100%",
+                  minWidth: 1120,
+                  borderCollapse: "collapse",
+                  background: "#ffffff",
+                }}
+              >
+                <thead>
+                  <tr style={{ background: "#f7f9fc" }}>
+                    {[
+                      "Data/Hora",
+                      "Telefone",
+                      "Plano",
+                      "Etapa",
+                      "Erro",
+                      "Destino",
+                      "Consultor(a)",
+                      "Resultado",
+                    ].map((titulo) => (
+                      <th
+                        key={titulo}
+                        style={{
+                          padding: "12px 13px",
+                          textAlign: "left",
+                          color: "#475467",
+                          fontSize: 11,
+                          fontWeight: 900,
+                          borderBottom: "1px solid #e4eaf3",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {titulo}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {(monitor?.falhas ?? []).map((item) => {
+                    const erroExibido =
+                      item.erro ||
+                      item.erro_rodizio ||
+                      (item.rodizio_recuperado
+                        ? "1ª consulta do rodízio falhou; 2ª tentativa recuperou."
+                        : item.rodizio_falhou
+                          ? "Rodízio indisponível após 2 tentativas."
+                          : "—");
+
+                    return (
+                      <tr key={item.id}>
+                        <td
+                          style={{
+                            padding: 13,
+                            borderBottom: "1px solid #eef1f6",
+                            whiteSpace: "nowrap",
+                            fontSize: 12,
+                          }}
+                        >
+                          {formatarDataHoraBrasilia(item.criado_em)}
+                        </td>
+
+                        <td
+                          style={{
+                            padding: 13,
+                            borderBottom: "1px solid #eef1f6",
+                            fontWeight: 800,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {formatarTelefone(item.telefone)}
+                        </td>
+
+                        <td
+                          style={{
+                            padding: 13,
+                            borderBottom: "1px solid #eef1f6",
+                            fontWeight: 900,
+                          }}
+                        >
+                          {item.plano || "—"}
+                        </td>
+
+                        <td
+                          style={{
+                            padding: 13,
+                            borderBottom: "1px solid #eef1f6",
+                            fontSize: 12,
+                          }}
+                        >
+                          {item.etapa || "—"}
+                        </td>
+
+                        <td
+                          style={{
+                            padding: 13,
+                            borderBottom: "1px solid #eef1f6",
+                            color:
+                              item.resultado === "falha_sem_atendimento"
+                                ? "#b42318"
+                                : "#475467",
+                            fontSize: 12,
+                            maxWidth: 280,
+                          }}
+                        >
+                          {erroExibido}
+                        </td>
+
+                        <td
+                          style={{
+                            padding: 13,
+                            borderBottom: "1px solid #eef1f6",
+                            fontSize: 12,
+                          }}
+                        >
+                          {item.destino_nome ||
+                            (item.destino_numero
+                              ? formatarTelefone(item.destino_numero)
+                              : "—")}
+                        </td>
+
+                        <td
+                          style={{
+                            padding: 13,
+                            borderBottom: "1px solid #eef1f6",
+                            fontSize: 12,
+                          }}
+                        >
+                          {item.destino_consultor || "—"}
+                        </td>
+
+                        <td
+                          style={{
+                            padding: 13,
+                            borderBottom: "1px solid #eef1f6",
+                            color:
+                              item.resultado === "falha_sem_atendimento"
+                                ? "#b42318"
+                                : item.resultado === "fallback_whatsapp"
+                                  ? "#08783e"
+                                  : "#344054",
+                            fontSize: 12,
+                            fontWeight: 900,
+                          }}
+                        >
+                          {textoResultadoMonitor(item)}
+                          {item.resultado === "fallback_whatsapp"
+                            ? " ✅"
+                            : item.resultado === "falha_sem_atendimento"
+                              ? " 🔴"
+                              : ""}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
 
       <div
         style={{
