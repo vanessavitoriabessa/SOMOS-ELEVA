@@ -202,7 +202,9 @@ function textoResultadoMonitor(item: MonitorEvento) {
   return item.resultado || "Em processamento";
 }
 
-export default function WhatsAppManager() {
+type WhatsAppManagerProps = { modo?: "gerenciador" | "historico" };
+
+export default function WhatsAppManager({ modo = "gerenciador" }: WhatsAppManagerProps) {
   const [dados, setDados] = useState<WhatsAppData | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [processando, setProcessando] = useState(false);
@@ -230,6 +232,10 @@ export default function WhatsAppManager() {
   const [monitor, setMonitor] = useState<MonitorData | null>(null);
   const [carregandoMonitor, setCarregandoMonitor] = useState(false);
   const [erroMonitor, setErroMonitor] = useState("");
+
+  const [filtrosStatus, setFiltrosStatus] = useState<string[]>([]);
+  const [filtrosTipo, setFiltrosTipo] = useState<string[]>([]);
+  const [filtrosConsultor, setFiltrosConsultor] = useState<string[]>([]);
 
     async function carregar() {
     try {
@@ -572,6 +578,29 @@ mensagem: formEdicao.mensagem.trim(),
     );
   }, [dados]);
 
+
+  function alternarFiltro(valor: string, selecionados: string[], definir: (valores: string[]) => void) {
+    definir(
+      selecionados.includes(valor)
+        ? selecionados.filter((item) => item !== valor)
+        : [...selecionados, valor],
+    );
+  }
+
+  const numerosFiltrados = useMemo(() => {
+    return (dados?.numeros ?? []).filter((item) => {
+      const status = item.ativo ? "ativo" : "banido";
+      const tipo = item.numero_tipo || "";
+      const consultor = item.consultor || "";
+
+      return (
+        (filtrosStatus.length === 0 || filtrosStatus.includes(status)) &&
+        (filtrosTipo.length === 0 || filtrosTipo.includes(tipo)) &&
+        (filtrosConsultor.length === 0 || filtrosConsultor.includes(consultor))
+      );
+    });
+  }, [dados, filtrosStatus, filtrosTipo, filtrosConsultor]);
+
   if (carregando && !dados) {
     return (
       <div
@@ -583,6 +612,87 @@ mensagem: formEdicao.mensagem.trim(),
         }}
       >
         Carregando WhatsApps...
+      </div>
+    );
+  }
+
+  if (modo === "historico") {
+    return (
+      <div style={{ display: "grid", gap: 18 }}>
+        <section style={{ padding: 22, background: "#ffffff", border: "1px solid #dbe5f5", borderRadius: 18 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+            <div>
+              <h2 style={{ margin: 0, color: "#08275c", fontSize: 22, fontWeight: 900 }}>Histórico de Atendimentos</h2>
+              <div style={{ marginTop: 5, color: "#667085", fontSize: 13 }}>Consulte os atendimentos registrados pela landing page.</div>
+            </div>
+            <button type="button" onClick={() => void carregarMonitor()} disabled={carregandoMonitor}
+              style={{ padding: "11px 16px", border: 0, borderRadius: 9, background: "#155eef", color: "#fff", fontWeight: 800, cursor: "pointer" }}>
+              {carregandoMonitor ? "ATUALIZANDO..." : "ATUALIZAR"}
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 18 }}>
+            {[["Hoje", "hoje"], ["Ontem", "ontem"], ["Últimos 7 dias", "7dias"]].map(([titulo, tipo]) => (
+              <button key={tipo} type="button"
+                onClick={() => aplicarPeriodoMonitor(tipo as "hoje" | "ontem" | "7dias")}
+                style={{ padding: "10px 14px", border: "1px solid #cddcff", borderRadius: 9, background: "#eef4ff", color: "#155eef", fontWeight: 800, cursor: "pointer" }}>
+                {titulo}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12, marginTop: 14, alignItems: "end" }}>
+            <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
+              DATA INICIAL
+              <input type="date" value={dataInicioMonitor} onChange={(e) => setDataInicioMonitor(e.target.value)}
+                style={{ padding: 11, border: "1px solid #cbd7f1", borderRadius: 9 }} />
+            </label>
+            <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 800 }}>
+              DATA FINAL
+              <input type="date" value={dataFimMonitor} onChange={(e) => setDataFimMonitor(e.target.value)}
+                style={{ padding: 11, border: "1px solid #cbd7f1", borderRadius: 9 }} />
+            </label>
+            <button type="button" onClick={() => void carregarMonitor(dataInicioMonitor, dataFimMonitor)}
+              style={{ minHeight: 42, padding: "11px 18px", border: 0, borderRadius: 9, background: "#3b404a", color: "#fff", fontWeight: 800, cursor: "pointer" }}>
+              FILTRAR PERÍODO
+            </button>
+          </div>
+
+          {erroMonitor && <div style={{ marginTop: 16, padding: "12px 14px", background: "#ffe9e7", color: "#b42318", borderRadius: 10, fontWeight: 700 }}>{erroMonitor}</div>}
+
+          <div style={{ marginTop: 20, overflowX: "auto", border: "1px solid #e4eaf3", borderRadius: 12 }}>
+            <table style={{ width: "100%", minWidth: 980, borderCollapse: "collapse", background: "#fff" }}>
+              <thead>
+                <tr style={{ background: "#f7f9fc" }}>
+                  {["Data", "Horário", "Telefone", "Plano", "Destino", "Consultor(a)", "Resultado"].map((titulo) => (
+                    <th key={titulo} style={{ padding: "14px 15px", textAlign: "left", color: "#475467", fontSize: 14, fontWeight: 900, borderBottom: "1px solid #e4eaf3", whiteSpace: "nowrap" }}>{titulo}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(monitor?.eventos ?? []).map((item) => {
+                  const dt = new Date(item.criado_em);
+                  const data = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric" }).format(dt);
+                  const horario = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(dt);
+                  return (
+                    <tr key={item.id}>
+                      <td style={{ padding: "15px 15px", borderBottom: "1px solid #eef1f6", whiteSpace: "nowrap", fontSize: 14 }}>{data}</td>
+                      <td style={{ padding: "15px 15px", borderBottom: "1px solid #eef1f6", whiteSpace: "nowrap", fontWeight: 800, fontSize: 14 }}>{horario}</td>
+                      <td style={{ padding: "15px 15px", borderBottom: "1px solid #eef1f6", whiteSpace: "nowrap", fontSize: 14 }}>{formatarTelefone(item.telefone)}</td>
+                      <td style={{ padding: "15px 15px", borderBottom: "1px solid #eef1f6", fontWeight: 900, fontSize: 14 }}>{item.plano || "—"}</td>
+                      <td style={{ padding: "15px 15px", borderBottom: "1px solid #eef1f6", fontSize: 14 }}>{item.destino_nome || (item.plano === "B" ? "WEBSDK" : "—")}</td>
+                      <td style={{ padding: "15px 15px", borderBottom: "1px solid #eef1f6", fontSize: 14 }}>{item.destino_consultor || "—"}</td>
+                      <td style={{ padding: "15px 15px", borderBottom: "1px solid #eef1f6", fontWeight: 800, fontSize: 14 }}>{textoResultadoMonitor(item)}</td>
+                    </tr>
+                  );
+                })}
+                {!carregandoMonitor && (monitor?.eventos.length ?? 0) === 0 && (
+                  <tr><td colSpan={7} style={{ padding: 24, textAlign: "center", color: "#667085", fontWeight: 700 }}>Nenhum atendimento encontrado no período selecionado.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     );
   }
@@ -1108,6 +1218,265 @@ mensagem: formEdicao.mensagem.trim(),
         </div>
       </section>
 
+      <section
+        style={{
+          padding: "18px 20px",
+          background: "#ffffff",
+          border: "1px solid #dbe5f5",
+          borderRadius: 16,
+          boxShadow: "0 6px 18px rgba(15, 23, 42, 0.035)",
+        }}
+      >
+        <h2
+          style={{
+            margin: 0,
+            color: "#08275c",
+            fontSize: 21,
+            fontWeight: 900,
+          }}
+        >
+          Gerenciador de WhatsApps
+        </h2>
+
+        <div
+          style={{
+            marginTop: 3,
+            color: "#667085",
+            fontSize: 13,
+          }}
+        >
+          Filtre e gerencie os números utilizados no tráfego pago.
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "0.8fr 1fr 1.7fr",
+            gap: 10,
+            marginTop: 13,
+            alignItems: "start",
+          }}
+        >
+          <div
+            style={{
+              padding: "11px 12px",
+              background: "#f8faff",
+              border: "1px solid #e1e8f5",
+              borderRadius: 10,
+            }}
+          >
+            <strong
+              style={{
+                color: "#08275c",
+                fontSize: 12,
+                letterSpacing: "0.02em",
+              }}
+            >
+              STATUS
+            </strong>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 14,
+                flexWrap: "wrap",
+                marginTop: 8,
+              }}
+            >
+              {[["ativo", "Ativo"], ["banido", "Banido - Em Análise"]].map(
+                ([valor, titulo]) => (
+                  <label
+                    key={valor}
+                    style={{
+                      display: "flex",
+                      gap: 6,
+                      alignItems: "center",
+                      cursor: "pointer",
+                      fontSize: 13,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={filtrosStatus.includes(valor)}
+                      onChange={() =>
+                        alternarFiltro(
+                          valor,
+                          filtrosStatus,
+                          setFiltrosStatus,
+                        )
+                      }
+                    />
+                    {titulo}
+                  </label>
+                ),
+              )}
+            </div>
+          </div>
+
+          <div
+            style={{
+              padding: "11px 12px",
+              background: "#f8faff",
+              border: "1px solid #e1e8f5",
+              borderRadius: 10,
+            }}
+          >
+            <strong
+              style={{
+                color: "#08275c",
+                fontSize: 12,
+                letterSpacing: "0.02em",
+              }}
+            >
+              TIPO DO NÚMERO
+            </strong>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 14,
+                flexWrap: "wrap",
+                marginTop: 8,
+              }}
+            >
+              {[
+                ["oficial", "Oficial Meta"],
+                ["nao_oficial", "Não Oficial"],
+              ].map(([valor, titulo]) => (
+                <label
+                  key={valor}
+                  style={{
+                    display: "flex",
+                    gap: 6,
+                    alignItems: "center",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={filtrosTipo.includes(valor)}
+                    onChange={() =>
+                      alternarFiltro(
+                        valor,
+                        filtrosTipo,
+                        setFiltrosTipo,
+                      )
+                    }
+                  />
+                  {titulo}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div
+            style={{
+              padding: "11px 12px",
+              background: "#f8faff",
+              border: "1px solid #e1e8f5",
+              borderRadius: 10,
+            }}
+          >
+            <strong
+              style={{
+                color: "#08275c",
+                fontSize: 12,
+                letterSpacing: "0.02em",
+              }}
+            >
+              CONSULTOR(A)
+            </strong>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                columnGap: 12,
+                rowGap: 6,
+                marginTop: 8,
+              }}
+            >
+              {consultoresDisponiveis.map((consultor) => (
+                <label
+                  key={consultor}
+                  style={{
+                    display: "flex",
+                    gap: 5,
+                    alignItems: "center",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={filtrosConsultor.includes(consultor)}
+                    onChange={() =>
+                      alternarFiltro(
+                        consultor,
+                        filtrosConsultor,
+                        setFiltrosConsultor,
+                      )
+                    }
+                  />
+                  {consultor}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 10,
+            alignItems: "center",
+            flexWrap: "wrap",
+            marginTop: 10,
+          }}
+        >
+          <div
+            style={{
+              color: "#667085",
+              fontSize: 12,
+              fontWeight: 700,
+            }}
+          >
+            Exibindo {numerosFiltrados.length} de{" "}
+            {(dados?.numeros ?? []).length} número(s)
+          </div>
+
+          {(filtrosStatus.length > 0 ||
+            filtrosTipo.length > 0 ||
+            filtrosConsultor.length > 0) && (
+            <button
+              type="button"
+              onClick={() => {
+                setFiltrosStatus([]);
+                setFiltrosTipo([]);
+                setFiltrosConsultor([]);
+              }}
+              style={{
+                padding: "7px 11px",
+                border: "1px solid #cddcff",
+                borderRadius: 8,
+                background: "#ffffff",
+                color: "#155eef",
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: "pointer",
+              }}
+            >
+              LIMPAR FILTROS
+            </button>
+          )}
+        </div>
+      </section>
+
       <div
         style={{
           display: "grid",
@@ -1155,7 +1524,7 @@ mensagem: formEdicao.mensagem.trim(),
         ))}
       </div>
 
-      {(dados?.numeros ?? []).map((item) => (
+      {numerosFiltrados.map((item) => (
         <div
           key={item.id}
           style={{
