@@ -61,6 +61,8 @@ type UsuarioLocal = {
   matricula?: string;
   perfil?: string;
   cargo?: string;
+  chave_pix?: string;
+  tipo_chave_pix?: string;
 };
 
 type PlanoPremiacao = {
@@ -421,6 +423,32 @@ export default function PremiacaoManagerV3() {
       } catch {
         listaUsuarios = [];
       }
+      try {
+        const { data: usuariosPix, error: erroUsuariosPix } = await supabase
+          .from("usuarios")
+          .select("id, nome, email, matricula, perfil, cargo, chave_pix, tipo_chave_pix");
+
+        if (!erroUsuariosPix && Array.isArray(usuariosPix)) {
+          const porId = new Map(usuariosPix.map((u: any) => [String(u.id || ""), u]));
+          const porNome = new Map(usuariosPix.map((u: any) => [normalizar(String(u.nome || "")), u]));
+
+          listaUsuarios = listaUsuarios.map((local) => {
+            const banco =
+              porId.get(String(local.id || "")) ||
+              porNome.get(normalizar(String(local.nome || "")));
+            return banco ? { ...local, ...banco } : local;
+          });
+
+          usuariosPix.forEach((banco: any) => {
+            if (!listaUsuarios.some((u) => String(u.id || "") === String(banco.id || ""))) {
+              listaUsuarios.push(banco as UsuarioLocal);
+            }
+          });
+        }
+      } catch {
+        // Mantém a lista local caso o cadastro permanente ainda não esteja disponível.
+      }
+
       setUsuarios(listaUsuarios);
 
       const login = localStorage.getItem("somos-eleva-usuario") || "";
@@ -573,6 +601,36 @@ export default function PremiacaoManagerV3() {
   useEffect(() => {
     void carregar();
   }, [carregar]);
+
+  const pixPorColaboradora = useMemo(() => {
+    const mapa: Record<string, { chave: string; tipo: string }> = {};
+
+    usuarios.forEach((usuario) => {
+      const nome = String(usuario.nome || "").trim();
+      const chavePix = String(usuario.chave_pix || "").trim();
+      if (nome && chavePix) {
+        mapa[normalizar(nome)] = {
+          chave: chavePix,
+          tipo: String(usuario.tipo_chave_pix || "PIX"),
+        };
+      }
+    });
+
+    // Compatibilidade: se ainda não houver PIX permanente, aproveita o último PIX de saque.
+    saques.forEach((saque) => {
+      const nome = String(saque.usuario_nome || "").trim();
+      const chavePix = String(saque.chave_pix || "").trim();
+      const chaveNome = normalizar(nome);
+      if (nome && chavePix && !mapa[chaveNome]) {
+        mapa[chaveNome] = {
+          chave: chavePix,
+          tipo: String(saque.tipo_chave_pix || "PIX"),
+        };
+      }
+    });
+
+    return mapa;
+  }, [usuarios, saques]);
 
   const nomesConsultoras = useMemo(() => {
     const mapa = new Map<string, string>();
@@ -1765,6 +1823,43 @@ export default function PremiacaoManagerV3() {
     }
   }
 
+  async function salvarPixColaboradora(
+    _usuarioId: string,
+    tipoPix: string,
+    chavePix: string,
+  ) {
+    if (!ehGestor || !usuarioSelecionadoId) {
+      throw new Error("Não encontrei a colaboradora selecionada.");
+    }
+
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const { error } = await supabase
+        .from("usuarios")
+        .update({
+          chave_pix: chavePix.trim(),
+          tipo_chave_pix: tipoPix,
+        })
+        .eq("id", usuarioSelecionadoId);
+
+      if (error) throw new Error(error.message);
+
+      setUsuarios((atual) =>
+        atual.map((usuario) =>
+          String(usuario.id || "") === String(usuarioSelecionadoId)
+            ? { ...usuario, chave_pix: chavePix.trim(), tipo_chave_pix: tipoPix }
+            : usuario,
+        ),
+      );
+
+      setMensagem(`PIX de ${resumo.nome} salvo com sucesso.`);
+    } finally {
+      setProcessando(false);
+    }
+  }
+
   async function solicitarSaque(pontosSolicitados: number, chavePix: string) {
     if (!usuarioSelecionadoId || ehGestor) return;
 
@@ -1904,6 +1999,7 @@ export default function PremiacaoManagerV3() {
         perfilUsuario={perfilLogado}
         podeGerenciar={ehGestor}
         nomesConsultoras={nomesConsultoras}
+        pixPorColaboradora={pixPorColaboradora}
         consultoraSelecionada={consultoraSelecionada}
         competencia={competencia}
         producaoCompra={resumo.producaoCompra}
@@ -1936,6 +2032,7 @@ export default function PremiacaoManagerV3() {
         onLiberarPremiacao={liberarPremiacao}
         onSolicitarSaque={solicitarSaque}
         onProcessarSaque={processarSaque}
+        onSalvarPix={salvarPixColaboradora}
       />
     </>
   );

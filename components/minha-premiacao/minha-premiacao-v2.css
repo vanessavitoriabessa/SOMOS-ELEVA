@@ -1158,3 +1158,23 @@
   background:#1f61ee;
   color:#fff;
 }
+.premio-v4-pix-ok{color:#087a3f!important;font-weight:800!important}
+.premio-v4-pix-missing{color:#a35b00!important;font-weight:800!important}
+.premio-v4-pix-box{margin-left:auto;min-width:250px;padding:10px 12px;border:1px solid #dce5f2;border-radius:12px;background:#f8fbff}
+.premio-v4-pix-box>span{display:block;margin-bottom:5px;font-size:9px;font-weight:900;letter-spacing:.08em;color:#687b98}
+.premio-v4-pix-box>div{display:flex;align-items:center;gap:10px}
+.premio-v4-pix-box strong{font-size:13px;color:#071b38;word-break:break-all}
+.premio-v4-pix-box strong.sem-pix{color:#8b5b12}
+.premio-v4-pix-box button{margin-left:auto;white-space:nowrap;border:1px solid #b9cff5;border-radius:8px;background:#fff;color:#075ee5;font-size:10px;font-weight:900;padding:7px 10px;cursor:pointer}
+@media(max-width:900px){.premio-v4-pix-box{width:100%;min-width:0;margin-left:0}}
+.premio-v4-pix-ok{color:#087a3f!important;font-weight:800!important}
+.premio-v4-pix-missing{color:#a35b00!important;font-weight:800!important}
+.premio-v4-pix-box{margin-left:auto;min-width:285px;padding:10px 12px;border:1px solid #dce5f2;border-radius:12px;background:#f8fbff}
+.premio-v4-pix-box>span{display:block;margin-bottom:5px;font-size:9px;font-weight:900;letter-spacing:.08em;color:#075ee5}
+.premio-v4-pix-box>small{display:block;margin-bottom:4px;color:#687b98;font-size:10px;font-weight:800}
+.premio-v4-pix-box>div{display:flex;align-items:center;gap:7px}
+.premio-v4-pix-box strong{font-size:13px;color:#071b38;word-break:break-all}
+.premio-v4-pix-box button{white-space:nowrap;border:1px solid #b9cff5;border-radius:8px;background:#fff;color:#075ee5;font-size:10px;font-weight:900;padding:7px 9px;cursor:pointer}
+.premio-v4-pix-box .premio-v4-cadastrar-pix{width:100%;min-height:34px;background:#eef5ff;color:#075ee5}
+.premio-v4-modal-field select{width:100%;min-height:44px;margin-top:7px;padding:0 12px;border:1px solid #d7e1ef;border-radius:10px;background:#fff;color:#071b38;font:inherit}
+@media(max-width:900px){.premio-v4-pix-box{width:100%;min-width:0;margin-left:0}}

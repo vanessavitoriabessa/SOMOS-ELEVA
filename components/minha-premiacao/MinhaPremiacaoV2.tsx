@@ -57,6 +57,7 @@ type Props = {
   podeGerenciar: boolean;
 
   nomesConsultoras?: string[];
+  pixPorColaboradora?: Record<string, { chave: string; tipo: string }>;
   consultoraSelecionada: string;
   competencia: string;
 
@@ -103,6 +104,11 @@ type Props = {
     saqueId: string,
     acao: "PAGO" | "RECUSADO",
   ) => Promise<void>;
+  onSalvarPix: (
+    usuarioId: string,
+    tipoPix: string,
+    chavePix: string,
+  ) => Promise<void>;
 };
 
 function moeda(valor: number) {
@@ -139,6 +145,7 @@ export default function MinhaPremiacaoV2(props: Props) {
     nomeExibido,
     podeGerenciar,
     nomesConsultoras = [],
+    pixPorColaboradora = {},
     consultoraSelecionada,
     competencia,
     producaoCompra,
@@ -171,6 +178,7 @@ export default function MinhaPremiacaoV2(props: Props) {
     onLiberarPremiacao,
     onSolicitarSaque,
     onProcessarSaque,
+    onSalvarPix,
   } = props;
 
   const [abaAdmin, setAbaAdmin] = useState<
@@ -191,6 +199,10 @@ export default function MinhaPremiacaoV2(props: Props) {
   const [pontosSaque, setPontosSaque] = useState("");
   const [chavePix, setChavePix] = useState("");
   const [erroModal, setErroModal] = useState("");
+  const [pixCopiado, setPixCopiado] = useState("");
+  const [modalPix, setModalPix] = useState(false);
+  const [tipoPixCadastro, setTipoPixCadastro] = useState("CPF");
+  const [chavePixCadastro, setChavePixCadastro] = useState("");
   const compraPrevistaSegura = Number(pontosCompraPrevistos ?? 0) || 0;
   const cltPrevistaSegura = Number(pontosCltPrevistos ?? 0) || 0;
 
@@ -223,6 +235,30 @@ export default function MinhaPremiacaoV2(props: Props) {
 
     return movimentos;
   }, [movimentos, filtroProduto]);
+
+  function chaveNomePix(nome: string) {
+    return String(nome || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+  }
+
+  function pixDaColaboradora(nome: string) {
+    return pixPorColaboradora[chaveNomePix(nome)] || { chave: "", tipo: "" };
+  }
+
+  async function copiarPix(nome: string) {
+    const pix = pixDaColaboradora(nome).chave;
+    if (!pix) return;
+    try {
+      await navigator.clipboard.writeText(pix);
+      setPixCopiado(nome);
+      window.setTimeout(() => setPixCopiado(""), 1600);
+    } catch {
+      setPixCopiado("");
+    }
+  }
 
   function abrirConferencia() {
     setPontosCompraLiberar(String(compraPrevistaSegura));
@@ -422,7 +458,9 @@ export default function MinhaPremiacaoV2(props: Props) {
                       <span>{nome.charAt(0).toUpperCase()}</span>
                       <div>
                         <strong>{nome}</strong>
-                        <small>Abrir conferência</small>
+                        <small className={pixDaColaboradora(nome).chave ? "premio-v4-pix-ok" : "premio-v4-pix-missing"}>
+                          {pixDaColaboradora(nome).chave ? "PIX cadastrado" : "Sem PIX cadastrado"}
+                        </small>
                       </div>
                       <ChevronRight size={16} />
                     </button>
@@ -440,6 +478,33 @@ export default function MinhaPremiacaoV2(props: Props) {
                         {contratosConfirmados} contrato(s) confirmado(s) na
                         competência.
                       </p>
+                    </div>
+
+                    <div className="premio-v4-pix-box">
+                      <span>PIX DA COLABORADORA</span>
+                      {pixDaColaboradora(nomeExibido).chave ? (
+                        <>
+                          <small>{pixDaColaboradora(nomeExibido).tipo || "PIX"}</small>
+                          <div>
+                            <strong>{pixDaColaboradora(nomeExibido).chave}</strong>
+                            <button type="button" onClick={() => void copiarPix(nomeExibido)}>
+                              {pixCopiado === nomeExibido ? "Copiado ✓" : "Copiar PIX"}
+                            </button>
+                            <button type="button" onClick={() => {
+                              const atual = pixDaColaboradora(nomeExibido);
+                              setTipoPixCadastro(atual.tipo || "CPF");
+                              setChavePixCadastro(atual.chave || "");
+                              setModalPix(true);
+                            }}>Editar</button>
+                          </div>
+                        </>
+                      ) : (
+                        <button type="button" className="premio-v4-cadastrar-pix" onClick={() => {
+                          setTipoPixCadastro("CPF");
+                          setChavePixCadastro("");
+                          setModalPix(true);
+                        }}>+ Cadastrar PIX</button>
+                      )}
                     </div>
 
                     <span
@@ -833,6 +898,57 @@ export default function MinhaPremiacaoV2(props: Props) {
               </div>
             )}
           </section>
+        )}
+
+        {modalPix && (
+          <div className="premio-v4-modal-bg" onClick={() => setModalPix(false)}>
+            <form
+              className="premio-v4-modal"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setErroModal("");
+                if (!chavePixCadastro.trim()) {
+                  setErroModal("Informe a chave PIX.");
+                  return;
+                }
+                try {
+                  await onSalvarPix("", tipoPixCadastro, chavePixCadastro.trim());
+                  setModalPix(false);
+                } catch (erro) {
+                  setErroModal(erro instanceof Error ? erro.message : "Não foi possível salvar o PIX.");
+                }
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="premio-v4-modal-head">
+                <div>
+                  <span>PIX DA COLABORADORA</span>
+                  <h3>{nomeExibido}</h3>
+                  <p>Cadastre a chave que será usada para pagamento da premiação.</p>
+                </div>
+                <button type="button" onClick={() => setModalPix(false)}>×</button>
+              </div>
+              <label className="premio-v4-modal-field">
+                Tipo da chave
+                <select value={tipoPixCadastro} onChange={(e) => setTipoPixCadastro(e.target.value)}>
+                  <option>CPF</option>
+                  <option>Celular</option>
+                  <option>E-mail</option>
+                  <option>Chave aleatória</option>
+                </select>
+              </label>
+              <label className="premio-v4-modal-field">
+                Chave PIX
+                <input value={chavePixCadastro} onChange={(e) => setChavePixCadastro(e.target.value)}
+                  placeholder="Digite a chave PIX" />
+              </label>
+              {erroModal && <div className="premio-v4-modal-error">{erroModal}</div>}
+              <div className="premio-v4-modal-actions">
+                <button type="button" onClick={() => setModalPix(false)}>Cancelar</button>
+                <button type="submit" className="primary" disabled={processando}>Salvar PIX</button>
+              </div>
+            </form>
+          </div>
         )}
 
         {modalConferencia && (

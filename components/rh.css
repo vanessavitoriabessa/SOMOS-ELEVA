@@ -621,3 +621,11 @@
     padding: 18px;
   }
 }
+.rh-workspace .hrm-atestado-upload{display:flex;flex-direction:column;gap:8px;padding:14px;border:1px solid #dbe4ef;border-radius:12px;background:#f8fbff}
+.rh-workspace .hrm-atestado-title{font-size:11px;font-weight:900;color:#173454;letter-spacing:.04em}
+.rh-workspace .hrm-atestado-picker{display:inline-flex!important;align-items:center;justify-content:center;min-height:42px;padding:0 14px!important;border:1px dashed #8fb0df!important;border-radius:10px;background:#fff;color:#124fc4;font-weight:800;cursor:pointer}
+.rh-workspace .hrm-atestado-picker input{display:none}
+.rh-workspace .hrm-atestado-existing{display:flex;align-items:center;gap:10px}
+.rh-workspace .hrm-atestado-existing a,.rh-workspace .hrm-atestado-link{color:#075ee5;font-weight:800;text-decoration:none}
+.rh-workspace .hrm-atestado-existing button{border:0;background:transparent;color:#c8322d;font-weight:800;cursor:pointer}
+.rh-workspace .hrm-atestado-link{display:inline-flex;align-items:center;min-height:28px;padding:5px 11px;border:1px solid #cbdcf6;border-radius:999px;background:#eef5ff;font-size:11px}

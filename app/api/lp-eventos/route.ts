@@ -55,7 +55,9 @@ export async function POST(request: NextRequest) {
 
       resultado?: string;
       fallback?: boolean;
-      retrabalho_status?: string;
+retrabalho_status?: string;
+rodizio_recuperado?: boolean;
+erro_rodizio?: string;
     };
 
     const tentativaId = texto(dados.tentativa_id, 100);
@@ -108,10 +110,15 @@ export async function POST(request: NextRequest) {
       resultado,
       fallback: Boolean(dados.fallback),
 
-      retrabalho_status:
-        texto(dados.retrabalho_status, 50) || null,
+retrabalho_status:
+  texto(dados.retrabalho_status, 50) || null,
 
-      origem: "servidor-publico",
+rodizio_recuperado: Boolean(dados.rodizio_recuperado),
+
+erro_rodizio:
+  texto(dados.erro_rodizio, 500) || null,
+
+origem: "servidor-publico",
 }, {
   onConflict: "tentativa_id",
 });

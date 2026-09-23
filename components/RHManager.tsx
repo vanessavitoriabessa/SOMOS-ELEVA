@@ -89,6 +89,7 @@ type RegistroRH = {
   criadoEm: string;
   descontadoNaFolha: boolean;
   dataDesconto: string;
+  atestadoUrl: string;
 };
 
 type FormularioColaboradora = {
@@ -126,6 +127,7 @@ type FormularioRegistro = {
   descontarPremiacao: boolean;
   cancelaAssiduidade: boolean;
   descricao: string;
+  atestadoUrl: string;
 };
 
 const TIPOS_REGISTRO: TipoRegistro[] = [
@@ -177,6 +179,7 @@ const registroVazio: FormularioRegistro = {
   descontarPremiacao: false,
   cancelaAssiduidade: false,
   descricao: "",
+  atestadoUrl: "",
 };
 
 function somenteNumeros(valor: string) {
@@ -425,6 +428,7 @@ export default function RHManager() {
 
   const [formRegistro, setFormRegistro] =
     useState<FormularioRegistro>(registroVazio);
+  const [arquivoAtestado, setArquivoAtestado] = useState<File | null>(null);
 
   const [
     editandoColaboradoraId,
@@ -638,6 +642,7 @@ export default function RHManager() {
           criadoEm: String(registro.criado_em || ""),
           descontadoNaFolha: Boolean(registro.descontado_na_folha),
           dataDesconto: String(registro.data_desconto || ""),
+          atestadoUrl: String(registro.atestado_url || ""),
         }));
 
         // Migra automaticamente o que já existia no navegador.
@@ -752,6 +757,7 @@ export default function RHManager() {
                     new Date().toISOString(),
                   descontado_na_folha: false,
                   data_desconto: null,
+                  atestado_url: registro.atestadoUrl || null,
                 })
               );
 
@@ -1354,12 +1360,37 @@ export default function RHManager() {
       criadoEm: anterior?.criadoEm || new Date().toISOString(),
       descontadoNaFolha: anterior?.descontadoNaFolha || false,
       dataDesconto: anterior?.dataDesconto || "",
+      atestadoUrl: anterior?.atestadoUrl || formRegistro.atestadoUrl || "",
     };
 
     if (salvandoEvento) return;
     setSalvandoEvento(true);
 
     try {
+      let atestadoUrl = novoRegistro.atestadoUrl;
+
+      if (novoRegistro.tipo === "Falta" && arquivoAtestado) {
+        const extensao = arquivoAtestado.name.split(".").pop()?.toLowerCase() || "jpg";
+        const caminho = `${novoRegistro.colaboradoraId}/${novoRegistro.id}-${Date.now()}.${extensao}`;
+
+        const { error: erroUpload } = await supabase.storage
+          .from("rh-atestados")
+          .upload(caminho, arquivoAtestado, {
+            cacheControl: "3600",
+            upsert: true,
+            contentType: arquivoAtestado.type || undefined,
+          });
+
+        if (erroUpload) throw erroUpload;
+
+        const { data: urlPublica } = supabase.storage
+          .from("rh-atestados")
+          .getPublicUrl(caminho);
+
+        atestadoUrl = urlPublica.publicUrl;
+        novoRegistro.atestadoUrl = atestadoUrl;
+      }
+
       const { error } = await supabase
         .from("rh_registros")
         .upsert(
@@ -1382,6 +1413,7 @@ export default function RHManager() {
             criado_em: novoRegistro.criadoEm,
             descontado_na_folha: novoRegistro.descontadoNaFolha,
             data_desconto: novoRegistro.dataDesconto || null,
+            atestado_url: novoRegistro.atestadoUrl || null,
           },
           { onConflict: "id" }
         );
@@ -1403,6 +1435,7 @@ export default function RHManager() {
       );
 
       setModalRegistro(false);
+      setArquivoAtestado(null);
       setEditandoRegistroId(null);
       setMensagemRegistro("");
     } catch (erro) {
@@ -1457,7 +1490,8 @@ export default function RHManager() {
 
   function editarRegistroRH(item: RegistroRH) {
     setEditandoRegistroId(item.id);
-    setFormRegistro({colaboradoraId:item.colaboradoraId,tipo:item.tipo,data:item.data.slice(0,10),competencia:item.competencia,valor:item.valor?item.valor.toFixed(2).replace(".",","):"",quantidade:String(item.quantidade||1),unidade:item.unidade,justificada:item.justificada,descontarNaFolha:item.descontarNaFolha,descontarPremiacao:item.descontarPremiacao,cancelaAssiduidade:item.cancelaAssiduidade,descricao:item.descricao||""});
+    setFormRegistro({colaboradoraId:item.colaboradoraId,tipo:item.tipo,data:item.data.slice(0,10),competencia:item.competencia,valor:item.valor?item.valor.toFixed(2).replace(".",","):"",quantidade:String(item.quantidade||1),unidade:item.unidade,justificada:item.justificada,descontarNaFolha:item.descontarNaFolha,descontarPremiacao:item.descontarPremiacao,cancelaAssiduidade:item.cancelaAssiduidade,descricao:item.descricao||"",atestadoUrl:item.atestadoUrl||""});
+    setArquivoAtestado(null);
     setModalRegistro(true);
   }
 
@@ -1554,6 +1588,7 @@ export default function RHManager() {
     setEditandoRegistroId(null);
     const novo: FormularioRegistro = { ...registroVazio, colaboradoraId: pessoaId, tipo, data: hoje(), competencia: competenciaAtual(), unidade: tipo === "Férias" || tipo === "Falta" || tipo === "Afastamento" ? "Dias" : tipo === "Atraso" ? "Horas" : "Ocorrência" };
     setFormRegistro(novo);
+    setArquivoAtestado(null);
     baseRegistroRH.current = JSON.stringify(novo);
     setMensagemRegistro("");
     setModalRegistro(true);
@@ -1584,7 +1619,7 @@ export default function RHManager() {
 
   function renderRegistroRH(item: RegistroRH, excluir = true) {
     const pessoa=colaboradoras.find((c)=>c.id===item.colaboradoraId),pendente=item.descontarNaFolha&&!item.descontadoNaFolha;
-    return <article key={item.id} className="hrm-record-row hrm-record-modern"><span className={`hrm-record-icon ${item.tipo==="Vale"?"hrm-money-icon":item.tipo==="Falta"?"hrm-falta-icon":item.tipo==="Atraso"?"hrm-atraso-icon":"hrm-default-record-icon"}`}><IconeRH nome={item.tipo==="Vale"?"dinheiro":item.tipo==="Atraso"?"relogio":"calendario"} tamanho={20}/></span><div className="hrm-record-main"><strong className="hrm-record-person">{pessoa?.nome||item.nome}</strong><span className="hrm-record-type">{item.tipo==="Vale"?"VALE":item.tipo.toUpperCase()} · {dataRH(item.data)} · Competência {formatarCompetencia(item.competencia)}</span>{item.descricao&&<p>{item.descricao}</p>}<div className="hrm-tags">{item.justificada?<span className="hrm-tag-justificada">{item.tipo==="Falta"?"COM ATESTADO / JUSTIFICADO":"OCORRÊNCIA JUSTIFICADA"}</span>:<span className="hrm-tag-nao-justificada">{item.tipo==="Falta"?"SEM ATESTADO / NÃO JUSTIFICADO":"OCORRÊNCIA NÃO JUSTIFICADA"}</span>}{pendente&&<span className="hrm-tag-pendente">PENDENTE NA FOLHA</span>}{item.descontarPremiacao&&<span className="hrm-tag-premiacao">DESCONTAR DIA 20 · PREMIAÇÃO</span>}{item.descontadoNaFolha&&<span className="hrm-tag-descontado">✓ DESCONTADO NA FOLHA · {dataRH(item.dataDesconto)}</span>}{item.cancelaAssiduidade&&<span className="hrm-tag-assiduidade">ASSIDUIDADE CANCELADA</span>}</div></div><div className="hrm-record-value"><strong>{item.valor>0?moeda(item.valor):`${item.quantidade} ${item.unidade}`}</strong><div className="hrm-record-actions">{pendente&&<button type="button" className="hrm-action-done" onClick={()=>void marcarValeDescontado(item)}>Marcar como descontado</button>}<button type="button" className="hrm-action-edit" onClick={()=>editarRegistroRH(item)}>Editar</button>{excluir&&<button type="button" className="hrm-action-delete" onClick={()=>void excluirRegistro(item.id)}>Excluir registro</button>}</div></div></article>;
+    return <article key={item.id} className="hrm-record-row hrm-record-modern"><span className={`hrm-record-icon ${item.tipo==="Vale"?"hrm-money-icon":item.tipo==="Falta"?"hrm-falta-icon":item.tipo==="Atraso"?"hrm-atraso-icon":"hrm-default-record-icon"}`}><IconeRH nome={item.tipo==="Vale"?"dinheiro":item.tipo==="Atraso"?"relogio":"calendario"} tamanho={20}/></span><div className="hrm-record-main"><strong className="hrm-record-person">{pessoa?.nome||item.nome}</strong><span className="hrm-record-type">{item.tipo==="Vale"?"VALE":item.tipo.toUpperCase()} · {dataRH(item.data)} · Competência {formatarCompetencia(item.competencia)}</span>{item.descricao&&<p>{item.descricao}</p>}<div className="hrm-tags">{item.justificada?<span className="hrm-tag-justificada">{item.tipo==="Falta"?"COM ATESTADO / JUSTIFICADO":"OCORRÊNCIA JUSTIFICADA"}</span>:<span className="hrm-tag-nao-justificada">{item.tipo==="Falta"?"SEM ATESTADO / NÃO JUSTIFICADO":"OCORRÊNCIA NÃO JUSTIFICADA"}</span>}{pendente&&<span className="hrm-tag-pendente">PENDENTE NA FOLHA</span>}{item.descontarPremiacao&&<span className="hrm-tag-premiacao">DESCONTAR DIA 20 · PREMIAÇÃO</span>}{item.descontadoNaFolha&&<span className="hrm-tag-descontado">✓ DESCONTADO NA FOLHA · {dataRH(item.dataDesconto)}</span>}{item.cancelaAssiduidade&&<span className="hrm-tag-assiduidade">ASSIDUIDADE CANCELADA</span>}{item.tipo==="Falta"&&item.atestadoUrl&&<a className="hrm-atestado-link" href={item.atestadoUrl} target="_blank" rel="noreferrer">📎 Ver atestado</a>}</div></div><div className="hrm-record-value"><strong>{item.valor>0?moeda(item.valor):`${item.quantidade} ${item.unidade}`}</strong><div className="hrm-record-actions">{pendente&&<button type="button" className="hrm-action-done" onClick={()=>void marcarValeDescontado(item)}>Marcar como descontado</button>}<button type="button" className="hrm-action-edit" onClick={()=>editarRegistroRH(item)}>Editar</button>{excluir&&<button type="button" className="hrm-action-delete" onClick={()=>void excluirRegistro(item.id)}>Excluir registro</button>}</div></div></article>;
   }
 
   const painelEquipeRH = <section className="hrm-panel hrm-team-panel">
@@ -2226,6 +2261,27 @@ export default function RHManager() {
 
               <span>Cancela a assiduidade</span>
             </label>
+
+            {formRegistro.tipo === "Falta" && (
+              <div className="rh-full-field hrm-atestado-upload">
+                <span className="hrm-atestado-title">ATESTADO / COMPROVANTE</span>
+                <label className="hrm-atestado-picker">
+                  <span>📎 {arquivoAtestado ? "Trocar atestado" : "Anexar atestado"}</span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/heic,application/pdf"
+                    onChange={(evento) => setArquivoAtestado(evento.target.files?.[0] || null)}
+                  />
+                </label>
+                {arquivoAtestado && <small>✓ {arquivoAtestado.name}</small>}
+                {!arquivoAtestado && formRegistro.atestadoUrl && (
+                  <div className="hrm-atestado-existing">
+                    <a href={formRegistro.atestadoUrl} target="_blank" rel="noreferrer">Ver arquivo atual</a>
+                    <button type="button" onClick={() => setFormRegistro({...formRegistro, atestadoUrl:""})}>Remover</button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <label className="rh-full-field">
               Descrição ou observação
