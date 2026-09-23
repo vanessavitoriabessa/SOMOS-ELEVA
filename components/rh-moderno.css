@@ -589,3 +589,9 @@
 .rh-workspace .hrm-team-row > * {
   min-width: 0 !important;
 }
+.rh-workspace .hrm-tag-justificada{display:inline-flex;align-items:center;min-height:28px;padding:5px 11px;border:1px solid #b9e8ca;border-radius:999px;background:#eaf9ef;color:#087a3f;font-size:11px;font-weight:900}
+.rh-workspace .hrm-tag-nao-justificada{display:inline-flex;align-items:center;min-height:28px;padding:5px 11px;border:1px solid #d7dce2;border-radius:999px;background:#f0f2f4;color:#111;font-size:11px;font-weight:900}
+.rh-workspace .hrm-tag-premiacao{display:inline-flex;align-items:center;min-height:28px;padding:5px 11px;border:1px solid #ead29c;border-radius:999px;background:#fff6df;color:#111;font-size:11px;font-weight:900}
+.rh-workspace .rh-check-justificada{background:#effaf3!important;border-color:#c9ead5!important}
+.rh-workspace .rh-check-nao-justificada{background:#f2f3f5!important;border-color:#d9dde2!important;color:#111!important}
+.rh-workspace .rh-check-premiacao{background:#fff8e8!important;border-color:#ead8ad!important}

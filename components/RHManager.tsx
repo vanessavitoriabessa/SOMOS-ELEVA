@@ -83,6 +83,7 @@ type RegistroRH = {
   unidade: "Dias" | "Horas" | "Ocorrência";
   justificada: boolean;
   descontarNaFolha: boolean;
+  descontarPremiacao: boolean;
   cancelaAssiduidade: boolean;
   descricao: string;
   criadoEm: string;
@@ -122,6 +123,7 @@ type FormularioRegistro = {
   unidade: "Dias" | "Horas" | "Ocorrência";
   justificada: boolean;
   descontarNaFolha: boolean;
+  descontarPremiacao: boolean;
   cancelaAssiduidade: boolean;
   descricao: string;
 };
@@ -172,6 +174,7 @@ const registroVazio: FormularioRegistro = {
   unidade: "Ocorrência",
   justificada: false,
   descontarNaFolha: true,
+  descontarPremiacao: false,
   cancelaAssiduidade: false,
   descricao: "",
 };
@@ -625,6 +628,9 @@ export default function RHManager() {
           descontarNaFolha: Boolean(
             registro.descontar_na_folha
           ),
+          descontarPremiacao: Boolean(
+            registro.descontar_premiacao
+          ),
           cancelaAssiduidade: Boolean(
             registro.cancela_assiduidade
           ),
@@ -737,6 +743,8 @@ export default function RHManager() {
                   justificada: registro.justificada,
                   descontar_na_folha:
                     registro.descontarNaFolha,
+                  descontar_premiacao:
+                    registro.descontarPremiacao || false,
                   cancela_assiduidade:
                     registro.cancelaAssiduidade,
                   descricao: registro.descricao || "",
@@ -1340,6 +1348,7 @@ export default function RHManager() {
       unidade: formRegistro.unidade,
       justificada: formRegistro.justificada,
       descontarNaFolha: formRegistro.descontarNaFolha,
+      descontarPremiacao: formRegistro.descontarPremiacao,
       cancelaAssiduidade: formRegistro.cancelaAssiduidade,
       descricao: formRegistro.descricao.trim(),
       criadoEm: anterior?.criadoEm || new Date().toISOString(),
@@ -1367,6 +1376,7 @@ export default function RHManager() {
             unidade: novoRegistro.unidade,
             justificada: novoRegistro.justificada,
             descontar_na_folha: novoRegistro.descontarNaFolha,
+            descontar_premiacao: novoRegistro.descontarPremiacao,
             cancela_assiduidade: novoRegistro.cancelaAssiduidade,
             descricao: novoRegistro.descricao,
             criado_em: novoRegistro.criadoEm,
@@ -1447,7 +1457,7 @@ export default function RHManager() {
 
   function editarRegistroRH(item: RegistroRH) {
     setEditandoRegistroId(item.id);
-    setFormRegistro({colaboradoraId:item.colaboradoraId,tipo:item.tipo,data:item.data.slice(0,10),competencia:item.competencia,valor:item.valor?item.valor.toFixed(2).replace(".",","):"",quantidade:String(item.quantidade||1),unidade:item.unidade,justificada:item.justificada,descontarNaFolha:item.descontarNaFolha,cancelaAssiduidade:item.cancelaAssiduidade,descricao:item.descricao||""});
+    setFormRegistro({colaboradoraId:item.colaboradoraId,tipo:item.tipo,data:item.data.slice(0,10),competencia:item.competencia,valor:item.valor?item.valor.toFixed(2).replace(".",","):"",quantidade:String(item.quantidade||1),unidade:item.unidade,justificada:item.justificada,descontarNaFolha:item.descontarNaFolha,descontarPremiacao:item.descontarPremiacao,cancelaAssiduidade:item.cancelaAssiduidade,descricao:item.descricao||""});
     setModalRegistro(true);
   }
 
@@ -1574,7 +1584,7 @@ export default function RHManager() {
 
   function renderRegistroRH(item: RegistroRH, excluir = true) {
     const pessoa=colaboradoras.find((c)=>c.id===item.colaboradoraId),pendente=item.descontarNaFolha&&!item.descontadoNaFolha;
-    return <article key={item.id} className="hrm-record-row hrm-record-modern"><span className={`hrm-record-icon ${item.tipo==="Vale"?"hrm-money-icon":item.tipo==="Falta"?"hrm-falta-icon":item.tipo==="Atraso"?"hrm-atraso-icon":"hrm-default-record-icon"}`}><IconeRH nome={item.tipo==="Vale"?"dinheiro":item.tipo==="Atraso"?"relogio":"calendario"} tamanho={20}/></span><div className="hrm-record-main"><strong className="hrm-record-person">{pessoa?.nome||item.nome}</strong><span className="hrm-record-type">{item.tipo==="Vale"?"VALE":item.tipo.toUpperCase()} · {dataRH(item.data)} · Competência {formatarCompetencia(item.competencia)}</span>{item.descricao&&<p>{item.descricao}</p>}<div className="hrm-tags">{item.justificada&&<span className="hrm-tag-info">{item.tipo==="Falta"?"COM ATESTADO / JUSTIFICADA":"JUSTIFICADA"}</span>}{pendente&&<span className="hrm-tag-pendente">PENDENTE NA FOLHA</span>}{item.descontadoNaFolha&&<span className="hrm-tag-descontado">✓ DESCONTADO NA FOLHA · {dataRH(item.dataDesconto)}</span>}{item.cancelaAssiduidade&&<span className="hrm-tag-assiduidade">ASSIDUIDADE CANCELADA</span>}</div></div><div className="hrm-record-value"><strong>{item.valor>0?moeda(item.valor):`${item.quantidade} ${item.unidade}`}</strong><div className="hrm-record-actions">{pendente&&<button type="button" className="hrm-action-done" onClick={()=>void marcarValeDescontado(item)}>Marcar como descontado</button>}<button type="button" className="hrm-action-edit" onClick={()=>editarRegistroRH(item)}>Editar</button>{excluir&&<button type="button" className="hrm-action-delete" onClick={()=>void excluirRegistro(item.id)}>Excluir registro</button>}</div></div></article>;
+    return <article key={item.id} className="hrm-record-row hrm-record-modern"><span className={`hrm-record-icon ${item.tipo==="Vale"?"hrm-money-icon":item.tipo==="Falta"?"hrm-falta-icon":item.tipo==="Atraso"?"hrm-atraso-icon":"hrm-default-record-icon"}`}><IconeRH nome={item.tipo==="Vale"?"dinheiro":item.tipo==="Atraso"?"relogio":"calendario"} tamanho={20}/></span><div className="hrm-record-main"><strong className="hrm-record-person">{pessoa?.nome||item.nome}</strong><span className="hrm-record-type">{item.tipo==="Vale"?"VALE":item.tipo.toUpperCase()} · {dataRH(item.data)} · Competência {formatarCompetencia(item.competencia)}</span>{item.descricao&&<p>{item.descricao}</p>}<div className="hrm-tags">{item.justificada?<span className="hrm-tag-justificada">{item.tipo==="Falta"?"COM ATESTADO / JUSTIFICADO":"OCORRÊNCIA JUSTIFICADA"}</span>:<span className="hrm-tag-nao-justificada">{item.tipo==="Falta"?"SEM ATESTADO / NÃO JUSTIFICADO":"OCORRÊNCIA NÃO JUSTIFICADA"}</span>}{pendente&&<span className="hrm-tag-pendente">PENDENTE NA FOLHA</span>}{item.descontarPremiacao&&<span className="hrm-tag-premiacao">DESCONTAR DIA 20 · PREMIAÇÃO</span>}{item.descontadoNaFolha&&<span className="hrm-tag-descontado">✓ DESCONTADO NA FOLHA · {dataRH(item.dataDesconto)}</span>}{item.cancelaAssiduidade&&<span className="hrm-tag-assiduidade">ASSIDUIDADE CANCELADA</span>}</div></div><div className="hrm-record-value"><strong>{item.valor>0?moeda(item.valor):`${item.quantidade} ${item.unidade}`}</strong><div className="hrm-record-actions">{pendente&&<button type="button" className="hrm-action-done" onClick={()=>void marcarValeDescontado(item)}>Marcar como descontado</button>}<button type="button" className="hrm-action-edit" onClick={()=>editarRegistroRH(item)}>Editar</button>{excluir&&<button type="button" className="hrm-action-delete" onClick={()=>void excluirRegistro(item.id)}>Excluir registro</button>}</div></div></article>;
   }
 
   const painelEquipeRH = <section className="hrm-panel hrm-team-panel">
@@ -2163,20 +2173,16 @@ export default function RHManager() {
               </select>
             </label>
 
-            <label className="rh-event-check">
-              <input
-                type="checkbox"
-                checked={formRegistro.justificada}
-                onChange={(evento) =>
-                  setFormRegistro({
-                    ...formRegistro,
-                    justificada:
-                      evento.target.checked,
-                  })
-                }
-              />
-
+            <label className="rh-event-check rh-check-justificada">
+              <input type="checkbox" checked={formRegistro.justificada}
+                onChange={() => setFormRegistro({...formRegistro, justificada:true})}/>
               <span>Ocorrência justificada</span>
+            </label>
+
+            <label className="rh-event-check rh-check-nao-justificada">
+              <input type="checkbox" checked={!formRegistro.justificada}
+                onChange={() => setFormRegistro({...formRegistro, justificada:false})}/>
+              <span>Ocorrência não justificada</span>
             </label>
 
             <label className="rh-event-check">
@@ -2195,6 +2201,12 @@ export default function RHManager() {
               />
 
               <span>Descontar nesta folha</span>
+            </label>
+
+            <label className="rh-event-check rh-check-premiacao">
+              <input type="checkbox" checked={formRegistro.descontarPremiacao}
+                onChange={(evento) => setFormRegistro({...formRegistro, descontarPremiacao:evento.target.checked})}/>
+              <span>Descontar dia 20 - Premiação</span>
             </label>
 
             <label className="rh-event-check">
