@@ -24,11 +24,11 @@ export function ControleInssFgts(){
  const [parcelas,setParcelas]=useState<Parcela[]>([]);
  const [msg,setMsg]=useState("");
  const [modalMensal,setModalMensal]=useState(false);
- const [modalParcelamento,setModalParcelamento]=useState(false);
+ const [modalParcelamento,setModalParcelamento]=useState(false); const [modalParcela,setModalParcela]=useState(false);
  const [editMensal,setEditMensal]=useState<Mensal|null>(null);
- const [editParcelamento,setEditParcelamento]=useState<Parcelamento|null>(null);
+ const [editParcelamento,setEditParcelamento]=useState<Parcelamento|null>(null); const [editParcela,setEditParcela]=useState<Parcela|null>(null);
  const [mf,setMf]=useState({tipo:"INSS" as Tipo,competencia:mesAtual(),valor:"",vencimento:hoje(),observacao:""});
- const [pf,setPf]=useState({nome:"",valor:"",total:"",primeiro:hoje(),dia:"28"});
+ const [pf,setPf]=useState({nome:"",valor:"",total:"",primeiro:hoje(),dia:"28"}); const [parcelaForm,setParcelaForm]=useState({valor:"",vencimento:hoje(),status:"Pendente" as Status,dataPagamento:""});
 
  async function carregar(){
   const [a,b,c]=await Promise.all([
@@ -45,7 +45,11 @@ export function ControleInssFgts(){
  useEffect(()=>{void carregar()},[]);
 
  const mensalPendente=mensais.filter(x=>x.status!=="Pago").reduce((s,x)=>s+Number(x.valor||0),0);
+ const mensalAtrasado=mensais.filter(x=>x.status!=="Pago"&&String(x.vencimento||"").slice(0,10)<hoje()).reduce((s,x)=>s+Number(x.valor||0),0);
+ const mensalPago=mensais.filter(x=>x.status==="Pago").reduce((s,x)=>s+Number(x.valor||0),0);
  const parcelaPendente=parcelas.filter(x=>x.status!=="Pago").reduce((s,x)=>s+Number(x.valor||0),0);
+ const parcelaAtrasada=parcelas.filter(x=>x.status!=="Pago"&&String(x.vencimento||"").slice(0,10)<hoje()).reduce((s,x)=>s+Number(x.valor||0),0);
+ const parcelaPaga=parcelas.filter(x=>x.status==="Pago").reduce((s,x)=>s+Number(x.valor||0),0);
 
  function novoMensal(){setEditMensal(null);setMf({tipo:"INSS",competencia:mesAtual(),valor:"",vencimento:hoje(),observacao:""});setModalMensal(true)}
  function editarMensal(x:Mensal){setEditMensal(x);setMf({tipo:x.tipo,competencia:x.competencia,valor:String(x.valor),vencimento:x.vencimento,observacao:x.observacao||""});setModalMensal(true)}
@@ -112,6 +116,8 @@ export function ControleInssFgts(){
   }
   setModalParcelamento(false);setEditParcelamento(null);await carregar();
  }
+ function editarParcelaIndividual(x:Parcela){setEditParcela(x);setParcelaForm({valor:String(x.valor||""),vencimento:x.vencimento||hoje(),status:x.status,dataPagamento:x.data_pagamento||""});setModalParcela(true)}
+ async function salvarParcelaIndividual(e:FormEvent){e.preventDefault();setMsg("");if(!editParcela)return;const valor=numero(parcelaForm.valor);if(valor<=0||!parcelaForm.vencimento){setMsg("Informe o valor e o vencimento da parcela.");return}const payload={valor,vencimento:parcelaForm.vencimento,status:parcelaForm.status,data_pagamento:parcelaForm.status==="Pago"?(parcelaForm.dataPagamento||hoje()):null};const {error}=await sb.from("inss_parcelas").update(payload).eq("id",editParcela.id);if(error){setMsg(error.message);return}setModalParcela(false);setEditParcela(null);await carregar()}
  async function alternarParcela(x:Parcela){
   const pago=x.status!=="Pago";
   const {error}=await sb.from("inss_parcelas").update({status:pago?"Pago":"Pendente",data_pagamento:pago?hoje():null}).eq("id",x.id);
@@ -126,7 +132,14 @@ export function ControleInssFgts(){
  return <section className="fc-tax fc-control-panel">
   {msg&&<div className="fc-msg">{msg}</div>}
   <header className="fc-control-head"><div><b>ENCARGOS MENSAIS</b><h2>Imposto INSS e FGTS</h2><p>Controle mensal, vencimentos, pagamentos e parcelamentos.</p></div><button type="button" onClick={novoMensal}>+ Novo lançamento</button></header>
-  <div className="fc-kpis"><article><span>INSS / FGTS pendentes</span><strong>{moeda(mensalPendente)}</strong></article><article><span>Parcelamentos pendentes</span><strong>{moeda(parcelaPendente)}</strong></article><article><span>Total pendente</span><strong>{moeda(mensalPendente+parcelaPendente)}</strong></article></div>
+  <div className="fc-kpis fc-kpis-inss-seis">
+   <article className="fc-kpi-pendente"><span>INSS / FGTS pendentes</span><strong>{moeda(mensalPendente)}</strong><small>Inclui valores atrasados</small></article>
+   <article className="fc-kpi-atrasado"><span>INSS / FGTS atrasados</span><strong>{moeda(mensalAtrasado)}</strong><small>Vencidos e não pagos</small></article>
+   <article className="fc-kpi-pago"><span>INSS / FGTS pagos</span><strong>{moeda(mensalPago)}</strong><small>Valores já quitados</small></article>
+   <article className="fc-kpi-pendente"><span>Parcelamentos pendentes</span><strong>{moeda(parcelaPendente)}</strong><small>Inclui parcelas atrasadas</small></article>
+   <article className="fc-kpi-atrasado"><span>Parcelamentos atrasados</span><strong>{moeda(parcelaAtrasada)}</strong><small>Vencidas e não pagas</small></article>
+   <article className="fc-kpi-pago"><span>Parcelamentos pagos</span><strong>{moeda(parcelaPaga)}</strong><small>Parcelas já quitadas</small></article>
+  </div>
 
   <div className="fc-section-title"><div><h3>INSS E FGTS MENSAIS</h3><small>Histórico por competência</small></div></div>
   <div className="fc-table"><table><thead><tr><th>Tipo</th><th>Competência</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Pagamento</th><th>Ações</th></tr></thead><tbody>
@@ -144,11 +157,12 @@ export function ControleInssFgts(){
    const lista=parcelas.filter(x=>x.parcelamento_id===p.id);
    const pagas=lista.filter(x=>x.status==="Pago").length;
    const saldo=lista.filter(x=>x.status!=="Pago").reduce((s,x)=>s+Number(x.valor||0),0);
-   return <article className="fc-installment-card fc-inss-installment" key={p.id}><header><div><h4>{p.nome}</h4><p>{p.total_parcelas}x de {moeda(p.valor_parcela)} • vence dia {p.dia_vencimento}</p></div><div><b className="fc-inss-summary">{pagas}/{p.total_parcelas} pagas • saldo {moeda(saldo)}</b><button type="button" className="fc-edit" onClick={()=>editarParcelamento(p)}>Editar</button><button type="button" className="fc-delete" onClick={()=>void excluirParcelamento(p)}>Excluir</button></div></header><div className="fc-table"><table><thead><tr><th>Parcela</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Pagamento</th><th>Ação</th></tr></thead><tbody>{lista.map(x=>{const st=situacao(x.status,x.vencimento);return <tr key={x.id}><td>{x.numero_parcela}/{p.total_parcelas}</td><td>{moeda(x.valor)}</td><td>{dataBR(x.vencimento)}</td><td><span className={`fc-inss-status ${st.toLowerCase()}`}>{st}</span></td><td>{dataBR(x.data_pagamento)}</td><td><button type="button" className={x.status==="Pago"?"fc-inss-reopen":"fc-inss-pay"} onClick={()=>void alternarParcela(x)}>{x.status==="Pago"?"Reabrir":"Marcar pago"}</button></td></tr>})}</tbody></table></div></article>
+   return <article className="fc-installment-card fc-inss-installment" key={p.id}><header><div><h4>{p.nome}</h4><p>{p.total_parcelas}x de {moeda(p.valor_parcela)} • vence dia {p.dia_vencimento}</p></div><div><b className="fc-inss-summary">{pagas}/{p.total_parcelas} pagas • saldo {moeda(saldo)}</b><button type="button" className="fc-edit" onClick={()=>editarParcelamento(p)}>Editar</button><button type="button" className="fc-delete" onClick={()=>void excluirParcelamento(p)}>Excluir</button></div></header><div className="fc-table"><table><thead><tr><th>Parcela</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Pagamento</th><th>Ação</th></tr></thead><tbody>{lista.map(x=>{const st=situacao(x.status,x.vencimento);return <tr key={x.id}><td>{x.numero_parcela}/{p.total_parcelas}</td><td>{moeda(x.valor)}</td><td>{dataBR(x.vencimento)}</td><td><span className={`fc-inss-status ${st.toLowerCase()}`}>{st}</span></td><td>{dataBR(x.data_pagamento)}</td><td><div className="fc-parcela-actions"><button type="button" className={x.status==="Pago"?"fc-inss-reopen":"fc-inss-pay"} onClick={()=>void alternarParcela(x)}>{x.status==="Pago"?"Reabrir":"Marcar pago"}</button><button type="button" className="fc-edit fc-parcela-edit" onClick={()=>editarParcelaIndividual(x)}>Editar</button></div></td></tr>})}</tbody></table></div></article>
   })}
 
   {modalMensal&&<div className="fc-bg"><form className="fc-modal" onSubmit={salvarMensal}><header><h2>{editMensal?"Editar":"Novo"} lançamento INSS/FGTS</h2><button type="button" onClick={()=>setModalMensal(false)}>×</button></header><div className="fc-form"><label>Tipo *<select value={mf.tipo} onChange={e=>setMf({...mf,tipo:e.target.value as Tipo})}><option value="INSS">INSS</option><option value="FGTS">FGTS</option></select></label><label>Competência *<input type="month" value={mf.competencia} onChange={e=>setMf({...mf,competencia:e.target.value})}/></label><label>Valor *<input value={mf.valor} onChange={e=>setMf({...mf,valor:e.target.value})}/></label><label>Vencimento *<input type="date" value={mf.vencimento} onChange={e=>setMf({...mf,vencimento:e.target.value})}/></label><label className="wide">Observação<input value={mf.observacao} onChange={e=>setMf({...mf,observacao:e.target.value})}/></label></div><footer><button type="button" onClick={()=>setModalMensal(false)}>Cancelar</button><button type="submit">Salvar lançamento</button></footer></form></div>}
 
   {modalParcelamento&&<div className="fc-bg"><form className="fc-modal" onSubmit={salvarParcelamento}><header><h2>{editParcelamento?"Editar":"Novo"} parcelamento INSS</h2><button type="button" onClick={()=>setModalParcelamento(false)}>×</button></header><div className="fc-form"><label>Nome *<input value={pf.nome} onChange={e=>setPf({...pf,nome:e.target.value})}/></label><label>Valor da parcela *<input value={pf.valor} onChange={e=>setPf({...pf,valor:e.target.value})}/></label><label>Total de parcelas *<input type="number" min="1" value={pf.total} onChange={e=>setPf({...pf,total:e.target.value})}/></label><label>Primeiro vencimento *<input type="date" value={pf.primeiro} onChange={e=>setPf({...pf,primeiro:e.target.value})}/></label><label>Dia do vencimento *<input type="number" min="1" max="31" value={pf.dia} onChange={e=>setPf({...pf,dia:e.target.value})}/></label></div><footer><button type="button" onClick={()=>setModalParcelamento(false)}>Cancelar</button><button type="submit">Gerar parcelamento</button></footer></form></div>}
+  {modalParcela&&editParcela&&<div className="fc-bg"><form className="fc-modal fc-modal-parcela" onSubmit={salvarParcelaIndividual}><header><div><small>PARCELA {editParcela.numero_parcela}</small><h2>Editar parcela</h2></div><button type="button" onClick={()=>{setModalParcela(false);setEditParcela(null)}}>×</button></header><div className="fc-form"><label>Valor da parcela *<input value={parcelaForm.valor} onChange={e=>setParcelaForm({...parcelaForm,valor:e.target.value})}/></label><label>Vencimento *<input type="date" value={parcelaForm.vencimento} onChange={e=>setParcelaForm({...parcelaForm,vencimento:e.target.value})}/></label><label>Status<select value={parcelaForm.status} onChange={e=>setParcelaForm({...parcelaForm,status:e.target.value as Status,dataPagamento:e.target.value==="Pago"?(parcelaForm.dataPagamento||hoje()):""})}><option value="Pendente">Pendente</option><option value="Pago">Pago</option></select></label>{parcelaForm.status==="Pago"&&<label>Data do pagamento<input type="date" value={parcelaForm.dataPagamento} onChange={e=>setParcelaForm({...parcelaForm,dataPagamento:e.target.value})}/></label>}</div><footer><button type="button" onClick={()=>{setModalParcela(false);setEditParcela(null)}}>Cancelar</button><button type="submit">Salvar parcela</button></footer></form></div>}
  </section>;
 }

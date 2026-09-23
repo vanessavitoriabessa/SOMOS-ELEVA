@@ -791,3 +791,70 @@
     grid-template-columns:1fr!important;
   }
 }
+/* FINANCEIRO — CARDS PENDENTES / ATRASADOS / PAGOS */
+.fc-kpis-simples-seis,.fc-kpis-inss-seis{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:12px!important}
+.fc-kpis-simples-seis article,.fc-kpis-inss-seis article{min-height:88px!important;border-radius:14px!important}
+.fc-kpi-atrasado{background:#fff4f3!important;border-color:#f2d0cd!important}
+.fc-kpi-atrasado span{color:#9d514a!important}
+.fc-kpi-atrasado strong{color:#d6453d!important}
+.fc-kpi-pago{background:#f1faf4!important;border-color:#d4eadc!important}
+.fc-kpi-pago strong{color:#148447!important}
+.fc-kpi-pendente{background:#fffdf8!important;border-color:#ebe3cf!important}
+@media(max-width:1050px){.fc-kpis-simples-seis,.fc-kpis-inss-seis{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:650px){.fc-kpis-simples-seis,.fc-kpis-inss-seis{grid-template-columns:1fr!important}}
+.fc-parcela-actions{display:flex!important;align-items:center!important;gap:7px!important;flex-wrap:nowrap!important}.fc-parcela-actions .fc-parcela-edit{min-width:70px!important;height:34px!important;border-radius:8px!important;background:#fff!important;color:#1d5ed8!important;border:1px solid #c9daf8!important;font-size:10px!important;font-weight:800!important;box-shadow:none!important}.fc-parcela-actions .fc-parcela-edit:hover{background:#f5f8ff!important;border-color:#a9c4f3!important}.fc-modal-parcela header small{display:block;margin-bottom:4px;color:#2463eb;font-size:9px;font-weight:900;letter-spacing:.08em}
+/* FINANCEIRO — AJUSTE BOTÃO MARCAR PAGO + EDIÇÃO INDIVIDUAL */
+.fc-inss-pay,
+.fc-parcela-actions .fc-inss-pay{
+  color:#172f4f!important;
+  font-weight:900!important;
+}
+.fc-parcela-actions{
+  display:flex!important;
+  align-items:center!important;
+  gap:7px!important;
+  flex-wrap:nowrap!important;
+}
+.fc-parcela-actions .fc-parcela-edit{
+  min-width:70px!important;
+  height:34px!important;
+  border-radius:8px!important;
+  background:#fff!important;
+  color:#1d5ed8!important;
+  border:1px solid #c9daf8!important;
+  font-size:10px!important;
+  font-weight:800!important;
+  box-shadow:none!important;
+}
+.fc-parcela-actions .fc-parcela-edit:hover{
+  background:#f5f8ff!important;
+  border-color:#a9c4f3!important;
+}
+.fc-modal-parcela header small{
+  display:block!important;
+  margin-bottom:4px!important;
+  color:#2463eb!important;
+  font-size:9px!important;
+  font-weight:900!important;
+  letter-spacing:.08em!important;
+}
+/* INSS/FGTS — 6 CARDS: PENDENTES, ATRASADOS E PAGOS */
+.fc-kpis-inss-seis{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:12px!important}
+.fc-kpis-inss-seis article{min-height:88px!important;padding:16px 18px!important;border-radius:14px!important}
+.fc-kpis-inss-seis article span{font-size:11px!important;font-weight:700!important}
+.fc-kpis-inss-seis article strong{display:block!important;margin-top:5px!important;font-size:20px!important;font-weight:900!important}
+.fc-kpis-inss-seis article small{display:block!important;margin-top:5px!important;font-size:9px!important;font-weight:600!important;color:#8190a3!important}
+.fc-kpis-inss-seis .fc-kpi-pendente{background:#fffdf8!important;border-color:#ebe3cf!important}
+.fc-kpis-inss-seis .fc-kpi-pendente strong{color:#173454!important}
+.fc-kpis-inss-seis .fc-kpi-atrasado{background:#fff4f3!important;border-color:#f2d0cd!important}
+.fc-kpis-inss-seis .fc-kpi-atrasado span{color:#9d514a!important}
+.fc-kpis-inss-seis .fc-kpi-atrasado strong{color:#d6453d!important}
+.fc-kpis-inss-seis .fc-kpi-pago{background:#f1faf4!important;border-color:#d4eadc!important}
+.fc-kpis-inss-seis .fc-kpi-pago strong{color:#148447!important}
+@media(max-width:1050px){.fc-kpis-inss-seis{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:650px){.fc-kpis-inss-seis{grid-template-columns:1fr!important}}
+/* CONTROLE DE NOTAS — CAMPOS MONETÁRIOS */
+.fc-modal input[inputmode="numeric"]{
+  font-variant-numeric:tabular-nums;
+  letter-spacing:.01em;
+}

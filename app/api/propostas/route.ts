@@ -155,6 +155,7 @@ function perfilPodeAcessar(perfil: string) {
     "operacional",
     "financeiro",
     "consultora",
+    "rh",
   ].includes(normalizarTexto(perfil));
 }
 

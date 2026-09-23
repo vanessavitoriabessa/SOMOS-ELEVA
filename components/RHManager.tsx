@@ -308,7 +308,7 @@ function criarColaboradoraDoUsuario(
 
 type AbaRH = "visao" | "colaboradoras" | "registros" | "ponto" | "ocorrencias" | "ferias" | "aniversarios";
 type AbaFicha = "resumo" | "pessoal" | "contrato" | "historico";
-type IconeNome = "pessoas" | "mais" | "busca" | "calendario" | "relogio" | "carteira" | "alerta" | "presente" | "seta" | "fechar" | "editar" | "painel" | "arquivo";
+type IconeNome = "pessoas" | "mais" | "busca" | "calendario" | "relogio" | "carteira" | "dinheiro" | "alerta" | "presente" | "seta" | "fechar" | "editar" | "excluir" | "painel" | "arquivo";
 
 function IconeRH({ nome, tamanho = 20 }: { nome: IconeNome; tamanho?: number }) {
   const caminhos: Record<IconeNome, ReactNode> = {
@@ -318,11 +318,13 @@ function IconeRH({ nome, tamanho = 20 }: { nome: IconeNome; tamanho?: number }) 
     calendario: <><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4M17 3v4M3 11h18M8 15h2M14 15h2"/></>,
     relogio: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
     carteira: <><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 8h18M16 12h5v5h-5a2.5 2.5 0 0 1 0-5"/></>,
+    dinheiro: <><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M7 9H5v2M17 15h2v-2"/></>,
     alerta: <><path d="M10.2 4a2 2 0 0 1 3.6 0l7 13A2 2 0 0 1 19 20H5a2 2 0 0 1-1.8-3Z"/><path d="M12 9v4M12 16h.01"/></>,
     presente: <><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v9h14v-9M12 8v13M12 8H8a2.5 2.5 0 1 1 2.3-3.5L12 8ZM12 8h4a2.5 2.5 0 1 0-2.3-3.5L12 8Z"/></>,
     seta: <path d="m9 5 7 7-7 7"/>,
     fechar: <path d="m6 6 12 12M6 18 18 6"/>,
     editar: <><path d="m16 3 5 5-12 12-6 1 1-6ZM14 5l5 5"/></>,
+    excluir: <><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6"/></>,
     painel: <><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></>,
     arquivo: <><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></>,
   };
@@ -452,6 +454,7 @@ export default function RHManager() {
   const [paginaRegistros, setPaginaRegistros] = useState(1);
   const [modalColaboradora, setModalColaboradora] = useState(false);
   const [modalRegistro, setModalRegistro] = useState(false);
+  const [editandoRegistroId, setEditandoRegistroId] = useState<string | null>(null);
   const [fichaAbertaId, setFichaAbertaId] = useState<string | null>(null);
   const [abaFicha, setAbaFicha] = useState<AbaFicha>("resumo");
   const [carregandoRH, setCarregandoRH] = useState(true);
@@ -827,6 +830,23 @@ export default function RHManager() {
           ];
         }
 
+        // Sincroniza a foto do RH com a foto já cadastrada em Equipe / profiles.
+        // Prioridade: profiles.foto_url -> foto própria do RH -> iniciais.
+        const fotoPorUsuario = new Map(
+          listaUsuarios.map((usuario) => [usuario.id, usuario.foto || ""])
+        );
+
+        listaColaboradoras = listaColaboradoras.map((colaboradora) => {
+          const fotoEquipe = colaboradora.usuarioId
+            ? fotoPorUsuario.get(colaboradora.usuarioId) || ""
+            : "";
+
+          return {
+            ...colaboradora,
+            foto: fotoEquipe || colaboradora.foto || "",
+          };
+        });
+
         listaUsuarios = listaUsuarios.map((usuario) => {
           const ficha = listaColaboradoras.find(
             (colaboradora) =>
@@ -836,6 +856,7 @@ export default function RHManager() {
           return {
             ...usuario,
             matricula: ficha?.matricula || "",
+            foto: usuario.foto || ficha?.foto || "",
           };
         });
 
@@ -1196,48 +1217,87 @@ export default function RHManager() {
 
   async function excluirColaboradora(id: string) {
     if (excluindoRH) return;
-    if (registros.some((item) => item.colaboradoraId === id)) {
-      window.alert("Esta ficha possui histórico. Para preservá-lo, edite a colaboradora e altere o status para Desligada em vez de excluir.");
-      return;
-    }
-    if (
-      !window.confirm(
-        "Deseja excluir esta ficha do RH?"
-      )
-    ) {
+
+    const colaboradoraExcluir = colaboradoras.find((item) => item.id === id);
+    if (!colaboradoraExcluir) {
+      setAvisoRH("Colaboradora não encontrada.");
       return;
     }
 
+    const temHistorico = registros.some(
+      (item) => item.colaboradoraId === id
+    );
+
+    const aviso = temHistorico
+      ? `ATENÇÃO: ${colaboradoraExcluir.nome} possui histórico no RH.\n\nAo continuar, os registros vinculados a esta ficha também serão excluídos.\n\nEsta ação não poderá ser desfeita.\n\nDeseja excluir definitivamente?`
+      : `Deseja excluir definitivamente ${colaboradoraExcluir.nome} do RH?\n\nEsta ação não poderá ser desfeita.`;
+
+    if (!window.confirm(aviso)) return;
+
     setExcluindoRH(id);
+    setAvisoRH("");
+
     try {
-      const { error } = await supabase
+      // 1. Exclui o histórico desta ficha.
+      const { error: erroRegistros } = await supabase
+        .from("rh_registros")
+        .delete()
+        .eq("colaboradora_id", id);
+
+      if (erroRegistros) throw erroRegistros;
+
+      // 2. Exclui os pontos vinculados, caso existam.
+      const { error: erroPonto } = await supabase
+        .from("rh_ponto")
+        .delete()
+        .eq("colaboradora_id", id);
+
+      if (
+        erroPonto &&
+        !/does not exist|Could not find|schema cache/i.test(
+          erroPonto.message || ""
+        )
+      ) {
+        throw erroPonto;
+      }
+
+      // 3. Exclui a ficha.
+      const { error: erroColaboradora } = await supabase
         .from("rh_colaboradoras")
         .delete()
         .eq("id", id);
 
-      if (error) throw error;
+      if (erroColaboradora) throw erroColaboradora;
+
+      // 4. Atualiza a tela usando somente os estados existentes neste arquivo.
+      setRegistros((atuais) =>
+        atuais.filter((item) => item.colaboradoraId !== id)
+      );
 
       setColaboradoras((atuais) =>
-        atuais.filter(
-          (colaboradora) =>
-            colaboradora.id !== id
-        )
+        atuais.filter((item) => item.id !== id)
       );
 
-      setRegistros((atuais) =>
-        atuais.filter(
-          (registro) =>
-            registro.colaboradoraId !== id
-        )
+      if (fichaAbertaId === id) {
+        setFichaAbertaId(null);
+      }
+
+      if (editandoColaboradoraId === id) {
+        setEditandoColaboradoraId(null);
+        setModalColaboradora(false);
+      }
+
+      setAvisoRH(
+        `${colaboradoraExcluir.nome} foi excluída definitivamente do RH.`
       );
-      setFichaAbertaId(null);
-      setAvisoRH("Ficha excluída do RH.");
     } catch (erro) {
-      console.error(
-        "Erro ao excluir ficha do RH:",
-        erro
+      console.error("Erro ao excluir colaboradora do RH:", erro);
+
+      setAvisoRH(
+        erro instanceof Error
+          ? `Não foi possível excluir: ${erro.message}`
+          : "Não foi possível excluir a colaboradora. Os dados foram mantidos."
       );
-      setAvisoRH("Não foi possível excluir esta ficha. Os dados foram mantidos.");
     } finally {
       setExcluindoRH("");
     }
@@ -1249,123 +1309,146 @@ export default function RHManager() {
     evento.preventDefault();
     setMensagemRegistro("");
 
-    const colaboradora = colaboradoras.find(
-      (item) =>
-        item.id === formRegistro.colaboradoraId
+    const pessoa = colaboradoras.find(
+      (item) => item.id === formRegistro.colaboradoraId
     );
 
-    if (!colaboradora) {
-      setMensagemRegistro(
-        "Selecione uma colaboradora."
-      );
+    if (!pessoa) {
+      setMensagemRegistro("Selecione a colaboradora.");
       return;
     }
 
-    if (!formRegistro.data) {
-      setMensagemRegistro(
-        "Informe a data do registro."
-      );
+    if (!formRegistro.data || !formRegistro.competencia) {
+      setMensagemRegistro("Informe a data e a competência.");
       return;
     }
+
+    const anterior = editandoRegistroId
+      ? registros.find((item) => item.id === editandoRegistroId)
+      : null;
 
     const novoRegistro: RegistroRH = {
-      id: crypto.randomUUID(),
-      colaboradoraId: colaboradora.id,
-      nome: colaboradora.nome,
-      matricula: colaboradora.matricula,
+      id: editandoRegistroId || crypto.randomUUID(),
+      colaboradoraId: pessoa.id,
+      nome: pessoa.nome,
+      matricula: pessoa.matricula,
       tipo: formRegistro.tipo,
       data: formRegistro.data,
       competencia: formRegistro.competencia,
       valor: converterNumero(formRegistro.valor),
-      quantidade:
-        converterNumero(formRegistro.quantidade) ||
-        1,
+      quantidade: Number(formRegistro.quantidade || 0),
       unidade: formRegistro.unidade,
       justificada: formRegistro.justificada,
-      descontarNaFolha:
-        formRegistro.descontarNaFolha,
-      cancelaAssiduidade:
-        formRegistro.cancelaAssiduidade,
+      descontarNaFolha: formRegistro.descontarNaFolha,
+      cancelaAssiduidade: formRegistro.cancelaAssiduidade,
       descricao: formRegistro.descricao.trim(),
-      criadoEm: new Date().toISOString(),
-      descontadoNaFolha: false,
-      dataDesconto: "",
+      criadoEm: anterior?.criadoEm || new Date().toISOString(),
+      descontadoNaFolha: anterior?.descontadoNaFolha || false,
+      dataDesconto: anterior?.dataDesconto || "",
     };
 
     if (salvandoEvento) return;
     setSalvandoEvento(true);
+
     try {
       const { error } = await supabase
         .from("rh_registros")
-        .insert({
-          id: novoRegistro.id,
-          colaboradora_id:
-            novoRegistro.colaboradoraId,
-          nome: novoRegistro.nome,
-          matricula: novoRegistro.matricula,
-          tipo: novoRegistro.tipo,
-          data: novoRegistro.data,
-          competencia: novoRegistro.competencia,
-          valor: novoRegistro.valor,
-          quantidade: novoRegistro.quantidade,
-          unidade: novoRegistro.unidade,
-          justificada: novoRegistro.justificada,
-          descontar_na_folha:
-            novoRegistro.descontarNaFolha,
-          cancela_assiduidade:
-            novoRegistro.cancelaAssiduidade,
-          descricao: novoRegistro.descricao,
-          criado_em: novoRegistro.criadoEm,
-          descontado_na_folha: false,
-          data_desconto: null,
-        });
+        .upsert(
+          {
+            id: novoRegistro.id,
+            colaboradora_id: novoRegistro.colaboradoraId,
+            nome: novoRegistro.nome,
+            matricula: novoRegistro.matricula,
+            tipo: novoRegistro.tipo,
+            data: novoRegistro.data,
+            competencia: novoRegistro.competencia,
+            valor: novoRegistro.valor,
+            quantidade: novoRegistro.quantidade,
+            unidade: novoRegistro.unidade,
+            justificada: novoRegistro.justificada,
+            descontar_na_folha: novoRegistro.descontarNaFolha,
+            cancela_assiduidade: novoRegistro.cancelaAssiduidade,
+            descricao: novoRegistro.descricao,
+            criado_em: novoRegistro.criadoEm,
+            descontado_na_folha: novoRegistro.descontadoNaFolha,
+            data_desconto: novoRegistro.dataDesconto || null,
+          },
+          { onConflict: "id" }
+        );
 
       if (error) throw error;
 
-      setRegistros((atuais) => [
-        novoRegistro,
-        ...atuais,
-      ]);
-
-      setFormRegistro({
-        ...registroVazio,
-        colaboradoraId: colaboradora.id,
-        tipo: formRegistro.tipo,
-      });
-
-      setMensagemRegistro(
-        "Registro salvo com sucesso."
+      setRegistros((atuais) =>
+        editandoRegistroId
+          ? atuais.map((item) =>
+              item.id === editandoRegistroId ? novoRegistro : item
+            )
+          : [novoRegistro, ...atuais]
       );
-      setAvisoRH("Registro salvo com sucesso.");
+
+      setAvisoRH(
+        editandoRegistroId
+          ? "Registro atualizado com sucesso."
+          : "Registro salvo com sucesso."
+      );
+
       setModalRegistro(false);
+      setEditandoRegistroId(null);
+      setMensagemRegistro("");
     } catch (erro) {
-      console.error(
-        "Erro ao salvar registro de RH:",
-        erro
+      console.error("Erro ao salvar registro do RH:", erro);
+      setMensagemRegistro(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível salvar o registro."
       );
-      setMensagemRegistro("Não foi possível salvar o registro. Confira a conexão e tente novamente.");
     } finally {
       setSalvandoEvento(false);
     }
   }
 
   async function marcarValeDescontado(item: RegistroRH) {
-    if (item.tipo !== "Vale" || item.descontadoNaFolha) return;
+    if (item.descontadoNaFolha || excluindoRH) return;
+
     const dataDesconto = hoje();
-    const { error } = await supabase
-      .from("rh_registros")
-      .update({ descontado_na_folha: true, data_desconto: dataDesconto })
-      .eq("id", item.id);
-    if (error) {
-      setAvisoRH("Não foi possível marcar o vale como descontado.");
-      return;
+    setExcluindoRH(item.id);
+
+    try {
+      const { error } = await supabase
+        .from("rh_registros")
+        .update({
+          descontado_na_folha: true,
+          data_desconto: dataDesconto,
+        })
+        .eq("id", item.id);
+
+      if (error) throw error;
+
+      setRegistros((atuais) =>
+        atuais.map((registro) =>
+          registro.id === item.id
+            ? {
+                ...registro,
+                descontadoNaFolha: true,
+                dataDesconto,
+              }
+            : registro
+        )
+      );
+
+      setAvisoRH("Registro marcado como descontado na folha.");
+    } catch (erro) {
+      console.error("Erro ao marcar desconto na folha:", erro);
+      setAvisoRH("Não foi possível atualizar o registro.");
+    } finally {
+      setExcluindoRH("");
     }
-    setRegistros((atuais) => atuais.map((registro) =>
-      registro.id === item.id
-        ? { ...registro, descontadoNaFolha: true, dataDesconto }
-        : registro
-    ));
-    setAvisoRH("Vale marcado como descontado na folha.");
+  }
+
+  function editarRegistroRH(item: RegistroRH) {
+    setEditandoRegistroId(item.id);
+    setFormRegistro({colaboradoraId:item.colaboradoraId,tipo:item.tipo,data:item.data.slice(0,10),competencia:item.competencia,valor:item.valor?item.valor.toFixed(2).replace(".",","):"",quantidade:String(item.quantidade||1),unidade:item.unidade,justificada:item.justificada,descontarNaFolha:item.descontarNaFolha,cancelaAssiduidade:item.cancelaAssiduidade,descricao:item.descricao||""});
+    setModalRegistro(true);
   }
 
   async function excluirRegistro(id: string) {
@@ -1408,10 +1491,8 @@ export default function RHManager() {
     .filter((item) => !filtroEquipe || item.equipe === filtroEquipe)
     .filter((item) => !somentePendentes || (item.status !== "Desligada" && camposPendentesRH(item).length > 0))
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")), [colaboradorasFiltradas, filtroEquipe, somentePendentes]);
-  const totalPaginasPessoas = Math.max(1, Math.ceil(listaEquipeRH.length / 8));
-  const paginaPessoasAtual = Math.min(paginaPessoas, totalPaginasPessoas);
-  const pessoasPagina = listaEquipeRH.slice((paginaPessoasAtual - 1) * 8, paginaPessoasAtual * 8);
-  useEffect(() => setPaginaPessoas(1), [buscaColaboradora, filtroStatus, filtroEquipe, somentePendentes]);
+  // Colaboradoras: exibe todas em uma única lista, sem paginação.
+  const pessoasPagina = listaEquipeRH;
 
   const listaHistoricoRH = useMemo(() => registrosOrdenados.filter((item) => {
     const termo = normalizarRH(buscaRegistro);
@@ -1460,6 +1541,7 @@ export default function RHManager() {
   }
 
   function abrirRegistroRH(tipo: TipoRegistro = "Vale", pessoaId = "") {
+    setEditandoRegistroId(null);
     const novo: FormularioRegistro = { ...registroVazio, colaboradoraId: pessoaId, tipo, data: hoje(), competencia: competenciaAtual(), unidade: tipo === "Férias" || tipo === "Falta" || tipo === "Afastamento" ? "Dias" : tipo === "Atraso" ? "Horas" : "Ocorrência" };
     setFormRegistro(novo);
     baseRegistroRH.current = JSON.stringify(novo);
@@ -1491,15 +1573,8 @@ export default function RHManager() {
   }
 
   function renderRegistroRH(item: RegistroRH, excluir = true) {
-    const pessoa = colaboradoras.find((colaboradora) => colaboradora.id === item.colaboradoraId);
-    return <article key={item.id} className="hrm-record-row">
-      <span className={`hrm-record-icon hrm-tone-${item.tipo === "Vale" ? "blue" : item.tipo === "Falta" || item.tipo === "Advertência" ? "amber" : "slate"}`}><IconeRH nome={item.tipo === "Vale" ? "carteira" : item.tipo === "Atraso" ? "relogio" : "calendario"} /></span>
-      <div className="hrm-record-main"><strong>{pessoa?.nome || item.nome}</strong><span>{item.tipo} · {dataRH(item.data)} · Competência {formatarCompetencia(item.competencia)}</span>
-        {item.descricao && <p>{item.descricao}</p>}
-        <div className="hrm-tags">{item.justificada && <span>Justificada</span>}{item.tipo === "Vale" && item.descontarNaFolha && !item.descontadoNaFolha && <span className="hrm-tag-pendente">PENDENTE NA FOLHA</span>}{item.tipo === "Vale" && item.descontadoNaFolha && <span className="hrm-tag-descontado">✓ DESCONTADO NA FOLHA · {dataRH(item.dataDesconto)}</span>}{item.cancelaAssiduidade && <span>Assiduidade sinalizada</span>}</div>
-      </div>
-      <div className="hrm-record-value"><strong>{item.valor > 0 ? moeda(item.valor) : `${item.quantidade} ${item.unidade}`}</strong>{item.tipo === "Vale" && item.descontarNaFolha && !item.descontadoNaFolha && <button type="button" className="hrm-link" onClick={() => void marcarValeDescontado(item)}>Marcar como descontado</button>}{excluir && <button type="button" className="hrm-text-danger" onClick={() => void excluirRegistro(item.id)} disabled={Boolean(excluindoRH)}>{excluindoRH === item.id ? "Aguarde…" : "Excluir registro"}</button>}</div>
-    </article>;
+    const pessoa=colaboradoras.find((c)=>c.id===item.colaboradoraId),pendente=item.descontarNaFolha&&!item.descontadoNaFolha;
+    return <article key={item.id} className="hrm-record-row hrm-record-modern"><span className={`hrm-record-icon ${item.tipo==="Vale"?"hrm-money-icon":item.tipo==="Falta"?"hrm-falta-icon":item.tipo==="Atraso"?"hrm-atraso-icon":"hrm-default-record-icon"}`}><IconeRH nome={item.tipo==="Vale"?"dinheiro":item.tipo==="Atraso"?"relogio":"calendario"} tamanho={20}/></span><div className="hrm-record-main"><strong className="hrm-record-person">{pessoa?.nome||item.nome}</strong><span className="hrm-record-type">{item.tipo==="Vale"?"VALE":item.tipo.toUpperCase()} · {dataRH(item.data)} · Competência {formatarCompetencia(item.competencia)}</span>{item.descricao&&<p>{item.descricao}</p>}<div className="hrm-tags">{item.justificada&&<span className="hrm-tag-info">{item.tipo==="Falta"?"COM ATESTADO / JUSTIFICADA":"JUSTIFICADA"}</span>}{pendente&&<span className="hrm-tag-pendente">PENDENTE NA FOLHA</span>}{item.descontadoNaFolha&&<span className="hrm-tag-descontado">✓ DESCONTADO NA FOLHA · {dataRH(item.dataDesconto)}</span>}{item.cancelaAssiduidade&&<span className="hrm-tag-assiduidade">ASSIDUIDADE CANCELADA</span>}</div></div><div className="hrm-record-value"><strong>{item.valor>0?moeda(item.valor):`${item.quantidade} ${item.unidade}`}</strong><div className="hrm-record-actions">{pendente&&<button type="button" className="hrm-action-done" onClick={()=>void marcarValeDescontado(item)}>Marcar como descontado</button>}<button type="button" className="hrm-action-edit" onClick={()=>editarRegistroRH(item)}>Editar</button>{excluir&&<button type="button" className="hrm-action-delete" onClick={()=>void excluirRegistro(item.id)}>Excluir registro</button>}</div></div></article>;
   }
 
   const painelEquipeRH = <section className="hrm-panel hrm-team-panel">
@@ -1515,10 +1590,10 @@ export default function RHManager() {
         {pessoasPagina.map((item) => <article className="hrm-team-row" key={item.id}>
           <button className="hrm-person-button" type="button" onClick={() => abrirFichaRH(item)}><AvatarRH pessoa={item}/><span><strong>{item.nome}</strong><small>Matrícula {item.matricula || "não informada"} · {item.tipoContrato}</small></span></button>
           <div className="hrm-job"><strong>{item.cargo || "Cargo não informado"}</strong><span>{item.equipe || "Equipe não informada"}</span></div>
-          <StatusRH status={item.status}/><button type="button" className="hrm-open-profile" onClick={() => abrirFichaRH(item)} aria-label={`Abrir ficha de ${item.nome}`}>Abrir <IconeRH nome="seta" tamanho={15}/></button>
+          <StatusRH status={item.status}/><div className="hrm-team-actions"><button type="button" className="hrm-open-profile" onClick={() => abrirFichaRH(item)} aria-label={`Abrir ficha de ${item.nome}`}>Abrir <IconeRH nome="seta" tamanho={15}/></button><button type="button" className="hrm-delete-person" disabled={Boolean(excluindoRH)} onClick={() => void excluirColaboradora(item.id)} aria-label={`Excluir ${item.nome}`} title="Excluir colaboradora"><IconeRH nome="excluir" tamanho={16}/><span>Excluir</span></button></div>
         </article>)}
       </div>
-      <footer className="hrm-pagination"><span>{(paginaPessoasAtual-1)*8+1}–{Math.min(paginaPessoasAtual*8,listaEquipeRH.length)} de {listaEquipeRH.length} colaboradoras</span><div><button type="button" aria-label="Página anterior de colaboradoras" disabled={paginaPessoasAtual === 1} onClick={() => setPaginaPessoas(paginaPessoasAtual-1)}>Anterior</button><span>{paginaPessoasAtual} / {totalPaginasPessoas}</span><button type="button" aria-label="Próxima página de colaboradoras" disabled={paginaPessoasAtual === totalPaginasPessoas} onClick={() => setPaginaPessoas(paginaPessoasAtual+1)}>Próxima</button></div></footer>
+      <footer className="hrm-pagination hrm-pagination-all"><span>{listaEquipeRH.length} colaboradora(s) exibida(s)</span></footer>
     </>}
   </section>;
 
@@ -1945,7 +2020,7 @@ export default function RHManager() {
         </form>
       </JanelaRH>}
 
-      {modalRegistro && <JanelaRH titulo="Registrar ocorrência" subtitulo="Vales, frequência, férias e informações internas do RH." aoFechar={fecharFormularioRegistro} ocupada={salvandoEvento}>
+      {modalRegistro && <JanelaRH titulo={editandoRegistroId ? "Editar registro" : "Registrar ocorrência"} subtitulo="Vales, frequência, férias e informações internas do RH." aoFechar={fecharFormularioRegistro} ocupada={salvandoEvento}>
                   <form
             className="rh-event-form"
             onSubmit={salvarRegistro}
@@ -2164,7 +2239,7 @@ export default function RHManager() {
 
             <div className="rh-actions rh-full-field">
               <button type="button" className="rh-cancel" onClick={fecharFormularioRegistro}>Cancelar</button>
-              <button type="submit">{salvandoEvento ? "Salvando…" : "Salvar registro"}</button>
+              <button type="submit">{salvandoEvento ? "Salvando…" : editandoRegistroId ? "Salvar alterações" : "Salvar registro"}</button>
             </div>
             </fieldset>
           </form>

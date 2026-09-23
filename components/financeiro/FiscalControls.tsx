@@ -9,6 +9,16 @@ type Produto="CLT"|"Compra de Dívida";
 type Nota={id:string;produto:Produto;fornecedor:string;valor:number;qtd:number;inicio:string;fim:string;liquido:number;parcela:number;bruto:number;ir:number;comprovante:string};
 const moeda=(v:number)=>Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 const n=(v:string)=>Number(String(v||"0").replace(/\./g,"").replace(",", "."))||0;
+const valorBR=(v:string|number)=>{
+ const raw=String(v??"").replace(/\D/g,"");
+ if(!raw)return "";
+ return (Number(raw)/100).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+};
+const numeroParaCampo=(v:number|string)=>{
+ const num=Number(v||0);
+ if(!num)return "";
+ return num.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+};
 const hoje=()=>new Date().toISOString().slice(0,10);
 const mes=()=>new Date().toISOString().slice(0,7);
 
@@ -110,14 +120,14 @@ export default function FiscalControls({
    setProduto(x.produto);
    setF({
      fornecedor:x.fornecedor,
-     valor:String(x.valor||""),
+     valor:numeroParaCampo(x.valor),
      qtd:String(x.qtd||""),
      inicio:x.inicio||hoje(),
-     fim:x.fim||hoje(),
-     liquido:String(x.liquido||""),
-     parcela:String(x.parcela||""),
-     bruto:String(x.bruto||""),
-     irValor:String(x.ir||""),
+     fim:x.inicio||hoje(),
+     liquido:numeroParaCampo(x.liquido),
+     parcela:numeroParaCampo(x.parcela),
+     bruto:numeroParaCampo(x.bruto),
+     irValor:numeroParaCampo(x.ir),
      comprovante:x.comprovante||"",
    });
    setModal(true);
@@ -164,7 +174,7 @@ export default function FiscalControls({
      quantidade_operacoes:Number(f.qtd||0),
      data_solicitacao:f.inicio,
      referencia_inicio:f.inicio,
-     referencia_fim:f.fim,
+     referencia_fim:f.inicio,
      producao_liquida:produto==="CLT"?n(f.liquido):0,
      valor_parcela:produto==="CLT"?n(f.parcela):0,
      valor_bruto_operacao:produto==="Compra de Dívida"?n(f.bruto):0,
@@ -214,7 +224,7 @@ export default function FiscalControls({
         <label>Ordenar<select value={ordem} onChange={e=>setOrdem(e.target.value as "recentes"|"antigas")}><option value="recentes">Mais recentes primeiro</option><option value="antigas">Mais antigas primeiro</option></select></label>
      </div>
    </div>
-   <div className="fc-table"><table><thead><tr><th>#</th><th>Fornecedor</th><th>Valor nota</th><th>Qtd.</th><th>Referência</th><th>{produto==="CLT"?"Produção líquida":"Valor bruto"}</th>{produto==="CLT"&&<th>Parcela</th>}<th>IR</th><th>Comprovante</th><th>Ações</th></tr></thead><tbody>{lista.length?lista.map((x,i)=><tr key={x.id}><td>{i+1}</td><td>{x.fornecedor}</td><td>{moeda(x.valor)}</td><td>{x.qtd}</td><td>{x.inicio} a {x.fim}</td><td>{moeda(x.produto==="CLT"?x.liquido:x.bruto)}</td>{produto==="CLT"&&<td>{moeda(x.parcela)}</td>}<td>{moeda(x.ir)}</td><td>{x.comprovante?"✓ Anexado":"—"}</td><td><div className="fc-actions"><button type="button" className="fc-edit" onClick={()=>abrirEdicao(x)}>Editar</button><button type="button" className="fc-delete" onClick={()=>void excluirNota(x)}>Excluir</button></div></td></tr>):<tr><td colSpan={10}>Nenhuma nota cadastrada.</td></tr>}</tbody></table></div>
+   <div className="fc-table"><table><thead><tr><th>#</th><th>Fornecedor</th><th>Valor nota</th><th>Qtd.</th><th>Data competência</th><th>{produto==="CLT"?"Produção líquida":"Valor bruto"}</th>{produto==="CLT"&&<th>Parcela</th>}<th>IR</th><th>Comprovante</th><th>Ações</th></tr></thead><tbody>{lista.length?lista.map((x,i)=><tr key={x.id}><td>{i+1}</td><td>{x.fornecedor}</td><td>{moeda(x.valor)}</td><td>{x.qtd}</td><td>{x.inicio?x.inicio.split("-").reverse().join("/"):"—"}</td><td>{moeda(x.produto==="CLT"?x.liquido:x.bruto)}</td>{produto==="CLT"&&<td>{moeda(x.parcela)}</td>}<td>{moeda(x.ir)}</td><td>{x.comprovante?"✓ Anexado":"—"}</td><td><div className="fc-actions"><button type="button" className="fc-edit" onClick={()=>abrirEdicao(x)}>Editar</button><button type="button" className="fc-delete" onClick={()=>void excluirNota(x)}>Excluir</button></div></td></tr>):<tr><td colSpan={10}>Nenhuma nota cadastrada.</td></tr>}</tbody></table></div>
   </>}
   {aba==="simples"&&<ControleSimples />}
   {aba==="inss"&&<ControleInssFgts />}
@@ -226,6 +236,6 @@ export default function FiscalControls({
     </select>
     <span className="fc-select-arrow">⌄</span>
   </div>
-</label><label>Valor da nota *<input value={f.valor} onChange={e=>setF({...f,valor:e.target.value})}/></label><label>Quantidade de operações<input type="number" value={f.qtd} onChange={e=>setF({...f,qtd:e.target.value})}/></label><label>Referência inicial<input type="date" value={f.inicio} onChange={e=>setF({...f,inicio:e.target.value})}/></label><label>Referência final<input type="date" value={f.fim} onChange={e=>setF({...f,fim:e.target.value})}/></label>{produto==="CLT"?<><label>Produção valor líquido<input value={f.liquido} onChange={e=>setF({...f,liquido:e.target.value})}/></label><label>Valor parcela<input value={f.parcela} onChange={e=>setF({...f,parcela:e.target.value})}/></label></>:<label>Valor bruto da operação<input value={f.bruto} onChange={e=>setF({...f,bruto:e.target.value})}/></label>}<label>Valor do IR (R$) — opcional<input inputMode="decimal" value={f.irValor} onChange={e=>setF({...f,irValor:e.target.value})} placeholder="R$ 0,00"/></label><label className="wide">Comprovante — opcional<input type="file" accept="image/*,.pdf" onChange={e=>{const arq=e.target.files?.[0]||null;setArquivo(arq);setF({...f,comprovante:arq?.name||""})}}/><small>{f.comprovante||"Imagem ou PDF"}</small></label></div><footer><button type="button" onClick={()=>{setModal(false);setEditando(null)}}>Cancelar</button><button type="submit">{editando?"Salvar alterações":"Salvar nota"}</button></footer></form></div>}
+</label><label>Valor da nota *<input inputMode="numeric" value={f.valor} onChange={e=>setF({...f,valor:valorBR(e.target.value)})} placeholder="0,00"/></label><label>Quantidade de operações<input type="number" value={f.qtd} onChange={e=>setF({...f,qtd:e.target.value})}/></label><label>Data competência<input type="date" value={f.inicio} onChange={e=>setF({...f,inicio:e.target.value,fim:e.target.value})}/></label>{produto==="CLT"?<><label>Produção valor líquido<input inputMode="numeric" value={f.liquido} onChange={e=>setF({...f,liquido:valorBR(e.target.value)})} placeholder="0,00"/></label><label>Valor parcela<input inputMode="numeric" value={f.parcela} onChange={e=>setF({...f,parcela:valorBR(e.target.value)})} placeholder="0,00"/></label></>:<label>Valor bruto da operação<input inputMode="numeric" value={f.bruto} onChange={e=>setF({...f,bruto:valorBR(e.target.value)})} placeholder="0,00"/></label>}<label>Valor do IR (R$) — opcional<input inputMode="numeric" value={f.irValor} onChange={e=>setF({...f,irValor:valorBR(e.target.value)})} placeholder="0,00"/></label><label className="wide">Comprovante — opcional<input type="file" accept="image/*,.pdf" onChange={e=>{const arq=e.target.files?.[0]||null;setArquivo(arq);setF({...f,comprovante:arq?.name||""})}}/><small>{f.comprovante||"Imagem ou PDF"}</small></label></div><footer><button type="button" onClick={()=>{setModal(false);setEditando(null)}}>Cancelar</button><button type="submit">{editando?"Salvar alterações":"Salvar nota"}</button></footer></form></div>}
  </div>
 }

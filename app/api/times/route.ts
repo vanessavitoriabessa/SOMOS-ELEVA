@@ -131,6 +131,7 @@ async function autenticarAdministradora(
       "Administradora",
       "Coordenadora",
       "Supervisora",
+      "RH",
     ].includes(
       String(
         perfilAdministradora.perfil ||
