@@ -385,3 +385,9 @@
   background:#fff !important;
   color:#53627a !important;
 }
+.df-kpis-status{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:12px!important;width:100%}
+.df-kpis-status>div{min-height:92px;padding:14px 16px!important;border:1px solid #dce5f2;border-radius:14px;background:#fff}.df-kpis-status span{display:block;font-size:10px;font-weight:800;color:#61738d}.df-kpis-status strong{display:block;margin-top:5px;font-size:22px!important;color:#102d52}.df-kpis-status small{display:block;margin-top:5px;font-size:9px;color:#7a899d}
+.df-kpis-status .atrasado{background:#fff3f3;border-color:#ffd2d2}.df-kpis-status .atrasado strong{color:#d93030!important}.df-kpis-status .pendente{background:#fffaf0;border-color:#f1d7a2}.df-kpis-status .pendente strong{color:#bd6900!important}.df-kpis-status .pago{background:#effaf4;border-color:#ccebd9}.df-kpis-status .pago strong{color:#078447!important}
+.df-status.atrasado{display:inline-flex!important;align-items:center;justify-content:center;gap:6px;min-width:104px;padding:8px 12px!important;border:1px solid #ffc7c7!important;border-radius:999px!important;background:#fff0f0!important;color:#d62f2f!important;font-size:11px!important;font-weight:900!important}
+.df-status.pendente,.df-status.pago{display:inline-flex!important;align-items:center;justify-content:center;gap:6px;min-width:104px;padding:8px 12px!important;font-size:11px!important;font-weight:900!important}.df-due strong{font-size:12px!important}
+@media(max-width:1100px){.df-kpis-status{grid-template-columns:repeat(2,1fr)!important}}@media(max-width:700px){.df-kpis-status{grid-template-columns:1fr!important}}

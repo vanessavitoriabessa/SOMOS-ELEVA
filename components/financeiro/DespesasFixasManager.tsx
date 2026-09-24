@@ -34,6 +34,17 @@ const moeda = (v: number) =>
 const competenciaAtual = () => new Date().toISOString().slice(0, 7);
 const hoje = () => new Date().toISOString().slice(0, 10);
 
+function dataVencimentoCompetencia(competencia: string, dia: number) {
+  const [ano, mes] = competencia.split("-").map(Number);
+  const ultimoDia = new Date(ano, mes, 0).getDate();
+  const diaValido = Math.min(Math.max(Number(dia || 1), 1), ultimoDia);
+  return `${ano}-${String(mes).padStart(2, "0")}-${String(diaValido).padStart(2, "0")}`;
+}
+function dataBR(data: string) {
+  const [ano, mes, dia] = data.split("-");
+  return `${dia}/${mes}/${ano}`;
+}
+
 const numero = (v: string) =>
   Number(v.replace(/\./g, "").replace(",", ".").replace(/[^\d.-]/g, "") || 0);
 
@@ -110,6 +121,12 @@ export default function DespesasFixasManager() {
   const pagos = new Set(pagamentos.map((p) => p.despesa_recorrente_id));
   const previsto = ativas.reduce((t, d) => t + Number(d.valor || 0), 0);
   const pago = pagamentos.reduce((t, p) => t + Number(p.valor_pago || 0), 0);
+  const hojeIso = hoje();
+  const atrasadas = ativas.filter(d => !pagos.has(d.id) && dataVencimentoCompetencia(competencia,d.dia_vencimento) < hojeIso);
+  const pendentes = ativas.filter(d => !pagos.has(d.id) && dataVencimentoCompetencia(competencia,d.dia_vencimento) >= hojeIso);
+  const totalAtrasado = atrasadas.reduce((t,d)=>t+Number(d.valor||0),0);
+  const totalPendente = pendentes.reduce((t,d)=>t+Number(d.valor||0),0);
+  const statusDespesa=(item:Despesa)=>pagos.has(item.id)?"pago":dataVencimentoCompetencia(competencia,item.dia_vencimento)<hojeIso?"atrasado":"pendente";
 
   function limparFormulario() {
     setNome("");
@@ -315,19 +332,11 @@ export default function DespesasFixasManager() {
           />
         </label>
 
-        <div className="df-kpis">
-          <div>
-            <span>Previsto</span>
-            <strong>{moeda(previsto)}</strong>
-          </div>
-          <div>
-            <span>Pago</span>
-            <strong>{moeda(pago)}</strong>
-          </div>
-          <div>
-            <span>Pendente</span>
-            <strong>{moeda(Math.max(previsto - pago, 0))}</strong>
-          </div>
+        <div className="df-kpis df-kpis-status">
+          <div className="total"><span>Total previsto</span><strong>{moeda(previsto)}</strong><small>{ativas.length} compromisso(s) na competência</small></div>
+          <div className="atrasado"><span>Despesas atrasadas</span><strong>{moeda(totalAtrasado)}</strong><small>{atrasadas.length} vencida(s) e não paga(s)</small></div>
+          <div className="pendente"><span>Despesas pendentes</span><strong>{moeda(totalPendente)}</strong><small>{pendentes.length} ainda dentro do vencimento</small></div>
+          <div className="pago"><span>Despesas pagas</span><strong>{moeda(pago)}</strong><small>{pagamentos.length} pagamento(s) na competência</small></div>
         </div>
       </section>
 
@@ -468,19 +477,12 @@ export default function DespesasFixasManager() {
                 <span className="df-due-icon" aria-hidden="true">
                   📅
                 </span>
-                <strong>Dia {item.dia_vencimento}</strong>
+                <strong>{dataBR(dataVencimentoCompetencia(competencia, item.dia_vencimento))}</strong>
               </div>
 
               <strong className="df-value">{moeda(item.valor)}</strong>
 
-              <span
-                className={`df-status ${
-                  pagos.has(item.id) ? "pago" : "pendente"
-                }`}
-              >
-                <b>{pagos.has(item.id) ? "✓" : "⌛"}</b>
-                {pagos.has(item.id) ? "Pago" : "Pendente"}
-              </span>
+              {(() => { const status=statusDespesa(item); return <span className={`df-status ${status}`}><b>{status==="pago"?"✓":status==="atrasado"?"!":"⌛"}</b>{status==="pago"?"Pago":status==="atrasado"?"Atrasado":"Pendente"}</span>; })()}
 
               <div className="df-actions">
                 <button
