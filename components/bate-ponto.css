@@ -464,3 +464,7 @@
 .bp-falta-info{display:flex!important;flex-direction:column;gap:4px;padding:12px 14px;border:1px solid #dbe5f2;border-radius:10px;background:#f7faff}
 .bp-falta-info b{font-size:10px;color:#174a9c;letter-spacing:.04em}
 .bp-falta-info span{font-size:10px;font-weight:600;color:#64758d;line-height:1.4}
+.bp-reposicao-info{display:flex!important;flex-direction:column;gap:4px;padding:12px 14px;border:1px solid #cce9d9;border-radius:10px;background:#effaf4}
+.bp-reposicao-info b{font-size:10px;color:#087a43;letter-spacing:.04em}
+.bp-reposicao-info span{font-size:10px;font-weight:600;color:#527064;line-height:1.4}
+.bp-status.reposicao{background:#eaf9f0!important;color:#087d45!important}
