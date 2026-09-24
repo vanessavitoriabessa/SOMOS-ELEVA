@@ -348,3 +348,119 @@
   .bp-espelho-grande .bp-filtros input,.bp-espelho-grande .bp-filtros select{width:100%}
 }
 .bp-novo-tipo-dia{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:8px}.bp-novo-tipo-dia input{min-width:0}.bp-novo-tipo-dia button{min-width:105px;border:1px solid #2458ee!important;background:#2458ee!important;color:#fff!important;border-radius:9px!important;padding:0 12px!important;font-weight:800!important;font-size:11px!important}.bp-novo-tipo-dia button:hover{filter:brightness(.97)}
+
+/* ============================================================
+   BATE-PONTO V16 — ESPELHO COMPACTO + AÇÃO SEMPRE VISÍVEL
+   Cole no FINAL do bate-ponto.css
+   ============================================================ */
+
+.bp-resumo-faixa{
+  grid-template-columns:repeat(5,minmax(0,1fr));
+}
+.bp-resumo-faixa>div{
+  min-width:0;
+  padding:12px 14px;
+}
+.bp-resumo-faixa span{font-size:9px}
+.bp-resumo-faixa strong{font-size:16px}
+
+.bp-fechamento-individual{
+  width:100%;
+  max-width:780px;
+}
+.bp-resultado-mini{
+  min-width:300px;
+  text-align:left;
+}
+.bp-resultado-mini strong{
+  font-size:13px;
+  line-height:1.25;
+}
+.bp-resultado-mini small{
+  margin-top:3px;
+  font-size:9px;
+  font-weight:800;
+}
+
+.bp-espelho-grande{
+  padding:16px 18px 22px;
+  overflow:hidden;
+}
+.bp-table-espelho{
+  width:100%;
+  overflow:hidden;
+}
+.bp-table-espelho table{
+  width:100%;
+  min-width:0!important;
+  table-layout:fixed;
+}
+
+/* V16 tem 12 colunas: Data, Dia, 4 horários, Trabalhado, Extra,
+   Devedoras, Situação, Observação e Ação */
+.bp-table-espelho th:nth-child(1),.bp-table-espelho td:nth-child(1){width:7%}
+.bp-table-espelho th:nth-child(2),.bp-table-espelho td:nth-child(2){width:5%}
+.bp-table-espelho .bp-horarios-grupo{width:28%}
+.bp-table-espelho .bp-head-sub th{width:7%}
+.bp-table-espelho tbody td:nth-child(3),
+.bp-table-espelho tbody td:nth-child(4),
+.bp-table-espelho tbody td:nth-child(5),
+.bp-table-espelho tbody td:nth-child(6){width:7%}
+.bp-table-espelho th:nth-child(7),.bp-table-espelho td:nth-child(7){width:9%}
+.bp-table-espelho th:nth-child(8),.bp-table-espelho td:nth-child(8){width:7%}
+.bp-table-espelho th:nth-child(9),.bp-table-espelho td:nth-child(9){width:8%}
+.bp-table-espelho th:nth-child(10),.bp-table-espelho td:nth-child(10){width:10%}
+.bp-table-espelho th:nth-child(11),.bp-table-espelho td:nth-child(11){width:11%}
+.bp-table-espelho th:nth-child(12),.bp-table-espelho td:nth-child(12){width:8%}
+
+.bp-table-espelho tbody td:nth-child(7){
+  color:#075be8;font-size:12px;font-weight:900;
+}
+.bp-table-espelho tbody td:nth-child(8){
+  color:#008f46;font-size:12px;font-weight:900;
+}
+.bp-table-espelho tbody td:nth-child(9){
+  color:#e54242;font-size:12px;font-weight:900;
+}
+.bp-table-espelho tbody td:nth-child(11){
+  text-align:left;
+  padding-left:9px;
+  padding-right:6px;
+  font-size:9px;
+  line-height:1.2;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+.bp-table-espelho tbody td:nth-child(12){
+  text-align:center;
+  overflow:visible;
+}
+.bp-table-espelho tbody td:nth-child(12) button{
+  width:72px;
+  height:32px;
+  padding:0 7px;
+  background:#fff;
+  color:#075be8;
+  border:1px solid #82abff;
+  border-radius:9px;
+  font-size:9px;
+  font-weight:900;
+}
+
+@media(max-width:1100px){
+  .bp-table-espelho th,.bp-table-espelho td{font-size:9px!important}
+  .bp-table-espelho tbody td:nth-child(12) button{width:62px;font-size:8px}
+  .bp-resumo-faixa{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:850px){
+  .bp-table-espelho{overflow:auto}
+  .bp-table-espelho table{min-width:980px!important}
+  .bp-resumo-faixa{grid-template-columns:1fr 1fr}
+}
+/* BATE-PONTO V17 — resumo líquido */
+.bp-resumo-faixa{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.bp-resultado-mini small{color:inherit;opacity:.78}
+@media(max-width:900px){.bp-resumo-faixa{grid-template-columns:repeat(2,1fr)!important}}
+.bp-falta-info{display:flex!important;flex-direction:column;gap:4px;padding:12px 14px;border:1px solid #dbe5f2;border-radius:10px;background:#f7faff}
+.bp-falta-info b{font-size:10px;color:#174a9c;letter-spacing:.04em}
+.bp-falta-info span{font-size:10px;font-weight:600;color:#64758d;line-height:1.4}
