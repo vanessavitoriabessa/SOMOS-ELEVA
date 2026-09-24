@@ -103,6 +103,18 @@ function normalizar(valor: string) {
     .toLowerCase();
 }
 
+function nomesCorrespondem(a: string, b: string) {
+  const x = normalizar(a);
+  const y = normalizar(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const px = x.split(/\s+/).filter(Boolean);
+  const py = y.split(/\s+/).filter(Boolean);
+  const menor = px.length <= py.length ? px : py;
+  const maior = px.length <= py.length ? py : px;
+  return menor.every((parte, indice) => maior[indice] === parte);
+}
+
 function dataLocal(valor?: string) {
   if (!valor) return null;
 
@@ -424,29 +436,87 @@ export default function PremiacaoManagerV3() {
         listaUsuarios = [];
       }
       try {
-        const { data: usuariosPix, error: erroUsuariosPix } = await supabase
-          .from("usuarios")
-          .select("id, nome, email, matricula, perfil, cargo, chave_pix, tipo_chave_pix");
+        const { data: colaboradoresPix, error: erroColaboradoresPix } = await supabase
+          .from("rh_colaboradoras")
+          .select("id, usuario_id, nome, matricula, email, chave_pix, tipo_chave_pix");
 
-        if (!erroUsuariosPix && Array.isArray(usuariosPix)) {
-          const porId = new Map(usuariosPix.map((u: any) => [String(u.id || ""), u]));
-          const porNome = new Map(usuariosPix.map((u: any) => [normalizar(String(u.nome || "")), u]));
+        if (!erroColaboradoresPix && Array.isArray(colaboradoresPix)) {
+          const porId = new Map(
+            colaboradoresPix.map((c: any) => [String(c.id || ""), c]),
+          );
+          const porUsuarioId = new Map(
+            colaboradoresPix
+              .filter((c: any) => c.usuario_id)
+              .map((c: any) => [String(c.usuario_id || ""), c]),
+          );
+          const porNome = new Map(
+            colaboradoresPix.map((c: any) => [
+              normalizar(String(c.nome || "")),
+              c,
+            ]),
+          );
 
           listaUsuarios = listaUsuarios.map((local) => {
-            const banco =
+            const colaboradora =
               porId.get(String(local.id || "")) ||
-              porNome.get(normalizar(String(local.nome || "")));
-            return banco ? { ...local, ...banco } : local;
+              porUsuarioId.get(String(local.id || "")) ||
+              porNome.get(normalizar(String(local.nome || ""))) ||
+              colaboradoresPix.find((c: any) =>
+                nomesCorrespondem(String(local.nome || ""), String(c.nome || "")),
+              );
+
+            if (!colaboradora) return local;
+
+            return {
+              ...local,
+              id: String(colaboradora.id || local.id || ""),
+              nome: colaboradora.nome || local.nome,
+              email: colaboradora.email || local.email,
+              matricula: colaboradora.matricula || local.matricula,
+              chave_pix: String(colaboradora.chave_pix || "").trim(),
+              tipo_chave_pix: String(
+                colaboradora.tipo_chave_pix || "PIX",
+              ).trim(),
+            };
           });
 
-          usuariosPix.forEach((banco: any) => {
-            if (!listaUsuarios.some((u) => String(u.id || "") === String(banco.id || ""))) {
-              listaUsuarios.push(banco as UsuarioLocal);
+          colaboradoresPix.forEach((colaboradora: any) => {
+            const chaveNome = normalizar(String(colaboradora.nome || ""));
+            const indice = listaUsuarios.findIndex(
+              (u) =>
+                normalizar(String(u.nome || "")) === chaveNome ||
+                nomesCorrespondem(String(u.nome || ""), String(colaboradora.nome || "")),
+            );
+
+            if (indice >= 0) {
+              listaUsuarios[indice] = {
+                ...listaUsuarios[indice],
+                id: String(colaboradora.id || listaUsuarios[indice].id || ""),
+                nome: colaboradora.nome || listaUsuarios[indice].nome,
+                email: colaboradora.email || listaUsuarios[indice].email,
+                matricula:
+                  colaboradora.matricula || listaUsuarios[indice].matricula,
+                chave_pix: String(colaboradora.chave_pix || "").trim(),
+                tipo_chave_pix: String(
+                  colaboradora.tipo_chave_pix || "PIX",
+                ).trim(),
+              };
+            } else {
+              listaUsuarios.push({
+                id: String(colaboradora.id || ""),
+                nome: colaboradora.nome || "",
+                email: colaboradora.email || "",
+                matricula: colaboradora.matricula || "",
+                chave_pix: String(colaboradora.chave_pix || "").trim(),
+                tipo_chave_pix: String(
+                  colaboradora.tipo_chave_pix || "PIX",
+                ).trim(),
+              });
             }
           });
         }
       } catch {
-        // Mantém a lista local caso o cadastro permanente ainda não esteja disponível.
+        // Mantém a lista local caso o cadastro permanente do RH não esteja disponível.
       }
 
       setUsuarios(listaUsuarios);
@@ -633,7 +703,53 @@ export default function PremiacaoManagerV3() {
   }, [usuarios, saques]);
 
   const nomesConsultoras = useMemo(() => {
+    // O RH é a fonte principal de identidade. Produção/CLT podem usar nomes
+    // abreviados, mas nunca devem criar uma segunda pessoa na lista.
+    const nomesRh = usuarios
+      .map((usuario) => String(usuario.nome || "").trim())
+      .filter(Boolean);
+
+    const canonico = (nomeBruto: string) => {
+      const nome = String(nomeBruto || "").trim();
+      if (!nome) return "";
+
+      const exato = nomesRh.find(
+        (nomeRh) => normalizar(nomeRh) === normalizar(nome),
+      );
+      if (exato) return exato;
+
+      const correspondente = nomesRh.find((nomeRh) =>
+        nomesCorrespondem(nome, nomeRh),
+      );
+      return correspondente || nome;
+    };
+
     const mapa = new Map<string, string>();
+    const adicionar = (nomeBruto: string) => {
+      const nome = canonico(nomeBruto);
+      if (!nome) return;
+
+      // Se já existir uma versão abreviada da mesma pessoa, remove e mantém
+      // somente o nome canônico/completo vindo do RH.
+      for (const [chaveExistente, nomeExistente] of Array.from(mapa.entries())) {
+        if (nomesCorrespondem(nomeExistente, nome)) {
+          const existenteEhRh = nomesRh.some(
+            (nomeRh) => normalizar(nomeRh) === normalizar(nomeExistente),
+          );
+          const novoEhRh = nomesRh.some(
+            (nomeRh) => normalizar(nomeRh) === normalizar(nome),
+          );
+
+          if (novoEhRh && !existenteEhRh) {
+            mapa.delete(chaveExistente);
+            mapa.set(normalizar(nome), nome);
+          }
+          return;
+        }
+      }
+
+      mapa.set(normalizar(nome), nome);
+    };
 
     usuarios
       .filter((usuario) => {
@@ -644,28 +760,17 @@ export default function PremiacaoManagerV3() {
           perfilCoordenacao(perfil)
         );
       })
-      .forEach((usuario) => {
-        const nome = usuario.nome?.trim();
-        if (nome) mapa.set(normalizar(nome), nome);
-      });
+      .forEach((usuario) => adicionar(String(usuario.nome || "")));
 
-    propostas.forEach((proposta) => {
-      const nome = proposta.vendedora?.trim();
-      if (nome) mapa.set(normalizar(nome), nome);
-    });
-
-    clt.forEach((registro) => {
-      const nome = registro.consultora?.trim();
-      if (nome) mapa.set(normalizar(nome), nome);
-    });
+    propostas.forEach((proposta) => adicionar(String(proposta.vendedora || "")));
+    clt.forEach((registro) => adicionar(String(registro.consultora || "")));
 
     if (!ehGestor && nomeLogado) {
-      return [nomeLogado];
+      return [canonico(nomeLogado) || nomeLogado];
     }
 
     return [...mapa.values()].sort((a, b) => a.localeCompare(b, "pt-BR"));
   }, [usuarios, propostas, clt, ehGestor, nomeLogado]);
-
   useEffect(() => {
     if (!nomeLogado) return;
 
@@ -695,6 +800,9 @@ export default function PremiacaoManagerV3() {
 
     return (
       usuarios.find((usuario) => normalizar(usuario.nome || "") === chave) ||
+      usuarios.find((usuario) =>
+        nomesCorrespondem(String(usuario.nome || ""), nome),
+      ) ||
       null
     );
   }, [usuarios, ehGestor, consultoraSelecionada, nomeLogado]);
@@ -1828,33 +1936,82 @@ export default function PremiacaoManagerV3() {
     tipoPix: string,
     chavePix: string,
   ) {
-    if (!ehGestor || !usuarioSelecionadoId) {
-      throw new Error("Não encontrei a colaboradora selecionada.");
+    if (!ehGestor) {
+      throw new Error("Seu perfil não possui permissão para cadastrar PIX.");
+    }
+
+    const nomeColaboradoraPix = String(
+      resumo.nome || consultoraSelecionada || nomeLogado || ""
+    ).trim();
+
+    if (!nomeColaboradoraPix) {
+      throw new Error("Não encontrei o nome da colaboradora selecionada.");
     }
 
     setProcessando(true);
     setMensagem("");
 
     try {
-      const { error } = await supabase
-        .from("usuarios")
-        .update({
-          chave_pix: chavePix.trim(),
-          tipo_chave_pix: tipoPix,
-        })
-        .eq("id", usuarioSelecionadoId);
+      const dadosPix = {
+        chave_pix: chavePix.trim(),
+        tipo_chave_pix: tipoPix,
+      };
 
-      if (error) throw new Error(error.message);
+      // O PIX pertence à ficha permanente da colaboradora no RH.
+      // Aqui o NOME é a chave principal, pois a lista da Premiação também
+      // contém pessoas vindas das propostas/CLT que podem não ter ID carregado.
+      const { data: colaboradoras, error: erroBusca } = await supabase
+        .from("rh_colaboradoras")
+        .select("id, nome, chave_pix, tipo_chave_pix");
+
+      if (erroBusca) throw new Error(erroBusca.message);
+
+      const registroReal = (colaboradoras || []).find(
+        (colaboradora: any) =>
+          normalizar(String(colaboradora.nome || "")) ===
+            normalizar(nomeColaboradoraPix) ||
+          nomesCorrespondem(
+            nomeColaboradoraPix,
+            String(colaboradora.nome || ""),
+          ),
+      );
+
+      if (!registroReal?.id) {
+        throw new Error(
+          `Não encontrei a ficha de RH de ${nomeColaboradoraPix}.`,
+        );
+      }
+
+      const { data: registroSalvo, error: erroSalvar } = await supabase
+        .from("rh_colaboradoras")
+        .update(dadosPix)
+        .eq("id", registroReal.id)
+        .select("id, nome, chave_pix, tipo_chave_pix")
+        .single();
+
+      if (erroSalvar) throw new Error(erroSalvar.message);
 
       setUsuarios((atual) =>
         atual.map((usuario) =>
-          String(usuario.id || "") === String(usuarioSelecionadoId)
-            ? { ...usuario, chave_pix: chavePix.trim(), tipo_chave_pix: tipoPix }
+          normalizar(String(usuario.nome || "")) ===
+            normalizar(nomeColaboradoraPix) ||
+          nomesCorrespondem(String(usuario.nome || ""), nomeColaboradoraPix)
+            ? {
+                ...usuario,
+                id: String(registroSalvo?.id || usuario.id || ""),
+                chave_pix: String(
+                  registroSalvo?.chave_pix || chavePix.trim(),
+                ),
+                tipo_chave_pix: String(
+                  registroSalvo?.tipo_chave_pix || tipoPix,
+                ),
+              }
             : usuario,
         ),
       );
 
-      setMensagem(`PIX de ${resumo.nome} salvo com sucesso.`);
+      setMensagem(`PIX de ${nomeColaboradoraPix} salvo permanentemente na ficha do RH.`);
+      await carregar();
     } finally {
       setProcessando(false);
     }

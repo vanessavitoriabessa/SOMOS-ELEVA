@@ -912,7 +912,7 @@ export default function MinhaPremiacaoV2(props: Props) {
                   return;
                 }
                 try {
-                  await onSalvarPix("", tipoPixCadastro, chavePixCadastro.trim());
+                  await onSalvarPix(nomeExibido, tipoPixCadastro, chavePixCadastro.trim());
                   setModalPix(false);
                 } catch (erro) {
                   setErroModal(erro instanceof Error ? erro.message : "Não foi possível salvar o PIX.");

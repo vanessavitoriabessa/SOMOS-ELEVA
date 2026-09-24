@@ -528,3 +528,74 @@ textarea {
     padding: 15px;
   }
 }
+.shell-notification-button{position:relative;width:40px;height:40px;border:1px solid #dbe3ef;border-radius:11px;background:#fff;color:#244dcc;display:flex;align-items:center;justify-content:center;cursor:pointer}.shell-notification-button b{position:absolute;right:-5px;top:-6px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:#e93636;color:#fff;border:2px solid #fff;font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center}.shell-notification-overlay{position:fixed;inset:0;z-index:9998;border:0;background:rgba(15,32,63,.32)}.shell-notification-drawer{position:fixed;z-index:9999;right:0;top:0;width:min(440px,94vw);height:100vh;background:#fff;box-shadow:-18px 0 50px rgba(20,42,85,.18);display:flex;flex-direction:column}.shell-notification-drawer>header{display:flex;justify-content:space-between;padding:24px 22px 18px;border-bottom:1px solid #e4eaf3}.shell-notification-drawer header h2{margin:5px 0;font-size:24px;color:#102d52}.shell-notification-list{overflow:auto;padding:12px}.shell-notification-item{display:grid;grid-template-columns:8px 1fr 30px;gap:10px;padding:14px 10px;margin-bottom:7px;border:1px solid #e5eaf2;border-radius:13px;text-decoration:none;color:inherit}.shell-notification-item>i{width:8px;height:8px;border-radius:50%;margin-top:5px}.shell-notification-item.urgente>i{background:#e83d3d}.shell-notification-item.atencao>i{background:#e7a000}.shell-notification-item.info>i{background:#2870ee}.shell-notification-item strong{display:block;font-size:12px;color:#142f53}.shell-notification-item span{display:block;margin-top:4px;font-size:10px;line-height:1.45;color:#697a92}.shell-notification-item button{border:0;background:#f2f5f9;border-radius:8px;width:28px;height:28px;cursor:pointer;color:#1760e8}.shell-notification-empty{padding:50px 20px;text-align:center;color:#718098;display:flex;flex-direction:column;align-items:center;gap:8px}
+/* CENTRAL DE NOTIFICAÇÕES V2 — visual refinado */
+.shell-notification-button{
+  position:relative;width:42px;height:42px;border:1px solid #d9e3f2;border-radius:13px;
+  background:#fff;color:#174fd4;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;box-shadow:0 6px 18px rgba(25,63,137,.07);transition:.18s ease;
+}
+.shell-notification-button:hover{transform:translateY(-1px);background:#f7faff;border-color:#bcd0f5}
+.shell-notification-button b{
+  position:absolute;right:-6px;top:-7px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;
+  background:#ef3e4a;color:#fff;border:3px solid #fff;font-size:9px;font-weight:900;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(239,62,74,.28)
+}
+.shell-notification-overlay{
+  position:fixed;inset:0;z-index:9998;border:0;background:rgba(15,35,68,.34);
+  backdrop-filter:blur(3px);cursor:default
+}
+.shell-notification-drawer{
+  position:fixed;z-index:9999;right:0;top:0;width:min(480px,96vw);height:100vh;background:#f6f8fc;
+  box-shadow:-24px 0 70px rgba(20,42,85,.22);display:flex;flex-direction:column;
+  border-left:1px solid rgba(205,216,234,.8)
+}
+.shell-notification-drawer>header{
+  display:flex;justify-content:space-between;align-items:flex-start;padding:26px 26px 21px;
+  background:linear-gradient(135deg,#123f9c 0%,#1f63f2 100%);border:0;color:#fff
+}
+.shell-notification-drawer header span{font-size:9px;font-weight:900;letter-spacing:.14em;color:#dce8ff}
+.shell-notification-drawer header h2{margin:6px 0 3px;font-size:26px;line-height:1.05;color:#fff;font-weight:900}
+.shell-notification-drawer header p{margin:0;font-size:11px;color:#dce7ff;font-weight:700}
+.shell-notification-drawer .close{
+  width:38px;height:38px;border:1px solid rgba(255,255,255,.24);border-radius:12px;
+  background:rgba(255,255,255,.12);color:#fff;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:.18s ease
+}
+.shell-notification-drawer .close:hover{background:rgba(255,255,255,.22)}
+.shell-notification-toolbar{
+  padding:16px 20px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px;
+  background:#f6f8fc;border:0
+}
+.shell-notification-toolbar strong{font-size:11px;color:#193557;font-weight:900}
+.shell-notification-toolbar button{
+  border:1px solid #d6e2f5;background:#fff;color:#1559e8;border-radius:10px;padding:8px 10px;
+  font-size:9px;font-weight:900;display:flex;gap:6px;align-items:center;cursor:pointer;
+  box-shadow:0 3px 10px rgba(30,65,125,.05)
+}
+.shell-notification-list{overflow:auto;padding:2px 18px 28px}
+.shell-notification-item{
+  display:grid;grid-template-columns:10px 1fr 34px;gap:12px;align-items:center;padding:15px 14px;
+  margin-bottom:9px;border:1px solid #e0e7f1;border-radius:15px;text-decoration:none;color:inherit;
+  background:#fff;box-shadow:0 5px 16px rgba(27,55,104,.045);transition:.16s ease
+}
+.shell-notification-item:hover{transform:translateY(-1px);border-color:#cbd9ed;box-shadow:0 8px 20px rgba(27,55,104,.08)}
+.shell-notification-item>i{width:9px;height:9px;border-radius:50%;background:#3978f6;box-shadow:0 0 0 4px #edf4ff}
+.shell-notification-item.urgente>i{background:#ef424c;box-shadow:0 0 0 4px #fff0f1}
+.shell-notification-item.atencao>i{background:#efa900;box-shadow:0 0 0 4px #fff7df}
+.shell-notification-item>div{min-width:0;display:flex;flex-direction:column;gap:4px}
+.shell-notification-item>div strong{font-size:11px;line-height:1.25;color:#153255;font-weight:900}
+.shell-notification-item>div span{font-size:9px;line-height:1.45;color:#75849a;font-weight:650}
+.shell-notification-item.urgente>div strong{color:#c92f38}
+.shell-notification-item>button{
+  width:32px;height:32px;border:0;border-radius:10px;background:#f1f5fb;color:#1c61e8;
+  display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;cursor:pointer
+}
+.shell-notification-item>button:hover{background:#e5efff}
+.shell-notification-empty{
+  min-height:280px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;color:#8290a4;gap:8px
+}
+.shell-notification-empty svg{color:#8da9dd}.shell-notification-empty strong{font-size:15px;color:#284568}
+.shell-notification-empty span{font-size:10px}
+@media(max-width:650px){.shell-notification-drawer{width:100vw}.shell-notification-toolbar{align-items:flex-start;flex-direction:column}}

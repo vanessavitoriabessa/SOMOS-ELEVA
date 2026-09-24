@@ -14,6 +14,9 @@ import {
   Database,
   FileText,
   Gift,
+  Bell,
+  X,
+  CheckCheck,
   LayoutDashboard,
   Settings,
   Trophy,
@@ -65,6 +68,10 @@ type ChavePermissaoMenu =
   | "configuracoes";
 
 type PermissoesMenu = Partial<Record<ChavePermissaoMenu, boolean>>;
+type NotificacaoSistema = {
+  chave:string; tipo:"urgente"|"atencao"|"info"; titulo:string;
+  descricao:string; href:string; dataReferencia?:string;
+};
 
 const CHAVE_POR_ROTA: Record<string, ChavePermissaoMenu> = {
   "/dashboard": "dashboard",
@@ -294,6 +301,10 @@ export default function AppShell({
   const [cargo, setCargo] = useState("Consultora");
   const [foto, setFoto] = useState("");
   const [pontosHeader, setPontosHeader] = useState(0);
+  const [notificacoes,setNotificacoes]=useState<NotificacaoSistema[]>([]);
+  const [lidas,setLidas]=useState<Set<string>>(new Set());
+  const [painelNotificacoes,setPainelNotificacoes]=useState(false);
+  const [usuarioBancoId,setUsuarioBancoId]=useState("");
   const [permissaoCarregada, setPermissaoCarregada] = useState(false);
   const [permissoesMenu, setPermissoesMenu] = useState<PermissoesMenu | null>(null);
 
@@ -415,22 +426,169 @@ export default function AppShell({
     };
   }, [cargo, supabase]);
 
+  const podeVerNotificacoes = ehAdministracao || ehCoordenacao;
+
   useEffect(() => {
+    if (!podeVerNotificacoes) return;
+    let ativo = true;
+    const hojeIso=()=>new Date().toISOString().slice(0,10);
+    const diasAte=(d:string)=>Math.round((new Date(`${String(d).slice(0,10)}T12:00:00`).getTime()-new Date(`${hojeIso()}T12:00:00`).getTime())/86400000);
+    const br=(d:string)=>String(d||"").slice(0,10).split("-").reverse().join("/");
+    const moeda=(v:number)=>Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+
+    async function carregarNotificacoes(){
+      try{
+        const {data:sessao}=await supabase.auth.getSession();
+        const authId=sessao.session?.user.id||"";
+        const login=localStorage.getItem("somos-eleva-usuario")||"";
+        const matricula=localStorage.getItem("somos-eleva-matricula")||login;
+        const nomeLocal=localStorage.getItem("somos-eleva-nome")||nome||"";
+        const {data:us}=await supabase.from("usuarios").select("id,nome,email,matricula");
+        const u=(us||[]).find((x:any)=>String(x.id||"")===authId||String(x.id||"")===login||String(x.matricula||"")===matricula||normalizarTexto(String(x.email||""))===normalizarTexto(login)||normalizarTexto(String(x.nome||""))===normalizarTexto(nomeLocal));
+        const uid=String(u?.id||authId||""); if(!uid)return;
+        if(ativo)setUsuarioBancoId(uid);
+
+        const comp=hojeIso().slice(0,7);
+        const [d,p,si,sp,ifg,ip,fo,lr]=await Promise.all([
+          supabase.from("despesas_recorrentes").select("*").eq("ativo",true),
+          supabase.from("despesas_recorrentes_pagamentos").select("despesa_recorrente_id").eq("competencia",comp),
+          supabase.from("controle_simples_nacional").select("id,valor_imposto,vencimento,status"),
+          supabase.from("simples_parcelas").select("id,numero_parcela,valor,vencimento,status"),
+          supabase.from("controle_inss_fgts").select("id,tipo,valor,vencimento,status"),
+          supabase.from("inss_parcelas").select("id,numero_parcela,valor,vencimento,status"),
+          supabase.from("folha_pagamentos").select("id,total_dia05,pagamento_realizado").eq("competencia",comp),
+          supabase.from("notificacoes_leituras").select("chave_notificacao").eq("usuario_id",uid),
+        ]);
+        const itens:NotificacaoSistema[]=[];
+        const aviso=(chave:string,titulo:string,descricao:string,venc:string,href="/financeiro")=>{
+          const dias=diasAte(venc); if(dias>5)return;
+          if(dias<0)itens.push({chave,tipo:"urgente",titulo:`${titulo} atrasado`,descricao:`${descricao} • venceu ${br(venc)}`,href,dataReferencia:venc});
+          else if(dias===0)itens.push({chave,tipo:"urgente",titulo:`${titulo} vence hoje`,descricao:`${descricao} • ${br(venc)}`,href,dataReferencia:venc});
+          else itens.push({chave,tipo:"atencao",titulo:`${titulo} vence em ${dias} dia${dias===1?"":"s"}`,descricao:`${descricao} • ${br(venc)}`,href,dataReferencia:venc});
+        };
+        const pagos=new Set((p.data||[]).map((x:any)=>String(x.despesa_recorrente_id)));
+        for(const x of d.data||[]){
+          if(comp<String(x.inicio_competencia||"")||(x.fim_competencia&&comp>String(x.fim_competencia))||pagos.has(String(x.id)))continue;
+          const [a,m]=comp.split("-").map(Number),ultimo=new Date(a,m,0).getDate(),dia=Math.min(Math.max(Number(x.dia_vencimento||1),1),ultimo);
+          aviso(`despesa:${x.id}:${comp}`,String(x.nome||"Despesa"),moeda(Number(x.valor||0)),`${comp}-${String(dia).padStart(2,"0")}`);
+        }
+        for(const x of si.data||[])if(x.status!=="Pago")aviso(`simples:${x.id}`,"Simples Nacional",moeda(Number(x.valor_imposto||0)),x.vencimento);
+        for(const x of sp.data||[])if(x.status!=="Pago")aviso(`simples-parcela:${x.id}`,`Parcela ${x.numero_parcela} do Simples`,moeda(Number(x.valor||0)),x.vencimento);
+        for(const x of ifg.data||[])if(x.status!=="Pago")aviso(`encargo:${x.id}`,String(x.tipo||"INSS/FGTS"),moeda(Number(x.valor||0)),x.vencimento);
+        for(const x of ip.data||[])if(x.status!=="Pago")aviso(`inss-parcela:${x.id}`,`Parcela ${x.numero_parcela} do INSS`,moeda(Number(x.valor||0)),x.vencimento);
+        const folhas=(fo.data||[]).filter((x:any)=>!x.pagamento_realizado);
+        if(folhas.length)aviso(`folha:${comp}`,"Folha de pagamento",`${folhas.length} pagamento(s) pendente(s) • ${moeda(folhas.reduce((t:number,x:any)=>t+Number(x.total_dia05||0),0))}`,`${comp}-05`);
+        if(ativo){setNotificacoes(itens.sort((a,b)=>(a.dataReferencia||"").localeCompare(b.dataReferencia||"")));setLidas(new Set((lr.data||[]).map((x:any)=>String(x.chave_notificacao))))}
+      }catch(e){console.error("Erro ao carregar notificações:",e)}
+    }
+    void carregarNotificacoes();
+    const timer=window.setInterval(()=>void carregarNotificacoes(),300000);
+    const foco=()=>void carregarNotificacoes(); window.addEventListener("focus",foco);
+    return()=>{ativo=false;window.clearInterval(timer);window.removeEventListener("focus",foco)}
+  },[podeVerNotificacoes,supabase,nome]);
+
+  const notificacoesNaoLidas=notificacoes.filter(n=>!lidas.has(n.chave));
+  async function marcarLida(n:NotificacaoSistema){
+    if(!usuarioBancoId||lidas.has(n.chave))return;
+    const {error}=await supabase.from("notificacoes_leituras").upsert({usuario_id:usuarioBancoId,chave_notificacao:n.chave,lida_em:new Date().toISOString()},{onConflict:"usuario_id,chave_notificacao"});
+    if(!error)setLidas(a=>new Set([...Array.from(a),n.chave]));
+  }
+  async function marcarTodasLidas(){
+    if(!usuarioBancoId||!notificacoesNaoLidas.length)return;
+    const {error}=await supabase.from("notificacoes_leituras").upsert(notificacoesNaoLidas.map(n=>({usuario_id:usuarioBancoId,chave_notificacao:n.chave,lida_em:new Date().toISOString()})),{onConflict:"usuario_id,chave_notificacao"});
+    if(!error)setLidas(new Set(notificacoes.map(n=>n.chave)));
+  }
+
+  useEffect(() => {
+    let ativo = true;
+
+    async function carregarPontosHeader() {
+      try {
+        const { data: sessao } = await supabase.auth.getSession();
+        const authId = sessao.session?.user.id || "";
+
+        let usuariosLocais: any[] = [];
+        try {
+          const bruto = JSON.parse(localStorage.getItem("somos-eleva-usuarios") || "[]");
+          usuariosLocais = Array.isArray(bruto) ? bruto : [];
+        } catch {
+          usuariosLocais = [];
+        }
+
+        const login = localStorage.getItem("somos-eleva-usuario") || "";
+        const matricula = localStorage.getItem("somos-eleva-matricula") || login;
+        const nomeSalvo = localStorage.getItem("somos-eleva-nome") || nome || "";
+
+        const usuarioLocal =
+          usuariosLocais.find((u: any) => String(u.id || "") === authId) ||
+          usuariosLocais.find((u: any) =>
+            String(u.id || "") === login ||
+            String(u.matricula || "") === login ||
+            String(u.matricula || "") === matricula ||
+            normalizarTexto(String(u.email || "")) === normalizarTexto(login)
+          ) ||
+          usuariosLocais.find((u: any) =>
+            normalizarTexto(String(u.nome || "")) === normalizarTexto(nomeSalvo)
+          );
+
+        const nomeCarteira = String(usuarioLocal?.nome || nomeSalvo || nome || "").trim();
+        const idsPossiveis = new Set(
+          [usuarioLocal?.id, authId, login]
+            .map((v) => String(v || "").trim())
+            .filter(Boolean)
+        );
+
+        const { data: extratoCompleto, error: erroExtrato } = await supabase
+          .from("pontos_extrato")
+          .select("usuario_id, usuario_nome, tipo, pontos");
+
+        if (erroExtrato) throw erroExtrato;
+
+        const nomeNormalizado = normalizarTexto(nomeCarteira);
+        const extratoUsuario = (extratoCompleto || []).filter((item: any) => {
+          const id = String(item.usuario_id || "").trim();
+          return (
+            (Boolean(id) && idsPossiveis.has(id)) ||
+            (Boolean(nomeNormalizado) &&
+              normalizarTexto(String(item.usuario_nome || "")) === nomeNormalizado)
+          );
+        });
+
+        const saldo = extratoUsuario.reduce((total: number, item: any) => {
+          const valor = Number(item.pontos || 0);
+          return item.tipo === "DEBITO"
+            ? total - Math.abs(valor)
+            : total + valor;
+        }, 0);
+
+        const saldoSeguro = Number.isFinite(saldo) ? Math.max(saldo, 0) : 0;
+
+        if (ativo) {
+          setPontosHeader(saldoSeguro);
+          localStorage.setItem("somos-eleva-pontos-header", String(saldoSeguro));
+        }
+      } catch (erro) {
+        console.error("Erro ao carregar pontos do cabeçalho:", erro);
+        const valorSalvo = Number(localStorage.getItem("somos-eleva-pontos-header") || 0);
+        if (ativo) setPontosHeader(Number.isFinite(valorSalvo) ? valorSalvo : 0);
+      }
+    }
+
     function atualizarPontosHeader(event?: Event) {
       if (event instanceof CustomEvent) {
         const valorEvento = Number(event.detail);
-        setPontosHeader(Number.isFinite(valorEvento) ? valorEvento : 0);
-        return;
+        if (Number.isFinite(valorEvento)) {
+          setPontosHeader(valorEvento);
+          localStorage.setItem(
+            "somos-eleva-pontos-header",
+            String(valorEvento)
+          );
+        }
       }
-
-      const valorSalvo = Number(
-        localStorage.getItem("somos-eleva-pontos-header") || 0
-      );
-
-      setPontosHeader(Number.isFinite(valorSalvo) ? valorSalvo : 0);
+      void carregarPontosHeader();
     }
 
-    atualizarPontosHeader();
+    void carregarPontosHeader();
 
     window.addEventListener(
       "somos-eleva-pontos-atualizados",
@@ -440,6 +598,7 @@ export default function AppShell({
     window.addEventListener("focus", atualizarPontosHeader);
 
     return () => {
+      ativo = false;
       window.removeEventListener(
         "somos-eleva-pontos-atualizados",
         atualizarPontosHeader
@@ -447,7 +606,7 @@ export default function AppShell({
       window.removeEventListener("storage", atualizarPontosHeader);
       window.removeEventListener("focus", atualizarPontosHeader);
     };
-  }, []);
+  }, [supabase, nome]);
 
   const pontosFormatados = pontosHeader.toLocaleString("pt-BR", {
     minimumFractionDigits: 0,
@@ -703,6 +862,13 @@ export default function AppShell({
               ⌕&nbsp;&nbsp;Pesquisar cliente, CPF ou proposta...
             </div>
 
+            {podeVerNotificacoes && (
+              <button type="button" className="shell-notification-button" onClick={()=>setPainelNotificacoes(true)} title="Notificações">
+                <Bell size={18} strokeWidth={2.2}/>
+                {notificacoesNaoLidas.length>0&&<b>{notificacoesNaoLidas.length>99?"99+":notificacoesNaoLidas.length}</b>}
+              </button>
+            )}
+
             <Link
               href="/minha-premiacao"
               aria-label="Abrir meus pontos"
@@ -803,6 +969,17 @@ export default function AppShell({
           )}
         </main>
       </div>
+      {podeVerNotificacoes&&painelNotificacoes&&<>
+        <button type="button" className="shell-notification-overlay" onClick={()=>setPainelNotificacoes(false)} aria-label="Fechar notificações"/>
+        <aside className="shell-notification-drawer">
+          <header><div><span>CENTRAL DE ALERTAS</span><h2>Notificações</h2><p>{notificacoesNaoLidas.length} não lida(s)</p></div><button type="button" className="close" onClick={()=>setPainelNotificacoes(false)}><X size={20}/></button></header>
+          <div className="shell-notification-toolbar"><strong>Vencimentos e pendências</strong>{notificacoesNaoLidas.length>0&&<button type="button" onClick={()=>void marcarTodasLidas()}><CheckCheck size={15}/> Marcar todas como lidas</button>}</div>
+          <div className="shell-notification-list">
+            {!notificacoesNaoLidas.length?<div className="shell-notification-empty"><Bell size={28}/><strong>Tudo conferido</strong><span>Não há novas notificações para você.</span></div>:
+            notificacoesNaoLidas.map(n=><Link key={n.chave} href={n.href} className={`shell-notification-item ${n.tipo}`} onClick={()=>{void marcarLida(n);setPainelNotificacoes(false)}}><i/><div><strong>{n.titulo}</strong><span>{n.descricao}</span></div><button type="button" title="Marcar como lida" onClick={e=>{e.preventDefault();e.stopPropagation();void marcarLida(n)}}>✓</button></Link>)}
+          </div>
+        </aside>
+      </>}
     </div>
   );
 }

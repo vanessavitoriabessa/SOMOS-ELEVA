@@ -1010,11 +1010,14 @@ export default function DashboardClient() {
             }
 
             if (status === "Digitadas") {
-              return estaNoPeriodo(
-                dataCompra(proposta),
-                periodo,
-                dataInicial,
-                dataFinal,
+              return (
+                !propostaCompraCancelada(proposta.status) &&
+                estaNoPeriodo(
+                  dataCompra(proposta),
+                  periodo,
+                  dataInicial,
+                  dataFinal,
+                )
               );
             }
 
@@ -1097,11 +1100,14 @@ export default function DashboardClient() {
             }
 
             if (status === "Digitadas") {
-              return estaNoPeriodo(
-                converterData(registro.criadoEm),
-                periodo,
-                dataInicial,
-                dataFinal,
+              return (
+                !propostaCltCancelada(registro.status) &&
+                estaNoPeriodo(
+                  converterData(registro.criadoEm),
+                  periodo,
+                  dataInicial,
+                  dataFinal,
+                )
               );
             }
 
@@ -1475,6 +1481,13 @@ export default function DashboardClient() {
         }
 
         if (
+          status === "Digitadas" &&
+          propostaCompraCancelada(proposta.status)
+        ) {
+          return false;
+        }
+
+        if (
           status === "Em andamento" &&
           (propostaCompraPaga(proposta.status) ||
             propostaCompraCancelada(proposta.status))
@@ -1537,6 +1550,13 @@ export default function DashboardClient() {
         if (
           status === "Canceladas" &&
           !propostaCltCancelada(registro.status)
+        ) {
+          return false;
+        }
+
+        if (
+          status === "Digitadas" &&
+          propostaCltCancelada(registro.status)
         ) {
           return false;
         }
@@ -1697,7 +1717,7 @@ export default function DashboardClient() {
     const compra=produto==="CLT"?[]:propostas.filter(p=>{
       const nome=nomeResponsavelCompra(p); if(!pertenceAoTime(nome)||(ehConsultora&&normalizarTexto(nome)!==user)) return false;
       if(status==="Pagas") return propostaCompraPaga(p.status)&&dentro(dataCompra(p));
-      if(status==="Digitadas") return dentro(dataCompra(p));
+      if(status==="Digitadas") return !propostaCompraCancelada(p.status)&&dentro(dataCompra(p));
       if(status==="Canceladas") return propostaCompraCancelada(p.status)&&dentro(converterData(p.dataCadastro||p.dataPagamento));
       if(status==="Em andamento") return !propostaCompraPaga(p.status)&&!propostaCompraCancelada(p.status)&&dentro(dataCompra(p));
       return dentro(dataCompra(p));
@@ -1705,7 +1725,7 @@ export default function DashboardClient() {
     const clt=produto==="Compra de Dívida"?[]:registrosClt.filter(r=>{
       const nome=nomeResponsavelClt(r); if(!pertenceAoTime(nome)||(ehConsultora&&normalizarTexto(nome)!==user)) return false;
       if(status==="Pagas") return propostaCltPaga(r.status)&&dentro(converterData(r.dataPagamento));
-      if(status==="Digitadas") return dentro(converterData(r.criadoEm));
+      if(status==="Digitadas") return !propostaCltCancelada(r.status)&&dentro(converterData(r.criadoEm));
       if(status==="Canceladas") return propostaCltCancelada(r.status)&&dentro(converterData(r.atualizadoEm||r.criadoEm||r.dataPagamento));
       if(status==="Em andamento") return !propostaCltPaga(r.status)&&!propostaCltCancelada(r.status)&&dentro(converterData(r.criadoEm));
       return dentro(converterData(r.criadoEm));
@@ -2091,7 +2111,7 @@ export default function DashboardClient() {
               {status === "Pagas"
                 ? produto === "CLT" ? "Mostra CLT efetivamente pago dentro das datas escolhidas." : "Na Compra de Dívida, mostra propostas digitadas dentro das datas escolhidas que estejam com status Pago."
                 : status === "Digitadas"
-                  ? "Mostra tudo que foi digitado/cadastrado dentro das datas escolhidas, mesmo que ainda não esteja pago."
+                  ? "Mostra o que foi digitado/cadastrado dentro das datas escolhidas, excluindo propostas canceladas ou recusadas."
                   : "Altere Produto, Time e Situação para refinar a leitura do Dashboard."}
             </small>
           </div>
