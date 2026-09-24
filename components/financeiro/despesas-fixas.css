@@ -391,3 +391,14 @@
 .df-status.atrasado{display:inline-flex!important;align-items:center;justify-content:center;gap:6px;min-width:104px;padding:8px 12px!important;border:1px solid #ffc7c7!important;border-radius:999px!important;background:#fff0f0!important;color:#d62f2f!important;font-size:11px!important;font-weight:900!important}
 .df-status.pendente,.df-status.pago{display:inline-flex!important;align-items:center;justify-content:center;gap:6px;min-width:104px;padding:8px 12px!important;font-size:11px!important;font-weight:900!important}.df-due strong{font-size:12px!important}
 @media(max-width:1100px){.df-kpis-status{grid-template-columns:repeat(2,1fr)!important}}@media(max-width:700px){.df-kpis-status{grid-template-columns:1fr!important}}
+/* DESPESAS FIXAS V3 — frequência */
+.df-frequency-note{grid-column:1/-1;display:flex;flex-direction:column;gap:4px;padding:11px 14px;border:1px solid #dbe5f2;border-radius:11px;background:#f7faff}
+.df-frequency-note strong{font-size:10px;letter-spacing:.04em}.df-frequency-note span{font-size:10px;font-weight:600;color:#64758d}
+.df-frequency-note.mensal{background:#eff7ff;border-color:#cfe0fb}.df-frequency-note.mensal strong{color:#075ee5}
+.df-frequency-note.unica{background:#fff8eb;border-color:#eed9ae}.df-frequency-note.unica strong{color:#a75d00}
+.df-frequency-pill{display:inline-flex;align-items:center;justify-content:center;min-width:78px;padding:7px 10px;border-radius:999px;font-size:10px;font-weight:900}
+.df-frequency-pill.mensal{background:#eef5ff;color:#075ee5;border:1px solid #cbdcf8}
+.df-frequency-pill.unica{background:#fff5df;color:#a65b00;border:1px solid #ecd39d}
+/* A V3 adiciona a coluna Frequência à grade. */
+.df-list-head,.df-expense-row{grid-template-columns:minmax(180px,1.55fr) minmax(130px,1.05fr) 90px 125px 115px 115px minmax(220px,1.25fr)!important}
+@media(max-width:1150px){.df-list-head,.df-expense-row{grid-template-columns:minmax(160px,1.4fr) 120px 80px 115px 105px 105px minmax(200px,1.2fr)!important}}

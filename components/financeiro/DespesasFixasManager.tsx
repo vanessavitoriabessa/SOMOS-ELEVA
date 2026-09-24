@@ -79,6 +79,7 @@ export default function DespesasFixasManager() {
   const [valor, setValor] = useState("");
   const [dia, setDia] = useState("10");
   const [inicio, setInicio] = useState(competenciaAtual());
+  const [frequencia, setFrequencia] = useState<"Mensal" | "Única">("Mensal");
 
   const carregar = useCallback(async () => {
     const [d, p] = await Promise.all([
@@ -135,6 +136,7 @@ export default function DespesasFixasManager() {
     setValor("");
     setDia("10");
     setInicio(competenciaAtual());
+    setFrequencia("Mensal");
     setEditandoId(null);
   }
 
@@ -162,6 +164,11 @@ export default function DespesasFixasManager() {
     );
     setDia(String(item.dia_vencimento || 10));
     setInicio(item.inicio_competencia || competenciaAtual());
+    setFrequencia(
+      item.fim_competencia && item.fim_competencia === item.inicio_competencia
+        ? "Única"
+        : "Mensal"
+    );
     setMensagem("");
     setForm(true);
 
@@ -190,7 +197,7 @@ export default function DespesasFixasManager() {
       valor: v,
       dia_vencimento: venc,
       inicio_competencia: inicio,
-      fim_competencia: null,
+      fim_competencia: frequencia === "Única" ? inicio : null,
       ativo: true,
       atualizado_em: new Date().toISOString(),
     };
@@ -217,7 +224,11 @@ export default function DespesasFixasManager() {
         return;
       }
 
-      setMensagem("Despesa fixa cadastrada para os próximos meses.");
+      setMensagem(
+        frequencia === "Mensal"
+          ? "Despesa mensal cadastrada. Ela aparecerá automaticamente nas próximas competências."
+          : "Despesa única cadastrada somente para a competência selecionada."
+      );
     }
 
     limparFormulario();
@@ -402,6 +413,14 @@ export default function DespesasFixasManager() {
           </label>
 
           <label>
+            Frequência
+            <select value={frequencia} onChange={(e) => setFrequencia(e.target.value as "Mensal" | "Única")}>
+              <option value="Mensal">Mensal — repetir todo mês</option>
+              <option value="Única">Única — somente esta competência</option>
+            </select>
+          </label>
+
+          <label>
             Vencimento
             <input
               type="number"
@@ -413,13 +432,22 @@ export default function DespesasFixasManager() {
           </label>
 
           <label>
-            Início
+            {frequencia === "Mensal" ? "Começa em" : "Competência"}
             <input
               type="month"
               value={inicio}
               onChange={(e) => setInicio(e.target.value)}
             />
           </label>
+
+          <div className={`df-frequency-note ${frequencia === "Mensal" ? "mensal" : "unica"}`}>
+            <strong>{frequencia === "Mensal" ? "↻ DESPESA MENSAL" : "1× DESPESA ÚNICA"}</strong>
+            <span>
+              {frequencia === "Mensal"
+                ? "Será criada automaticamente em todas as competências a partir do mês escolhido, até você pausar."
+                : "Aparecerá somente no mês escolhido e não será repetida nos meses seguintes."}
+            </span>
+          </div>
 
           <button type="submit">
             {editandoId ? "Salvar alterações" : "Salvar"}
@@ -446,6 +474,7 @@ export default function DespesasFixasManager() {
         <div className="df-list-head">
           <span>Despesa</span>
           <span>Categoria</span>
+          <span>Frequência</span>
           <span>Vencimento</span>
           <span>Valor</span>
           <span>Status</span>
@@ -470,6 +499,12 @@ export default function DespesasFixasManager() {
                     {iconeCategoria(item.categoria)}
                   </b>
                   {item.categoria}
+                </span>
+              </div>
+
+              <div>
+                <span className={`df-frequency-pill ${item.fim_competencia === item.inicio_competencia ? "unica" : "mensal"}`}>
+                  {item.fim_competencia === item.inicio_competencia ? "1× Única" : "↻ Mensal"}
                 </span>
               </div>
 
