@@ -502,76 +502,104 @@ export async function GET(request: NextRequest) {
         )
         .length;
 
-    const resumo = {
-      tentativas:
-        eventos.length,
+    const totalTelefoneSalvo = eventos.filter(
+  (item) => item.etapa === "telefone_salvo",
+).length;
 
-      telefones_unicos:
-        telefonesUnicos,
+const telefonesUnicosSalvosHyperflow = new Set(
+  eventos
+    .filter((item) => item.etapa === "telefone_salvo")
+    .map((item) => String(item.telefone || ""))
+    .filter(Boolean),
+).size;
 
-      clientes_repetidos:
-        clientesRepetidos,
+const repeticoesTelefoneLp = Math.max(
+  eventos.length - telefonesUnicos,
+  0,
+);
 
-      /*
-       * Somente confirmação real
-       * de telefone_salvo.
-       */
-      salvos_hyperflow:
-        eventos.filter(
-          (item) =>
-            item.etapa ===
-            "telefone_salvo",
-        ).length,
+const repetidosHyperflow = Math.max(
+  totalTelefoneSalvo - telefonesUnicosSalvosHyperflow,
+  0,
+);
 
-      plano_a:
-        eventos.filter(
-          (item) =>
-            item.resultado ===
-            "plano_a_whatsapp",
-        ).length,
+const telefonesQueIniciaramAtendimento = new Set(
+  eventos
+    .filter(
+      (item) => item.resultado === "plano_b_websdk",
+    )
+    .map((item) => String(item.telefone || ""))
+    .filter(Boolean),
+).size;
 
-      plano_b:
-        eventos.filter(
-          (item) =>
-            item.resultado ===
-            "plano_b_websdk",
-        ).length,
+const percentualIniciaramAtendimento =
+  telefonesUnicos > 0
+    ? Number(
+        (
+          (telefonesQueIniciaramAtendimento /
+            telefonesUnicos) *
+          100
+        ).toFixed(1),
+      )
+    : 0;
 
-      fallback:
-        eventos.filter(
-          (item) =>
-            item.resultado ===
-            "fallback_whatsapp",
-        ).length,
+const resumo = {
+  tentativas: eventos.length,
 
-      falhas_sem_atendimento:
-        eventos.filter(
-          (item) =>
-            item.resultado ===
-            "falha_sem_atendimento",
-        ).length,
+  telefones_unicos: telefonesUnicos,
 
-      retrabalhos_pendentes:
-        eventos.filter(
-          (item) =>
-            item.retrabalho_status ===
-            "pendente",
-        ).length,
+  clientes_repetidos: clientesRepetidos,
 
-      rodizio_recuperado:
-        eventos.filter(
-          (item) =>
-            item.rodizio_recuperado ===
-            true,
-        ).length,
+  repeticoes_telefone_lp: repeticoesTelefoneLp,
 
-      rodizio_falhou:
-        eventos.filter(
-          (item) =>
-            item.rodizio_falhou ===
-            true,
-        ).length,
-    };
+  salvos_hyperflow: totalTelefoneSalvo,
+
+  unicos_salvos_hyperflow:
+    telefonesUnicosSalvosHyperflow,
+
+  repetidos_hyperflow: repetidosHyperflow,
+
+  total_salvo_hyperflow: totalTelefoneSalvo,
+
+  iniciaram_atendimento:
+    telefonesQueIniciaramAtendimento,
+
+  iniciaram_atendimento_percentual:
+    percentualIniciaramAtendimento,
+
+  plano_a: eventos.filter(
+    (item) =>
+      item.resultado === "plano_a_whatsapp",
+  ).length,
+
+  plano_b: eventos.filter(
+    (item) =>
+      item.resultado === "plano_b_websdk",
+  ).length,
+
+  fallback: eventos.filter(
+    (item) =>
+      item.resultado === "fallback_whatsapp",
+  ).length,
+
+  falhas_sem_atendimento: eventos.filter(
+    (item) =>
+      item.resultado === "falha_sem_atendimento",
+  ).length,
+
+  retrabalhos_pendentes: eventos.filter(
+    (item) =>
+      item.retrabalho_status === "pendente",
+  ).length,
+
+  rodizio_recuperado: eventos.filter(
+    (item) => item.rodizio_recuperado === true,
+  ).length,
+
+  rodizio_falhou: eventos.filter(
+    (item) => item.rodizio_falhou === true,
+  ).length,
+};
 
     /*
     |--------------------------------------------------------------------------
