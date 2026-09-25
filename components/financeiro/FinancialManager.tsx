@@ -112,6 +112,19 @@ type RegistroComissao = {
   atualizadoEm: string;
 };
 
+type SaquePremiacaoPago = {
+  id: string;
+  usuarioId: string;
+  usuarioNome: string;
+  competenciaId: string;
+  pontos: number;
+  valor: number;
+  chavePix: string;
+  tipoChavePix: string;
+  solicitadoEm: string;
+  processadoEm: string;
+};
+
 type RegistroRH = {
   id: string;
   colaboradoraId: string;
@@ -294,6 +307,25 @@ type FinancialManagerProps = {
   ocultarAbas?: boolean;
 };
 
+function competenciaMesAtual() {
+  const agora = new Date();
+  return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function moverCompetenciaMes(competencia: string, deslocamento: number) {
+  const [ano, mes] = competencia.split("-").map(Number);
+  const data = new Date(ano, mes - 1 + deslocamento, 1);
+  return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function rotuloCompetenciaMes(competencia: string) {
+  const [ano, mes] = competencia.split("-").map(Number);
+  return new Intl.DateTimeFormat("pt-BR", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(ano, mes - 1, 1));
+}
+
 export default function FinancialManager({
   abaExterna,
   ocultarCabecalho = false,
@@ -389,6 +421,10 @@ const [mensagemFolha, setMensagemFolha] =
 
   const [comissoes, setComissoes] =
     useState<RegistroComissao[]>([]);
+  const [saquesPremiacaoPagos, setSaquesPremiacaoPagos] =
+    useState<SaquePremiacaoPago[]>([]);
+  const [competenciaPremiacoes, setCompetenciaPremiacoes] =
+    useState(competenciaMesAtual());
   const [mensagemComissao, setMensagemComissao] =
     useState("");
   const [comissaoCompraDia20, setComissaoCompraDia20] = useState("");
@@ -474,6 +510,7 @@ const [mensagemFolha, setMensagemFolha] =
           respostaComissoes,
           respostaLancamentos,
           respostaConfigFinanceiro,
+          respostaSaquesPremiacao,
         ] = await Promise.all([
           supabase
             .from("profiles")
@@ -525,6 +562,12 @@ const [mensagemFolha, setMensagemFolha] =
             .order("tipo", { ascending: true })
             .order("ordem", { ascending: true })
             .order("nome", { ascending: true }),
+
+          supabase
+            .from("pontos_saques")
+            .select("id, usuario_id, usuario_nome, competencia_id, pontos_solicitados, valor_reais, status, chave_pix, tipo_chave_pix, solicitado_em, processado_em")
+            .eq("status", "PAGO")
+            .order("processado_em", { ascending: false }),
         ]);
 
         if (respostaUsuarios.error) {
@@ -545,6 +588,10 @@ const [mensagemFolha, setMensagemFolha] =
 
         if (respostaConfigFinanceiro.error) {
           throw respostaConfigFinanceiro.error;
+        }
+
+        if (respostaSaquesPremiacao.error) {
+          throw respostaSaquesPremiacao.error;
         }
 
         const listaUsuarios: UsuarioFinanceiro[] =
@@ -713,6 +760,24 @@ const [mensagemFolha, setMensagemFolha] =
             nome: String(item.nome || ""),
             ativo: item.ativo !== false,
             ordem: Number(item.ordem || 0),
+          }))
+        );
+
+        setSaquesPremiacaoPagos(
+          (Array.isArray(respostaSaquesPremiacao.data)
+            ? respostaSaquesPremiacao.data
+            : []
+          ).map((registro: any) => ({
+            id: String(registro.id || ""),
+            usuarioId: String(registro.usuario_id || ""),
+            usuarioNome: String(registro.usuario_nome || "Colaboradora"),
+            competenciaId: String(registro.competencia_id || ""),
+            pontos: Number(registro.pontos_solicitados || 0),
+            valor: Number(registro.valor_reais || registro.pontos_solicitados || 0),
+            chavePix: String(registro.chave_pix || ""),
+            tipoChavePix: String(registro.tipo_chave_pix || "PIX"),
+            solicitadoEm: String(registro.solicitado_em || ""),
+            processadoEm: String(registro.processado_em || ""),
           }))
         );
       } catch (erro) {
@@ -1997,6 +2062,33 @@ const resumoRhDaFolha = useMemo(() => {
       ? entradasDisponiveis
       : saidasDisponiveis;
 
+  const saquesPremiacaoPagosFiltrados = useMemo(
+    () =>
+      saquesPremiacaoPagos.filter((saque) => {
+        const dataPagamento = String(saque.processadoEm || "").slice(0, 7);
+        return dataPagamento === competenciaPremiacoes;
+      }),
+    [saquesPremiacaoPagos, competenciaPremiacoes]
+  );
+
+  const totalPremiacoesPagas = useMemo(
+    () =>
+      saquesPremiacaoPagosFiltrados.reduce(
+        (total, saque) => total + Number(saque.valor || 0),
+        0
+      ),
+    [saquesPremiacaoPagosFiltrados]
+  );
+
+  const totalPontosPremiacoesPagas = useMemo(
+    () =>
+      saquesPremiacaoPagosFiltrados.reduce(
+        (total, saque) => total + Number(saque.pontos || 0),
+        0
+      ),
+    [saquesPremiacaoPagosFiltrados]
+  );
+
   return (
     <div className="finance-page finance-workspace">
       {!ocultarCabecalho && (
@@ -2691,121 +2783,283 @@ const resumoRhDaFolha = useMemo(() => {
       )}
 
       {abaFinanceiro === "premiacoes" && (
-      <section className="finance-card payroll-card commission-day20-card finance-tab-panel">
-        <div className="finance-list-heading">
-          <div>
-            <span>COMISSÕES</span>
-            <h2>Pagamento do dia 20</h2>
-          </div>
-          <b>{comissoes.length}</b>
-        </div>
+        <section className="finance-card finance-tab-panel">
+          <div
+            className="finance-list-heading"
+            style={{ alignItems: "center", marginBottom: 18 }}
+          >
+            <div>
+              <span>CONTROLE FINANCEIRO</span>
+              <h2>Premiações pagas</h2>
+              <p style={{ margin: "6px 0 0", color: "#71809a", fontSize: 13 }}>
+                Histórico automático dos saques pagos pela Central de Premiação.
+              </p>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                flexWrap: "wrap",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  setCompetenciaPremiacoes((atual) =>
+                    moverCompetenciaMes(atual, -1)
+                  )
+                }
+                title="Mês anterior"
+                style={{
+                  width: 38,
+                  height: 38,
+                  border: "1px solid #dce5f2",
+                  borderRadius: 10,
+                  background: "#fff",
+                  color: "#155eef",
+                  fontSize: 20,
+                  fontWeight: 900,
+                  cursor: "pointer",
+                }}
+              >
+                ‹
+              </button>
 
-        <div className="payroll-layout">
-          <form className="payroll-form" onSubmit={salvarComissao}>
-            <div className="payroll-form-grid">
-              <label>
+              <label
+                style={{
+                  minWidth: 190,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
+                  color: "#71809a",
+                  fontSize: 9,
+                  fontWeight: 900,
+                  textTransform: "uppercase",
+                }}
+              >
                 Competência
-                <input type="month" value={competencia} onChange={(e) => setCompetencia(e.target.value)} />
-              </label>
-
-              <label>
-                Colaboradora
-                <select value={usuarioFolhaId} onChange={(e) => setUsuarioFolhaId(e.target.value)}>
-                  {!usuarios.length && <option value="">Nenhuma usuária cadastrada</option>}
-                  {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
-                </select>
-              </label>
-
-              <label>
-                Comissão Compra de Dívida
                 <input
-                  value={comissaoCompraDia20}
-                  onChange={(e) => setComissaoCompraDia20(e.target.value)}
-                  placeholder="Ex.: 1.250,00"
-                  inputMode="decimal"
+                  type="month"
+                  value={competenciaPremiacoes}
+                  onChange={(evento) =>
+                    setCompetenciaPremiacoes(evento.target.value)
+                  }
+                  style={{
+                    minHeight: 38,
+                    padding: "0 11px",
+                    border: "1px solid #dce5f2",
+                    borderRadius: 10,
+                    background: "#fff",
+                    color: "#102d55",
+                    fontSize: 12,
+                    fontWeight: 800,
+                  }}
                 />
-                <small>Informe manualmente o valor da comissão do dia 20</small>
               </label>
 
-              <label>
-                Comissão CLT
-                <input value={comissaoCltDia20} onChange={(e) => setComissaoCltDia20(e.target.value)} placeholder="Ex.: 850,00" inputMode="decimal" />
-              </label>
+              <button
+                type="button"
+                onClick={() =>
+                  setCompetenciaPremiacoes((atual) =>
+                    moverCompetenciaMes(atual, 1)
+                  )
+                }
+                title="Próximo mês"
+                style={{
+                  width: 38,
+                  height: 38,
+                  border: "1px solid #dce5f2",
+                  borderRadius: 10,
+                  background: "#fff",
+                  color: "#155eef",
+                  fontSize: 20,
+                  fontWeight: 900,
+                  cursor: "pointer",
+                }}
+              >
+                ›
+              </button>
 
-              <label>
-                Outras premiações
-                <input value={outrasPremiacoesDia20} onChange={(e) => setOutrasPremiacoesDia20(e.target.value)} placeholder="Ex.: 200,00" inputMode="decimal" />
-              </label>
+              <b>{saquesPremiacaoPagosFiltrados.length}</b>
+            </div>
+          </div>
 
-              <label>
-                Ajuste manual (+ ou −)
-                <input value={ajusteDia20} onChange={(e) => setAjusteDia20(e.target.value)} placeholder="Ex.: 70,00 ou -70,00" inputMode="decimal" />
-              </label>
+          <div
+            style={{
+              margin: "-6px 0 14px",
+              color: "#667892",
+              fontSize: 12,
+              fontWeight: 700,
+              textTransform: "capitalize",
+            }}
+          >
+            Exibindo {rotuloCompetenciaMes(competenciaPremiacoes)}
+          </div>
 
-              <label>
-                Data do pagamento
-                <input type="date" value={dataPagamentoComissao} onChange={(e) => setDataPagamentoComissao(e.target.value)} />
-              </label>
+          <section
+            style={{
+              padding: 20,
+              border: "1px solid #dfe7f2",
+              borderRadius: 16,
+              background: "#f8fbff",
+            }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                gap: 12,
+                marginBottom: 18,
+              }}
+            >
+              <article
+                style={{
+                  padding: 17,
+                  border: "1px solid #dfe7f2",
+                  borderRadius: 14,
+                  background: "#fff",
+                }}
+              >
+                <span style={{ display: "block", color: "#71809a", fontSize: 11, fontWeight: 800 }}>
+                  TOTAL PAGO
+                </span>
+                <strong style={{ display: "block", marginTop: 7, color: "#078a48", fontSize: 24 }}>
+                  {moeda(totalPremiacoesPagas)}
+                </strong>
+                <small style={{ display: "block", marginTop: 5, color: "#8a96a9" }}>
+                  Valor efetivamente pago
+                </small>
+              </article>
 
-              <label>
-                Observação
-                <input value={observacaoComissao} onChange={(e) => setObservacaoComissao(e.target.value)} placeholder="Opcional" />
-              </label>
+              <article
+                style={{
+                  padding: 17,
+                  border: "1px solid #dfe7f2",
+                  borderRadius: 14,
+                  background: "#fff",
+                }}
+              >
+                <span style={{ display: "block", color: "#71809a", fontSize: 11, fontWeight: 800 }}>
+                  PAGAMENTOS
+                </span>
+                <strong style={{ display: "block", marginTop: 7, color: "#102d55", fontSize: 24 }}>
+                  {saquesPremiacaoPagosFiltrados.length}
+                </strong>
+                <small style={{ display: "block", marginTop: 5, color: "#8a96a9" }}>
+                  Saques finalizados
+                </small>
+              </article>
+
+              <article
+                style={{
+                  padding: 17,
+                  border: "1px solid #dfe7f2",
+                  borderRadius: 14,
+                  background: "#fff",
+                }}
+              >
+                <span style={{ display: "block", color: "#71809a", fontSize: 11, fontWeight: 800 }}>
+                  PONTOS PAGOS
+                </span>
+                <strong style={{ display: "block", marginTop: 7, color: "#155eef", fontSize: 24 }}>
+                  {totalPontosPremiacoesPagas.toLocaleString("pt-BR")} pts
+                </strong>
+                <small style={{ display: "block", marginTop: 5, color: "#8a96a9" }}>
+                  Convertidos em pagamento
+                </small>
+              </article>
             </div>
 
-            <div className="payroll-total">
-              <div><span>Compra de Dívida</span><strong>{moeda(calculoComissao.comissaoCompraDivida)}</strong></div>
-              <div><span>CLT</span><strong>{moeda(calculoComissao.comissaoClt)}</strong></div>
-              <div><span>Outras premiações</span><strong>{moeda(calculoComissao.outrasPremiacoes)}</strong></div>
-              <div><span>Ajuste</span><strong>{moeda(calculoComissao.ajusteManual)}</strong></div>
-              <div className="payroll-grand-total"><span>TOTAL DA COMISSÃO — DIA 20</span><strong>{moeda(calculoComissao.totalComissao)}</strong></div>
-            </div>
-
-            {mensagemComissao && <div className="finance-message">{mensagemComissao}</div>}
-
-            <div className="finance-actions">
-              <button type="submit" disabled={!usuarios.length}>Salvar comissão do dia 20</button>
-            </div>
-          </form>
-
-          <div className="payroll-history">
-            <div className="payroll-history-title">
-              <strong>Histórico de comissões — dia 20</strong>
-              <span>{comissoesOrdenadas.length} registros</span>
-            </div>
-
-            {!comissoesOrdenadas.length ? (
-              <div className="finance-empty"><strong>Nenhuma comissão salva</strong></div>
+            {!saquesPremiacaoPagosFiltrados.length ? (
+              <div className="finance-empty">
+                <strong>Nenhuma premiação paga</strong>
+                <p>
+                  Quando um saque for marcado como pago na Central de Premiação,
+                  ele aparecerá automaticamente aqui.
+                </p>
+              </div>
             ) : (
-              <div className="payroll-list">
-                {comissoesOrdenadas.map((r) => (
-                  <article key={r.id}>
-                    <div className="payroll-person">
-                      <div className="payroll-avatar">{r.nome.charAt(0).toUpperCase()}</div>
-                      <div><strong>{r.nome}</strong><span>{formatarCompetencia(r.competencia)}</span></div>
+              <div style={{ display: "grid", gap: 10 }}>
+                {saquesPremiacaoPagosFiltrados.map((saque) => (
+                  <article
+                    key={saque.id}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "minmax(230px, 1.5fr) .7fr .8fr .85fr 1fr",
+                      gap: 16,
+                      alignItems: "center",
+                      padding: "16px 18px",
+                      border: "1px solid #e2e9f3",
+                      borderRadius: 13,
+                      background: "#fff",
+                    }}
+                  >
+                    <div>
+                      <small
+                        style={{
+                          display: "block",
+                          color: "#7a8aa1",
+                          fontSize: 10,
+                          marginBottom: 4,
+                        }}
+                      >
+                        COLABORADORA
+                      </small>
+                      <strong
+                        style={{
+                          display: "block",
+                          fontSize: 14.5,
+                          color: "#102d55",
+                        }}
+                      >
+                        {saque.usuarioNome}
+                      </strong>
                     </div>
-                    <div className="payroll-values">
-                      <span>Compra de Dívida: <strong>{moeda(r.comissaoCompraDivida)}</strong></span>
-                      <span>CLT: <strong>{moeda(r.comissaoClt)}</strong></span>
-                      <span>Outras: <strong>{moeda(r.outrasPremiacoes)}</strong></span>
-                      <span>Ajuste: <strong>{moeda(r.ajusteManual)}</strong></span>
-                      <span>Pagamento: <strong>{r.dataPagamento || "—"}</strong></span>
+
+                    <div>
+                      <small style={{ display: "block", color: "#7a8aa1" }}>
+                        PONTOS
+                      </small>
+                      <strong>{saque.pontos.toLocaleString("pt-BR")} pts</strong>
                     </div>
-                    <div className="payroll-item-total">
-                      <span>Total dia 20</span>
-                      <strong>{moeda(r.totalComissao)}</strong>
-                      <div>
-                        <button type="button" onClick={() => editarComissao(r)}>Editar</button>
-                        <button type="button" className="delete" onClick={() => excluirComissao(r.id)}>Excluir</button>
-                      </div>
+
+                    <div>
+                      <small style={{ display: "block", color: "#7a8aa1" }}>
+                        VALOR PAGO
+                      </small>
+                      <strong style={{ color: "#078a48" }}>
+                        {moeda(saque.valor)}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <small style={{ display: "block", color: "#7a8aa1" }}>
+                        DATA
+                      </small>
+                      <strong>
+                        {saque.processadoEm
+                          ? dataISOparaBR(saque.processadoEm.slice(0, 10))
+                          : "—"}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <small style={{ display: "block", color: "#7a8aa1" }}>
+                        {saque.tipoChavePix || "PIX"}
+                      </small>
+                      <strong style={{ wordBreak: "break-all" }}>
+                        {saque.chavePix || "—"}
+                      </strong>
                     </div>
                   </article>
                 ))}
               </div>
             )}
-          </div>
-        </div>
-      </section>
+          </section>
+        </section>
       )}
 
     </div>

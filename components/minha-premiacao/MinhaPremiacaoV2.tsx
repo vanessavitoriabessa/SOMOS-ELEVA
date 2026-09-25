@@ -53,6 +53,7 @@ export type SaquePremiacao = {
 type Props = {
   nomeUsuario: string;
   nomeExibido: string;
+  carteiraNome?: string;
   perfilUsuario: string;
   podeGerenciar: boolean;
 
@@ -143,6 +144,8 @@ export default function MinhaPremiacaoV2(props: Props) {
   const {
     nomeUsuario,
     nomeExibido,
+    carteiraNome = nomeExibido,
+    perfilUsuario,
     podeGerenciar,
     nomesConsultoras = [],
     pixPorColaboradora = {},
@@ -184,6 +187,7 @@ export default function MinhaPremiacaoV2(props: Props) {
   const [abaAdmin, setAbaAdmin] = useState<
     "conferencia" | "liberados" | "saques"
   >("conferencia");
+  const [visaoGestor, setVisaoGestor] = useState<"gestao" | "carteira">("gestao");
   const [filtroProduto, setFiltroProduto] = useState<
     "todos" | "compra" | "clt"
   >("todos");
@@ -205,6 +209,16 @@ export default function MinhaPremiacaoV2(props: Props) {
   const [chavePixCadastro, setChavePixCadastro] = useState("");
   const compraPrevistaSegura = Number(pontosCompraPrevistos ?? 0) || 0;
   const cltPrevistaSegura = Number(pontosCltPrevistos ?? 0) || 0;
+
+  const perfilNormalizado = String(perfilUsuario || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+  const podeVerExtrato =
+    perfilNormalizado === "administradora" ||
+    perfilNormalizado === "coordenadora";
 
   const consultorasFiltradas = nomesConsultoras.filter((nome) =>
     nome.toLowerCase().includes(busca.trim().toLowerCase()),
@@ -334,7 +348,7 @@ export default function MinhaPremiacaoV2(props: Props) {
     }
   }
 
-  if (podeGerenciar) {
+  if (podeGerenciar && visaoGestor === "gestao") {
     return (
       <div className="premio-v4-page">
         <section className="premio-v4-hero">
@@ -345,6 +359,58 @@ export default function MinhaPremiacaoV2(props: Props) {
               O sistema calcula automaticamente. Você confere e só depois
               libera os pontos para a colaboradora.
             </p>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 6,
+              alignItems: "center",
+              padding: 5,
+              border: "1px solid #dbe5f3",
+              borderRadius: 14,
+              background: "#f6f9fe",
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setVisaoGestor("gestao")}
+              style={{
+                minHeight: 42,
+                padding: "0 18px",
+                borderRadius: 10,
+                border: 0,
+                background: "#1f61ee",
+                color: "#fff",
+                fontSize: 14,
+                fontWeight: 850,
+                cursor: "pointer",
+                boxShadow: "0 4px 12px rgba(31,97,238,.16)",
+              }}
+            >
+              Gestão da premiação
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setVisaoGestor("carteira");
+                setErroModal("");
+              }}
+              style={{
+                minHeight: 42,
+                padding: "0 18px",
+                borderRadius: 10,
+                border: 0,
+                background: "transparent",
+                color: "#17345f",
+                fontSize: 14,
+                fontWeight: 850,
+                cursor: "pointer",
+              }}
+            >
+              Minha carteira
+            </button>
           </div>
 
           <div className="premio-v4-periodo">
@@ -797,84 +863,164 @@ export default function MinhaPremiacaoV2(props: Props) {
         )}
 
         {abaAdmin === "saques" && (
-          <section className="premio-v4-panel">
-            <div className="premio-v4-section-head">
+          <section
+            className="premio-v4-panel"
+            style={{ padding: 24, borderRadius: 18 }}
+          >
+            <div
+              className="premio-v4-section-head"
+              style={{
+                alignItems: "center",
+                paddingBottom: 18,
+                marginBottom: 18,
+                borderBottom: "1px solid #e3eaf4",
+              }}
+            >
               <div>
-                <span>CONTROLE DE SAQUES</span>
-                <h3>Solicitações das colaboradoras</h3>
-                <p>
-                  Tudo que elas solicitarem aparece automaticamente aqui.
+                <span style={{ fontSize: 12, letterSpacing: ".12em" }}>
+                  CONTROLE DE SAQUES
+                </span>
+                <h3 style={{ fontSize: 25, marginTop: 5 }}>
+                  Solicitações das colaboradoras
+                </h3>
+                <p style={{ fontSize: 14, marginTop: 4 }}>
+                  Confira os dados do PIX e processe cada solicitação com segurança.
                 </p>
               </div>
-              <b>{saquesPendentes.length}</b>
+              <div
+                style={{
+                  minWidth: 48,
+                  height: 48,
+                  padding: "0 14px",
+                  display: "grid",
+                  placeItems: "center",
+                  borderRadius: 14,
+                  background: saquesPendentes.length ? "#fff0f1" : "#eef5ff",
+                  color: saquesPendentes.length ? "#dc3545" : "#1f61ee",
+                  fontSize: 17,
+                  fontWeight: 900,
+                }}
+              >
+                {saquesPendentes.length}
+              </div>
             </div>
 
-            <div className="premio-v4-saque-list">
+            <div style={{ display: "grid", gap: 14 }}>
               {saquesPendentes.length === 0 ? (
-                <div className="premio-v4-empty">
+                <div className="premio-v4-empty" style={{ padding: 30, fontSize: 14 }}>
                   Nenhuma solicitação pendente.
                 </div>
               ) : (
                 saquesPendentes.map((saque) => (
-                  <article key={saque.id}>
-                    <div className="premio-v4-saque-user">
-                      <span>
+                  <article
+                    key={saque.id}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "minmax(230px,1.6fr) repeat(3,minmax(130px,.75fr)) auto",
+                      gap: 18,
+                      alignItems: "center",
+                      padding: "18px 20px",
+                      border: "1px solid #dfe7f2",
+                      borderRadius: 16,
+                      background: "#fff",
+                      boxShadow: "0 5px 18px rgba(31,56,100,.055)",
+                    }}
+                  >
+                    <div
+                      className="premio-v4-saque-user"
+                      style={{ display: "flex", alignItems: "center", gap: 13 }}
+                    >
+                      <span
+                        style={{
+                          width: 46,
+                          height: 46,
+                          borderRadius: 13,
+                          display: "grid",
+                          placeItems: "center",
+                          background: "#edf3ff",
+                          color: "#1f61ee",
+                          fontSize: 16,
+                          fontWeight: 900,
+                        }}
+                      >
                         {saque.usuario_nome?.charAt(0).toUpperCase() || "U"}
                       </span>
                       <div>
-                        <strong>{saque.usuario_nome}</strong>
-                        <small>
+                        <strong style={{ display: "block", fontSize: 15.5, color: "#102d55" }}>
+                          {saque.usuario_nome}
+                        </strong>
+                        <small style={{ display: "block", marginTop: 4, fontSize: 12, color: "#7889a2" }}>
                           Solicitado em {dataPt(saque.solicitado_em)}
                         </small>
                       </div>
                     </div>
 
                     <div>
-                      <span>Pontos</span>
-                      <strong>
-                        {pontos(Number(saque.pontos_solicitados || 0))}
+                      <span style={{ display: "block", fontSize: 11, color: "#7a8aa1", marginBottom: 5 }}>
+                        PONTOS
+                      </span>
+                      <strong style={{ fontSize: 16, color: "#102d55" }}>
+                        {pontos(Number(saque.pontos_solicitados || 0))} pts
                       </strong>
                     </div>
 
                     <div>
-                      <span>Valor</span>
-                      <strong>
-                        {moeda(
-                          Number(
-                            saque.valor_reais ||
-                              saque.pontos_solicitados ||
-                              0,
-                          ),
-                        )}
+                      <span style={{ display: "block", fontSize: 11, color: "#7a8aa1", marginBottom: 5 }}>
+                        VALOR
+                      </span>
+                      <strong style={{ fontSize: 16, color: "#078a48" }}>
+                        {moeda(Number(saque.valor_reais || saque.pontos_solicitados || 0))}
                       </strong>
                     </div>
 
                     <div>
-                      <span>PIX</span>
-                      <strong>{saque.chave_pix || "Não informado"}</strong>
+                      <span style={{ display: "block", fontSize: 11, color: "#7a8aa1", marginBottom: 5 }}>
+                        PIX
+                      </span>
+                      <strong style={{ display: "block", fontSize: 14, color: "#102d55", wordBreak: "break-all" }}>
+                        {saque.chave_pix || "Não informado"}
+                      </strong>
+                      {saque.tipo_chave_pix && (
+                        <small style={{ display: "block", marginTop: 3, color: "#7a8aa1" }}>
+                          {saque.tipo_chave_pix}
+                        </small>
+                      )}
                     </div>
 
-                    <div className="premio-v4-saque-actions">
+                    <div
+                      className="premio-v4-saque-actions"
+                      style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}
+                    >
                       <button
                         type="button"
                         className="pay"
-                        onClick={() =>
-                          void onProcessarSaque(saque.id, "PAGO")
-                        }
+                        onClick={() => void onProcessarSaque(saque.id, "PAGO")}
                         disabled={processando}
+                        style={{
+                          minHeight: 42,
+                          padding: "0 15px",
+                          borderRadius: 10,
+                          fontSize: 12.5,
+                          fontWeight: 850,
+                        }}
                       >
-                        <Check size={15} />
+                        <Check size={16} />
                         Marcar pago
                       </button>
                       <button
                         type="button"
                         className="reject"
-                        onClick={() =>
-                          void onProcessarSaque(saque.id, "RECUSADO")
-                        }
+                        onClick={() => void onProcessarSaque(saque.id, "RECUSADO")}
                         disabled={processando}
+                        style={{
+                          minHeight: 42,
+                          padding: "0 15px",
+                          borderRadius: 10,
+                          fontSize: 12.5,
+                          fontWeight: 850,
+                        }}
                       >
-                        <X size={15} />
+                        <X size={16} />
                         Recusar
                       </button>
                     </div>
@@ -884,15 +1030,13 @@ export default function MinhaPremiacaoV2(props: Props) {
             </div>
 
             {saquesProcessados.length > 0 && (
-              <div className="premio-v4-processed">
-                <h4>Histórico processado</h4>
+              <div className="premio-v4-processed" style={{ marginTop: 24 }}>
+                <h4 style={{ fontSize: 16, marginBottom: 12 }}>Histórico processado</h4>
                 {saquesProcessados.slice(0, 20).map((saque) => (
-                  <div key={saque.id}>
+                  <div key={saque.id} style={{ minHeight: 46, fontSize: 13 }}>
                     <span>{saque.usuario_nome}</span>
                     <span>{pontos(saque.pontos_solicitados)} pts</span>
-                    <b className={saque.status.toLowerCase()}>
-                      {saque.status}
-                    </b>
+                    <b className={saque.status.toLowerCase()}>{saque.status}</b>
                   </div>
                 ))}
               </div>
@@ -1049,15 +1193,40 @@ export default function MinhaPremiacaoV2(props: Props) {
     (saque) =>
       saque.status === "SOLICITADO" &&
       saque.usuario_nome &&
-      saque.usuario_nome.toLowerCase() === nomeUsuario.toLowerCase(),
+      saque.usuario_nome.toLowerCase() === (carteiraNome || nomeUsuario).toLowerCase(),
   );
 
   return (
     <div className="premio-v4-page colaborador">
       <section className="premio-v4-colab-hero">
         <div>
+          {podeGerenciar && (
+            <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => setVisaoGestor("gestao")}
+                style={{
+                  minHeight: 38, padding: "0 14px", borderRadius: 10,
+                  border: "1px solid #d7e1f0", background: "#fff",
+                  color: "#17345f", fontWeight: 800, cursor: "pointer"
+                }}
+              >
+                Gestão da premiação
+              </button>
+              <button
+                type="button"
+                style={{
+                  minHeight: 38, padding: "0 14px", borderRadius: 10,
+                  border: "1px solid #1f61ee", background: "#1f61ee",
+                  color: "#fff", fontWeight: 800
+                }}
+              >
+                Minha carteira
+              </button>
+            </div>
+          )}
           <span>MINHA PREMIAÇÃO</span>
-          <h2>Olá, {nomeExibido || nomeUsuario}!</h2>
+          <h2>Olá, {carteiraNome || nomeUsuario}!</h2>
           <p>
             Aqui aparecem somente os pontos que já foram conferidos e
             liberados pela gestão.
@@ -1083,7 +1252,7 @@ export default function MinhaPremiacaoV2(props: Props) {
           <strong>{pontos(saldoPontos)}</strong>
           <p>1 ponto = R$ 1,00</p>
           <footer>
-            <span>{nomeExibido}</span>
+            <span>{carteiraNome || nomeUsuario}</span>
             <b>{moeda(saldoPontos)}</b>
           </footer>
         </article>
@@ -1114,6 +1283,8 @@ export default function MinhaPremiacaoV2(props: Props) {
                 ? String(saldoDisponivelSaque)
                 : "",
             );
+            const pixPessoal = pixDaColaboradora(carteiraNome || nomeUsuario);
+            setChavePix(pixPessoal.chave || "");
             setModalSaque(true);
           }}
         >
@@ -1131,6 +1302,8 @@ export default function MinhaPremiacaoV2(props: Props) {
         </button>
       </section>
 
+      {podeVerExtrato && (
+        <>
       <section className="premio-v4-panel">
         <div className="premio-v4-section-head">
           <div>
@@ -1165,6 +1338,8 @@ export default function MinhaPremiacaoV2(props: Props) {
           )}
         </div>
       </section>
+        </>
+      )}
 
       {modalSaque && (
         <div
@@ -1207,11 +1382,20 @@ export default function MinhaPremiacaoV2(props: Props) {
 
             <label className="premio-v4-modal-field">
               Chave PIX
+              {pixDaColaboradora(carteiraNome || nomeUsuario).tipo && (
+                <small>
+                  {pixDaColaboradora(carteiraNome || nomeUsuario).tipo}
+                </small>
+              )}
               <input
                 value={chavePix}
                 onChange={(e) => setChavePix(e.target.value)}
+                readOnly={Boolean(pixDaColaboradora(carteiraNome || nomeUsuario).chave)}
                 placeholder="CPF, celular, e-mail ou chave aleatória"
               />
+              {pixDaColaboradora(carteiraNome || nomeUsuario).chave && (
+                <small>PIX cadastrado pela gestão.</small>
+              )}
             </label>
 
             {erroModal && (

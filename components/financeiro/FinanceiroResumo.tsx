@@ -9,6 +9,7 @@ type AbaFinanceiro =
   | "recebidos"
   | "movimentacoes"
   | "folha"
+  | "premiacoes-pagas"
   | "relatorios";
 
 type Props = {
@@ -43,6 +44,14 @@ type DespesaRecorrente = {
   inicio_competencia?: string;
   fim_competencia?: string | null;
   ativo?: boolean;
+};
+
+type SaquePremiacaoPago = {
+  id: string;
+  pontos_solicitados?: number;
+  valor_reais?: number;
+  status?: string;
+  processado_em?: string | null;
 };
 
 type PagamentoDespesaRecorrente = {
@@ -88,6 +97,7 @@ export default function FinanceiroResumo({ onNavigate }: Props) {
   const [movimentos, setMovimentos] = useState<Movimento[]>([]);
   const [despesasFixas, setDespesasFixas] = useState<DespesaRecorrente[]>([]);
   const [pagamentosFixos, setPagamentosFixos] = useState<PagamentoDespesaRecorrente[]>([]);
+  const [premiacoesPagas, setPremiacoesPagas] = useState<SaquePremiacaoPago[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [periodo, setPeriodo] = useState<"mes" | "personalizado">("mes");
   const [dataInicial, setDataInicial] = useState(primeiroDiaMes());
@@ -97,7 +107,7 @@ export default function FinanceiroResumo({ onNavigate }: Props) {
     setCarregando(true);
 
     try {
-      const [resBaixas, resMovimentos, resFixas, resPagamentosFixos] = await Promise.all([
+      const [resBaixas, resMovimentos, resFixas, resPagamentosFixos, resPremiacoesPagas] = await Promise.all([
         supabase
           .from("baixas_pagamentos")
           .select("id,banco,tabela,cliente,comissao_prevista,valor_recebido,data_prevista_recebimento,data_recebimento")
@@ -114,17 +124,23 @@ export default function FinanceiroResumo({ onNavigate }: Props) {
         supabase
           .from("despesas_recorrentes_pagamentos")
           .select("id,despesa_recorrente_id,competencia,valor_pago,pago_em"),
+        supabase
+          .from("pontos_saques")
+          .select("id,pontos_solicitados,valor_reais,status,processado_em")
+          .eq("status", "PAGO"),
       ]);
 
       if (resBaixas.error) throw resBaixas.error;
       if (resMovimentos.error) throw resMovimentos.error;
       if (resFixas.error) throw resFixas.error;
       if (resPagamentosFixos.error) throw resPagamentosFixos.error;
+      if (resPremiacoesPagas.error) throw resPremiacoesPagas.error;
 
       setBaixas((resBaixas.data || []) as BaixaPagamento[]);
       setMovimentos((resMovimentos.data || []) as Movimento[]);
       setDespesasFixas((resFixas.data || []) as DespesaRecorrente[]);
       setPagamentosFixos((resPagamentosFixos.data || []) as PagamentoDespesaRecorrente[]);
+      setPremiacoesPagas((resPremiacoesPagas.data || []) as SaquePremiacaoPago[]);
     } finally {
       setCarregando(false);
     }
@@ -133,6 +149,20 @@ export default function FinanceiroResumo({ onNavigate }: Props) {
   useEffect(() => {
     void carregar();
   }, [carregar]);
+
+  const totalPremiacoesPagasPeriodo = useMemo(
+    () =>
+      premiacoesPagas
+        .filter((item) =>
+          dentroPeriodo(item.processado_em, dataInicial, dataFinal),
+        )
+        .reduce(
+          (total, item) =>
+            total + Number(item.valor_reais || item.pontos_solicitados || 0),
+          0,
+        ),
+    [premiacoesPagas, dataInicial, dataFinal],
+  );
 
   const resumo = useMemo(() => {
     const aReceber = baixas
@@ -155,10 +185,24 @@ export default function FinanceiroResumo({ onNavigate }: Props) {
       )
       .reduce((total, item) => total + Number(item.valor || 0), 0);
 
-    const saldo = recebidoMes - despesasMes;
+    const despesasRealizadas = despesasMes + totalPremiacoesPagasPeriodo;
+    const saldo = recebidoMes - despesasRealizadas;
 
-    return { aReceber, recebidoMes, despesasMes, saldo };
-  }, [baixas, movimentos, dataInicial, dataFinal]);
+    return {
+      aReceber,
+      recebidoMes,
+      despesasMes,
+      premiacoesPagas: totalPremiacoesPagasPeriodo,
+      despesasRealizadas,
+      saldo,
+    };
+  }, [
+    baixas,
+    movimentos,
+    dataInicial,
+    dataFinal,
+    totalPremiacoesPagasPeriodo,
+  ]);
 
   const proximas = useMemo(
     () =>
@@ -214,7 +258,11 @@ export default function FinanceiroResumo({ onNavigate }: Props) {
     [despesasFixasPendentesMes],
   );
 
-  const resultadoProjetado = resumo.recebidoMes + resumo.aReceber - resumo.despesasMes - despesasPrevistas;
+  const resultadoProjetado =
+    resumo.recebidoMes +
+    resumo.aReceber -
+    resumo.despesasRealizadas -
+    despesasPrevistas;
 
   const serie6Meses = useMemo(() => {
     const hoje = new Date();
@@ -230,13 +278,25 @@ export default function FinanceiroResumo({ onNavigate }: Props) {
         .filter((item) => String(item.data_recebimento || "").slice(0, 7) === mes.chave)
         .reduce((total, item) => total + Number(item.valor_recebido || 0), 0);
 
-      const despesas = movimentos
+      const despesasMovimentos = movimentos
         .filter((item) => item.tipo === "Saída" && String(item.data || "").slice(0, 7) === mes.chave)
         .reduce((total, item) => total + Number(item.valor || 0), 0);
 
+      const premiosPagos = premiacoesPagas
+        .filter(
+          (item) => String(item.processado_em || "").slice(0, 7) === mes.chave,
+        )
+        .reduce(
+          (total, item) =>
+            total + Number(item.valor_reais || item.pontos_solicitados || 0),
+          0,
+        );
+
+      const despesas = despesasMovimentos + premiosPagos;
+
       return { ...mes, recebido, despesas };
     });
-  }, [baixas, movimentos]);
+  }, [baixas, movimentos, premiacoesPagas]);
 
   const maiorGrafico = Math.max(
     1,
@@ -320,14 +380,66 @@ export default function FinanceiroResumo({ onNavigate }: Props) {
 
         <article onClick={() => onNavigate("movimentacoes")}>
           <span>Despesas realizadas</span>
-          <strong>{moeda(resumo.despesasMes)}</strong>
-          <small>Saídas já pagas no mês</small>
+          <strong>{moeda(resumo.despesasRealizadas)}</strong>
+          <small>Saídas + premiações já pagas</small>
         </article>
 
         <article className={resultadoProjetado < 0 ? "fin-kpi-danger" : "fin-kpi-success"}>
           <span>Resultado projetado</span>
           <strong>{moeda(resultadoProjetado)}</strong>
           <small>Recebido + a receber − despesas</small>
+        </article>
+      </section>
+
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: 12,
+        }}
+      >
+        <article
+          onClick={() => onNavigate("movimentacoes")}
+          style={{
+            minHeight: 88,
+            padding: "15px 18px",
+            border: "1px solid #dce5f2",
+            borderRadius: 14,
+            background: "#fff",
+            cursor: "pointer",
+          }}
+        >
+          <span style={{ display: "block", color: "#6c7b93", fontSize: 10, fontWeight: 850 }}>
+            OUTRAS DESPESAS PAGAS
+          </span>
+          <strong style={{ display: "block", marginTop: 7, color: "#102d57", fontSize: 21 }}>
+            {moeda(resumo.despesasMes)}
+          </strong>
+          <small style={{ display: "block", marginTop: 5, color: "#8b97a9", fontSize: 9 }}>
+            Movimentações financeiras de saída
+          </small>
+        </article>
+
+        <article
+          onClick={() => onNavigate("premiacoes-pagas")}
+          style={{
+            minHeight: 88,
+            padding: "15px 18px",
+            border: "1px solid #cddaff",
+            borderRadius: 14,
+            background: "linear-gradient(135deg,#f5f8ff,#fff)",
+            cursor: "pointer",
+          }}
+        >
+          <span style={{ display: "block", color: "#155eef", fontSize: 10, fontWeight: 900 }}>
+            PREMIAÇÕES PAGAS
+          </span>
+          <strong style={{ display: "block", marginTop: 7, color: "#155eef", fontSize: 21 }}>
+            {moeda(resumo.premiacoesPagas)}
+          </strong>
+          <small style={{ display: "block", marginTop: 5, color: "#8b97a9", fontSize: 9 }}>
+            Saques de pontos pagos no período
+          </small>
         </article>
       </section>
 

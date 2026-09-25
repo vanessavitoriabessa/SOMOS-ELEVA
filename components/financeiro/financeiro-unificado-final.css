@@ -1257,3 +1257,104 @@
     font-size:9px !important;
   }
 }
+
+/* FINANCEIRO — ABAS SEM ROLAGEM HORIZONTAL */
+@media (min-width:1180px){
+  .financeiro-unico-tabs{
+    display:grid !important;
+    grid-template-columns:.82fr 1fr 1.08fr 1.12fr .62fr 1.18fr 1.12fr 1.42fr 1.30fr .78fr !important;
+    align-items:stretch !important;
+    gap:3px !important;
+    overflow:visible !important;
+    padding:5px !important;
+    scrollbar-width:none !important;
+  }
+  .financeiro-unico-tabs::-webkit-scrollbar{display:none !important}
+  .financeiro-unico-tabs button{
+    width:100% !important;
+    min-width:0 !important;
+    min-height:38px !important;
+    padding:0 4px !important;
+    font-size:8.35px !important;
+    letter-spacing:.012em !important;
+    white-space:nowrap !important;
+    text-align:center !important;
+  }
+}
+@media (min-width:701px) and (max-width:1179px){
+  .financeiro-unico-tabs{
+    display:grid !important;
+    grid-template-columns:repeat(5,minmax(0,1fr)) !important;
+    gap:5px !important;
+    overflow:visible !important;
+  }
+  .financeiro-unico-tabs button{
+    width:100% !important;
+    min-width:0 !important;
+    padding:0 6px !important;
+    font-size:8.8px !important;
+    white-space:normal !important;
+    line-height:1.15 !important;
+  }
+}
+@media (max-width:700px){
+  .financeiro-unico-tabs{
+    display:grid !important;
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    gap:5px !important;
+    overflow:visible !important;
+  }
+  .financeiro-unico-tabs button{
+    width:100% !important;
+    min-width:0 !important;
+    padding:0 7px !important;
+    font-size:9px !important;
+    white-space:normal !important;
+    line-height:1.15 !important;
+  }
+}
+
+/* =========================================================
+   FINANCEIRO — ABAS EM CARDS, MAIORES E SEM ROLAGEM
+   ========================================================= */
+@media (min-width:1180px){
+  .financeiro-unico-tabs{
+    display:grid !important;
+    grid-template-columns:.82fr 1fr 1.08fr 1.12fr .62fr 1.18fr 1.12fr 1.42fr 1.30fr .78fr !important;
+    gap:5px !important;
+    padding:6px !important;
+    overflow:visible !important;
+    background:#f7f9fd !important;
+  }
+
+  .financeiro-unico-tabs button{
+    width:100% !important;
+    min-width:0 !important;
+    min-height:43px !important;
+    padding:0 5px !important;
+    border:1px solid #dce5f2 !important;
+    border-radius:10px !important;
+    background:#fff !important;
+    color:#263b59 !important;
+    font-size:9.15px !important;
+    font-weight:900 !important;
+    letter-spacing:.006em !important;
+    white-space:nowrap !important;
+    text-align:center !important;
+    box-shadow:0 2px 6px rgba(20,45,85,.025) !important;
+  }
+
+  .financeiro-unico-tabs button:hover{
+    border-color:#b9ccf3 !important;
+    background:#f4f7ff !important;
+    color:#155eef !important;
+  }
+
+  .financeiro-unico-tabs button.active{
+    border-color:#1768f2 !important;
+    background:linear-gradient(135deg,#1768f2,#2867e8) !important;
+    color:#fff !important;
+    box-shadow:0 6px 14px rgba(23,104,242,.17) !important;
+  }
+}
+

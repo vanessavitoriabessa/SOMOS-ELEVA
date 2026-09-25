@@ -810,6 +810,40 @@ export default function PremiacaoManagerV3() {
   const usuarioSelecionadoId =
     usuarioSelecionado?.id || (!ehGestor ? usuarioLogadoId : "");
 
+  const usuarioCarteira = useMemo(() => {
+    if (!ehGestor) return usuarioSelecionado;
+
+    return (
+      usuarios.find((usuario) => String(usuario.id || "") === usuarioLogadoId) ||
+      usuarios.find((usuario) =>
+        nomesCorrespondem(String(usuario.nome || ""), nomeLogado),
+      ) ||
+      null
+    );
+  }, [usuarios, ehGestor, usuarioSelecionado, usuarioLogadoId, nomeLogado]);
+
+  const usuarioCarteiraId = String(
+    usuarioCarteira?.id || (!ehGestor ? usuarioSelecionadoId : "")
+  );
+
+  const idsCarteira = useMemo(() => {
+    const ids = new Set<string>();
+    if (usuarioCarteira?.id) ids.add(String(usuarioCarteira.id));
+    if (usuarioLogadoId) ids.add(String(usuarioLogadoId));
+
+    const nomeCarteira = String(usuarioCarteira?.nome || nomeLogado || "");
+    usuarios.forEach((usuario) => {
+      if (
+        usuario.id &&
+        nomesCorrespondem(String(usuario.nome || ""), nomeCarteira)
+      ) {
+        ids.add(String(usuario.id));
+      }
+    });
+
+    return ids;
+  }, [usuarioCarteira, usuarioLogadoId, usuarios, nomeLogado]);
+
   const planoCompra = planos.find(
     (plano) => plano.codigo === "CONSULTORA_COMPRA",
   );
@@ -1563,23 +1597,50 @@ export default function PremiacaoManagerV3() {
     planoSupervisao,
   ]);
 
+  const idSaldoAtual = ehGestor ? usuarioCarteiraId : usuarioSelecionadoId;
+
   const saldoPontos = useMemo(() => {
-    if (!usuarioSelecionadoId) return 0;
+    if (!idSaldoAtual && idsCarteira.size === 0) return 0;
 
     return extrato
-      .filter((item) => item.usuario_id === usuarioSelecionadoId)
+      .filter((item) => {
+        if (!ehGestor) return item.usuario_id === usuarioSelecionadoId;
+
+        return (
+          idsCarteira.has(String(item.usuario_id || "")) ||
+          nomesCorrespondem(
+            String(item.usuario_nome || ""),
+            String(usuarioCarteira?.nome || nomeLogado || ""),
+          )
+        );
+      })
       .reduce((total, item) => {
         const valor = Number(item.pontos || 0);
         if (item.tipo === "DEBITO") return total - Math.abs(valor);
         return total + valor;
       }, 0);
-  }, [extrato, usuarioSelecionadoId]);
+  }, [
+    extrato,
+    idSaldoAtual,
+    idsCarteira,
+    ehGestor,
+    usuarioSelecionadoId,
+    usuarioCarteira,
+    nomeLogado,
+  ]);
 
-  const saquesPendentesUsuario = saques.filter(
-    (saque) =>
-      saque.usuario_id === usuarioSelecionadoId &&
-      saque.status === "SOLICITADO",
-  );
+  const saquesPendentesUsuario = saques.filter((saque) => {
+    if (saque.status !== "SOLICITADO") return false;
+    if (!ehGestor) return saque.usuario_id === usuarioSelecionadoId;
+
+    return (
+      idsCarteira.has(String(saque.usuario_id || "")) ||
+      nomesCorrespondem(
+        String(saque.usuario_nome || ""),
+        String(usuarioCarteira?.nome || nomeLogado || ""),
+      )
+    );
+  });
 
   const pontosBloqueados = saquesPendentesUsuario.reduce(
     (total, saque) => total + Number(saque.pontos_solicitados || 0),
@@ -2018,7 +2079,23 @@ export default function PremiacaoManagerV3() {
   }
 
   async function solicitarSaque(pontosSolicitados: number, chavePix: string) {
-    if (!usuarioSelecionadoId || ehGestor) return;
+    const creditoCarteira = ehGestor
+      ? extrato.find(
+          (item) =>
+            item.tipo === "CREDITO" &&
+            nomesCorrespondem(
+              String(item.usuario_nome || ""),
+              String(usuarioCarteira?.nome || nomeLogado || ""),
+            ),
+        )
+      : null;
+
+    const usuarioSaqueId = ehGestor
+      ? String(creditoCarteira?.usuario_id || usuarioCarteiraId || "")
+      : usuarioSelecionadoId;
+    if (!usuarioSaqueId) {
+      throw new Error("Não encontrei sua carteira de pontos.");
+    }
 
     const quantidade = Math.floor(Number(pontosSolicitados || 0) * 100) / 100;
 
@@ -2027,7 +2104,7 @@ export default function PremiacaoManagerV3() {
     }
 
     const { error } = await supabase.from("pontos_saques").insert({
-      usuario_id: usuarioSelecionadoId,
+      usuario_id: usuarioSaqueId,
       usuario_nome: nomeLogado,
       pontos_solicitados: quantidade,
       valor_reais: quantidade,
@@ -2153,6 +2230,7 @@ export default function PremiacaoManagerV3() {
       <MinhaPremiacaoV2
         nomeUsuario={nomeLogado}
         nomeExibido={resumo.nome || nomeLogado}
+        carteiraNome={usuarioCarteira?.nome || nomeLogado}
         perfilUsuario={perfilLogado}
         podeGerenciar={ehGestor}
         nomesConsultoras={nomesConsultoras}

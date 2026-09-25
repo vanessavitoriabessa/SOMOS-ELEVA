@@ -16,6 +16,7 @@ type Aba =
   | "movimentacoes"
   | "despesas-fixas"
   | "folha"
+  | "premiacoes-pagas"
   | "controle-notas"
   | "simples-nacional"
   | "inss-fgts"
@@ -30,6 +31,7 @@ export default function FinanceiroPage() {
     { id: "movimentacoes", label: "Movimentações" },
     { id: "despesas-fixas", label: "Despesas Fixas" },
     { id: "folha", label: "Folha" },
+    { id: "premiacoes-pagas", label: "Premiações Pagas" },
     { id: "controle-notas", label: "Controle de Notas" },
     { id: "simples-nacional", label: "Imposto Simples Nacional" },
     { id: "inss-fgts", label: "Imposto INSS e FGTS" },
@@ -67,6 +69,11 @@ export default function FinanceiroPage() {
                 setAba("movimentacoes");
               } else if (destino === "folha") {
                 setAba("folha");
+              } else if (
+                destino === "premiacoes" ||
+                destino === "premiacoes-pagas"
+              ) {
+                setAba("premiacoes-pagas");
               } else if (destino === "relatorios") {
                 setAba("relatorios");
               }
@@ -93,6 +100,14 @@ export default function FinanceiroPage() {
         {aba === "folha" && (
           <FinancialManager
             abaExterna="folha"
+            ocultarCabecalho
+            ocultarAbas
+          />
+        )}
+
+        {aba === "premiacoes-pagas" && (
+          <FinancialManager
+            abaExterna="premiacoes"
             ocultarCabecalho
             ocultarAbas
           />

@@ -69,6 +69,14 @@ type FolhaPagamento = {
   total_dia05?: number;
 };
 
+type SaquePremiacaoPago = {
+  id?: string;
+  pontos_solicitados?: number;
+  valor_reais?: number;
+  status?: string;
+  processado_em?: string | null;
+};
+
 type ComissaoPagamento = {
   id?: string;
   competencia?: string;
@@ -166,6 +174,8 @@ export default function FinancialDashboard() {
   const [lancamentos, setLancamentos] = useState<LancamentoLocal[]>([]);
   const [folhas, setFolhas] = useState<FolhaPagamento[]>([]);
   const [comissoes, setComissoes] = useState<ComissaoPagamento[]>([]);
+  const [saquesPremiacaoPagos, setSaquesPremiacaoPagos] =
+    useState<SaquePremiacaoPago[]>([]);
 
   const [periodo, setPeriodo] = useState<PeriodoFinanceiro>("Mês");
   const [dataInicial, setDataInicial] = useState(primeiroDiaMes());
@@ -243,6 +253,7 @@ export default function FinancialDashboard() {
         respostaFolhas,
         respostaComissoes,
         respostaLancamentos,
+        respostaSaquesPremiacao,
       ] = await Promise.all([
         fetch("/api/propostas", {
           headers: {
@@ -263,6 +274,10 @@ export default function FinancialDashboard() {
           .from("movimentos_financeiros")
           .select("*")
           .order("data", { ascending: false }),
+        supabase
+          .from("pontos_saques")
+          .select("id, pontos_solicitados, valor_reais, status, processado_em")
+          .eq("status", "PAGO"),
       ]);
 
       const conteudo = (await respostaPropostas.json()) as {
@@ -287,6 +302,7 @@ export default function FinancialDashboard() {
       if (respostaFolhas.error) throw respostaFolhas.error;
       if (respostaComissoes.error) throw respostaComissoes.error;
       if (respostaLancamentos.error) throw respostaLancamentos.error;
+      if (respostaSaquesPremiacao.error) throw respostaSaquesPremiacao.error;
 
       setPropostas(Array.isArray(conteudo.propostas) ? conteudo.propostas : []);
       setRegistrosClt(
@@ -301,6 +317,12 @@ export default function FinancialDashboard() {
           ? (respostaComissoes.data as ComissaoPagamento[])
           : [],
       );
+      setSaquesPremiacaoPagos(
+        Array.isArray(respostaSaquesPremiacao.data)
+          ? (respostaSaquesPremiacao.data as SaquePremiacaoPago[])
+          : [],
+      );
+
       setLancamentos(
         Array.isArray(respostaLancamentos.data)
           ? respostaLancamentos.data.map((registro) => ({
@@ -450,6 +472,14 @@ export default function FinancialDashboard() {
     ],
   );
 
+  const saquesPremiacaoFluxo = useMemo(
+    () =>
+      saquesPremiacaoPagos.filter((item) =>
+        noPeriodo(item.processado_em, dataInicialFluxo, dataFinalFluxo),
+      ),
+    [saquesPremiacaoPagos, dataInicialFluxo, dataFinalFluxo],
+  );
+
   const folhasFluxo = useMemo(
     () =>
       folhas.filter((item) => {
@@ -557,7 +587,7 @@ export default function FinancialDashboard() {
       .filter((item) => item.tipo === "Saída")
       .reduce((total, item) => total + Number(item.valor || 0), 0);
 
-    const premiacoes = comissoesFluxo.reduce((total, item) => {
+    const comissoesPremiacao = comissoesFluxo.reduce((total, item) => {
       if (produtoFluxo === "Compra de Dívida") {
         return total + Number(item.comissao_compra_divida || 0);
       }
@@ -575,6 +605,16 @@ export default function FinancialDashboard() {
 
       return total + Number(item.total_comissao || 0);
     }, 0);
+
+    const saquesPagos = produtoFluxo === "Todos"
+      ? saquesPremiacaoFluxo.reduce(
+          (total, item) =>
+            total + Number(item.valor_reais || item.pontos_solicitados || 0),
+          0,
+        )
+      : 0;
+
+    const premiacoes = comissoesPremiacao + saquesPagos;
 
     const assiduidade = folhasFluxo
       .filter((item) => item.assiduidade_ativa)
@@ -605,6 +645,7 @@ export default function FinancialDashboard() {
   }, [
     lancamentosFluxo,
     comissoesFluxo,
+    saquesPremiacaoFluxo,
     folhasFluxo,
     produtoFluxo,
   ]);
