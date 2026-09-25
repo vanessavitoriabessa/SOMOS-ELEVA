@@ -1173,12 +1173,18 @@ mensagem: formEdicao.mensagem.trim(),
             ["Tentativas na LP", monitor?.resumo.tentativas ?? 0, "#08275c"],
             ["Telefones únicos", monitor?.resumo.telefones_unicos ?? 0, "#08275c"],
             ["Clientes repetidos", monitor?.resumo.clientes_repetidos ?? 0, "#08275c"],
-            ["Salvos na Hyperflow", monitor?.resumo.salvos_hyperflow ?? 0, "#08783e"],
-            ["Plano A → WhatsApp", monitor?.resumo.plano_a ?? 0, "#08783e"],
-            ["Plano B → WebSDK", monitor?.resumo.plano_b ?? 0, "#155eef"],
+            [
+              "Salvos na Hyperflow - PLANO A e B",
+              (monitor?.resumo.plano_a ?? 0) + (monitor?.resumo.plano_b ?? 0),
+              "#08783e",
+            ],
             ["Fallback → WhatsApp", monitor?.resumo.fallback ?? 0, "#a66400"],
-            ["Falhas sem atendimento", monitor?.resumo.falhas_sem_atendimento ?? 0, "#b42318"],
-            ["Retrabalhos pendentes", monitor?.resumo.retrabalhos_pendentes ?? 0, "#a66400"],
+            [
+              "Falhas sem atendimento - RETRABALHO",
+              (monitor?.resumo.falhas_sem_atendimento ?? 0) +
+                (monitor?.resumo.retrabalhos_pendentes ?? 0),
+              "#b42318",
+            ],
             ["Rodízio recuperado 2ª tentativa", monitor?.resumo.rodizio_recuperado ?? 0, "#08783e"],
             ["Falha técnica do rodízio", monitor?.resumo.rodizio_falhou ?? 0, "#b42318"],
           ].map(([titulo, valor, cor]) => (

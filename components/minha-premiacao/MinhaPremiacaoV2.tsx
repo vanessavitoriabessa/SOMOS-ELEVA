@@ -126,6 +126,10 @@ function pontos(valor: number) {
   });
 }
 
+function normalizarPontos(valor: number) {
+  return Math.round((Number(valor || 0) + Number.EPSILON) * 100) / 100;
+}
+
 function porcentagem(valor: number) {
   return Number(valor || 0).toLocaleString("pt-BR", {
     minimumFractionDigits: 0,
@@ -324,7 +328,10 @@ export default function MinhaPremiacaoV2(props: Props) {
       return;
     }
 
-    if (quantidade > saldoDisponivelSaque) {
+    const quantidadeNormalizada = normalizarPontos(quantidade);
+    const saldoNormalizado = normalizarPontos(saldoDisponivelSaque);
+
+    if (quantidadeNormalizada > saldoNormalizado) {
       setErroModal("A quantidade é maior que o saldo disponível.");
       return;
     }
@@ -335,7 +342,7 @@ export default function MinhaPremiacaoV2(props: Props) {
     }
 
     try {
-      await onSolicitarSaque(quantidade, chavePix.trim());
+      await onSolicitarSaque(quantidadeNormalizada, chavePix.trim());
       setModalSaque(false);
       setPontosSaque("");
       setChavePix("");
@@ -1280,7 +1287,7 @@ export default function MinhaPremiacaoV2(props: Props) {
             setErroModal("");
             setPontosSaque(
               saldoDisponivelSaque > 0
-                ? String(saldoDisponivelSaque)
+                ? String(normalizarPontos(saldoDisponivelSaque))
                 : "",
             );
             const pixPessoal = pixDaColaboradora(carteiraNome || nomeUsuario);
