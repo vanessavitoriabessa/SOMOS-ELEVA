@@ -312,6 +312,7 @@ export async function GET(request: NextRequest) {
       "coordenadora",
       "supervisora",
       "qualidade",
+      "operacional",
     ];
 
     if (

@@ -1178,3 +1178,71 @@
 .premio-v4-pix-box .premio-v4-cadastrar-pix{width:100%;min-height:34px;background:#eef5ff;color:#075ee5}
 .premio-v4-modal-field select{width:100%;min-height:44px;margin-top:7px;padding:0 12px;border:1px solid #d7e1ef;border-radius:10px;background:#fff;color:#071b38;font:inherit}
 @media(max-width:900px){.premio-v4-pix-box{width:100%;min-width:0;margin-left:0}}
+
+/* ============================================================
+   PONTOS LIBERADOS — LEGIBILIDADE FINAL
+   O JSX usa .premio-v4-history > article.
+   ============================================================ */
+.premio-v4-history article{
+  min-height:72px !important;
+  padding:16px 10px !important;
+  gap:18px !important;
+}
+
+.premio-v4-history article > div{
+  min-width:0;
+}
+
+.premio-v4-history article > div > strong{
+  display:block !important;
+  color:#102f59 !important;
+  font-size:16px !important;
+  line-height:1.3 !important;
+  font-weight:900 !important;
+  letter-spacing:0 !important;
+}
+
+.premio-v4-history article > div > span{
+  display:block !important;
+  margin-top:5px !important;
+  color:#718198 !important;
+  font-size:12px !important;
+  line-height:1.4 !important;
+  font-weight:600 !important;
+}
+
+.premio-v4-history article > b{
+  flex:0 0 auto;
+  color:#0b914e !important;
+  font-size:15px !important;
+  line-height:1.2 !important;
+  font-weight:950 !important;
+  white-space:nowrap;
+}
+
+.premio-v4-history article > b.negative{
+  color:#d14d4d !important;
+}
+
+.premio-v4-history article > b.positive{
+  color:#0b914e !important;
+}
+
+@media(max-width:620px){
+  .premio-v4-history article{
+    align-items:flex-start !important;
+    padding:14px 6px !important;
+  }
+
+  .premio-v4-history article > div > strong{
+    font-size:15px !important;
+  }
+
+  .premio-v4-history article > div > span{
+    font-size:11px !important;
+  }
+
+  .premio-v4-history article > b{
+    font-size:14px !important;
+  }
+}

@@ -199,7 +199,11 @@ function textoResultadoMonitor(item: MonitorEvento) {
     return "Atendimento NÃO iniciado";
   }
 
-  return item.resultado || "Em processamento";
+  if (item.resultado === "em_processamento") {
+    return "Atendimento NÃO iniciado";
+  }
+
+  return item.resultado || "Atendimento NÃO iniciado";
 }
 
 type WhatsAppManagerProps = { modo?: "gerenciador" | "historico" };
@@ -236,6 +240,9 @@ export default function WhatsAppManager({ modo = "gerenciador" }: WhatsAppManage
   const [filtrosStatus, setFiltrosStatus] = useState<string[]>([]);
   const [filtrosTipo, setFiltrosTipo] = useState<string[]>([]);
   const [filtrosConsultor, setFiltrosConsultor] = useState<string[]>([]);
+  const [filtrosHistoricoConsultor, setFiltrosHistoricoConsultor] = useState<string[]>([]);
+  const [filtrosHistoricoResultado, setFiltrosHistoricoResultado] = useState<string[]>([]);
+  const [filtrosHistoricoPlano, setFiltrosHistoricoPlano] = useState<string[]>([]);
 
     async function carregar() {
     try {
@@ -601,6 +608,79 @@ mensagem: formEdicao.mensagem.trim(),
     });
   }, [dados, filtrosStatus, filtrosTipo, filtrosConsultor]);
 
+  const eventosHistorico = useMemo(() => {
+    const eventos = monitor?.eventos ?? [];
+
+    return eventos.filter((item) => {
+      const consultor = String(item.destino_consultor || "Sem consultor");
+      const plano = String(item.plano || "Sem plano");
+      const resultado = textoResultadoMonitor(item);
+
+      return (
+        (filtrosHistoricoConsultor.length === 0 ||
+          filtrosHistoricoConsultor.includes(consultor)) &&
+        (filtrosHistoricoResultado.length === 0 ||
+          filtrosHistoricoResultado.includes(resultado)) &&
+        (filtrosHistoricoPlano.length === 0 ||
+          filtrosHistoricoPlano.includes(plano))
+      );
+    });
+  }, [
+    monitor,
+    filtrosHistoricoConsultor,
+    filtrosHistoricoResultado,
+    filtrosHistoricoPlano,
+  ]);
+
+  const opcoesHistorico = useMemo(() => {
+    const eventos = monitor?.eventos ?? [];
+    const consultores = Array.from(
+      new Set(
+        eventos.map((item) => String(item.destino_consultor || "Sem consultor")),
+      ),
+    ).sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+    const resultados = Array.from(
+      new Set(eventos.map((item) => textoResultadoMonitor(item))),
+    ).sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+    const planos = Array.from(
+      new Set(eventos.map((item) => String(item.plano || "Sem plano"))),
+    ).sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+    return { consultores, resultados, planos };
+  }, [monitor]);
+
+  const dashboardHistorico = useMemo(() => {
+    const total = eventosHistorico.length;
+    const telefones = new Set(
+      eventosHistorico.map((item) => String(item.telefone || "")).filter(Boolean),
+    ).size;
+    const whatsapp = eventosHistorico.filter(
+      (item) => textoResultadoMonitor(item) === "WhatsApp aberto normalmente",
+    ).length;
+    const naoIniciado = eventosHistorico.filter(
+      (item) => textoResultadoMonitor(item) === "Atendimento NÃO iniciado",
+    ).length;
+    const planoA = eventosHistorico.filter((item) => item.plano === "A").length;
+    const planoB = eventosHistorico.filter((item) => item.plano === "B").length;
+
+    return { total, telefones, whatsapp, naoIniciado, planoA, planoB };
+  }, [eventosHistorico]);
+
+  const resultadosDashboard = useMemo(() => {
+    const mapa = new Map<string, number>();
+
+    eventosHistorico.forEach((item) => {
+      const nome = textoResultadoMonitor(item);
+      mapa.set(nome, (mapa.get(nome) || 0) + 1);
+    });
+
+    return [...mapa.entries()]
+      .map(([nome, quantidade]) => ({ nome, quantidade }))
+      .sort((a, b) => b.quantidade - a.quantidade);
+  }, [eventosHistorico]);
+
   if (carregando && !dados) {
     return (
       <div
@@ -659,6 +739,164 @@ mensagem: formEdicao.mensagem.trim(),
           </div>
 
           {erroMonitor && <div style={{ marginTop: 16, padding: "12px 14px", background: "#ffe9e7", color: "#b42318", borderRadius: 10, fontWeight: 700 }}>{erroMonitor}</div>}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1.25fr 1.25fr 0.8fr",
+              gap: 14,
+              marginTop: 20,
+              alignItems: "start",
+            }}
+          >
+            {[
+              ["VENDEDOR(A)", opcoesHistorico.consultores, filtrosHistoricoConsultor, setFiltrosHistoricoConsultor],
+              ["RESULTADO", opcoesHistorico.resultados, filtrosHistoricoResultado, setFiltrosHistoricoResultado],
+              ["PLANO", opcoesHistorico.planos, filtrosHistoricoPlano, setFiltrosHistoricoPlano],
+            ].map(([titulo, opcoes, selecionados, definir]) => (
+              <div
+                key={String(titulo)}
+                style={{
+                  padding: 18,
+                  border: "1px solid #d8e3f3",
+                  borderRadius: 18,
+                  background: "linear-gradient(180deg, #ffffff 0%, #fbfdff 100%)",
+                  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.05)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                  <strong style={{ color: "#08275c", fontSize: 13, fontWeight: 900, letterSpacing: "0.04em" }}>
+                    {String(titulo)}
+                  </strong>
+                  <span style={{ color: "#8a98ad", fontSize: 11, fontWeight: 700 }}>
+                    múltipla seleção
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                    gap: 9,
+                    marginTop: 13,
+                    alignContent: "start",
+                  }}
+                >
+                  {(opcoes as string[]).map((opcao) => (
+                    <label
+                      key={opcao}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 7,
+                        minHeight: 42,
+                        padding: "9px 11px",
+                        border: (selecionados as string[]).includes(opcao)
+                          ? "1px solid #7aa7ff"
+                          : "1px solid #e2e8f2",
+                        borderRadius: 11,
+                        boxShadow: (selecionados as string[]).includes(opcao)
+                          ? "0 4px 12px rgba(21, 94, 239, 0.10)"
+                          : "none",
+                        background: (selecionados as string[]).includes(opcao)
+                          ? "#edf4ff"
+                          : "#ffffff",
+                        color: (selecionados as string[]).includes(opcao)
+                          ? "#0f55d9"
+                          : "#344054",
+                        fontSize: 13,
+                        fontWeight: 800,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={(selecionados as string[]).includes(opcao)}
+                        onChange={() =>
+                          alternarFiltro(
+                            opcao,
+                            selecionados as string[],
+                            definir as (valores: string[]) => void,
+                          )
+                        }
+                      />
+                      {opcao}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {(filtrosHistoricoConsultor.length > 0 ||
+            filtrosHistoricoResultado.length > 0 ||
+            filtrosHistoricoPlano.length > 0) && (
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setFiltrosHistoricoConsultor([]);
+                  setFiltrosHistoricoResultado([]);
+                  setFiltrosHistoricoPlano([]);
+                }}
+                style={{
+                  padding: "8px 12px",
+                  border: "1px solid #cddcff",
+                  borderRadius: 8,
+                  background: "#ffffff",
+                  color: "#155eef",
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
+                LIMPAR FILTROS
+              </button>
+            </div>
+          )}
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gap: 12,
+              marginTop: 20,
+            }}
+          >
+            {[
+              ["Atendimentos registrados", dashboardHistorico.total, "#08275c"],
+              ["Clientes únicos", dashboardHistorico.telefones, "#08275c"],
+              ...resultadosDashboard.map((item) => [
+                item.nome,
+                item.quantidade,
+                item.nome === "Atendimento NÃO iniciado"
+                  ? "#b42318"
+                  : item.nome === "WhatsApp aberto normalmente"
+                    ? "#08783e"
+                    : "#155eef",
+              ]),
+              ["Plano A", dashboardHistorico.planoA, "#155eef"],
+              ["Plano B", dashboardHistorico.planoB, "#6d42d8"],
+            ].map(([titulo, valor, cor]) => (
+              <div
+                key={String(titulo)}
+                style={{
+                  minHeight: 92,
+                  padding: "16px 18px",
+                  border: "1px solid #dbe5f5",
+                  borderRadius: 14,
+                  background: "#ffffff",
+                  boxShadow: "0 5px 16px rgba(15, 23, 42, 0.035)",
+                }}
+              >
+                <span style={{ display: "block", color: "#667085", fontSize: 12, fontWeight: 800, lineHeight: 1.35 }}>
+                  {titulo}
+                </span>
+                <strong style={{ display: "block", marginTop: 9, color: String(cor), fontSize: 28, fontWeight: 900 }}>
+                  {valor}
+                </strong>
+              </div>
+            ))}
+          </div>
+
 
           <div style={{ marginTop: 20, overflowX: "auto", border: "1px solid #e4eaf3", borderRadius: 12 }}>
             <table style={{ width: "100%", minWidth: 980, borderCollapse: "collapse", background: "#fff" }}>
@@ -670,7 +908,7 @@ mensagem: formEdicao.mensagem.trim(),
                 </tr>
               </thead>
               <tbody>
-                {(monitor?.eventos ?? []).map((item) => {
+                {eventosHistorico.map((item) => {
                   const dt = new Date(item.criado_em);
                   const data = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric" }).format(dt);
                   const horario = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(dt);
@@ -686,8 +924,8 @@ mensagem: formEdicao.mensagem.trim(),
                     </tr>
                   );
                 })}
-                {!carregandoMonitor && (monitor?.eventos.length ?? 0) === 0 && (
-                  <tr><td colSpan={7} style={{ padding: 24, textAlign: "center", color: "#667085", fontWeight: 700 }}>Nenhum atendimento encontrado no período selecionado.</td></tr>
+                {!carregandoMonitor && eventosHistorico.length === 0 && (
+                  <tr><td colSpan={7} style={{ padding: 24, textAlign: "center", color: "#667085", fontWeight: 700 }}>Nenhum atendimento encontrado para os filtros selecionados.</td></tr>
                 )}
               </tbody>
             </table>
