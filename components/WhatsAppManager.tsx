@@ -40,7 +40,13 @@ type MonitorResumo = {
   tentativas: number;
   telefones_unicos: number;
   clientes_repetidos: number;
+  repeticoes_telefone_lp?: number;
   salvos_hyperflow: number;
+  unicos_salvos_hyperflow?: number;
+  repetidos_hyperflow?: number;
+  total_salvo_hyperflow?: number;
+  iniciaram_atendimento?: number;
+  iniciaram_atendimento_percentual?: number;
   plano_a: number;
   plano_b: number;
   fallback: number;
@@ -668,6 +674,54 @@ mensagem: formEdicao.mensagem.trim(),
     return { total, telefones, whatsapp, naoIniciado, planoA, planoB };
   }, [eventosHistorico]);
 
+  const metricasMonitor = useMemo(() => {
+    const eventos = monitor?.eventos ?? [];
+    const telefoneSalvo = eventos.filter((item) => item.etapa === "telefone_salvo");
+    const unicosSalvosCalculado = new Set(
+      telefoneSalvo.map((item) => String(item.telefone || "")).filter(Boolean),
+    ).size;
+    const totalSalvoCalculado = telefoneSalvo.length;
+    const repetidosSalvosCalculado = Math.max(
+      totalSalvoCalculado - unicosSalvosCalculado,
+      0,
+    );
+    const repeticoesLpCalculado = Math.max(
+      (monitor?.resumo.tentativas ?? 0) - (monitor?.resumo.telefones_unicos ?? 0),
+      0,
+    );
+
+    const iniciaramCalculado = new Set(
+      eventos
+        .filter(
+          (item) =>
+            item.resultado === "plano_a_whatsapp" ||
+            item.resultado === "plano_b_websdk" ||
+            item.resultado === "fallback_whatsapp",
+        )
+        .map((item) => String(item.telefone || ""))
+        .filter(Boolean),
+    ).size;
+
+    const base = monitor?.resumo.telefones_unicos ?? 0;
+    const iniciaram = monitor?.resumo.iniciaram_atendimento ?? iniciaramCalculado;
+    const percentualCalculado =
+      base > 0 ? Number(((iniciaram / base) * 100).toFixed(1)) : 0;
+
+    return {
+      repeticoesLp:
+        monitor?.resumo.repeticoes_telefone_lp ?? repeticoesLpCalculado,
+      unicosSalvos:
+        monitor?.resumo.unicos_salvos_hyperflow ?? unicosSalvosCalculado,
+      repetidosSalvos:
+        monitor?.resumo.repetidos_hyperflow ?? repetidosSalvosCalculado,
+      totalSalvo:
+        monitor?.resumo.total_salvo_hyperflow ?? totalSalvoCalculado,
+      iniciaram,
+      percentual:
+        monitor?.resumo.iniciaram_atendimento_percentual ?? percentualCalculado,
+    };
+  }, [monitor]);
+
   const resultadosDashboard = useMemo(() => {
     const mapa = new Map<string, number>();
 
@@ -1171,22 +1225,23 @@ mensagem: formEdicao.mensagem.trim(),
         >
           {[
             ["Tentativas na LP", monitor?.resumo.tentativas ?? 0, "#08275c"],
-            ["Telefones únicos", monitor?.resumo.telefones_unicos ?? 0, "#08275c"],
-            ["Clientes repetidos", monitor?.resumo.clientes_repetidos ?? 0, "#08275c"],
-            [
-              "Salvos na Hyperflow - PLANO A e B",
-              (monitor?.resumo.plano_a ?? 0) + (monitor?.resumo.plano_b ?? 0),
-              "#08783e",
-            ],
+            ["Telefones únicos LP", monitor?.resumo.telefones_unicos ?? 0, "#08275c"],
+            ["Repetições de telefone LP", metricasMonitor.repeticoesLp, "#08275c"],
+            ["Plano A → WhatsApp", monitor?.resumo.plano_a ?? 0, "#08783e"],
+            ["Plano B → WebSDK", monitor?.resumo.plano_b ?? 0, "#155eef"],
+            ["Únicos salvos na Hyperflow", metricasMonitor.unicosSalvos, "#08783e"],
+            ["Repetidos na Hyperflow", metricasMonitor.repetidosSalvos, "#a66400"],
+            ["TOTAL SALVO NA HYPERFLOW", metricasMonitor.totalSalvo, "#08783e"],
+            ["INICIARAM ATENDIMENTO %", metricasMonitor.iniciaram, "#155eef"],
             ["Fallback → WhatsApp", monitor?.resumo.fallback ?? 0, "#a66400"],
             [
-              "Falhas sem atendimento - RETRABALHO",
-              (monitor?.resumo.falhas_sem_atendimento ?? 0) +
-                (monitor?.resumo.retrabalhos_pendentes ?? 0),
+              "Falhas / Retrabalho",
+              Math.max(
+                monitor?.resumo.falhas_sem_atendimento ?? 0,
+                monitor?.resumo.retrabalhos_pendentes ?? 0,
+              ),
               "#b42318",
             ],
-            ["Rodízio recuperado 2ª tentativa", monitor?.resumo.rodizio_recuperado ?? 0, "#08783e"],
-            ["Falha técnica do rodízio", monitor?.resumo.rodizio_falhou ?? 0, "#b42318"],
           ].map(([titulo, valor, cor]) => (
             <div
               key={String(titulo)}
@@ -1220,6 +1275,20 @@ mensagem: formEdicao.mensagem.trim(),
               >
                 {valor}
               </strong>
+
+              {titulo === "INICIARAM ATENDIMENTO %" && (
+                <div
+                  style={{
+                    marginTop: 6,
+                    color: "#667085",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    lineHeight: 1.35,
+                  }}
+                >
+                  {metricasMonitor.percentual}% dos telefones únicos da LP
+                </div>
+              )}
             </div>
           ))}
         </div>
