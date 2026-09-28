@@ -1,555 +1,2246 @@
 "use client";
 
+
+
+
+
+
+
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+
+
+
 import { createClient } from "@/lib/supabase/client";
+
+
+
 import "./despesas-fixas.css";
 
+
+
+
+
+
+
 type Despesa = {
+
+
+
   id: string;
+
+
+
   nome: string;
+
+
+
   categoria: string;
+
+
+
   fornecedor: string;
+
+
+
   valor: number;
+
+
+
   dia_vencimento: number;
+
+
+
   inicio_competencia: string;
+
+
+
   fim_competencia: string | null;
+
+
+
   ativo: boolean;
+
+
+
 };
+
+
+
+
+
+
 
 type Pagamento = {
+
+
+
   id: string;
+
+
+
   despesa_recorrente_id: string;
+
+
+
   competencia: string;
+
+
+
   movimento_id: string | null;
+
+
+
   pago_em: string;
+
+
+
   valor_pago: number;
+
+
+
 };
 
+
+
+
+
+
+
+type CategoriaPersonalizada={id:string;nome:string;ativo:boolean};
+
 const moeda = (v: number) =>
+
+
+
   Number(v || 0).toLocaleString("pt-BR", {
+
+
+
     style: "currency",
+
+
+
     currency: "BRL",
+
+
+
   });
 
+
+
+
+
+
+
 const competenciaAtual = () => new Date().toISOString().slice(0, 7);
+
+
+
 const hoje = () => new Date().toISOString().slice(0, 10);
 
+
+
+
+
+
+
 function dataVencimentoCompetencia(competencia: string, dia: number) {
+
+
+
   const [ano, mes] = competencia.split("-").map(Number);
+
+
+
   const ultimoDia = new Date(ano, mes, 0).getDate();
+
+
+
   const diaValido = Math.min(Math.max(Number(dia || 1), 1), ultimoDia);
+
+
+
   return `${ano}-${String(mes).padStart(2, "0")}-${String(diaValido).padStart(2, "0")}`;
+
+
+
 }
+
+
+
 function dataBR(data: string) {
+
+
+
   const [ano, mes, dia] = data.split("-");
+
+
+
   return `${dia}/${mes}/${ano}`;
+
+
+
 }
+
+
+
+
+
+
 
 const numero = (v: string) =>
-  Number(v.replace(/\./g, "").replace(",", ".").replace(/[^\d.-]/g, "") || 0);
 
-function iconeCategoria(categoria: string) {
-  const chave = categoria.trim().toLowerCase();
-  if (chave === "aluguel") return "🏠";
-  if (chave === "sistemas") return "💻";
-  if (chave === "internet") return "🌐";
-  if (chave === "telefonia") return "📞";
-  if (chave === "contabilidade") return "🧾";
-  if (chave === "jurídico") return "⚖️";
-  if (chave === "tráfego pago") return "📣";
-  if (chave === "impostos") return "🏛️";
-  if (chave === "parcelamentos") return "💳";
-  if (chave === "pró-labore") return "👤";
-  return "📌";
-}
+  Number(
 
-export default function DespesasFixasManager() {
-  const supabase = useMemo(() => createClient(), []);
+    v.replace(/\./g, "")
 
-  const [despesas, setDespesas] = useState<Despesa[]>([]);
-  const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
-  const [competencia, setCompetencia] = useState(competenciaAtual());
-  const [form, setForm] = useState(false);
-  const [editandoId, setEditandoId] = useState<string | null>(null);
-  const [mensagem, setMensagem] = useState("");
+      .replace(",", ".")
 
-  const [nome, setNome] = useState("");
-  const [categoria, setCategoria] = useState("Sistemas");
-  const [fornecedor, setFornecedor] = useState("");
-  const [valor, setValor] = useState("");
-  const [dia, setDia] = useState("10");
-  const [inicio, setInicio] = useState(competenciaAtual());
-  const [frequencia, setFrequencia] = useState<"Mensal" | "Única">("Mensal");
+      .replace(/[^\d.-]/g, "") || 0
 
-  const carregar = useCallback(async () => {
-    const [d, p] = await Promise.all([
-      supabase.from("despesas_recorrentes").select("*").order("dia_vencimento"),
-      supabase
-        .from("despesas_recorrentes_pagamentos")
-        .select("*")
-        .eq("competencia", competencia),
-    ]);
-
-    if (d.error) {
-      setMensagem(d.error.message);
-      return;
-    }
-
-    if (p.error) {
-      setMensagem(p.error.message);
-      return;
-    }
-
-    setDespesas((d.data || []) as Despesa[]);
-    setPagamentos((p.data || []) as Pagamento[]);
-  }, [competencia, supabase]);
-
-  useEffect(() => {
-    void carregar();
-  }, [carregar]);
-
-  const ativas = useMemo(
-    () =>
-      despesas.filter(
-        (d) =>
-          d.ativo &&
-          competencia >= d.inicio_competencia &&
-          (!d.fim_competencia || competencia <= d.fim_competencia),
-      ),
-    [despesas, competencia],
   );
 
-  const pagos = new Set(pagamentos.map((p) => p.despesa_recorrente_id));
-  const previsto = ativas.reduce((t, d) => t + Number(d.valor || 0), 0);
-  const pago = pagamentos.reduce((t, p) => t + Number(p.valor_pago || 0), 0);
-  const hojeIso = hoje();
-  const atrasadas = ativas.filter(d => !pagos.has(d.id) && dataVencimentoCompetencia(competencia,d.dia_vencimento) < hojeIso);
-  const pendentes = ativas.filter(d => !pagos.has(d.id) && dataVencimentoCompetencia(competencia,d.dia_vencimento) >= hojeIso);
-  const totalAtrasado = atrasadas.reduce((t,d)=>t+Number(d.valor||0),0);
-  const totalPendente = pendentes.reduce((t,d)=>t+Number(d.valor||0),0);
-  const statusDespesa=(item:Despesa)=>pagos.has(item.id)?"pago":dataVencimentoCompetencia(competencia,item.dia_vencimento)<hojeIso?"atrasado":"pendente";
 
-  function limparFormulario() {
-    setNome("");
-    setCategoria("Sistemas");
-    setFornecedor("");
-    setValor("");
-    setDia("10");
-    setInicio(competenciaAtual());
-    setFrequencia("Mensal");
-    setEditandoId(null);
-  }
 
-  function abrirNovaDespesa() {
-    if (form && !editandoId) {
-      setForm(false);
-      limparFormulario();
+
+
+
+
+function iconeCategoria(categoria: string) {
+
+
+
+  const chave = categoria.trim().toLowerCase();
+
+
+
+  if (chave === "aluguel") return "🏠";
+
+
+
+  if (chave === "sistemas") return "💻";
+
+
+
+  if (chave === "internet") return "🌐";
+
+
+
+  if (chave === "telefonia") return "📞";
+
+
+
+  if (chave === "contabilidade") return "🧾";
+
+
+
+  if (chave === "jurídico") return "⚖️";
+
+
+
+  if (chave === "tráfego pago") return "📣";
+
+
+
+  if (chave === "impostos") return "🏛️";
+
+
+
+  if (chave === "parcelamentos") return "💳";
+
+
+
+  if (chave === "pró-labore") return "👤";
+
+
+
+  return "📌";
+
+
+
+}
+
+
+
+
+
+
+
+export default function DespesasFixasManager() {
+
+
+
+  const supabase = useMemo(() => createClient(), []);
+
+
+
+
+
+
+
+  const [despesas, setDespesas] = useState<Despesa[]>([]);
+
+
+
+  const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
+
+
+
+  const [competencia, setCompetencia] = useState(competenciaAtual());
+
+
+
+  const [form, setForm] = useState(false);
+
+
+
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+
+
+
+  const [mensagem, setMensagem] = useState("");
+  const [categoriasPersonalizadas,setCategoriasPersonalizadas]=useState<CategoriaPersonalizada[]>([]);
+  const [novaCategoria,setNovaCategoria]=useState("");
+  const [criandoCategoria,setCriandoCategoria]=useState(false);
+
+
+
+
+
+
+
+  const [nome, setNome] = useState("");
+
+
+
+  const [categoria, setCategoria] = useState("Sistemas");
+
+
+
+  const [fornecedor, setFornecedor] = useState("");
+
+
+
+  const [valor, setValor] = useState("");
+
+
+
+  const [dia, setDia] = useState("10");
+
+
+
+  const [inicio, setInicio] = useState(competenciaAtual());
+
+
+
+  const [frequencia, setFrequencia] = useState<"Mensal" | "Única">("Mensal");
+
+
+
+
+
+
+
+  const carregar = useCallback(async () => {
+
+
+
+    const [d,p,c]=await Promise.all([
+      supabase.from("despesas_recorrentes").select("*").order("dia_vencimento"),
+      supabase.from("despesas_recorrentes_pagamentos").select("*").eq("competencia",competencia),
+      supabase.from("config_financeiro_itens").select("id,nome,ativo").eq("tipo","categoria_despesa").eq("ativo",true).order("nome",{ascending:true}),
+    ]);
+
+
+
+
+
+
+
+    if (d.error) {
+
+
+
+      setMensagem(d.error.message);
+
+
+
       return;
+
+
+
     }
 
-    limparFormulario();
-    setMensagem("");
-    setForm(true);
+
+
+
+
+
+
+    if (p.error) {
+
+
+
+      setMensagem(p.error.message);
+
+
+
+      return;
+
+
+
+    }
+
+
+
+
+
+
+
+    if(c.error){setMensagem(c.error.message);return}
+    setDespesas((d.data || []) as Despesa[]);
+
+
+
+    setPagamentos((p.data || []) as Pagamento[]);
+    setCategoriasPersonalizadas((c.data || []) as CategoriaPersonalizada[]);
+
+
+
+  }, [competencia, supabase]);
+
+
+
+
+
+
+
+  useEffect(() => {
+
+
+
+    void carregar();
+
+
+
+  }, [carregar]);
+
+
+
+
+
+
+
+  const ativas = useMemo(
+
+
+
+    () =>
+
+
+
+      despesas.filter(
+
+
+
+        (d) =>
+
+
+
+          d.ativo &&
+
+
+
+          competencia >= d.inicio_competencia &&
+
+
+
+          (!d.fim_competencia || competencia <= d.fim_competencia),
+
+
+
+      ),
+
+
+
+    [despesas, competencia],
+
+
+
+  );
+
+
+
+
+
+
+
+  const pagos = new Set(pagamentos.map((p) => p.despesa_recorrente_id));
+
+
+
+  const previsto = ativas.reduce((t, d) => t + Number(d.valor || 0), 0);
+
+
+
+  const pago = pagamentos.reduce((t, p) => t + Number(p.valor_pago || 0), 0);
+
+
+
+  const hojeIso = hoje();
+
+
+
+  const atrasadas = ativas.filter(d => !pagos.has(d.id) && dataVencimentoCompetencia(competencia,d.dia_vencimento) < hojeIso);
+
+
+
+  const pendentes = ativas.filter(d => !pagos.has(d.id) && dataVencimentoCompetencia(competencia,d.dia_vencimento) >= hojeIso);
+
+
+
+  const totalAtrasado = atrasadas.reduce((t,d)=>t+Number(d.valor||0),0);
+
+
+
+  const totalPendente = pendentes.reduce((t,d)=>t+Number(d.valor||0),0);
+
+
+
+  const statusDespesa=(item:Despesa)=>pagos.has(item.id)?"pago":dataVencimentoCompetencia(competencia,item.dia_vencimento)<hojeIso?"atrasado":"pendente";
+
+
+
+
+
+
+
+  function limparFormulario() {
+
+
+
+    setNome("");
+
+
+
+    setCategoria("Sistemas");
+
+
+
+    setFornecedor("");
+
+
+
+    setValor("");
+
+
+
+    setDia("10");
+
+
+
+    setInicio(competenciaAtual());
+
+
+
+    setFrequencia("Mensal");
+
+
+
+    setEditandoId(null);
+
+
+
   }
 
-  function editar(item: Despesa) {
-    setEditandoId(item.id);
-    setNome(item.nome || "");
-    setCategoria(item.categoria || "Sistemas");
-    setFornecedor(item.fornecedor || "");
-    setValor(
-      Number(item.valor || 0)
-        .toFixed(2)
-        .replace(".", ","),
-    );
-    setDia(String(item.dia_vencimento || 10));
-    setInicio(item.inicio_competencia || competenciaAtual());
-    setFrequencia(
-      item.fim_competencia && item.fim_competencia === item.inicio_competencia
-        ? "Única"
-        : "Mensal"
-    );
+
+
+
+
+
+
+  function abrirNovaDespesa() {
+
+
+
+    if (form && !editandoId) {
+
+
+
+      setForm(false);
+
+
+
+      limparFormulario();
+
+
+
+      return;
+
+
+
+    }
+
+
+
+
+
+
+
+    limparFormulario();
+
+
+
     setMensagem("");
+
+
+
     setForm(true);
 
+
+
+  }
+
+
+
+
+
+
+
+  function editar(item: Despesa) {
+
+
+
+    setEditandoId(item.id);
+
+
+
+    setNome(item.nome || "");
+
+
+
+    setCategoria(item.categoria || "Sistemas");
+
+
+
+    setFornecedor(item.fornecedor || "");
+
+
+
+    setValor(
+
+
+
+      Number(item.valor || 0)
+
+
+
+        .toFixed(2)
+
+
+
+        .replace(".", ","),
+
+
+
+    );
+
+
+
+    setDia(String(item.dia_vencimento || 10));
+
+
+
+    setInicio(item.inicio_competencia || competenciaAtual());
+
+
+
+    setFrequencia(
+
+
+
+      item.fim_competencia && item.fim_competencia === item.inicio_competencia
+
+
+
+        ? "Única"
+
+
+
+        : "Mensal"
+
+
+
+    );
+
+
+
+    setMensagem("");
+
+
+
+    setForm(true);
+
+
+
+
+
+
+
     window.scrollTo({
+
+
+
       top: 0,
+
+
+
       behavior: "smooth",
+
+
+
     });
+
+
+
+  }
+
+
+
+
+
+
+
+  async function criarCategoria(){
+    const nomeCategoria=novaCategoria.trim();
+    if(!nomeCategoria){setMensagem("Digite o nome da nova categoria.");return}
+    const padrao=["Sistemas","Aluguel","Internet","Telefonia","Contabilidade","Jurídico","Tráfego pago","Impostos","Parcelamentos","Pró-labore","Outros"];
+    if([...padrao,...categoriasPersonalizadas.map(x=>x.nome)].some(x=>x.toLocaleLowerCase("pt-BR")===nomeCategoria.toLocaleLowerCase("pt-BR"))){setMensagem("Essa categoria já existe.");return}
+    const {data,error}=await supabase.from("config_financeiro_itens").insert({tipo:"categoria_despesa",nome:nomeCategoria,ativo:true}).select("id,nome,ativo").single();
+    if(error||!data){setMensagem(error?.message||"Não foi possível criar a categoria.");return}
+    setCategoriasPersonalizadas(prev=>[...prev,data as CategoriaPersonalizada].sort((x,y)=>x.nome.localeCompare(y.nome,"pt-BR")));
+    setCategoria(nomeCategoria);setNovaCategoria("");setCriandoCategoria(false);setMensagem(`Categoria "${nomeCategoria}" criada com sucesso.`);
+  }
+
+  async function excluirCategoriaPersonalizada(item:CategoriaPersonalizada){
+    const emUso=despesas.some(d=>d.categoria.toLocaleLowerCase("pt-BR")===item.nome.toLocaleLowerCase("pt-BR"));
+    if(!window.confirm(emUso?`A categoria "${item.nome}" já é usada. Remover da lista mesmo assim?`:`Excluir a categoria "${item.nome}" da lista?`))return;
+    const {error}=await supabase.from("config_financeiro_itens").update({ativo:false}).eq("id",item.id);
+    if(error){setMensagem(error.message);return}
+    setCategoriasPersonalizadas(prev=>prev.filter(x=>x.id!==item.id));if(categoria===item.nome)setCategoria("Outros");
   }
 
   async function salvar(e: FormEvent) {
+
+
+
     e.preventDefault();
+
+
+
     setMensagem("");
 
+
+
+
+
+
+
     const v = numero(valor);
+
+
+
     const venc = Number(dia);
 
+
+
+
+
+
+
     if (!nome.trim() || v <= 0 || venc < 1 || venc > 31) {
+
+
+
       setMensagem("Preencha nome, valor e vencimento corretamente.");
+
+
+
       return;
+
+
+
     }
+
+
+
+
+
+
 
     const dados = {
+
+
+
       nome: nome.trim(),
+
+
+
       categoria,
+
+
+
       fornecedor: fornecedor.trim(),
+
+
+
       valor: v,
+
+
+
       dia_vencimento: venc,
+
+
+
       inicio_competencia: inicio,
+
+
+
       fim_competencia: frequencia === "Única" ? inicio : null,
+
+
+
       ativo: true,
+
+
+
       atualizado_em: new Date().toISOString(),
+
+
+
     };
 
+
+
+
+
+
+
     if (editandoId) {
+
+
+
       const { error } = await supabase
+
+
+
         .from("despesas_recorrentes")
+
+
+
         .update(dados)
+
+
+
         .eq("id", editandoId);
 
+
+
+
+
+
+
       if (error) {
+
+
+
         setMensagem(error.message);
+
+
+
         return;
+
+
+
       }
+
+
+
+
+
+
 
       setMensagem("Despesa fixa atualizada com sucesso.");
+
+
+
     } else {
+
+
+
       const { error } = await supabase
+
+
+
         .from("despesas_recorrentes")
+
+
+
         .insert(dados);
 
+
+
+
+
+
+
       if (error) {
+
+
+
         setMensagem(error.message);
+
+
+
         return;
+
+
+
       }
 
+
+
+
+
+
+
       setMensagem(
+
+
+
         frequencia === "Mensal"
+
+
+
           ? "Despesa mensal cadastrada. Ela aparecerá automaticamente nas próximas competências."
+
+
+
           : "Despesa única cadastrada somente para a competência selecionada."
+
+
+
       );
+
+
+
     }
 
+
+
+
+
+
+
     limparFormulario();
+
+
+
     setForm(false);
+
+
+
     await carregar();
+
+
+
   }
 
+
+
+
+
+
+
   async function marcarPago(item: Despesa) {
+
+
+
     if (pagos.has(item.id)) return;
 
+
+
+
+
+
+
     const data = window.prompt(`Data do pagamento de ${item.nome}:`, hoje());
+
+
+
     if (!data) return;
 
+
+
+
+
+
+
     const digitado = window.prompt(
+
+
+
       "Valor pago:",
+
+
+
       Number(item.valor).toFixed(2).replace(".", ","),
+
+
+
     );
+
+
+
     if (!digitado) return;
 
+
+
+
+
+
+
     const v = numero(digitado);
+
+
+
     if (v <= 0) return;
+
+
+
+
+
+
 
     const { data: sessao } = await supabase.auth.getSession();
 
+
+
+
+
+
+
     const { data: mov, error: em } = await supabase
+
+
+
       .from("movimentos_financeiros")
+
+
+
       .insert({
+
+
+
         tipo: "Saída",
+
+
+
         produto: "",
+
+
+
         banco: null,
+
+
+
         parceiro: item.fornecedor || null,
+
+
+
         categoria: item.categoria || "Despesa fixa",
+
+
+
         descricao: `${item.nome} — ${competencia}`,
+
+
+
         valor: v,
+
+
+
         data,
+
+
+
         criado_por: sessao.session?.user.id || null,
+
+
+
         atualizado_em: new Date().toISOString(),
+
+
+
       })
+
+
+
       .select("id")
+
+
+
       .single();
 
+
+
+
+
+
+
     if (em || !mov) {
+
+
+
       setMensagem(em?.message || "Erro ao gerar saída.");
+
+
+
       return;
+
+
+
     }
+
+
+
+
+
+
 
     const { error: ep } = await supabase
+
+
+
       .from("despesas_recorrentes_pagamentos")
+
+
+
       .insert({
+
+
+
         despesa_recorrente_id: item.id,
+
+
+
         competencia,
+
+
+
         movimento_id: mov.id,
+
+
+
         pago_em: data,
+
+
+
         valor_pago: v,
+
+
+
       });
 
+
+
+
+
+
+
     if (ep) {
+
+
+
       setMensagem(ep.message);
+
+
+
       return;
+
+
+
     }
+
+
+
+
+
+
 
     setMensagem(`${item.nome} marcado como pago.`);
+
+
+
     await carregar();
+
+
+
   }
+
+
+
+
+
+
+
+  async function reabrirPagamento(item: Despesa) {
+
+    const pagamento = pagamentos.find((p) => p.despesa_recorrente_id === item.id);
+
+    if (!pagamento) { setMensagem("Pagamento não encontrado nesta competência."); return; }
+
+    if (!window.confirm(`Desfazer o pagamento de ${item.nome}? A despesa voltará para Pendente/Atrasada.`)) return;
+
+    setMensagem("");
+
+    if (pagamento.movimento_id) {
+
+      const { error: erroMovimento } = await supabase.from("movimentos_financeiros").delete().eq("id", pagamento.movimento_id);
+
+      if (erroMovimento) { setMensagem(erroMovimento.message); return; }
+
+    }
+
+    const { error: erroPagamento } = await supabase.from("despesas_recorrentes_pagamentos").delete().eq("id", pagamento.id);
+
+    if (erroPagamento) { setMensagem(erroPagamento.message); return; }
+
+    setMensagem(`${item.nome} voltou para pendente nesta competência.`);
+
+    await carregar();
+
+  }
+
+
+
+  async function excluirDespesa(item: Despesa) {
+
+    if (!window.confirm(`Excluir definitivamente a despesa fixa "${item.nome}"?`)) return;
+
+    setMensagem("");
+
+    const { data: historico, error: erroHistorico } = await supabase.from("despesas_recorrentes_pagamentos").select("id,movimento_id").eq("despesa_recorrente_id", item.id);
+
+    if (erroHistorico) { setMensagem(erroHistorico.message); return; }
+
+    for (const pagamento of historico || []) {
+
+      if (pagamento.movimento_id) {
+
+        const { error: erroMovimento } = await supabase.from("movimentos_financeiros").delete().eq("id", pagamento.movimento_id);
+
+        if (erroMovimento) { setMensagem(erroMovimento.message); return; }
+
+      }
+
+    }
+
+    const { error: erroPagamentos } = await supabase.from("despesas_recorrentes_pagamentos").delete().eq("despesa_recorrente_id", item.id);
+
+    if (erroPagamentos) { setMensagem(erroPagamentos.message); return; }
+
+    const { error } = await supabase.from("despesas_recorrentes").delete().eq("id", item.id);
+
+    if (error) { setMensagem(error.message); return; }
+
+    if (editandoId === item.id) { limparFormulario(); setForm(false); }
+
+    setMensagem(`${item.nome} excluída com sucesso.`);
+
+    await carregar();
+
+  }
+
+
 
   async function pausar(item: Despesa) {
+
+
+
     const { error } = await supabase
+
+
+
       .from("despesas_recorrentes")
+
+
+
       .update({
+
+
+
         ativo: false,
+
+
+
         atualizado_em: new Date().toISOString(),
+
+
+
       })
+
+
+
       .eq("id", item.id);
 
+
+
+
+
+
+
     if (error) {
+
+
+
       setMensagem(error.message);
+
+
+
       return;
+
+
+
     }
+
+
+
+
+
+
 
     if (editandoId === item.id) {
+
+
+
       limparFormulario();
+
+
+
       setForm(false);
+
+
+
     }
 
+
+
+
+
+
+
     await carregar();
+
+
+
   }
 
+
+
+
+
+
+
   return (
+
+
+
     <div className="df-page">
+
+
+
       <section className="df-head">
+
+
+
         <div>
+
+
+
           <span>DESPESAS FIXAS</span>
+
+
+
           <h2>Compromissos recorrentes</h2>
+
+
+
           <p>
+
+
+
             Cadastre uma vez e o sistema considera a despesa automaticamente em
+
+
+
             cada mês.
+
+
+
           </p>
+
+
+
         </div>
+
+
+
+
+
+
 
         <button type="button" onClick={abrirNovaDespesa}>
+
+
+
           {form && !editandoId ? "Fechar" : "+ Nova despesa fixa"}
+
+
+
         </button>
+
+
+
       </section>
+
+
+
+
+
+
 
       <section className="df-toolbar">
+
+
+
         <label>
+
+
+
           Competência
+
+
+
           <input
+
+
+
             type="month"
+
+
+
             value={competencia}
+
+
+
             onChange={(e) => setCompetencia(e.target.value)}
+
+
+
           />
+
+
+
         </label>
 
+
+
+
+
+
+
         <div className="df-kpis df-kpis-status">
+
+
+
           <div className="total"><span>Total previsto</span><strong>{moeda(previsto)}</strong><small>{ativas.length} compromisso(s) na competência</small></div>
+
+
+
           <div className="atrasado"><span>Despesas atrasadas</span><strong>{moeda(totalAtrasado)}</strong><small>{atrasadas.length} vencida(s) e não paga(s)</small></div>
+
+
+
           <div className="pendente"><span>Despesas pendentes</span><strong>{moeda(totalPendente)}</strong><small>{pendentes.length} ainda dentro do vencimento</small></div>
+
+
+
           <div className="pago"><span>Despesas pagas</span><strong>{moeda(pago)}</strong><small>{pagamentos.length} pagamento(s) na competência</small></div>
+
+
+
         </div>
+
+
+
       </section>
 
+
+
+
+
+
+
       {form && (
+
+
+
         <form className="df-form" onSubmit={salvar}>
+
+
+
           {editandoId && (
+
+
+
             <div className="df-editing-banner">
+
+
+
               <strong>Editando despesa fixa</strong>
+
+
+
               <span>
+
+
+
                 Altere os campos abaixo e clique em “Salvar alterações”.
+
+
+
               </span>
+
+
+
             </div>
+
+
+
           )}
 
+
+
+
+
+
+
           <label>
+
+
+
             Despesa
+
+
+
             <input
+
+
+
               value={nome}
+
+
+
               onChange={(e) => setNome(e.target.value)}
+
+
+
               placeholder="Ex.: Hyperflow"
+
+
+
             />
+
+
+
           </label>
 
-          <label>
-            Categoria
-            <select
-              value={categoria}
-              onChange={(e) => setCategoria(e.target.value)}
-            >
-              {[
-                "Sistemas",
-                "Aluguel",
-                "Internet",
-                "Telefonia",
-                "Contabilidade",
-                "Jurídico",
-                "Tráfego pago",
-                "Impostos",
-                "Parcelamentos",
-                "Pró-labore",
-                "Outros",
-              ].map((x) => (
-                <option key={x}>{x}</option>
-              ))}
-            </select>
-          </label>
+
+
+
+
+
 
           <label>
+              Categoria
+              <select value={categoria} onChange={(e)=>{if(e.target.value==="__nova__"){setCriandoCategoria(true);return}setCategoria(e.target.value)}}>
+                {["Sistemas","Aluguel","Internet","Telefonia","Contabilidade","Jurídico","Tráfego pago","Impostos","Parcelamentos","Pró-labore","Outros"].map(x=><option key={x} value={x}>{x}</option>)}
+                {categoriasPersonalizadas.map(x=><option key={x.id} value={x.nome}>{x.nome}</option>)}
+                <option value="__nova__">＋ Criar nova categoria</option>
+              </select>
+            </label>
+            {criandoCategoria&&<div className="df-new-category">
+              <label>Nova categoria<input value={novaCategoria} onChange={e=>setNovaCategoria(e.target.value)} placeholder="Ex.: Energia" autoFocus/></label>
+              <button type="button" onClick={()=>void criarCategoria()}>Criar categoria</button>
+              <button type="button" className="df-cancel-edit" onClick={()=>{setCriandoCategoria(false);setNovaCategoria("")}}>Cancelar</button>
+            </div>}
+            {categoriasPersonalizadas.length>0&&<div className="df-custom-categories"><strong>Minhas categorias</strong><div>
+              {categoriasPersonalizadas.map(item=><span key={item.id}>{item.nome}<button type="button" onClick={()=>void excluirCategoriaPersonalizada(item)}>×</button></span>)}
+            </div></div>}
+
+
+
+
+
+
+
+          <label>
+
+
+
             Fornecedor
+
+
+
             <input
+
+
+
               value={fornecedor}
+
+
+
               onChange={(e) => setFornecedor(e.target.value)}
+
+
+
             />
+
+
+
           </label>
 
+
+
+
+
+
+
           <label>
+
+
+
             Valor mensal
+
+
+
             <input
+
+
+
               value={valor}
+
+
+
               onChange={(e) => setValor(e.target.value)}
+
+
+
               placeholder="1.500,00"
+
+
+
             />
+
+
+
           </label>
 
+
+
+
+
+
+
           <label>
+
+
+
             Frequência
+
+
+
             <select value={frequencia} onChange={(e) => setFrequencia(e.target.value as "Mensal" | "Única")}>
+
+
+
               <option value="Mensal">Mensal — repetir todo mês</option>
+
+
+
               <option value="Única">Única — somente esta competência</option>
+
+
+
             </select>
+
+
+
           </label>
 
+
+
+
+
+
+
           <label>
+
+
+
             Vencimento
+
+
+
             <input
+
+
+
               type="number"
+
+
+
               min="1"
+
+
+
               max="31"
+
+
+
               value={dia}
+
+
+
               onChange={(e) => setDia(e.target.value)}
+
+
+
             />
+
+
+
           </label>
 
+
+
+
+
+
+
           <label>
+
+
+
             {frequencia === "Mensal" ? "Começa em" : "Competência"}
+
+
+
             <input
+
+
+
               type="month"
+
+
+
               value={inicio}
+
+
+
               onChange={(e) => setInicio(e.target.value)}
+
+
+
             />
+
+
+
           </label>
+
+
+
+
+
+
 
           <div className={`df-frequency-note ${frequencia === "Mensal" ? "mensal" : "unica"}`}>
+
+
+
             <strong>{frequencia === "Mensal" ? "↻ DESPESA MENSAL" : "1× DESPESA ÚNICA"}</strong>
+
+
+
             <span>
+
+
+
               {frequencia === "Mensal"
+
+
+
                 ? "Será criada automaticamente em todas as competências a partir do mês escolhido, até você pausar."
+
+
+
                 : "Aparecerá somente no mês escolhido e não será repetida nos meses seguintes."}
+
+
+
             </span>
+
+
+
           </div>
 
+
+
+
+
+
+
           <button type="submit">
+
+
+
             {editandoId ? "Salvar alterações" : "Salvar"}
+
+
+
           </button>
 
+
+
+
+
+
+
           {editandoId && (
+
+
+
             <button
+
+
+
               type="button"
+
+
+
               className="df-cancel-edit"
+
+
+
               onClick={() => {
+
+
+
                 limparFormulario();
+
+
+
                 setForm(false);
+
+
+
               }}
+
+
+
             >
+
+
+
               Cancelar edição
+
+
+
             </button>
+
+
+
           )}
+
+
+
         </form>
+
+
+
       )}
+
+
+
+
+
+
 
       {mensagem && <div className="df-message">{mensagem}</div>}
 
+
+
+
+
+
+
       <section className="df-list df-list-modern">
+
+
+
         <div className="df-list-head">
+
+
+
           <span>Despesa</span>
+
+
+
           <span>Categoria</span>
+
+
+
           <span>Frequência</span>
+
+
+
           <span>Vencimento</span>
+
+
+
           <span>Valor</span>
+
+
+
           <span>Status</span>
+
+
+
           <span>Ações</span>
+
+
+
         </div>
 
+
+
+
+
+
+
         {ativas.length === 0 ? (
+
+
+
           <div className="df-empty">
+
+
+
             Nenhuma despesa fixa nesta competência.
+
+
+
           </div>
+
+
+
         ) : (
+
+
+
           ativas.map((item) => (
+
+
+
             <article key={item.id} className="df-expense-row">
+
+
+
               <div className="df-expense-name">
+
+
+
                 <strong>{item.nome}</strong>
+
+
+
                 <small>{item.fornecedor || "Sem fornecedor"}</small>
+
+
+
               </div>
 
+
+
+
+
+
+
               <div>
+
+
+
                 <span className="df-category-pill">
+
+
+
                   <b className="df-category-icon">
+
+
+
                     {iconeCategoria(item.categoria)}
+
+
+
                   </b>
+
+
+
                   {item.categoria}
+
+
+
                 </span>
+
+
+
               </div>
 
+
+
+
+
+
+
               <div>
+
+
+
                 <span className={`df-frequency-pill ${item.fim_competencia === item.inicio_competencia ? "unica" : "mensal"}`}>
+
+
+
                   {item.fim_competencia === item.inicio_competencia ? "1× Única" : "↻ Mensal"}
+
+
+
                 </span>
+
+
+
               </div>
+
+
+
+
+
+
 
               <div className="df-due">
+
+
+
                 <span className="df-due-icon" aria-hidden="true">
+
+
+
                   📅
+
+
+
                 </span>
+
+
+
                 <strong>{dataBR(dataVencimentoCompetencia(competencia, item.dia_vencimento))}</strong>
+
+
+
               </div>
+
+
+
+
+
+
 
               <strong className="df-value">{moeda(item.valor)}</strong>
 
+
+
+
+
+
+
               {(() => { const status=statusDespesa(item); return <span className={`df-status ${status}`}><b>{status==="pago"?"✓":status==="atrasado"?"!":"⌛"}</b>{status==="pago"?"Pago":status==="atrasado"?"Atrasado":"Pendente"}</span>; })()}
 
+
+
+
+
+
+
               <div className="df-actions">
+
+
+
                 <button
+
+
+
                   type="button"
+
+
+
                   className="edit"
+
+
+
                   onClick={() => editar(item)}
+
+
+
                 >
+
+
+
                   ✎ Editar
+
+
+
                 </button>
+
+
+
+
+
+
 
                 {!pagos.has(item.id) && (
+
+
+
                   <button
+
+
+
                     type="button"
+
+
+
                     className="primary"
+
+
+
                     onClick={() => void marcarPago(item)}
+
+
+
                   >
+
+
+
                     Marcar pago
+
+
+
                   </button>
+
+
+
                 )}
 
+
+
+                {pagos.has(item.id) && (
+
+                  <button type="button" className="secondary" onClick={() => void reabrirPagamento(item)}>
+
+                    ↶ Reabrir pagamento
+
+                  </button>
+
+                )}
+
+
+
+
+
+
+
                 <button
+
+
+
                   type="button"
+
+
+
                   className="secondary"
+
+
+
                   onClick={() => void pausar(item)}
+
+
+
                 >
+
+
+
                   Ⅱ&nbsp;&nbsp;Pausar
+
+
+
                 </button>
+
+
+
+                <button type="button" className="delete" onClick={() => void excluirDespesa(item)}>
+
+                  Excluir
+
+                </button>
+
+
+
               </div>
+
+
+
             </article>
+
+
+
           ))
+
+
+
         )}
+
+
+
       </section>
+
+
+
     </div>
+
+
+
   );
+
+
+
 }

@@ -56,7 +56,6 @@ type TabelaConfigurada = {
 
 type UsuarioLocal = {
   id?: string;
-  usuario_id?: string;
   nome?: string;
   email?: string;
   matricula?: string;
@@ -89,25 +88,12 @@ type FaixaPremiacao = {
 
 type PrevisaoLiberada = {
   id: string;
-  competencia_id?: string | null;
   usuario_id: string;
-  usuario_nome?: string | null;
   plano_codigo: string;
   pontos_liberados: number;
   valor_reais_liberado: number;
   status: string;
-  liberado_em?: string | null;
 };
-
-function uuidValido(valor?: string | null) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    String(valor || "").trim(),
-  );
-}
-
-function idUsuarioValido(...candidatos: Array<string | null | undefined>) {
-  return candidatos.find((valor) => uuidValido(valor)) || "";
-}
 
 function normalizar(valor: string) {
   return String(valor || "")
@@ -397,7 +383,7 @@ function mergePropostasComLocal(api: PropostaCompra[]) {
 }
 
 
-export default function PremiacaoManagerV3() {
+function PremiacaoManagerV3() {
   const supabase = useMemo(() => createClient(), []);
 
   const [carregando, setCarregando] = useState(true);
@@ -416,7 +402,6 @@ export default function PremiacaoManagerV3() {
   const [saques, setSaques] = useState<SaquePremiacao[]>([]);
   const [previsoesLiberadas, setPrevisoesLiberadas] =
     useState<PrevisaoLiberada[]>([]);
-  const [competenciaIdAtual, setCompetenciaIdAtual] = useState("");
 
   const [usuarioLogadoId, setUsuarioLogadoId] = useState("");
   const [nomeLogado, setNomeLogado] = useState("");
@@ -484,16 +469,7 @@ export default function PremiacaoManagerV3() {
 
             return {
               ...local,
-              id: idUsuarioValido(
-                String(colaboradora.usuario_id || ""),
-                String(local.usuario_id || ""),
-                String(local.id || ""),
-              ),
-              usuario_id: idUsuarioValido(
-                String(colaboradora.usuario_id || ""),
-                String(local.usuario_id || ""),
-                String(local.id || ""),
-              ),
+              id: String(colaboradora.id || local.id || ""),
               nome: colaboradora.nome || local.nome,
               email: colaboradora.email || local.email,
               matricula: colaboradora.matricula || local.matricula,
@@ -515,16 +491,7 @@ export default function PremiacaoManagerV3() {
             if (indice >= 0) {
               listaUsuarios[indice] = {
                 ...listaUsuarios[indice],
-                id: idUsuarioValido(
-                  String(colaboradora.usuario_id || ""),
-                  String(listaUsuarios[indice].usuario_id || ""),
-                  String(listaUsuarios[indice].id || ""),
-                ),
-                usuario_id: idUsuarioValido(
-                  String(colaboradora.usuario_id || ""),
-                  String(listaUsuarios[indice].usuario_id || ""),
-                  String(listaUsuarios[indice].id || ""),
-                ),
+                id: String(colaboradora.id || listaUsuarios[indice].id || ""),
                 nome: colaboradora.nome || listaUsuarios[indice].nome,
                 email: colaboradora.email || listaUsuarios[indice].email,
                 matricula:
@@ -536,8 +503,7 @@ export default function PremiacaoManagerV3() {
               };
             } else {
               listaUsuarios.push({
-                id: idUsuarioValido(String(colaboradora.usuario_id || "")),
-                usuario_id: idUsuarioValido(String(colaboradora.usuario_id || "")),
+                id: String(colaboradora.id || ""),
                 nome: colaboradora.nome || "",
                 email: colaboradora.email || "",
                 matricula: colaboradora.matricula || "",
@@ -560,11 +526,7 @@ export default function PremiacaoManagerV3() {
         localStorage.getItem("somos-eleva-matricula") || login;
 
       const usuarioLocal =
-        listaUsuarios.find(
-          (item) =>
-            String(item.usuario_id || "") === authId ||
-            String(item.id || "") === authId,
-        ) ||
+        listaUsuarios.find((item) => String(item.id || "") === authId) ||
         listaUsuarios.find(
           (item) =>
             String(item.id || "") === login ||
@@ -649,7 +611,6 @@ export default function PremiacaoManagerV3() {
         { data: extratoData, error: extratoErro },
         { data: saquesData, error: saquesErro },
         { data: previsoesData, error: previsoesErro },
-        { data: competenciaData, error: competenciaErro },
       ] = await Promise.all([
         supabase
           .from("premiacao_planos")
@@ -676,14 +637,9 @@ export default function PremiacaoManagerV3() {
         supabase
           .from("premiacao_previsoes")
           .select(
-            "id, competencia_id, usuario_id, usuario_nome, plano_codigo, pontos_liberados, valor_reais_liberado, status, liberado_em",
+            "id, usuario_id, plano_codigo, pontos_liberados, valor_reais_liberado, status",
           )
           .eq("status", "LIBERADA"),
-        supabase
-          .from("premiacao_competencias")
-          .select("id, competencia")
-          .eq("competencia", primeiroDiaCompetencia(competencia))
-          .maybeSingle(),
       ]);
 
       if (planosErro) throw new Error(planosErro.message);
@@ -691,9 +647,6 @@ export default function PremiacaoManagerV3() {
       if (extratoErro) throw new Error(extratoErro.message);
       if (saquesErro) throw new Error(saquesErro.message);
       if (previsoesErro) throw new Error(previsoesErro.message);
-      if (competenciaErro) throw new Error(competenciaErro.message);
-
-      setCompetenciaIdAtual(String(competenciaData?.id || ""));
 
       setPlanos((planosData || []) as PlanoPremiacao[]);
       setFaixas((faixasData || []) as FaixaPremiacao[]);
@@ -804,7 +757,11 @@ export default function PremiacaoManagerV3() {
         return (
           perfilVendas(perfil) ||
           perfilOperacional(perfil) ||
-          perfilCoordenacao(perfil)
+          perfilCoordenacao(perfil) ||
+          perfilSupervisao(perfil) ||
+          normalizar(perfil).includes("qualidade") ||
+          normalizar(String(usuario.nome || "")).includes("vinicius") ||
+          normalizar(String(usuario.nome || "")).includes("sthefane")
         );
       })
       .forEach((usuario) => adicionar(String(usuario.nome || "")));
@@ -816,39 +773,8 @@ export default function PremiacaoManagerV3() {
       return [canonico(nomeLogado) || nomeLogado];
     }
 
-    const liberadosNestaCompetencia = new Set(
-      previsoesLiberadas
-        .filter(
-          (item) =>
-            item.status === "LIBERADA" &&
-            Boolean(competenciaIdAtual) &&
-            String(item.competencia_id || "") === competenciaIdAtual,
-        )
-        .map((item) => String(item.usuario_id || "")),
-    );
-
-    return [...mapa.values()]
-      .filter((nome) => {
-        const usuario = usuarios.find(
-          (item) =>
-            normalizar(String(item.nome || "")) === normalizar(nome) ||
-            nomesCorrespondem(String(item.nome || ""), nome),
-        );
-
-        const idReal = idUsuarioValido(usuario?.usuario_id, usuario?.id);
-        if (!idReal) return true;
-        return !liberadosNestaCompetencia.has(idReal);
-      })
-      .sort((a, b) => a.localeCompare(b, "pt-BR"));
-  }, [
-    usuarios,
-    propostas,
-    clt,
-    ehGestor,
-    nomeLogado,
-    previsoesLiberadas,
-    competenciaIdAtual,
-  ]);
+    return [...mapa.values()].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [usuarios, propostas, clt, ehGestor, nomeLogado]);
   useEffect(() => {
     if (!nomeLogado) return;
 
@@ -885,11 +811,8 @@ export default function PremiacaoManagerV3() {
     );
   }, [usuarios, ehGestor, consultoraSelecionada, nomeLogado]);
 
-  const usuarioSelecionadoId = idUsuarioValido(
-    usuarioSelecionado?.usuario_id,
-    usuarioSelecionado?.id,
-    !ehGestor ? usuarioLogadoId : "",
-  );
+  const usuarioSelecionadoId =
+    usuarioSelecionado?.id || (!ehGestor ? usuarioLogadoId : "");
 
   const usuarioCarteira = useMemo(() => {
     if (!ehGestor) return usuarioSelecionado;
@@ -903,34 +826,9 @@ export default function PremiacaoManagerV3() {
     );
   }, [usuarios, ehGestor, usuarioSelecionado, usuarioLogadoId, nomeLogado]);
 
-  const usuarioCarteiraId = idUsuarioValido(
-    usuarioCarteira?.usuario_id,
-    usuarioCarteira?.id,
-    !ehGestor ? usuarioSelecionadoId : "",
-    usuarioLogadoId,
+  const usuarioCarteiraId = String(
+    usuarioCarteira?.id || (!ehGestor ? usuarioSelecionadoId : "")
   );
-
-  const idsCarteira = useMemo(() => {
-    const ids = new Set<string>();
-    const idCarteira = idUsuarioValido(
-      usuarioCarteira?.usuario_id,
-      usuarioCarteira?.id,
-    );
-    if (idCarteira) ids.add(idCarteira);
-    if (uuidValido(usuarioLogadoId)) ids.add(String(usuarioLogadoId));
-
-    const nomeCarteira = String(usuarioCarteira?.nome || nomeLogado || "");
-    usuarios.forEach((usuario) => {
-      if (
-        usuario.id &&
-        nomesCorrespondem(String(usuario.nome || ""), nomeCarteira)
-      ) {
-        ids.add(String(usuario.id));
-      }
-    });
-
-    return ids;
-  }, [usuarioCarteira, usuarioLogadoId, usuarios, nomeLogado]);
 
   const planoCompra = planos.find(
     (plano) => plano.codigo === "CONSULTORA_COMPRA",
@@ -1688,47 +1586,22 @@ export default function PremiacaoManagerV3() {
   const idSaldoAtual = ehGestor ? usuarioCarteiraId : usuarioSelecionadoId;
 
   const saldoPontos = useMemo(() => {
-    if (!idSaldoAtual && idsCarteira.size === 0) return 0;
+    if (!idSaldoAtual) return 0;
 
     return extrato
-      .filter((item) => {
-        if (!ehGestor) return item.usuario_id === usuarioSelecionadoId;
-
-        return (
-          idsCarteira.has(String(item.usuario_id || "")) ||
-          nomesCorrespondem(
-            String(item.usuario_nome || ""),
-            String(usuarioCarteira?.nome || nomeLogado || ""),
-          )
-        );
-      })
+      .filter((item) => item.usuario_id === idSaldoAtual)
       .reduce((total, item) => {
         const valor = Number(item.pontos || 0);
         if (item.tipo === "DEBITO") return total - Math.abs(valor);
         return total + valor;
       }, 0);
-  }, [
-    extrato,
-    idSaldoAtual,
-    idsCarteira,
-    ehGestor,
-    usuarioSelecionadoId,
-    usuarioCarteira,
-    nomeLogado,
-  ]);
+  }, [extrato, idSaldoAtual]);
 
-  const saquesPendentesUsuario = saques.filter((saque) => {
-    if (saque.status !== "SOLICITADO") return false;
-    if (!ehGestor) return saque.usuario_id === usuarioSelecionadoId;
-
-    return (
-      idsCarteira.has(String(saque.usuario_id || "")) ||
-      nomesCorrespondem(
-        String(saque.usuario_nome || ""),
-        String(usuarioCarteira?.nome || nomeLogado || ""),
-      )
-    );
-  });
+  const saquesPendentesUsuario = saques.filter(
+    (saque) =>
+      saque.usuario_id === idSaldoAtual &&
+      saque.status === "SOLICITADO",
+  );
 
   const pontosBloqueados = saquesPendentesUsuario.reduce(
     (total, saque) => total + Number(saque.pontos_solicitados || 0),
@@ -1753,9 +1626,7 @@ export default function PremiacaoManagerV3() {
     return previsoesLiberadas.some(
       (item) =>
         item.usuario_id === usuarioSelecionadoId &&
-        codigos.includes(item.plano_codigo) &&
-        Boolean(competenciaIdAtual) &&
-        String(item.competencia_id || "") === competenciaIdAtual,
+        codigos.includes(item.plano_codigo),
     );
   }, [
     previsoesLiberadas,
@@ -1764,46 +1635,7 @@ export default function PremiacaoManagerV3() {
     selecionadoEhSupervisao,
     selecionadoEhOperacional,
     selecionadoEhCoordenacao,
-    competenciaIdAtual,
   ]);
-
-  const extratoComLiberacoes = useMemo(() => {
-    const atual = [...extrato];
-    const idsPrevisaoNoExtrato = new Set(
-      atual
-        .filter((item) => item.previsao_id)
-        .map((item) => String(item.previsao_id)),
-    );
-
-    previsoesLiberadas
-      .filter(
-        (item) =>
-          item.status === "LIBERADA" &&
-          Boolean(competenciaIdAtual) &&
-          String(item.competencia_id || "") === competenciaIdAtual,
-      )
-      .forEach((item) => {
-        if (idsPrevisaoNoExtrato.has(String(item.id))) return;
-        if (Number(item.pontos_liberados || 0) <= 0) return;
-
-        atual.push({
-          id: `liberacao-${item.id}`,
-          usuario_id: item.usuario_id,
-          usuario_nome: item.usuario_nome || "Colaboradora",
-          competencia_id: item.competencia_id || null,
-          previsao_id: item.id,
-          tipo: "CREDITO",
-          origem: "PREMIACAO_LIBERADA",
-          descricao: `Premiação liberada — ${competencia}`,
-          pontos: Number(item.pontos_liberados || 0),
-          criado_em: item.liberado_em || "",
-        });
-      });
-
-    return atual.sort((a, b) =>
-      String(b.criado_em || "").localeCompare(String(a.criado_em || "")),
-    );
-  }, [extrato, previsoesLiberadas, competenciaIdAtual, competencia]);
 
   async function garantirCompetencia() {
     const competenciaData = primeiroDiaCompetencia(competencia);
@@ -2208,20 +2040,7 @@ export default function PremiacaoManagerV3() {
   }
 
   async function solicitarSaque(pontosSolicitados: number, chavePix: string) {
-    const creditoCarteira = ehGestor
-      ? extrato.find(
-          (item) =>
-            item.tipo === "CREDITO" &&
-            nomesCorrespondem(
-              String(item.usuario_nome || ""),
-              String(usuarioCarteira?.nome || nomeLogado || ""),
-            ),
-        )
-      : null;
-
-    const usuarioSaqueId = ehGestor
-      ? String(creditoCarteira?.usuario_id || usuarioCarteiraId || "")
-      : usuarioSelecionadoId;
+    const usuarioSaqueId = ehGestor ? usuarioCarteiraId : usuarioSelecionadoId;
     if (!usuarioSaqueId) {
       throw new Error("Não encontrei sua carteira de pontos.");
     }
@@ -2232,9 +2051,14 @@ export default function PremiacaoManagerV3() {
       throw new Error("Informe uma quantidade válida dentro do saldo disponível.");
     }
 
+    // Vincula o saque à competência selecionada. Isso permite que o Financeiro
+    // mostre o pagamento no mês correto, inclusive Sthefane e Vinicius.
+    const competenciaId = await garantirCompetencia();
+
     const { error } = await supabase.from("pontos_saques").insert({
       usuario_id: usuarioSaqueId,
       usuario_nome: nomeLogado,
+      competencia_id: competenciaId,
       pontos_solicitados: quantidade,
       valor_reais: quantidade,
       status: "SOLICITADO",
@@ -2388,7 +2212,7 @@ export default function PremiacaoManagerV3() {
         saldoDisponivelSaque={saldoDisponivelSaque}
         premiacaoJaLiberada={jaLiberada}
         saques={saques}
-        extrato={extratoComLiberacoes}
+        extrato={extrato}
         processando={processando}
         onConsultoraChange={setConsultoraSelecionada}
         onCompetenciaChange={setCompetencia}
@@ -2401,3 +2225,5 @@ export default function PremiacaoManagerV3() {
     </>
   );
 }
+
+export default PremiacaoManagerV3;

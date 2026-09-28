@@ -27,6 +27,18 @@ type Proposta = {
   dataPagamento?: string;
 };
 
+type RegistroCltFinanceiro = {
+  id: string;
+  nome: string;
+  valorAprovado: number;
+  parcela: number;
+  banco: string;
+  consultora: string;
+  status: string;
+  criadoEm: string;
+  dataPagamento: string;
+};
+
 type Lancamento = {
   id: string;
   tipo: "Entrada" | "Saída";
@@ -110,6 +122,16 @@ type RegistroComissao = {
   dataPagamento: string;
   observacao: string;
   atualizadoEm: string;
+};
+
+type ExtratoSaquePago = {
+  id: string;
+  usuarioId: string;
+  usuarioNome: string;
+  competenciaId: string;
+  origem: string;
+  pontos: number;
+  criadoEm: string;
 };
 
 type SaquePremiacaoPago = {
@@ -318,8 +340,33 @@ function moverCompetenciaMes(competencia: string, deslocamento: number) {
   return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function competenciaValida(valor?: string | null) {
+  const texto = String(valor || "").trim();
+  const match = texto.match(/^(\d{4})-(\d{2})/);
+  if (!match) return "";
+  const ano = Number(match[1]);
+  const mes = Number(match[2]);
+  if (!Number.isFinite(ano) || !Number.isFinite(mes) || mes < 1 || mes > 12) return "";
+  return `${ano}-${String(mes).padStart(2, "0")}`;
+}
+
+function dataParaIsoFinanceiro(valor?: string | null) {
+  const texto = String(valor || "").trim();
+  if (!texto) return "";
+
+  const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+  const br = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+
+  return "";
+}
+
 function rotuloCompetenciaMes(competencia: string) {
-  const [ano, mes] = competencia.split("-").map(Number);
+  const comp = competenciaValida(competencia);
+  if (!comp) return "competência não identificada";
+  const [ano, mes] = comp.split("-").map(Number);
   return new Intl.DateTimeFormat("pt-BR", {
     month: "long",
     year: "numeric",
@@ -335,6 +382,9 @@ export default function FinancialManager({
 
   const [propostas, setPropostas] =
     useState<Proposta[]>([]);
+
+  const [registrosClt, setRegistrosClt] =
+    useState<RegistroCltFinanceiro[]>([]);
 
   const [carregandoPropostas, setCarregandoPropostas] =
     useState(false);
@@ -423,16 +473,50 @@ const [mensagemFolha, setMensagemFolha] =
     useState<RegistroComissao[]>([]);
   const [saquesPremiacaoPagos, setSaquesPremiacaoPagos] =
     useState<SaquePremiacaoPago[]>([]);
+  const [competenciasPremiacao, setCompetenciasPremiacao] =
+    useState<Record<string,string>>({});
+  const [extratoSaquesPagos, setExtratoSaquesPagos] =
+    useState<ExtratoSaquePago[]>([]);
   const [competenciaPremiacoes, setCompetenciaPremiacoes] =
     useState(competenciaMesAtual());
   const [mensagemComissao, setMensagemComissao] =
     useState("");
+  const [saqueDetalhe, setSaqueDetalhe] = useState<SaquePremiacaoPago | null>(null);
   const [comissaoCompraDia20, setComissaoCompraDia20] = useState("");
   const [comissaoCltDia20, setComissaoCltDia20] = useState("");
   const [outrasPremiacoesDia20, setOutrasPremiacoesDia20] = useState("");
   const [ajusteDia20, setAjusteDia20] = useState("");
   const [dataPagamentoComissao, setDataPagamentoComissao] = useState(hoje());
   const [observacaoComissao, setObservacaoComissao] = useState("");
+
+  const carregarClt = useCallback(async () => {
+    try {
+      const { data: sessao, error: erroSessao } = await supabase.auth.getSession();
+      if (erroSessao || !sessao.session?.access_token) {
+        throw new Error("Sua sessão expirou. Entre novamente no sistema.");
+      }
+
+      const resposta = await fetch("/api/clt", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${sessao.session.access_token}` },
+        cache: "no-store",
+      });
+
+      const conteudo = (await resposta.json()) as {
+        registros?: RegistroCltFinanceiro[];
+        erro?: string;
+      };
+
+      if (!resposta.ok) {
+        throw new Error(conteudo.erro || "Não foi possível carregar as propostas CLT.");
+      }
+
+      setRegistrosClt(Array.isArray(conteudo.registros) ? conteudo.registros : []);
+    } catch (erro) {
+      console.error("Erro ao carregar CLT no Financeiro:", erro);
+      setRegistrosClt([]);
+    }
+  }, [supabase]);
 
   const carregarPropostas = useCallback(async () => {
     setCarregandoPropostas(true);
@@ -485,14 +569,17 @@ const [mensagemFolha, setMensagemFolha] =
 
   useEffect(() => {
     void carregarPropostas();
+    void carregarClt();
 
     const atualizarAoFocar = () => {
       void carregarPropostas();
+      void carregarClt();
     };
 
     const atualizarAoVoltar = () => {
       if (document.visibilityState === "visible") {
         void carregarPropostas();
+        void carregarClt();
       }
     };
 
@@ -511,6 +598,8 @@ const [mensagemFolha, setMensagemFolha] =
           respostaLancamentos,
           respostaConfigFinanceiro,
           respostaSaquesPremiacao,
+          respostaCompetenciasPremiacao,
+          respostaExtratoSaquesPagos,
         ] = await Promise.all([
           supabase
             .from("profiles")
@@ -568,11 +657,50 @@ const [mensagemFolha, setMensagemFolha] =
             .select("id, usuario_id, usuario_nome, competencia_id, pontos_solicitados, valor_reais, status, chave_pix, tipo_chave_pix, solicitado_em, processado_em")
             .eq("status", "PAGO")
             .order("processado_em", { ascending: false }),
+
+          supabase
+            .from("premiacao_competencias")
+            .select("id, competencia"),
+
+          supabase
+            .from("pontos_extrato")
+            .select("id, usuario_id, usuario_nome, competencia_id, origem, pontos, criado_em")
+            .eq("tipo", "DEBITO")
+            .like("origem", "SAQUE_PAGO:%")
+            .order("criado_em", { ascending: false }),
         ]);
 
         if (respostaUsuarios.error) {
           throw respostaUsuarios.error;
         }
+
+        if (respostaCompetenciasPremiacao.error) {
+          throw respostaCompetenciasPremiacao.error;
+        }
+
+        const mapaCompetencias: Record<string,string> = {};
+        for (const item of Array.isArray(respostaCompetenciasPremiacao.data) ? respostaCompetenciasPremiacao.data : []) {
+          const id=String((item as any).id||"");
+          const comp=competenciaValida(String((item as any).competencia||""));
+          if(id && comp) mapaCompetencias[id]=comp;
+        }
+        setCompetenciasPremiacao(mapaCompetencias);
+
+        if (respostaExtratoSaquesPagos.error) {
+          throw respostaExtratoSaquesPagos.error;
+        }
+
+        setExtratoSaquesPagos(
+          (Array.isArray(respostaExtratoSaquesPagos.data) ? respostaExtratoSaquesPagos.data : []).map((item:any)=>({
+            id:String(item.id||""),
+            usuarioId:String(item.usuario_id||""),
+            usuarioNome:String(item.usuario_nome||"Colaboradora"),
+            competenciaId:String(item.competencia_id||""),
+            origem:String(item.origem||""),
+            pontos:Number(item.pontos||0),
+            criadoEm:String(item.criado_em||""),
+          }))
+        );
 
         if (respostaFolhas.error) {
           throw respostaFolhas.error;
@@ -2062,14 +2190,158 @@ const resumoRhDaFolha = useMemo(() => {
       ? entradasDisponiveis
       : saidasDisponiveis;
 
-  const saquesPremiacaoPagosFiltrados = useMemo(
-    () =>
-      saquesPremiacaoPagos.filter((saque) => {
-        const dataPagamento = String(saque.processadoEm || "").slice(0, 7);
-        return dataPagamento === competenciaPremiacoes;
-      }),
-    [saquesPremiacaoPagos, competenciaPremiacoes]
-  );
+
+  function fimDoMesIso(competenciaValor: string) {
+    const comp=competenciaValida(competenciaValor);
+    if (!comp) return "";
+    const [ano, mes] = comp.split("-").map(Number);
+    const ultimo = new Date(ano, mes, 0).getDate();
+    return `${ano}-${String(mes).padStart(2,"0")}-${String(ultimo).padStart(2,"0")}`;
+  }
+
+  function nomesCorrespondemFinanceiro(a:string,b:string){
+    const na=normalizarNome(a), nb=normalizarNome(b);
+    if(!na||!nb) return false;
+    if(na===nb) return true;
+    const menor=na.length<=nb.length?na:nb;
+    const maior=na.length>nb.length?na:nb;
+    return menor.length>=5 && maior.includes(menor);
+  }
+
+  const propostasDoSaque = useMemo(() => {
+    if (!saqueDetalhe) return [] as Array<{
+      id:string; dataDigitacao:string; dataPagamento:string; cliente:string; produto:string;
+      vendedora:string; valorExibido:number; percentualVendedor:number; valorBruto:number;
+      tabela:string; comissaoEmpresa:number;
+    }>;
+
+    const competenciaPagamento =
+      competenciasPremiacao[String(saqueDetalhe.competenciaId || "")] ||
+      competenciaValida(competenciaPremiacoes);
+    if (!competenciaPagamento) return [];
+
+    // Premiação paga no mês atual = produção digitada no mês anterior
+    // e paga até o dia 19 do mês da premiação.
+    const competenciaProducao = moverCompetenciaMes(competenciaPagamento, -1);
+    const inicioDigitacao = `${competenciaProducao}-01`;
+    const fimDigitacao = fimDoMesIso(competenciaProducao);
+    const limitePagamento = `${competenciaPagamento}-19`;
+
+    const nomeColaboradora = saqueDetalhe.usuarioNome || "";
+    const nomeNormalizado = normalizarNome(nomeColaboradora);
+
+    const ehVanessa = nomeNormalizado.includes("vanessa");
+    const ehRaissa = nomeNormalizado.includes("raissa");
+    const ehSthefane = nomeNormalizado.includes("sthefane");
+    const ehVinicius = nomeNormalizado.includes("vinicius");
+
+    // Vanessa e Raissa: produção geral da empresa (Compra + CLT).
+    // Sthefane e Vinicius: todos os contratos elegíveis de Compra da empresa.
+    // Vendedoras/consultoras: somente as próprias propostas.
+    const compraGeral = ehVanessa || ehRaissa || ehSthefane || ehVinicius;
+    const cltGeral = ehVanessa || ehRaissa;
+
+    const compras = propostas
+      .filter((p) => {
+        if (!compraGeral && !nomesCorrespondemFinanceiro(p.vendedora || "", nomeColaboradora)) return false;
+        if (normalizarNome(p.status || "") !== "pago") return false;
+
+        const digitacao = dataParaIsoFinanceiro(p.dataCadastro);
+        const pagamento = dataParaIsoFinanceiro(p.dataPagamento);
+
+        return Boolean(digitacao) &&
+               digitacao >= inicioDigitacao &&
+               digitacao <= fimDigitacao &&
+               Boolean(pagamento) &&
+               pagamento <= limitePagamento;
+      })
+      .map((p) => ({
+        id:`compra-${p.id}`,
+        dataDigitacao:dataParaIsoFinanceiro(p.dataCadastro),
+        dataPagamento:dataParaIsoFinanceiro(p.dataPagamento),
+        cliente:p.cliente||"—",
+        produto:"Compra de Dívida",
+        vendedora:p.vendedora||"—",
+        valorExibido:Number(p.valorMeta ?? p.valorContrato ?? 0),
+        percentualVendedor:Number(p.percentualTabela||0),
+        valorBruto:Number(p.valorContrato||0),
+        tabela:p.tabela||"—",
+        comissaoEmpresa:Number(p.comissao||0),
+      }));
+
+    const clts = registrosClt
+      .filter((r) => {
+        if (!cltGeral && !nomesCorrespondemFinanceiro(r.consultora || "", nomeColaboradora)) return false;
+        if (normalizarNome(r.status || "") !== "pago") return false;
+
+        const digitacao = dataParaIsoFinanceiro(r.criadoEm);
+        const pagamento = dataParaIsoFinanceiro(r.dataPagamento);
+
+        return Boolean(digitacao) &&
+               digitacao >= inicioDigitacao &&
+               digitacao <= fimDigitacao &&
+               Boolean(pagamento) &&
+               pagamento <= limitePagamento;
+      })
+      .map((r) => ({
+        id:`clt-${r.id}`,
+        dataDigitacao:dataParaIsoFinanceiro(r.criadoEm),
+        dataPagamento:dataParaIsoFinanceiro(r.dataPagamento),
+        cliente:r.nome||"—",
+        produto:"CLT",
+        vendedora:r.consultora||"—",
+        valorExibido:Number(r.parcela||0),
+        percentualVendedor:100,
+        valorBruto:Number(r.valorAprovado||0),
+        tabela:r.banco||"—",
+        comissaoEmpresa:0,
+      }));
+
+    // Sthefane e Vinicius recebem por contratos de Compra; não mistura CLT no detalhamento deles.
+    const resultado = (ehSthefane || ehVinicius) ? compras : [...compras,...clts];
+
+    return resultado.sort((a,b)=>a.dataDigitacao.localeCompare(b.dataDigitacao));
+  }, [saqueDetalhe, propostas, registrosClt, competenciaPremiacoes, competenciasPremiacao]);
+
+  const saquesPremiacaoPagosFiltrados = useMemo(() => {
+    const porId = new Map<string,SaquePremiacaoPago>();
+
+    // Fonte principal: pontos_saques efetivamente marcados como PAGO.
+    for (const saque of saquesPremiacaoPagos) {
+      const competenciaDoSaque =
+        competenciasPremiacao[String(saque.competenciaId || "")] ||
+        competenciaValida(String(saque.processadoEm || "").slice(0,7));
+      if (competenciaDoSaque === competenciaPremiacoes) porId.set(saque.id, saque);
+    }
+
+    // Compatibilidade com pagamentos antigos: o extrato SAQUE_PAGO comprova que
+    // o saque foi efetivamente pago, mesmo quando o registro antigo ficou sem competencia_id.
+    for (const extrato of extratoSaquesPagos) {
+      const saqueId = String(extrato.origem || "").replace(/^SAQUE_PAGO:/, "");
+      if (!saqueId || porId.has(saqueId)) continue;
+
+      const saqueOriginal = saquesPremiacaoPagos.find((s)=>s.id===saqueId);
+      const competenciaDoExtrato =
+        competenciasPremiacao[String(extrato.competenciaId || "")] ||
+        competenciaValida(String(saqueOriginal?.processadoEm || extrato.criadoEm || "").slice(0,7));
+      if (competenciaDoExtrato !== competenciaPremiacoes) continue;
+
+      porId.set(saqueId,{
+        id:saqueId,
+        usuarioId:saqueOriginal?.usuarioId || extrato.usuarioId,
+        usuarioNome:saqueOriginal?.usuarioNome || extrato.usuarioNome,
+        competenciaId:saqueOriginal?.competenciaId || extrato.competenciaId,
+        pontos:Number(saqueOriginal?.pontos || extrato.pontos || 0),
+        valor:Number(saqueOriginal?.valor || extrato.pontos || 0),
+        chavePix:saqueOriginal?.chavePix || "",
+        tipoChavePix:saqueOriginal?.tipoChavePix || "PIX",
+        solicitadoEm:saqueOriginal?.solicitadoEm || "",
+        processadoEm:saqueOriginal?.processadoEm || extrato.criadoEm,
+      });
+    }
+
+    return [...porId.values()].sort((a,b)=>String(b.processadoEm).localeCompare(String(a.processadoEm)));
+  }, [saquesPremiacaoPagos, extratoSaquesPagos, competenciaPremiacoes, competenciasPremiacao]);
 
   const totalPremiacoesPagas = useMemo(
     () =>
@@ -2988,7 +3260,7 @@ const resumoRhDaFolha = useMemo(() => {
                     style={{
                       display: "grid",
                       gridTemplateColumns:
-                        "minmax(230px, 1.5fr) .7fr .8fr .85fr 1fr",
+                        "minmax(230px, 1.5fr) .7fr .8fr .85fr 1fr auto",
                       gap: 16,
                       alignItems: "center",
                       padding: "16px 18px",
@@ -3054,12 +3326,57 @@ const resumoRhDaFolha = useMemo(() => {
                         {saque.chavePix || "—"}
                       </strong>
                     </div>
+                    <button type="button" onClick={() => setSaqueDetalhe(saque)}
+                      style={{minHeight:38,padding:"0 13px",border:"1px solid #bfd0ea",borderRadius:9,background:"#fff",color:"#155eef",fontWeight:900,cursor:"pointer",whiteSpace:"nowrap"}}>
+                      Ver propostas
+                    </button>
                   </article>
                 ))}
               </div>
             )}
           </section>
         </section>
+      )}
+
+      {saqueDetalhe && (
+        <div onClick={()=>setSaqueDetalhe(null)}
+          style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(15,35,65,.45)",display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+          <section onClick={(e)=>e.stopPropagation()}
+            style={{width:"min(1350px,96vw)",maxHeight:"88vh",overflow:"hidden",background:"#fff",borderRadius:18,boxShadow:"0 24px 70px rgba(0,0,0,.2)"}}>
+            <header style={{display:"flex",justifyContent:"space-between",gap:20,padding:"20px 22px",borderBottom:"1px solid #e5ebf3"}}>
+              <div>
+                <span style={{color:"#155eef",fontSize:11,fontWeight:900,letterSpacing:".08em"}}>PROPOSTAS DA PREMIAÇÃO</span>
+                <h3 style={{margin:"5px 0 0",color:"#102d55"}}>{saqueDetalhe.usuarioNome}</h3>
+                <p style={{margin:"5px 0 0",color:"#71809a",fontSize:12}}>
+                  Produção: {rotuloCompetenciaMes(moverCompetenciaMes(competenciasPremiacao[String(saqueDetalhe.competenciaId||"")] || competenciaPremiacoes,-1))} • pagas até dia 19 do mês da premiação
+                </p>
+              </div>
+              <button type="button" onClick={()=>setSaqueDetalhe(null)} style={{border:0,background:"transparent",fontSize:28,cursor:"pointer"}}>×</button>
+            </header>
+            <div style={{overflow:"auto",maxHeight:"72vh",padding:18}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                <thead><tr style={{background:"#f5f8fc",color:"#65758e",textAlign:"left"}}>
+                  {["Data digitação","Data pagamento cliente","Vendedora / Consultora","Cliente","Produto","Valor contrato","% Vendedor","Tabela","Comissão empresa"].map(h=>
+                    <th key={h} style={{padding:"12px 10px",borderBottom:"1px solid #dfe7f2",whiteSpace:"nowrap"}}>{h}</th>)}
+                </tr></thead>
+                <tbody>
+                  {!propostasDoSaque.length ? <tr><td colSpan={9} style={{padding:30,textAlign:"center",color:"#7a8aa1"}}>Nenhuma proposta elegível encontrada para esta premiação.</td></tr> :
+                    propostasDoSaque.map((p)=><tr key={p.id}>
+                      <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{dataISOparaBR(p.dataDigitacao)||"—"}</td>
+                      <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{dataISOparaBR(p.dataPagamento)||"—"}</td>
+                      <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{p.vendedora}</td>
+                      <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6",fontWeight:800}}>{p.cliente}</td>
+                      <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{p.produto}</td>
+                      <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6",fontWeight:800}}>{moeda(p.valorExibido)}</td>
+                      <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{p.percentualVendedor.toLocaleString("pt-BR",{maximumFractionDigits:2})}%</td>
+                      <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{moeda(p.valorBruto)}</td>
+                      <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{p.tabela}</td>
+                    </tr>)}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
       )}
 
     </div>

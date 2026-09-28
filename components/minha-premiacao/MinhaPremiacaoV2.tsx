@@ -33,6 +33,10 @@ export type MovimentoPremiacao = {
   producaoValida: number;
   comissaoEmpresa: number;
   valorParcelaClt: number;
+  dataDigitacao?: string;
+  dataPagamento?: string;
+  valorBruto?: number;
+  percentualVendedor?: number;
 };
 
 export type SaquePremiacao = {
@@ -126,10 +130,6 @@ function pontos(valor: number) {
   });
 }
 
-function normalizarPontos(valor: number) {
-  return Math.round((Number(valor || 0) + Number.EPSILON) * 100) / 100;
-}
-
 function porcentagem(valor: number) {
   return Number(valor || 0).toLocaleString("pt-BR", {
     minimumFractionDigits: 0,
@@ -149,7 +149,6 @@ export default function MinhaPremiacaoV2(props: Props) {
     nomeUsuario,
     nomeExibido,
     carteiraNome = nomeExibido,
-    perfilUsuario,
     podeGerenciar,
     nomesConsultoras = [],
     pixPorColaboradora = {},
@@ -214,16 +213,6 @@ export default function MinhaPremiacaoV2(props: Props) {
   const compraPrevistaSegura = Number(pontosCompraPrevistos ?? 0) || 0;
   const cltPrevistaSegura = Number(pontosCltPrevistos ?? 0) || 0;
 
-  const perfilNormalizado = String(perfilUsuario || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-
-  const podeVerExtrato =
-    perfilNormalizado === "administradora" ||
-    perfilNormalizado === "coordenadora";
-
   const consultorasFiltradas = nomesConsultoras.filter((nome) =>
     nome.toLowerCase().includes(busca.trim().toLowerCase()),
   );
@@ -253,6 +242,13 @@ export default function MinhaPremiacaoV2(props: Props) {
 
     return movimentos;
   }, [movimentos, filtroProduto]);
+
+  const movimentosCompra = movimentos.filter((m) => m.produto === "Compra de Dívida");
+  const movimentosClt = movimentos.filter((m) => m.produto === "CLT");
+  const compraLiquidaPaga = movimentosCompra.reduce((t,m)=>t+Number(m.producaoValida||0),0);
+  const compraBrutaPaga = movimentosCompra.reduce((t,m)=>t+Number(m.valorBruto ?? m.valorContrato ?? 0),0);
+  const cltParcelasPagas = movimentosClt.reduce((t,m)=>t+Number(m.valorParcelaClt||m.producaoValida||0),0);
+
 
   function chaveNomePix(nome: string) {
     return String(nome || "")
@@ -328,10 +324,7 @@ export default function MinhaPremiacaoV2(props: Props) {
       return;
     }
 
-    const quantidadeNormalizada = normalizarPontos(quantidade);
-    const saldoNormalizado = normalizarPontos(saldoDisponivelSaque);
-
-    if (quantidadeNormalizada > saldoNormalizado) {
+    if (quantidade > saldoDisponivelSaque) {
       setErroModal("A quantidade é maior que o saldo disponível.");
       return;
     }
@@ -342,7 +335,7 @@ export default function MinhaPremiacaoV2(props: Props) {
     }
 
     try {
-      await onSolicitarSaque(quantidadeNormalizada, chavePix.trim());
+      await onSolicitarSaque(quantidade, chavePix.trim());
       setModalSaque(false);
       setPontosSaque("");
       setChavePix("");
@@ -368,32 +361,14 @@ export default function MinhaPremiacaoV2(props: Props) {
             </p>
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              gap: 6,
-              alignItems: "center",
-              padding: 5,
-              border: "1px solid #dbe5f3",
-              borderRadius: 14,
-              background: "#f6f9fe",
-              flexWrap: "wrap",
-            }}
-          >
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <button
               type="button"
               onClick={() => setVisaoGestor("gestao")}
               style={{
-                minHeight: 42,
-                padding: "0 18px",
-                borderRadius: 10,
-                border: 0,
-                background: "#1f61ee",
-                color: "#fff",
-                fontSize: 14,
-                fontWeight: 850,
-                cursor: "pointer",
-                boxShadow: "0 4px 12px rgba(31,97,238,.16)",
+                minHeight: 40, padding: "0 16px", borderRadius: 10,
+                border: "1px solid #1f61ee", background: "#1f61ee",
+                color: "#fff", fontWeight: 800, cursor: "pointer"
               }}
             >
               Gestão da premiação
@@ -405,15 +380,9 @@ export default function MinhaPremiacaoV2(props: Props) {
                 setErroModal("");
               }}
               style={{
-                minHeight: 42,
-                padding: "0 18px",
-                borderRadius: 10,
-                border: 0,
-                background: "transparent",
-                color: "#17345f",
-                fontSize: 14,
-                fontWeight: 850,
-                cursor: "pointer",
+                minHeight: 40, padding: "0 16px", borderRadius: 10,
+                border: "1px solid #d7e1f0", background: "#fff",
+                color: "#17345f", fontWeight: 800, cursor: "pointer"
               }}
             >
               Minha carteira
@@ -480,26 +449,11 @@ export default function MinhaPremiacaoV2(props: Props) {
         {abaAdmin === "conferencia" && (
           <>
             <section className="premio-v4-kpis">
-              <article>
-                <span>Produção válida Compra</span>
-                <strong>{moeda(producaoCompra)}</strong>
-                <small>{faixaCompra || "Abaixo da primeira faixa"}</small>
-              </article>
-              <article>
-                <span>Produção CLT</span>
-                <strong>{moeda(producaoClt)}</strong>
-                <small>{faixaClt || "Abaixo da primeira faixa"}</small>
-              </article>
-              <article className="internal">
-                <span>Comissão gerada para a empresa</span>
-                <strong>{moeda(comissaoEmpresa)}</strong>
-                <small>Informação interna da gestão</small>
-              </article>
-              <article className="points">
-                <span>Pontuação automática</span>
-                <strong>{pontos(pontosTotalPrevisto)} pts</strong>
-                <small>1 ponto = R$ 1,00</small>
-              </article>
+              <article><span>CLT — parcelas pagas</span><strong>{moeda(cltParcelasPagas)}</strong><small>{faixaClt || "Abaixo da primeira faixa"}</small></article>
+              <article><span>Compra de Dívida — líquido pago</span><strong>{moeda(compraLiquidaPaga)}</strong><small>{faixaCompra || "Abaixo da primeira faixa"}</small></article>
+              <article><span>Compra de Dívida — bruto pago</span><strong>{moeda(compraBrutaPaga)}</strong><small>{movimentosCompra.length} contrato(s) elegível(is)</small></article>
+              <article className="internal"><span>Comissão gerada para a empresa</span><strong>{moeda(comissaoEmpresa)}</strong><small>Informação interna da gestão</small></article>
+              <article className="points"><span>Premiação automática</span><strong>{pontos(pontosTotalPrevisto)} pts</strong><small>1 ponto = R$ 1,00</small></article>
             </section>
 
             <section className="premio-v4-layout">
@@ -770,62 +724,26 @@ export default function MinhaPremiacaoV2(props: Props) {
                   </div>
                   <div className="premio-v4-table-wrap">
                     <table className="premio-v4-table">
-                      <thead>
-                        <tr>
-                          <th>Data</th>
-                          <th>Cliente</th>
-                          <th>Produto</th>
-                          <th>Valor contrato</th>
-                          <th>Peso tabela</th>
-                          <th>Produção válida</th>
-                          <th className="internal-col">Comissão empresa</th>
-                        </tr>
-                      </thead>
+                      <thead><tr>
+                        <th>Data digitação</th><th>Data pagamento cliente</th><th>Cliente</th><th>Produto</th>
+                        <th>Valor parcela / líquido</th><th>% vendedor</th><th>Valor bruto</th><th>Tabela</th><th>Comissão empresa</th>
+                      </tr></thead>
                       <tbody>
-                        {movimentosFiltrados.length === 0 ? (
-                          <tr>
-                            <td colSpan={7}>
-                              <div className="premio-v4-empty">
-                                Nenhum contrato encontrado para o filtro selecionado.
-                              </div>
-                            </td>
+                        {movimentosFiltrados.length===0 ? (
+                          <tr><td colSpan={9}><div className="premio-v4-empty">Nenhum contrato encontrado para o filtro selecionado.</div></td></tr>
+                        ) : movimentosFiltrados.map((item)=>(
+                          <tr key={item.id}>
+                            <td>{dataPt(item.dataDigitacao || item.data)}</td>
+                            <td>{dataPt(item.dataPagamento)}</td>
+                            <td><strong>{item.cliente}</strong></td>
+                            <td><span className="premio-v4-product">{item.produto}</span></td>
+                            <td><b>{moeda(item.produto==="CLT" ? item.valorParcelaClt : item.producaoValida)}</b></td>
+                            <td>{item.produto==="CLT" ? "100%" : `${porcentagem(item.percentualVendedor ?? item.pesoTabela)}%`}</td>
+                            <td>{moeda(item.valorBruto ?? item.valorContrato ?? 0)}</td>
+                            <td>{item.tabela || item.descricao || "—"}</td>
+                            <td className="internal-col">{item.produto==="Compra de Dívida" ? moeda(item.comissaoEmpresa) : "—"}</td>
                           </tr>
-                        ) : (
-                          movimentosFiltrados.map((item) => (
-                            <tr key={item.id}>
-                              <td>{dataPt(item.data)}</td>
-                              <td>
-                                <strong>{item.cliente}</strong>
-                                <small>
-                                  {item.tabela || item.descricao || "—"}
-                                </small>
-                              </td>
-                              <td>
-                                <span className="premio-v4-product">
-                                  {item.produto}
-                                </span>
-                              </td>
-                              <td>
-                                {item.produto === "Compra de Dívida"
-                                  ? moeda(item.valorContrato)
-                                  : "—"}
-                              </td>
-                              <td>
-                                {item.produto === "Compra de Dívida"
-                                  ? `${porcentagem(item.pesoTabela)}%`
-                                  : "—"}
-                              </td>
-                              <td>
-                                <b>{moeda(item.producaoValida)}</b>
-                              </td>
-                              <td className="internal-col">
-                                {item.produto === "Compra de Dívida"
-                                  ? moeda(item.comissaoEmpresa)
-                                  : "—"}
-                              </td>
-                            </tr>
-                          ))
-                        )}
+                        ))}
                       </tbody>
                     </table>
                   </div>
@@ -861,7 +779,9 @@ export default function MinhaPremiacaoV2(props: Props) {
                         {dataPt(item.criado_em)}
                       </span>
                     </div>
-                    <b>+ {pontos(Number(item.pontos || 0))} pts</b>
+                    {Number(item.pontos || 0)>0
+                      ? <b>+ {pontos(Number(item.pontos || 0))} pts</b>
+                      : <b style={{color:"#d92d3a"}}>NÃO BATEU META</b>}
                   </article>
                 ))
               )}
@@ -870,164 +790,84 @@ export default function MinhaPremiacaoV2(props: Props) {
         )}
 
         {abaAdmin === "saques" && (
-          <section
-            className="premio-v4-panel"
-            style={{ padding: 24, borderRadius: 18 }}
-          >
-            <div
-              className="premio-v4-section-head"
-              style={{
-                alignItems: "center",
-                paddingBottom: 18,
-                marginBottom: 18,
-                borderBottom: "1px solid #e3eaf4",
-              }}
-            >
+          <section className="premio-v4-panel">
+            <div className="premio-v4-section-head">
               <div>
-                <span style={{ fontSize: 12, letterSpacing: ".12em" }}>
-                  CONTROLE DE SAQUES
-                </span>
-                <h3 style={{ fontSize: 25, marginTop: 5 }}>
-                  Solicitações das colaboradoras
-                </h3>
-                <p style={{ fontSize: 14, marginTop: 4 }}>
-                  Confira os dados do PIX e processe cada solicitação com segurança.
+                <span>CONTROLE DE SAQUES</span>
+                <h3>Solicitações das colaboradoras</h3>
+                <p>
+                  Tudo que elas solicitarem aparece automaticamente aqui.
                 </p>
               </div>
-              <div
-                style={{
-                  minWidth: 48,
-                  height: 48,
-                  padding: "0 14px",
-                  display: "grid",
-                  placeItems: "center",
-                  borderRadius: 14,
-                  background: saquesPendentes.length ? "#fff0f1" : "#eef5ff",
-                  color: saquesPendentes.length ? "#dc3545" : "#1f61ee",
-                  fontSize: 17,
-                  fontWeight: 900,
-                }}
-              >
-                {saquesPendentes.length}
-              </div>
+              <b>{saquesPendentes.length}</b>
             </div>
 
-            <div style={{ display: "grid", gap: 14 }}>
+            <div className="premio-v4-saque-list">
               {saquesPendentes.length === 0 ? (
-                <div className="premio-v4-empty" style={{ padding: 30, fontSize: 14 }}>
+                <div className="premio-v4-empty">
                   Nenhuma solicitação pendente.
                 </div>
               ) : (
                 saquesPendentes.map((saque) => (
-                  <article
-                    key={saque.id}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "minmax(230px,1.6fr) repeat(3,minmax(130px,.75fr)) auto",
-                      gap: 18,
-                      alignItems: "center",
-                      padding: "18px 20px",
-                      border: "1px solid #dfe7f2",
-                      borderRadius: 16,
-                      background: "#fff",
-                      boxShadow: "0 5px 18px rgba(31,56,100,.055)",
-                    }}
-                  >
-                    <div
-                      className="premio-v4-saque-user"
-                      style={{ display: "flex", alignItems: "center", gap: 13 }}
-                    >
-                      <span
-                        style={{
-                          width: 46,
-                          height: 46,
-                          borderRadius: 13,
-                          display: "grid",
-                          placeItems: "center",
-                          background: "#edf3ff",
-                          color: "#1f61ee",
-                          fontSize: 16,
-                          fontWeight: 900,
-                        }}
-                      >
+                  <article key={saque.id}>
+                    <div className="premio-v4-saque-user">
+                      <span>
                         {saque.usuario_nome?.charAt(0).toUpperCase() || "U"}
                       </span>
                       <div>
-                        <strong style={{ display: "block", fontSize: 15.5, color: "#102d55" }}>
-                          {saque.usuario_nome}
-                        </strong>
-                        <small style={{ display: "block", marginTop: 4, fontSize: 12, color: "#7889a2" }}>
+                        <strong>{saque.usuario_nome}</strong>
+                        <small>
                           Solicitado em {dataPt(saque.solicitado_em)}
                         </small>
                       </div>
                     </div>
 
                     <div>
-                      <span style={{ display: "block", fontSize: 11, color: "#7a8aa1", marginBottom: 5 }}>
-                        PONTOS
-                      </span>
-                      <strong style={{ fontSize: 16, color: "#102d55" }}>
-                        {pontos(Number(saque.pontos_solicitados || 0))} pts
+                      <span>Pontos</span>
+                      <strong>
+                        {pontos(Number(saque.pontos_solicitados || 0))}
                       </strong>
                     </div>
 
                     <div>
-                      <span style={{ display: "block", fontSize: 11, color: "#7a8aa1", marginBottom: 5 }}>
-                        VALOR
-                      </span>
-                      <strong style={{ fontSize: 16, color: "#078a48" }}>
-                        {moeda(Number(saque.valor_reais || saque.pontos_solicitados || 0))}
+                      <span>Valor</span>
+                      <strong>
+                        {moeda(
+                          Number(
+                            saque.valor_reais ||
+                              saque.pontos_solicitados ||
+                              0,
+                          ),
+                        )}
                       </strong>
                     </div>
 
                     <div>
-                      <span style={{ display: "block", fontSize: 11, color: "#7a8aa1", marginBottom: 5 }}>
-                        PIX
-                      </span>
-                      <strong style={{ display: "block", fontSize: 14, color: "#102d55", wordBreak: "break-all" }}>
-                        {saque.chave_pix || "Não informado"}
-                      </strong>
-                      {saque.tipo_chave_pix && (
-                        <small style={{ display: "block", marginTop: 3, color: "#7a8aa1" }}>
-                          {saque.tipo_chave_pix}
-                        </small>
-                      )}
+                      <span>PIX</span>
+                      <strong>{saque.chave_pix || "Não informado"}</strong>
                     </div>
 
-                    <div
-                      className="premio-v4-saque-actions"
-                      style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}
-                    >
+                    <div className="premio-v4-saque-actions">
                       <button
                         type="button"
                         className="pay"
-                        onClick={() => void onProcessarSaque(saque.id, "PAGO")}
+                        onClick={() =>
+                          void onProcessarSaque(saque.id, "PAGO")
+                        }
                         disabled={processando}
-                        style={{
-                          minHeight: 42,
-                          padding: "0 15px",
-                          borderRadius: 10,
-                          fontSize: 12.5,
-                          fontWeight: 850,
-                        }}
                       >
-                        <Check size={16} />
+                        <Check size={15} />
                         Marcar pago
                       </button>
                       <button
                         type="button"
                         className="reject"
-                        onClick={() => void onProcessarSaque(saque.id, "RECUSADO")}
+                        onClick={() =>
+                          void onProcessarSaque(saque.id, "RECUSADO")
+                        }
                         disabled={processando}
-                        style={{
-                          minHeight: 42,
-                          padding: "0 15px",
-                          borderRadius: 10,
-                          fontSize: 12.5,
-                          fontWeight: 850,
-                        }}
                       >
-                        <X size={16} />
+                        <X size={15} />
                         Recusar
                       </button>
                     </div>
@@ -1037,13 +877,15 @@ export default function MinhaPremiacaoV2(props: Props) {
             </div>
 
             {saquesProcessados.length > 0 && (
-              <div className="premio-v4-processed" style={{ marginTop: 24 }}>
-                <h4 style={{ fontSize: 16, marginBottom: 12 }}>Histórico processado</h4>
+              <div className="premio-v4-processed">
+                <h4>Histórico processado</h4>
                 {saquesProcessados.slice(0, 20).map((saque) => (
-                  <div key={saque.id} style={{ minHeight: 46, fontSize: 13 }}>
+                  <div key={saque.id}>
                     <span>{saque.usuario_nome}</span>
                     <span>{pontos(saque.pontos_solicitados)} pts</span>
-                    <b className={saque.status.toLowerCase()}>{saque.status}</b>
+                    <b className={saque.status.toLowerCase()}>
+                      {saque.status}
+                    </b>
                   </div>
                 ))}
               </div>
@@ -1287,7 +1129,7 @@ export default function MinhaPremiacaoV2(props: Props) {
             setErroModal("");
             setPontosSaque(
               saldoDisponivelSaque > 0
-                ? String(normalizarPontos(saldoDisponivelSaque))
+                ? String(saldoDisponivelSaque)
                 : "",
             );
             const pixPessoal = pixDaColaboradora(carteiraNome || nomeUsuario);
@@ -1309,8 +1151,6 @@ export default function MinhaPremiacaoV2(props: Props) {
         </button>
       </section>
 
-      {podeVerExtrato && (
-        <>
       <section className="premio-v4-panel">
         <div className="premio-v4-section-head">
           <div>
@@ -1345,8 +1185,6 @@ export default function MinhaPremiacaoV2(props: Props) {
           )}
         </div>
       </section>
-        </>
-      )}
 
       {modalSaque && (
         <div

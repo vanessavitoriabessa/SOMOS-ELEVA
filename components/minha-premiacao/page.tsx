@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
-import PremiacaoManagerV3 from "@/components/minha-premiacao/PremiacaoManagerV3";
+import PremiacaoManagerV3 from "./PremiacaoManagerV3";
 
 export default function MinhaPremiacaoPage() {
   const router = useRouter();
