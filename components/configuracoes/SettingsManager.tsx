@@ -270,6 +270,11 @@ export default function SettingsManager() {
   >("geral");
   const [bancos, setBancos] = useState<Banco[]>([]);
   const [orgaosConvenios, setOrgaosConvenios] = useState<OrgaoConvenio[]>([]);
+  const orgaoClt: OrgaoConvenio = { id: "__CLT__", nome: "CLT", ativo: true };
+  const orgaosConveniosTabela = useMemo(
+    () => [orgaoClt, ...orgaosConvenios.filter((item) => item.id !== "__CLT__")],
+    [orgaosConvenios],
+  );
   const [tabelas, setTabelas] = useState<Tabela[]>([]);
   const [orgaosNovaTabela, setOrgaosNovaTabela] = useState<string[]>([]);
   const [orgaosEdicaoTabela, setOrgaosEdicaoTabela] = useState<string[]>([]);
@@ -1157,7 +1162,7 @@ export default function SettingsManager() {
   }
 
   async function alternarOrgaoConvenio(id: string) {
-    const orgao = orgaosConvenios.find((item) => item.id === id);
+    const orgao = orgaosConveniosTabela.find((item) => item.id === id);
     if (!orgao) return;
 
     setProcessando(true);
@@ -1265,8 +1270,8 @@ export default function SettingsManager() {
         acao: "criar_tabela",
         tabela: {
           banco: novaTabela.banco,
-          orgaoConvenio: novaTabela.orgaoConvenio,
-          orgaoConvenioIds: orgaosNovaTabela,
+          orgaoConvenio: orgaosNovaTabela.includes("__CLT__") ? "CLT" : novaTabela.orgaoConvenio,
+          orgaoConvenioIds: orgaosNovaTabela.filter((id) => id !== "__CLT__"),
           nome,
           codigo,
           percentual,
@@ -1305,7 +1310,11 @@ export default function SettingsManager() {
   function iniciarEdicaoTabela(tabela: Tabela) {
     setAbrirOrgaosEdicao(false);
     setEditandoTabelaId(tabela.id);
-    setOrgaosEdicaoTabela(tabela.orgaosConvenios.map((item) => item.id));
+    setOrgaosEdicaoTabela(
+      tabela.orgaoConvenio.trim().toUpperCase() === "CLT"
+        ? ["__CLT__", ...tabela.orgaosConvenios.map((item) => item.id)]
+        : tabela.orgaosConvenios.map((item) => item.id),
+    );
     setEdicaoTabela({
       banco: tabela.banco,
       orgaoConvenio: tabela.orgaoConvenio || "",
@@ -1372,8 +1381,8 @@ export default function SettingsManager() {
         tabela: {
           id: editandoTabelaId,
           banco: edicaoTabela.banco,
-          orgaoConvenio: edicaoTabela.orgaoConvenio,
-          orgaoConvenioIds: orgaosEdicaoTabela,
+          orgaoConvenio: orgaosEdicaoTabela.includes("__CLT__") ? "CLT" : edicaoTabela.orgaoConvenio,
+          orgaoConvenioIds: orgaosEdicaoTabela.filter((id) => id !== "__CLT__"),
           nome,
           codigo,
           percentual,
@@ -2562,7 +2571,7 @@ export default function SettingsManager() {
               </label>
 
               <div className="settings-multi-field">
-                <span>Órgãos / Convênios</span>
+                <span>Produto / Órgãos / Convênios</span>
 
                 <button
                   type="button"
@@ -2572,9 +2581,9 @@ export default function SettingsManager() {
                 >
                   <span className={orgaosNovaTabela.length ? "has-value" : ""}>
                     {orgaosNovaTabela.length === 0
-                      ? "Selecionar órgãos / convênios"
+                      ? "Selecionar CLT ou órgãos / convênios"
                       : orgaosNovaTabela.length === 1
-                        ? orgaosConvenios.find((item) => item.id === orgaosNovaTabela[0])?.nome
+                        ? orgaosConveniosTabela.find((item) => item.id === orgaosNovaTabela[0])?.nome
                         : `${orgaosNovaTabela.length} órgãos selecionados`}
                   </span>
                   <b>{abrirOrgaosNovaTabela ? "▲" : "▼"}</b>
@@ -2583,7 +2592,7 @@ export default function SettingsManager() {
                 {abrirOrgaosNovaTabela && (
                   <div className="settings-multi-dropdown">
                     <div className="settings-multi-dropdown-top">
-                      <strong>Selecione um ou mais</strong>
+                      <strong>Selecione CLT ou um ou mais convênios</strong>
                       {orgaosNovaTabela.length > 0 && (
                         <button type="button" onClick={() => setOrgaosNovaTabela([])}>
                           Limpar
@@ -2592,7 +2601,7 @@ export default function SettingsManager() {
                     </div>
 
                     <div className="settings-multi-list">
-                      {orgaosConvenios.filter((item) => item.ativo).map((item) => {
+                      {orgaosConveniosTabela.filter((item) => item.ativo).map((item) => {
                         const marcado = orgaosNovaTabela.includes(item.id);
 
                         return (
@@ -2600,13 +2609,20 @@ export default function SettingsManager() {
                             type="button"
                             key={item.id}
                             className={marcado ? "selected" : ""}
-                            onClick={() =>
+                            onClick={() => {
+                              if (item.id === "__CLT__") {
+                                setOrgaosNovaTabela(["__CLT__"]);
+                                setNovaTabela({ ...novaTabela, orgaoConvenio: "CLT" });
+                                setAbrirOrgaosNovaTabela(false);
+                                return;
+                              }
+
                               alternarOrgaoSelecionado(
                                 item.id,
-                                orgaosNovaTabela,
+                                orgaosNovaTabela.filter((id) => id !== "__CLT__"),
                                 setOrgaosNovaTabela,
-                              )
-                            }
+                              );
+                            }}
                           >
                             <span className="multi-check">{marcado ? "✓" : ""}</span>
                             <span>{item.nome}</span>
@@ -2620,7 +2636,7 @@ export default function SettingsManager() {
                 {orgaosNovaTabela.length > 0 && (
                   <div className="settings-selected-tags">
                     {orgaosNovaTabela.map((id) => {
-                      const orgao = orgaosConvenios.find((item) => item.id === id);
+                      const orgao = orgaosConveniosTabela.find((item) => item.id === id);
                       if (!orgao) return null;
 
                       return (
@@ -2644,7 +2660,7 @@ export default function SettingsManager() {
                   </div>
                 )}
 
-                <small>Você pode vincular a mesma tabela a vários órgãos.</small>
+                <small>Para tabelas de empréstimo privado, selecione CLT. Para consignado, selecione um ou mais órgãos / convênios.</small>
               </div>
 
               <label>
@@ -2740,7 +2756,7 @@ export default function SettingsManager() {
                   type="search"
                   value={buscaTabela}
                   onChange={(e) => setBuscaTabela(e.target.value)}
-                  placeholder="Pesquisar tabela, código, banco ou órgão / convênio..."
+                  placeholder="Pesquisar tabela, código, banco, CLT ou órgão / convênio..."
                 />
                 {buscaTabela && (
                   <button
@@ -2763,7 +2779,7 @@ export default function SettingsManager() {
             <div className="settings-table-head settings-table-grid">
               <span>Tabela</span>
               <span>Banco</span>
-              <span>Órgão / Convênio</span>
+              <span>Produto / Convênio</span>
               <span>Código</span>
               <span>% Produção</span>
               <span>% Comissão banco</span>
@@ -2827,7 +2843,7 @@ export default function SettingsManager() {
                               {orgaosEdicaoTabela.length === 0
                                 ? "Selecionar"
                                 : orgaosEdicaoTabela.length === 1
-                                  ? orgaosConvenios.find((item) => item.id === orgaosEdicaoTabela[0])?.nome
+                                  ? orgaosConveniosTabela.find((item) => item.id === orgaosEdicaoTabela[0])?.nome
                                   : `${orgaosEdicaoTabela.length} selecionados`}
                             </span>
                             <b>{abrirOrgaosEdicao ? "▲" : "▼"}</b>
@@ -2836,7 +2852,7 @@ export default function SettingsManager() {
                           {abrirOrgaosEdicao && (
                             <div className="settings-multi-dropdown edit-dropdown">
                               <div className="settings-multi-list">
-                                {orgaosConvenios.filter((item) => item.ativo).map((item) => {
+                                {orgaosConveniosTabela.filter((item) => item.ativo).map((item) => {
                                   const marcado = orgaosEdicaoTabela.includes(item.id);
 
                                   return (
@@ -2844,13 +2860,20 @@ export default function SettingsManager() {
                                       type="button"
                                       key={item.id}
                                       className={marcado ? "selected" : ""}
-                                      onClick={() =>
+                                      onClick={() => {
+                                        if (item.id === "__CLT__") {
+                                          setOrgaosEdicaoTabela(["__CLT__"]);
+                                          setEdicaoTabela({ ...edicaoTabela, orgaoConvenio: "CLT" });
+                                          setAbrirOrgaosEdicao(false);
+                                          return;
+                                        }
+
                                         alternarOrgaoSelecionado(
                                           item.id,
-                                          orgaosEdicaoTabela,
+                                          orgaosEdicaoTabela.filter((id) => id !== "__CLT__"),
                                           setOrgaosEdicaoTabela,
-                                        )
-                                      }
+                                        );
+                                      }}
                                     >
                                       <span className="multi-check">{marcado ? "✓" : ""}</span>
                                       <span>{item.nome}</span>
