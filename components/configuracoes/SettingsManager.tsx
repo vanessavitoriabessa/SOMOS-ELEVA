@@ -19,6 +19,7 @@ type Tabela = {
   codigo: string;
   percentual: number;
   percentualComissaoBanco: number | null;
+  prazo: number | null;
   ativo: boolean;
 };
 
@@ -206,12 +207,12 @@ const bancosPadrao: Banco[] = [
 ];
 
 const tabelasPadrao: Tabela[] = [
-  { id: "neo-normal-399", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "NORMAL", codigo: "399", percentual: 100, percentualComissaoBanco: null, ativo: true },
-  { id: "neo-flex-1-379", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "FLEX 1", codigo: "379", percentual: 75, percentualComissaoBanco: null, ativo: true },
-  { id: "neo-flex-2-359", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "FLEX 2", codigo: "359", percentual: 50, percentualComissaoBanco: null, ativo: true },
-  { id: "neo-flex-3-339", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "FLEX 3", codigo: "339", percentual: 40, percentualComissaoBanco: null, ativo: true },
-  { id: "neo-flex-4-319", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "FLEX 4", codigo: "319", percentual: 20, percentualComissaoBanco: null, ativo: true },
-  { id: "neo-flex-5-299", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "FLEX 5", codigo: "299", percentual: 8, percentualComissaoBanco: null, ativo: true },
+  { id: "neo-normal-399", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "NORMAL", codigo: "399", percentual: 100, percentualComissaoBanco: null, prazo: null, ativo: true },
+  { id: "neo-flex-1-379", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "FLEX 1", codigo: "379", percentual: 75, percentualComissaoBanco: null, prazo: null, ativo: true },
+  { id: "neo-flex-2-359", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "FLEX 2", codigo: "359", percentual: 50, percentualComissaoBanco: null, prazo: null, ativo: true },
+  { id: "neo-flex-3-339", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "FLEX 3", codigo: "339", percentual: 40, percentualComissaoBanco: null, prazo: null, ativo: true },
+  { id: "neo-flex-4-319", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "FLEX 4", codigo: "319", percentual: 20, percentualComissaoBanco: null, prazo: null, ativo: true },
+  { id: "neo-flex-5-299", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "FLEX 5", codigo: "299", percentual: 8, percentualComissaoBanco: null, prazo: null, ativo: true },
 ];
 
 const configPadrao: ConfiguracaoGeral = {
@@ -347,6 +348,7 @@ export default function SettingsManager() {
     codigo: "",
     percentual: "",
     percentualComissaoBanco: "",
+    prazo: "",
   });
 
   const [editandoTabelaId, setEditandoTabelaId] = useState<string | null>(null);
@@ -357,6 +359,7 @@ export default function SettingsManager() {
     codigo: "",
     percentual: "",
     percentualComissaoBanco: "",
+    prazo: "",
   });
   const [novaMeta, setNovaMeta] = useState({
     nome: "",
@@ -794,6 +797,10 @@ export default function SettingsManager() {
               item.percentual_comissao_banco === undefined
                 ? null
                 : Number(item.percentual_comissao_banco),
+            prazo:
+              item.prazo === null || item.prazo === undefined
+                ? null
+                : Number(item.prazo),
             ativo: item.ativo !== false,
           }))
         : [];
@@ -1245,10 +1252,14 @@ export default function SettingsManager() {
       percentualComissaoBancoTexto === ""
         ? null
         : numero(percentualComissaoBancoTexto);
+    const prazoTexto = novaTabela.prazo.trim();
+    const prazo = prazoTexto === "" ? null : Math.max(1, Math.trunc(numero(prazoTexto)));
+    const tabelaClt = orgaosNovaTabela.includes("__CLT__");
 
     if (!novaTabela.banco) return setMensagem("Selecione o banco.");
     if (!nome) return setMensagem("Informe o nome da tabela.");
     if (!codigo) return setMensagem("Informe o código da tabela.");
+    if (tabelaClt && prazo === null) return setMensagem("Informe o prazo da tabela CLT.");
     if (percentual <= 0 || percentual > 100) {
       return setMensagem("Informe um percentual de produção entre 0,01% e 100%.");
     }
@@ -1276,6 +1287,7 @@ export default function SettingsManager() {
           codigo,
           percentual,
           percentualComissaoBanco,
+          prazo,
         },
       });
 
@@ -1288,6 +1300,7 @@ export default function SettingsManager() {
         codigo: "",
         percentual: "",
         percentualComissaoBanco: "",
+        prazo: "",
       });
 
       setMensagem(
@@ -1325,6 +1338,7 @@ export default function SettingsManager() {
         tabela.percentualComissaoBanco === null
           ? ""
           : String(tabela.percentualComissaoBanco).replace(".", ","),
+      prazo: tabela.prazo === null ? "" : String(tabela.prazo),
     });
     setMensagem("");
   }
@@ -1340,6 +1354,7 @@ export default function SettingsManager() {
       codigo: "",
       percentual: "",
       percentualComissaoBanco: "",
+      prazo: "",
     });
   }
 
@@ -1355,6 +1370,9 @@ export default function SettingsManager() {
       percentualComissaoBancoTexto === ""
         ? null
         : numero(percentualComissaoBancoTexto);
+    const prazoTexto = edicaoTabela.prazo.trim();
+    const prazo = prazoTexto === "" ? null : Math.max(1, Math.trunc(numero(prazoTexto)));
+    const tabelaClt = orgaosEdicaoTabela.includes("__CLT__");
 
     if (!edicaoTabela.banco) return setMensagem("Selecione o banco.");
     if (!nome) return setMensagem("Informe o nome da tabela.");
@@ -1999,6 +2017,7 @@ export default function SettingsManager() {
         tabela.orgaoConvenio,
         tabela.orgaosConvenios.map((item) => item.nome).join(" "),
         tabela.codigo,
+        tabela.prazo === null ? "" : String(tabela.prazo),
         String(tabela.percentual),
         tabela.percentualComissaoBanco === null
           ? ""
@@ -2695,6 +2714,24 @@ export default function SettingsManager() {
               </label>
 
               <label>
+                Prazo
+                <input
+                  type="number"
+                  min="1"
+                  value={novaTabela.prazo}
+                  onChange={(e) =>
+                    setNovaTabela({
+                      ...novaTabela,
+                      prazo: e.target.value,
+                    })
+                  }
+                  placeholder={orgaosNovaTabela.includes("__CLT__") ? "Ex.: 12" : "Opcional"}
+                  disabled={processando}
+                />
+                <small>{orgaosNovaTabela.includes("__CLT__") ? "Prazo em meses da tabela CLT." : "Opcional para tabelas não CLT."}</small>
+              </label>
+
+              <label>
                 % para produção
                 <input
                   value={novaTabela.percentual}
@@ -2781,6 +2818,7 @@ export default function SettingsManager() {
               <span>Banco</span>
               <span>Produto / Convênio</span>
               <span>Código</span>
+              <span>Prazo</span>
               <span>% Produção</span>
               <span>% Comissão banco</span>
               <span>Status</span>
@@ -2901,6 +2939,22 @@ export default function SettingsManager() {
 
                         <div>
                           <input
+                            type="number"
+                            min="1"
+                            value={edicaoTabela.prazo}
+                            onChange={(e) =>
+                              setEdicaoTabela({
+                                ...edicaoTabela,
+                                prazo: e.target.value,
+                              })
+                            }
+                            placeholder="Prazo"
+                            disabled={processando}
+                          />
+                        </div>
+
+                        <div>
+                          <input
                             value={edicaoTabela.percentual}
                             onChange={(e) =>
                               setEdicaoTabela({
@@ -2980,6 +3034,10 @@ export default function SettingsManager() {
 
                         <div>
                           <b>{tabela.codigo || "—"}</b>
+                        </div>
+
+                        <div>
+                          <b>{tabela.prazo === null ? "—" : `${tabela.prazo}x`}</b>
                         </div>
 
                         <div>
