@@ -526,7 +526,10 @@ const repetidosHyperflow = Math.max(
 const telefonesQueIniciaramAtendimento = new Set(
   eventos
     .filter(
-      (item) => item.resultado === "plano_b_websdk",
+      (item) =>
+        item.resultado === "plano_a_whatsapp" ||
+        item.resultado === "plano_b_websdk" ||
+        item.resultado === "fallback_whatsapp",
     )
     .map((item) => String(item.telefone || ""))
     .filter(Boolean),

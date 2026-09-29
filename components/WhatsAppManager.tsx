@@ -85,6 +85,7 @@ type MonitorData = {
 
 const URL_API = "/api/whatsapps";
 const URL_MONITOR = "/api/lp-eventos";
+const URL_META_INSIGHTS = "/api/meta-insights";
 
 const CONSULTORES = [
   "Ana Carolina",
@@ -242,6 +243,7 @@ export default function WhatsAppManager({ modo = "gerenciador" }: WhatsAppManage
   const [monitor, setMonitor] = useState<MonitorData | null>(null);
   const [carregandoMonitor, setCarregandoMonitor] = useState(false);
   const [erroMonitor, setErroMonitor] = useState("");
+  const [leadsMeta, setLeadsMeta] = useState(0);
 
   const [filtrosStatus, setFiltrosStatus] = useState<string[]>([]);
   const [filtrosTipo, setFiltrosTipo] = useState<string[]>([]);
@@ -284,58 +286,88 @@ export default function WhatsAppManager({ modo = "gerenciador" }: WhatsAppManage
   }
 
   async function carregarMonitor(
-    inicio = dataInicioMonitor,
-    fim = dataFimMonitor,
-  ) {
-    try {
-      setCarregandoMonitor(true);
-      setErroMonitor("");
+  inicio = dataInicioMonitor,
+  fim = dataFimMonitor,
+) {
+  try {
+    setCarregandoMonitor(true);
+    setErroMonitor("");
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-      const token = session?.access_token;
+    const token = session?.access_token;
 
-      if (!token) {
-        throw new Error(
-          "Sua sessão não foi encontrada. Entre novamente no sistema.",
-        );
-      }
-
-      const resposta = await fetch(
-        `${URL_MONITOR}?inicio=${encodeURIComponent(
-          inicio,
-        )}&fim=${encodeURIComponent(fim)}`,
-        {
-          method: "GET",
-          cache: "no-store",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
+    if (!token) {
+      throw new Error(
+        "Sua sessão não foi encontrada. Entre novamente no sistema.",
       );
-
-      const json = (await resposta.json()) as MonitorData;
-
-      if (!resposta.ok || json.sucesso === false) {
-        throw new Error(
-          json.erro || "Não foi possível carregar o Monitor da LP.",
-        );
-      }
-
-      setMonitor(json);
-    } catch (error) {
-      setMonitor(null);
-      setErroMonitor(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível carregar o Monitor da LP.",
-      );
-    } finally {
-      setCarregandoMonitor(false);
     }
+
+    // MONITOR DA LP
+    const resposta = await fetch(
+      `${URL_MONITOR}?inicio=${encodeURIComponent(
+        inicio,
+      )}&fim=${encodeURIComponent(fim)}`,
+      {
+        method: "GET",
+        cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+
+    const json = (await resposta.json()) as MonitorData;
+
+    if (!resposta.ok || json.sucesso === false) {
+      throw new Error(
+        json.erro || "Não foi possível carregar o Monitor da LP.",
+      );
+    }
+
+    setMonitor(json);
+
+    // LEADS DA META
+    const respostaMeta = await fetch(
+      `${URL_META_INSIGHTS}?inicio=${encodeURIComponent(
+        inicio,
+      )}&fim=${encodeURIComponent(fim)}`,
+      {
+        method: "GET",
+        cache: "no-store",
+      },
+    );
+
+    const jsonMeta = (await respostaMeta.json()) as {
+      sucesso?: boolean;
+      leads_meta?: number;
+      erro?: string;
+    };
+
+    if (!respostaMeta.ok || jsonMeta.sucesso === false) {
+      throw new Error(
+        jsonMeta.erro || "Não foi possível carregar os leads da Meta.",
+      );
+    }
+
+    setLeadsMeta(Number(jsonMeta.leads_meta || 0));
+  } catch (error) {
+    setMonitor(null);
+    setLeadsMeta(0);
+
+    setErroMonitor(
+      error instanceof Error
+        ? error.message
+        : "Não foi possível carregar o Monitor da LP.",
+    );
+  } finally {
+    setCarregandoMonitor(false);
   }
+}
+
+  
 
   function aplicarPeriodoMonitor(tipo: "hoje" | "ontem" | "7dias") {
     if (tipo === "hoje") {
@@ -702,10 +734,12 @@ mensagem: formEdicao.mensagem.trim(),
         .filter(Boolean),
     ).size;
 
-    const base = monitor?.resumo.telefones_unicos ?? 0;
-    const iniciaram = monitor?.resumo.iniciaram_atendimento ?? iniciaramCalculado;
-    const percentualCalculado =
-      base > 0 ? Number(((iniciaram / base) * 100).toFixed(1)) : 0;
+    const iniciaram = unicosSalvosCalculado;
+
+const percentualCalculado =
+  leadsMeta > 0
+    ? Number(((iniciaram / leadsMeta) * 100).toFixed(1))
+    : 0;
 
     return {
       repeticoesLp:
@@ -717,10 +751,9 @@ mensagem: formEdicao.mensagem.trim(),
       totalSalvo:
         monitor?.resumo.total_salvo_hyperflow ?? totalSalvoCalculado,
       iniciaram,
-      percentual:
-        monitor?.resumo.iniciaram_atendimento_percentual ?? percentualCalculado,
+      percentual: percentualCalculado,
     };
-  }, [monitor]);
+  }, [monitor, leadsMeta]);
 
   const resultadosDashboard = useMemo(() => {
     const mapa = new Map<string, number>();
@@ -1224,6 +1257,7 @@ mensagem: formEdicao.mensagem.trim(),
           }}
         >
           {[
+            ["LEADS META", leadsMeta, "#155eef"],
             ["Tentativas na LP", monitor?.resumo.tentativas ?? 0, "#08275c"],
             ["Telefones únicos LP", monitor?.resumo.telefones_unicos ?? 0, "#08275c"],
             ["Repetições de telefone LP", metricasMonitor.repeticoesLp, "#08275c"],
@@ -1286,7 +1320,7 @@ mensagem: formEdicao.mensagem.trim(),
                     lineHeight: 1.35,
                   }}
                 >
-                  {metricasMonitor.percentual}% dos telefones únicos da LP
+                  {metricasMonitor.percentual}% dos leads da Meta
                 </div>
               )}
             </div>
