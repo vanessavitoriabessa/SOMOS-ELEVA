@@ -293,15 +293,31 @@ export default function WhatsAppManager({ modo = "gerenciador" }: WhatsAppManage
     setCarregandoMonitor(true);
     setErroMonitor("");
 
+    // Renova a sessão antes de consultar o Monitor da LP.
+    // Isso evita enviar para /api/lp-eventos um access_token antigo
+    // que ainda esteja persistido no navegador.
     const {
-      data: { session },
-    } = await supabase.auth.getSession();
+      data: dadosRefresh,
+      error: erroRefresh,
+    } = await supabase.auth.refreshSession();
+
+    let session = dadosRefresh.session;
+
+    // Em alguns casos não há necessidade de renovar porque a sessão atual
+    // ainda é válida. Nesse caso, usa a sessão corrente.
+    if (erroRefresh || !session?.access_token) {
+      const {
+        data: { session: sessaoAtual },
+      } = await supabase.auth.getSession();
+
+      session = sessaoAtual;
+    }
 
     const token = session?.access_token;
 
     if (!token) {
       throw new Error(
-        "Sua sessão não foi encontrada. Entre novamente no sistema.",
+        "Sua sessão expirou. Saia do sistema e entre novamente para continuar.",
       );
     }
 

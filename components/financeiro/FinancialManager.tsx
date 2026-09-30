@@ -3287,7 +3287,14 @@ const resumoRhDaFolha = useMemo(() => {
                 <input type="date" value={filtroPremiacaoDataFinal}
                   onChange={e=>setFiltroPremiacaoDataFinal(e.target.value)}/>
               </label>
-
+<label>
+  <span>📅 Data competência</span>
+  <input
+    type="month"
+    value={competenciaPremiacoes}
+    onChange={(e) => setCompetenciaPremiacoes(e.target.value)}
+  />
+</label>
               <label>
                 <span>👤 Colaborador(a)</span>
                 <select value={filtroPremiacaoColaborador}

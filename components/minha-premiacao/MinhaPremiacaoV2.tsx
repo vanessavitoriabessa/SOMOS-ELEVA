@@ -548,7 +548,15 @@ const [abaAdmin, setAbaAdmin] = useState<
 
   const cltParcelasPagas = movimentosClt.reduce((t,m)=>t+Number(m.valorParcelaClt||m.producaoValida||0),0);
 
-  const custoPa = Number(custoEmpresaCompetencia || 0) / Math.max(Number(quantidadeVendedorasAtivas || 1), 1);
+  const diferencaPremiacao =
+  Number(premiacaoExibida || 0) - Number(pontosTotalPrevisto || 0);
+
+const custoEmpresaComPremiacao =
+  Number(custoEmpresaCompetencia || 0) + diferencaPremiacao;
+
+const custoPa =
+  custoEmpresaComPremiacao /
+  Math.max(Number(quantidadeVendedorasAtivas || 1), 1);
   const comissaoEmpresaBruta = movimentosCompra.reduce((t,m)=>t+Number(m.comissaoEmpresa||0),0);
   const comissaoEmpresaLiquida = Math.max(comissaoEmpresaBruta - custoPa, 0);
   const brutoSelecionado = Math.max(movimentos.reduce((t,m)=>t+Number(m.valorBruto ?? m.valorContrato ?? 0),0),0);
@@ -844,7 +852,7 @@ const [abaAdmin, setAbaAdmin] = useState<
                 <article><span>Compra de Dívida — bruto pago</span><strong>{moeda(compraBrutaPaga)}</strong><small>{movimentosCompra.length} contrato(s) elegível(is)</small></article>
                 <article className="internal"><span>Comissão empresa — bruto</span><strong>{moeda(comissaoEmpresaBruta)}</strong><small>Antes do Custo PA</small></article>
                 <article className="internal"><span>Comissão empresa — líquido</span><strong>{moeda(comissaoEmpresaLiquida)}</strong><small>Comissão bruta menos Custo PA</small></article>
-                <article><span>Custo PA</span><strong>{moeda(custoPa)}</strong><small>{moeda(custoEmpresaCompetencia)} ÷ {quantidadeVendedorasAtivas} vendedora(s)</small></article>
+                <article><span>Custo PA</span><strong>{moeda(custoPa)}</strong><small>{moeda(custoEmpresaComPremiacao)} ÷ {quantidadeVendedorasAtivas} vendedora(s)</small></article>
                 <article><span>Aguardando pagar</span><strong>{moeda(producaoEmFormacao)}</strong><small>{contratosEmFormacao} proposta(s) ainda não paga(s)</small></article>
                 <article className="points"><span>Premiação automática</span><strong>{pontos(pontosTotalPrevisto)} pts</strong><small>{pontosTotalPrevisto > 0 ? "1 ponto = R$ 1,00" : "NÃO BATEU META"}</small></article>
               </section>
