@@ -9,6 +9,7 @@ import DespesasFixasManager from "@/components/financeiro/DespesasFixasManager";
 import RelatoriosFinanceiros from "@/components/financeiro/RelatoriosFinanceiros";
 import FiscalControls from "@/components/financeiro/FiscalControls";
 import "@/components/financeiro/financeiro-unificado-final.css";
+import CustoPorOperadorManager from "@/components/financeiro/CustoPorOperadorManager";
 
 type Aba =
   | "visao-geral"
@@ -20,6 +21,7 @@ type Aba =
   | "controle-notas"
   | "simples-nacional"
   | "inss-fgts"
+  | "custo-operador"
   | "relatorios";
 
 export default function FinanceiroPage() {
@@ -35,6 +37,7 @@ export default function FinanceiroPage() {
     { id: "controle-notas", label: "Controle de Notas" },
     { id: "simples-nacional", label: "Imposto Simples Nacional" },
     { id: "inss-fgts", label: "Imposto INSS e FGTS" },
+    { id: "custo-operador", label: "Custo por Operador" },
     { id: "relatorios", label: "Relatórios" },
   ];
 
@@ -124,6 +127,9 @@ export default function FinanceiroPage() {
         {aba === "inss-fgts" && (
           <FiscalControls abaInicial="inss" ocultarAbasPrincipais />
         )}
+{aba === "custo-operador" && (
+  <CustoPorOperadorManager />
+)}
 
         {aba === "relatorios" && (
           <RelatoriosFinanceiros />
