@@ -1,0 +1,154 @@
+/* ===========================================================
+   SOMOS ELEVA
+   CONFIGURAÇÕES V2
+   =========================================================== */
+
+.settings-page{
+    display:flex;
+    flex-direction:column;
+    gap:22px;
+    width:100%;
+}
+
+/* ================= HEADER ================= */
+
+.settings-v3-intro{
+
+    display:flex;
+    align-items:center;
+    gap:20px;
+
+    padding:12px 0;
+
+}
+
+.settings-v3-intro-icon{
+
+    width:62px;
+    height:62px;
+
+    border-radius:18px;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    background:#EDF4FF;
+
+    color:#155EEF;
+
+    font-size:28px;
+
+}
+
+.settings-v3-intro-copy span{
+
+    color:#155EEF;
+
+    font-size:12px;
+
+    font-weight:800;
+
+    letter-spacing:2px;
+
+}
+
+.settings-v3-intro-copy h2{
+
+    margin:5px 0;
+
+    font-size:46px;
+
+    color:#102D55;
+
+    font-weight:900;
+
+}
+
+.settings-v3-intro-copy p{
+
+    color:#6F809D;
+
+    font-size:16px;
+
+}
+
+/* ================= KPI ================= */
+
+.settings-v3-summary{
+
+    display:grid;
+
+    grid-template-columns:repeat(6,1fr);
+
+    gap:18px;
+
+}
+
+.settings-v3-summary article{
+
+    background:white;
+
+    border-radius:20px;
+
+    border:1px solid #E7EDF8;
+
+    padding:18px;
+
+    display:flex;
+
+    gap:14px;
+
+    align-items:center;
+
+}
+
+.settings-v3-kpi-icon{
+
+    width:54px;
+
+    height:54px;
+
+    border-radius:16px;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    font-size:22px;
+
+    font-weight:700;
+
+}
+
+.settings-v3-summary strong{
+
+    display:block;
+
+    font-size:34px;
+
+    color:#102D55;
+
+}
+
+.settings-v3-summary span{
+
+    display:block;
+
+    font-size:13px;
+
+    font-weight:700;
+
+}
+
+.settings-v3-summary small{
+
+    display:block;
+
+    color:#7B8AA5;
+
+    margin-top:4px;
+
+}

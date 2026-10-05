@@ -2124,7 +2124,10 @@ export default function SettingsManager() {
       </section>
 
       <div className="settings-admin-layout">
-        <aside className="settings-admin-sidebar">
+        <aside
+    className="settings-admin-sidebar"
+    style={{display:"none"}}
+>
           <div className="settings-admin-sidebar-title">
             <span>CONFIGURAÇÕES</span>
             <strong>Central do sistema</strong>
@@ -2199,9 +2202,127 @@ export default function SettingsManager() {
           </div>
         </aside>
 
-        <main className="settings-admin-content">
+        <main
+    className="settings-admin-content"
+    style={{
+        width:"100%",
+        maxWidth:"100%"
+    }}
+>
 
           {mensagem && <div className="settings-message">{mensagem}</div>}
+          <div className="settings-top-menu">
+<div className="settings-sub-menu">
+
+  {(aba==="geral" || aba==="preferencias") && (
+    <>
+      <button
+        className={aba==="geral"?"active":""}
+        onClick={()=>setAba("geral")}
+      >
+        Informações
+      </button>
+
+      <button
+        className={aba==="preferencias"?"active":""}
+        onClick={()=>setAba("preferencias")}
+      >
+        Preferências
+      </button>
+    </>
+  )}
+
+  {["bancos","orgaos","tabelas","status","metas"].includes(aba) && (
+    <>
+      <button className={aba==="bancos"?"active":""} onClick={()=>setAba("bancos")}>Bancos</button>
+
+      <button className={aba==="orgaos"?"active":""} onClick={()=>setAba("orgaos")}>Órgãos</button>
+
+      <button className={aba==="tabelas"?"active":""} onClick={()=>setAba("tabelas")}>Tabelas</button>
+
+      <button className={aba==="status"?"active":""} onClick={()=>setAba("status")}>Status</button>
+
+      <button className={aba==="metas"?"active":""} onClick={()=>setAba("metas")}>Metas</button>
+    </>
+  )}
+
+  {["equipes","perfis","permissoes"].includes(aba) && (
+    <>
+      <button className={aba==="equipes"?"active":""} onClick={()=>setAba("equipes")}>Equipes</button>
+
+      <button className={aba==="perfis"?"active":""} onClick={()=>setAba("perfis")}>Perfis</button>
+
+      <button className={aba==="permissoes"?"active":""} onClick={()=>setAba("permissoes")}>Permissões</button>
+    </>
+  )}
+
+  {["financeiro","comissoes"].includes(aba) && (
+    <>
+      <button className={aba==="financeiro"?"active":""} onClick={()=>setAba("financeiro")}>
+        Cadastros Financeiros
+      </button>
+
+      <button className={aba==="comissoes"?"active":""} onClick={()=>setAba("comissoes")}>
+        Premiações
+      </button>
+    </>
+  )}
+
+  {aba==="logs" && (
+    <button className="active">
+      Logs do Sistema
+    </button>
+  )}
+
+</div>
+  <button
+    className={aba==="geral" || aba==="preferencias" ? "active" : ""}
+    onClick={()=>setAba("geral")}
+  >
+    ⚙️ Sistema
+  </button>
+
+  <button
+    className={
+      ["bancos","orgaos","tabelas","status","metas"].includes(aba)
+        ? "active"
+        : ""
+    }
+    onClick={()=>setAba("bancos")}
+  >
+    🏦 Comercial
+  </button>
+
+  <button
+    className={
+      ["equipes","perfis","permissoes"].includes(aba)
+        ? "active"
+        : ""
+    }
+    onClick={()=>setAba("equipes")}
+  >
+    👥 Pessoas
+  </button>
+
+  <button
+    className={
+      ["financeiro","comissoes"].includes(aba)
+        ? "active"
+        : ""
+    }
+    onClick={()=>setAba("financeiro")}
+  >
+    💰 Financeiro
+  </button>
+
+  <button
+    className={aba==="logs" ? "active" : ""}
+    onClick={()=>setAba("logs")}
+  >
+    📊 Relatórios
+  </button>
+
+</div>
 
       {aba === "geral" && (
         <section className="settings-card settings-v3-general-card">

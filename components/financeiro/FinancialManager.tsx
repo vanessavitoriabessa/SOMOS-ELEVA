@@ -89,6 +89,7 @@ type RegistroFolha = {
   descontoInss: number;
   descontoVale: number;
   descontoFaltas: number;
+  descontoEmprestimoClt: number;
   totalBrutoDia05: number;
   totalDescontosDia05: number;
   totalDia05: number;
@@ -461,6 +462,8 @@ const [descontoInss, setDescontoInss] =
 const [descontoFaltas, setDescontoFaltas] =
   useState("");
 
+  const [descontoEmprestimoClt, setDescontoEmprestimoClt] = useState("");
+
 const [mensagemFolha, setMensagemFolha] =
   useState("");
 
@@ -766,7 +769,7 @@ const [mensagemFolha, setMensagemFolha] =
             Array.isArray(respostaFolhas.data)
               ? respostaFolhas.data
               : []
-          ).map((registro) => {
+          ).map((registro: any): RegistroFolha => {
             const usuario = mapaUsuarios.get(
               String(registro.usuario_id || "")
             );
@@ -800,6 +803,9 @@ const [mensagemFolha, setMensagemFolha] =
               descontoFaltas: Number(
                 registro.desconto_faltas || 0
               ),
+              descontoEmprestimoClt: Number(
+  registro.desconto_emprestimo_clt || 0
+),
               totalBrutoDia05: Number(
                 registro.total_bruto_dia05 || 0
               ),
@@ -831,7 +837,7 @@ const [mensagemFolha, setMensagemFolha] =
           (Array.isArray(respostaComissoes.data)
             ? respostaComissoes.data
             : []
-          ).map((registro) => {
+          ).map((registro: any): RegistroComissao => {
             const usuario = mapaUsuarios.get(
               String(registro.usuario_id || "")
             );
@@ -863,7 +869,7 @@ const [mensagemFolha, setMensagemFolha] =
             Array.isArray(respostaLancamentos.data)
               ? respostaLancamentos.data
               : []
-          ).map((registro) => ({
+          ).map((registro: any): Lancamento => ({
             id: String(registro.id),
             tipo:
               String(registro.tipo) === "Saída"
@@ -1117,6 +1123,11 @@ const resumoRhDaFolha = useMemo(() => {
       .toFixed(2)
       .replace(".", ",")
   );
+  setDescontoEmprestimoClt(
+  Number((registroExistente as any).descontoEmprestimoClt || 0)
+    .toFixed(2)
+    .replace(".", ",")
+);
 
   // Registros antigos guardavam apenas o total do dia 20.
   // Mantemos esse total preservado como "Outras premiações" depois
@@ -1143,6 +1154,7 @@ const resumoRhDaFolha = useMemo(() => {
   setDescontoInss("");
   setDescontoVale("");
   setDescontoFaltas("");
+  setDescontoEmprestimoClt("");
   setComissaoCltDia20("");
   setOutrasPremiacoesDia20("");
   setAjusteDia20("");
@@ -1204,6 +1216,7 @@ const resumoRhDaFolha = useMemo(() => {
     const valorInss = numero(descontoInss);
     const valorVale = numero(descontoVale);
     const valorFaltas = numero(descontoFaltas);
+    const valorEmprestimoClt = numero(descontoEmprestimoClt);
 
     const assiduidade = assiduidadeAtiva
       ? numero(valorAssiduidade)
@@ -1211,7 +1224,10 @@ const resumoRhDaFolha = useMemo(() => {
 
     const totalBrutoDia05 = valorSalario + assiduidade;
     const totalDescontosDia05 =
-      valorInss + valorVale + valorFaltas;
+    valorInss +
+    valorVale +
+    valorFaltas +
+    valorEmprestimoClt;
     const totalDia05 = Math.max(
       totalBrutoDia05 - totalDescontosDia05,
       0
@@ -1224,6 +1240,7 @@ const resumoRhDaFolha = useMemo(() => {
       descontoInss: valorInss,
       descontoVale: valorVale,
       descontoFaltas: valorFaltas,
+      descontoEmprestimoClt: valorEmprestimoClt,
       totalBrutoDia05,
       totalDescontosDia05,
       totalDia05,
@@ -1675,6 +1692,7 @@ const resumoRhDaFolha = useMemo(() => {
         desconto_inss: calculoFolha.descontoInss,
         desconto_vale: calculoFolha.descontoVale,
         desconto_faltas: calculoFolha.descontoFaltas,
+        desconto_emprestimo_clt: calculoFolha.descontoEmprestimoClt,
         total_bruto_dia05: calculoFolha.totalBrutoDia05,
         total_descontos_dia05: calculoFolha.totalDescontosDia05,
         total_dia05: calculoFolha.totalDia05,
@@ -1749,6 +1767,7 @@ const resumoRhDaFolha = useMemo(() => {
         descontoInss: Number(registroSalvo.desconto_inss || 0),
         descontoVale: Number(registroSalvo.desconto_vale || 0),
         descontoFaltas: Number(registroSalvo.desconto_faltas || 0),
+        descontoEmprestimoClt: Number(registroSalvo.desconto_emprestimo_clt || 0),
         totalBrutoDia05: Number(registroSalvo.total_bruto_dia05 || 0),
         totalDescontosDia05: Number(registroSalvo.total_descontos_dia05 || 0),
         totalDia05: Number(registroSalvo.total_dia05 || 0),
@@ -2918,7 +2937,31 @@ const resumoRhDaFolha = useMemo(() => {
                     inputMode="decimal"
                   />
                 </label>
+                <label>
+  Desconto empréstimo CLT
+
+  <input
+    value={descontoEmprestimoClt}
+    onChange={(evento) =>
+      setDescontoEmprestimoClt(evento.target.value)
+    }
+    placeholder="Ex.: 185,42"
+    inputMode="decimal"
+  />
+</label>
               </div>
+              <label>
+    Desconto empréstimo CLT
+
+    <input
+        value={descontoEmprestimoClt}
+        onChange={(evento) =>
+            setDescontoEmprestimoClt(evento.target.value)
+        }
+        placeholder="Ex.: 185,42"
+        inputMode="decimal"
+    />
+</label>
 
               <div className={`payroll-modern-attendance ${assiduidadeAtiva ? "active" : ""}`}>
                 <label className="payroll-modern-switch">
@@ -3079,6 +3122,12 @@ const resumoRhDaFolha = useMemo(() => {
                         <span>Vale <strong>− {moeda(registro.descontoVale)}</strong></span>
                         <span>Faltas <strong>− {moeda(registro.descontoFaltas)}</strong></span>
                       </div>
+                      <span>
+  Empréstimo CLT
+  <strong>
+    − {moeda((registro as any).descontoEmprestimoClt || 0)}
+  </strong>
+</span>
 
                       <div className="payroll-modern-item-footer">
                         <div>
