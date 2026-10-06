@@ -458,3 +458,14 @@
     grid-template-columns:1fr;
   }
 }
+.rf-status-cards{
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    gap:18px;
+}
+
+.rf-coluna{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+}
