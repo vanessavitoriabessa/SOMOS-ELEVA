@@ -18,11 +18,14 @@ const [dataAte, setDataAte] = useState("");
  const [config,setConfig]=useState<Config[]>([]);
  const [extras,setExtras]=useState<Extra[]>([]);
  const [fixas,setFixas]=useState<any[]>([]),[folhas,setFolhas]=useState<any[]>([]),[premios,setPremios]=useState<any[]>([]);
- const [simples,setSimples]=useState<any[]>([]),[inss,setInss]=useState<any[]>([]),[operadores,setOperadores]=useState<any[]>([]);
+ const [simples,setSimples]=useState<any[]>([]),
+[inss,setInss]=useState<any[]>([]),
+[parcelasInss,setParcelasInss]=useState<any[]>([]),
+[operadores,setOperadores]=useState<any[]>([]);
  const [form,setForm]=useState(false),[nome,setNome]=useState(""),[valor,setValor]=useState(""),[obs,setObs]=useState("");
 
  const carregar=useCallback(async()=>{
-  const [a,b,c,d,e,f,g,h]=await Promise.all([
+  const [a,b,c,d,e,f,g,h,i]=await Promise.all([
    sb.from("custo_operador_config").select("id,chave,nome,ativo,ordem").order("ordem"),
    sb.from("custo_operador_adicionais").select("id,competencia,nome,valor,observacao,ativo").order("criado_em",{ascending:false}),
    sb.from("despesas_recorrentes").select("id,valor,inicio_competencia,fim_competencia,ativo").eq("ativo",true),
@@ -30,11 +33,18 @@ const [dataAte, setDataAte] = useState("");
    sb.from("pontos_saques").select("id,pontos_solicitados,valor_reais,status,processado_em").eq("status","PAGO"),
    sb.from("controle_simples_nacional").select("id,competencia,valor_imposto"),
    sb.from("controle_inss_fgts").select("id,tipo,competencia,valor"),
+   sb.from("inss_parcelamentos")
+  .select("valor_parcela,ativo")
+  .eq("ativo", true),
    sb.from("profiles").select("id,nome,perfil,ativo").eq("ativo",true),
   ]);
-  for(const r of [a,b,c,d,e,f,g,h]) if(r.error) throw r.error;
+  for(const r of [a,b,c,d,e,f,g,h,i]) if(r.error) throw r.error;
   setConfig((a.data||[]) as Config[]);setExtras((b.data||[]) as Extra[]);setFixas(c.data||[]);setFolhas(d.data||[]);
-  setPremios(e.data||[]);setSimples(f.data||[]);setInss(g.data||[]);setOperadores(h.data||[]);
+  setPremios(e.data||[]);setSimples(f.data||[]);setInss(g.data||[]);setParcelasInss(h.data || []);
+setOperadores(i.data || []);
+  console.log("G", g.data);
+console.log("H", h.data);
+console.log("I", i.data);
  },[sb]);
  useEffect(()=>{carregar().catch(console.error)},[carregar]);
 
@@ -44,12 +54,36 @@ const [dataAte, setDataAte] = useState("");
   const fo=folhas.filter(x=>String(x.competencia||"").slice(0,7)===competencia).reduce((s,x)=>s+Number(x.total_mensal??x.total_dia05??x.valor_pago??0),0);
   const pr=premios.filter(x=>String(x.processado_em||"").slice(0,7)===competencia).reduce((s,x)=>s+Number(x.valor_reais??x.pontos_solicitados??0),0);
   const si=simples.filter(x=>String(x.competencia||"").slice(0,7)===competencia).reduce((s,x)=>s+Number(x.valor_imposto||0),0);
-  const inf=inss.filter(x=>String(x.competencia||"").slice(0,7)===competencia).reduce((s,x)=>s+Number(x.valor||0),0);
+  const impostosCompetencia =
+  inss
+    .filter(
+      x => String(x.competencia || "").slice(0, 7) === competencia
+    )
+    .reduce(
+      (s, x) => s + Number(x.valor || 0),
+      0
+    );
+
+const parcelamentosCompetencia =
+  parcelasInss.reduce(
+    (s, x) => s + Number(x.valor_parcela || 0),
+    0
+  );
+
+const inf =
+  impostosCompetencia +
+  parcelamentosCompetencia;
+  console.log({
+  impostosCompetencia,
+  parcelamentosCompetencia,
+  inf,
+  parcelasInss
+});
   const ex=extras.filter(x=>x.competencia===competencia),ad=ex.filter(x=>x.ativo).reduce((s,x)=>s+Number(x.valor||0),0);
   const qtd=operadores.filter(x=>{const p=String(x.perfil||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();return p.includes("consultor")||p.includes("vendedor")}).length;
   const total=(ativa("despesas_fixas")?df:0)+(ativa("folha")?fo:0)+(ativa("premiacoes_pagas")?pr:0)+(ativa("simples_nacional")?si:0)+(ativa("inss_fgts")?inf:0)+ad;
   return {df,fo,pr,si,inf,ad,ex,qtd,total,unit:qtd?total/qtd:0};
- },[competencia,config,extras,fixas,folhas,premios,simples,inss,operadores]);
+ },[competencia,config,extras,fixas,folhas,premios,simples,inss,parcelasInss,operadores]);
 
  async function toggleConfig(x:Config){
   const ativo=!x.ativo;const {error}=await sb.from("custo_operador_config").update({ativo}).eq("id",x.id);
