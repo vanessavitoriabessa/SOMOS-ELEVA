@@ -470,16 +470,16 @@ export default function RelatoriosFinanceiros() {
             <small>Total da competência</small>
           </article>
 
-          <article className="rf-metric rf-paid-card">
-            <span>Pagas</span>
-            <strong>{moeda(d.fixasPagas)}</strong>
-            <small>Valores já quitados</small>
-          </article>
-
           <article className="rf-metric rf-pending-card">
             <span>Pendentes</span>
             <strong>{moeda(d.fixasPendentes)}</strong>
             <small>Valores em aberto</small>
+          </article>
+
+          <article className="rf-metric rf-paid-card">
+            <span>Pagas</span>
+            <strong>{moeda(d.fixasPagas)}</strong>
+            <small>Valores já quitados</small>
           </article>
         </div>
 
@@ -492,16 +492,16 @@ export default function RelatoriosFinanceiros() {
             <small>Pagas + pendentes</small>
           </article>
 
-          <article className="rf-metric rf-paid-card">
-            <span>Pagas</span>
-            <strong>{moeda(d.premiacoesPagas)}</strong>
-            <small>Saques finalizados</small>
-          </article>
-
           <article className="rf-metric rf-pending-card">
             <span>Pendentes</span>
             <strong>{moeda(d.premiacoesPendentes)}</strong>
             <small>Solicitadas e ainda não pagas</small>
+          </article>
+
+          <article className="rf-metric rf-paid-card">
+            <span>Pagas</span>
+            <strong>{moeda(d.premiacoesPagas)}</strong>
+            <small>Saques finalizados</small>
           </article>
         </div>
 
@@ -514,16 +514,16 @@ export default function RelatoriosFinanceiros() {
             <small>Encargos pagos + pendentes</small>
           </article>
 
-          <article className="rf-metric rf-paid-card">
-            <span>Pagos</span>
-            <strong>{moeda(d.encargosPagos)}</strong>
-            <small>Encargos já pagos</small>
-          </article>
-
           <article className="rf-metric rf-pending-card">
             <span>Pendentes</span>
             <strong>{moeda(d.encargosPendentes)}</strong>
             <small>Encargos em aberto</small>
+          </article>
+
+          <article className="rf-metric rf-paid-card">
+            <span>Pagos</span>
+            <strong>{moeda(d.encargosPagos)}</strong>
+            <small>Encargos já pagos</small>
           </article>
         </div>
 
@@ -536,16 +536,16 @@ export default function RelatoriosFinanceiros() {
             <small>Imposto + parcelas</small>
           </article>
 
-          <article className="rf-metric rf-paid-card">
-            <span>Pagos</span>
-            <strong>{moeda(d.simplesPagos)}</strong>
-            <small>Imposto e parcelas já pagos</small>
-          </article>
-
           <article className="rf-metric rf-pending-card">
             <span>Pendentes</span>
             <strong>{moeda(d.simplesPendentes)}</strong>
             <small>Imposto e parcelas em aberto</small>
+          </article>
+
+          <article className="rf-metric rf-paid-card">
+            <span>Pagos</span>
+            <strong>{moeda(d.simplesPagos)}</strong>
+            <small>Imposto e parcelas já pagos</small>
           </article>
         </div>
 
@@ -558,16 +558,16 @@ export default function RelatoriosFinanceiros() {
             <small>Folhas pagas + pendentes</small>
           </article>
 
-          <article className="rf-metric rf-paid-card">
-            <span>Pagas</span>
-            <strong>{moeda(d.folhaPaga)}</strong>
-            <small>Folhas marcadas como pagas</small>
-          </article>
-
           <article className="rf-metric rf-pending-card">
             <span>Pendentes</span>
             <strong>{moeda(d.folhaPendente)}</strong>
             <small>Folhas ainda não pagas</small>
+          </article>
+
+          <article className="rf-metric rf-paid-card">
+            <span>Pagas</span>
+            <strong>{moeda(d.folhaPaga)}</strong>
+            <small>Folhas marcadas como pagas</small>
           </article>
         </div>
 
