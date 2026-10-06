@@ -18,30 +18,35 @@ const [dataAte, setDataAte] = useState("");
  const [config,setConfig]=useState<Config[]>([]);
  const [extras,setExtras]=useState<Extra[]>([]);
  const [fixas,setFixas]=useState<any[]>([]),[folhas,setFolhas]=useState<any[]>([]),[premios,setPremios]=useState<any[]>([]);
- const [simples,setSimples]=useState<any[]>([]),
-[inss,setInss]=useState<any[]>([]),
-[parcelasInss,setParcelasInss]=useState<any[]>([]),
-[operadores,setOperadores]=useState<any[]>([]);
+ const [simples,setSimples]=useState<any[]>([])
+ const [parcelasSimples,setParcelasSimples]=useState<any[]>([]);
+ const [inss,setInss]=useState<any[]>([]);
+const [parcelasInss,setParcelasInss]=useState<any[]>([]);
+const [operadores,setOperadores]=useState<any[]>([]);
  const [form,setForm]=useState(false),[nome,setNome]=useState(""),[valor,setValor]=useState(""),[obs,setObs]=useState("");
 
  const carregar=useCallback(async()=>{
-  const [a,b,c,d,e,f,g,h,i]=await Promise.all([
+  const [a,b,c,d,e,f,g,h,i,j]=await Promise.all([
    sb.from("custo_operador_config").select("id,chave,nome,ativo,ordem").order("ordem"),
    sb.from("custo_operador_adicionais").select("id,competencia,nome,valor,observacao,ativo").order("criado_em",{ascending:false}),
    sb.from("despesas_recorrentes").select("id,valor,inicio_competencia,fim_competencia,ativo").eq("ativo",true),
    sb.from("folha_pagamentos").select("id,competencia,total_dia05,total_mensal,valor_pago"),
    sb.from("pontos_saques").select("id,pontos_solicitados,valor_reais,status,processado_em").eq("status","PAGO"),
    sb.from("controle_simples_nacional").select("id,competencia,valor_imposto"),
+   sb.from("simples_parcelas")
+  .select("valor"),
    sb.from("controle_inss_fgts").select("id,tipo,competencia,valor"),
-   sb.from("inss_parcelamentos")
-  .select("valor_parcela,ativo")
-  .eq("ativo", true),
+   sb.from("inss_parcelamentos").select("valor_parcela,ativo").eq("ativo", true),
    sb.from("profiles").select("id,nome,perfil,ativo").eq("ativo",true),
   ]);
-  for(const r of [a,b,c,d,e,f,g,h,i]) if(r.error) throw r.error;
+  for(const r of [a,b,c,d,e,f,g,h,i,j]) if(r.error) throw r.error;
   setConfig((a.data||[]) as Config[]);setExtras((b.data||[]) as Extra[]);setFixas(c.data||[]);setFolhas(d.data||[]);
-  setPremios(e.data||[]);setSimples(f.data||[]);setInss(g.data||[]);setParcelasInss(h.data || []);
-setOperadores(i.data || []);
+  setPremios(e.data || []);
+setSimples(f.data || []);
+setParcelasSimples(g.data || []);
+setInss(h.data || []);
+setParcelasInss(i.data || []);
+setOperadores(j.data || []);
   console.log("G", g.data);
 console.log("H", h.data);
 console.log("I", i.data);
@@ -53,7 +58,21 @@ console.log("I", i.data);
   const df=fixas.filter(x=>{const i=String(x.inicio_competencia||"0000-00").slice(0,7),f=x.fim_competencia?String(x.fim_competencia).slice(0,7):null;return i<=competencia&&(!f||f>=competencia)}).reduce((s,x)=>s+Number(x.valor||0),0);
   const fo=folhas.filter(x=>String(x.competencia||"").slice(0,7)===competencia).reduce((s,x)=>s+Number(x.total_mensal??x.total_dia05??x.valor_pago??0),0);
   const pr=premios.filter(x=>String(x.processado_em||"").slice(0,7)===competencia).reduce((s,x)=>s+Number(x.valor_reais??x.pontos_solicitados??0),0);
-  const si=simples.filter(x=>String(x.competencia||"").slice(0,7)===competencia).reduce((s,x)=>s+Number(x.valor_imposto||0),0);
+  const impostosSimples = simples
+  .filter(
+    x => String(x.competencia || "").slice(0,7) === competencia
+  )
+  .reduce(
+    (s,x)=>s+Number(x.valor_imposto||0),
+    0
+  );
+
+const parcelasSimplesTotal = parcelasSimples.reduce(
+  (s,x)=>s+Number(x.valor||0),
+  0
+);
+
+const si = impostosSimples + parcelasSimplesTotal;
   const impostosCompetencia =
   inss
     .filter(
