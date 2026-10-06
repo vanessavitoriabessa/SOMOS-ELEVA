@@ -1248,13 +1248,14 @@ const resumoRhDaFolha = useMemo(() => {
       totalMensal: totalDia05,
     };
   }, [
-    salario,
-    assiduidadeAtiva,
-    valorAssiduidade,
-    descontoInss,
-    descontoVale,
-    descontoFaltas,
-  ]);
+  salario,
+  assiduidadeAtiva,
+  valorAssiduidade,
+  descontoInss,
+  descontoVale,
+  descontoFaltas,
+  descontoEmprestimoClt,
+]);
 
   const calculoComissao = useMemo(() => {
     const comissaoCompraDivida = numero(comissaoCompraDia20);
