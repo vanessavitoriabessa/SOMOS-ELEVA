@@ -746,3 +746,39 @@
     flex:1;
   }
 }
+.payroll-total-card{
+    margin:18px 0;
+    padding:18px 22px;
+    border-radius:16px;
+    border:1px solid #dce5f2;
+    background:#fff;
+}
+
+.payroll-total-card span{
+    display:block;
+    font-size:11px;
+    font-weight:800;
+    letter-spacing:.08em;
+    color:#7a8799;
+}
+
+.payroll-total-card strong{
+    display:block;
+    margin-top:8px;
+    font-size:34px;
+    font-weight:900;
+}
+
+.payroll-total-card small{
+    display:block;
+    margin-top:6px;
+    color:#7a8799;
+}
+
+.payroll-total-card.pagos{
+    border-left:6px solid #14b86a;
+}
+
+.payroll-total-card.pendentes{
+    border-left:6px solid #f59e0b;
+}

@@ -1570,6 +1570,18 @@ const resumoRhDaFolha = useMemo(() => {
       registro.nome.toLowerCase().includes(termo)
     );
   }, [folhasBase, buscaFolha]);
+  const totalFolhasExibidas = useMemo(() => {
+  return folhasExibidas.reduce((total, registro) => {
+    return (
+      total +
+      Number(
+        filtroFolhaPagamento === "pagos"
+          ? registro.valorPago
+          : registro.totalDia05
+      )
+    );
+  }, 0);
+}, [folhasExibidas, filtroFolhaPagamento]);
 
   async function salvarLancamento(
     evento: FormEvent
@@ -3074,7 +3086,19 @@ const resumoRhDaFolha = useMemo(() => {
                 />
               </label>
             </div>
+<div className={`payroll-total-card ${filtroFolhaPagamento}`}>
+  <span>
+    {filtroFolhaPagamento === "pagos"
+      ? "TOTAL DE FOLHAS PAGAS"
+      : "TOTAL DE FOLHAS PENDENTES"}
+  </span>
 
+  <strong>{moeda(totalFolhasExibidas)}</strong>
+
+  <small>
+    {folhasExibidas.length} colaboradora(s)
+  </small>
+</div>
             <div className="payroll-modern-list-panel">
               {!folhasExibidas.length ? (
                 <div className="payroll-modern-empty">
