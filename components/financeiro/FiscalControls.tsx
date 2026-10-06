@@ -62,23 +62,24 @@ import "./fiscal-controls.css";
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import { ControleSimples } from "./ControlesImpostos";
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import { ControleInssFgts } from "./ControleInssFgts";
+
+
 
 
 
@@ -2102,6 +2103,22 @@ export default function FiscalControls({
 
 
      await carregar();
+if (
+  produto === "CLT" &&
+  f.fornecedor.toUpperCase().includes("NEO")
+) {
+
+  const confirmou = window.confirm(
+    "Deseja gerar automaticamente o Simples Nacional desta competência?"
+  );
+
+  if (confirmou) {
+
+    console.log("GERAR SIMPLES");
+
+  }
+
+}
 
 
 
@@ -3367,7 +3384,7 @@ export default function FiscalControls({
 
 
 
-  {aba==="simples"&&<ControleSimples />}
+  {aba==="simples" && <ControleSimples />}
 
 
 

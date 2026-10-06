@@ -9,7 +9,137 @@ const pct=(v:number)=>`${Number(v||0).toLocaleString("pt-BR",{minimumFractionDig
 const situacao=(status:S,vencimento:string)=>status==="Pago"?"Pago":String(vencimento||"").slice(0,10)<h()?"Atrasado":"Pendente";
 export function ControleSimples(){const sb=useMemo(()=>createClient(),[]),[is,setIs]=useState<I[]>([]),[ps,setPs]=useState<P[]>([]),[xs,setXs]=useState<X[]>([]),[mi,setMi]=useState(false),[mp,setMp]=useState(false),[mx,setMx]=useState(false),[ei,setEi]=useState<I|null>(null),[ep,setEp]=useState<P|null>(null),[ex,setEx]=useState<X|null>(null),[msg,setMsg]=useState("");const[fi,setFi]=useState({competencia:mes(),valorEmitido:"",valorImposto:"",vencimento:h(),status:"Pendente" as S,dataPagamento:""}),[fp,setFp]=useState({nome:"Parcelamento 01",valor:"370,00",total:"59",primeiro:h(),dia:"28"}),[fx,setFx]=useState({valor:"",vencimento:h(),status:"Pendente" as S,dataPagamento:""});
 async function load(){const[a,b,c]=await Promise.all([sb.from("controle_simples_nacional").select("*").order("vencimento",{ascending:false}),sb.from("simples_parcelamentos").select("*").order("criado_em",{ascending:false}),sb.from("simples_parcelas").select("*").order("vencimento")]);const e=a.error||b.error||c.error;if(e)setMsg(e.message);else{setIs((a.data||[])as I[]);setPs((b.data||[])as P[]);setXs((c.data||[])as X[])}}useEffect(()=>{void load()},[]);
-function novoI(){setEi(null);setFi({competencia:mes(),valorEmitido:"",valorImposto:"",vencimento:h(),status:"Pendente",dataPagamento:""});setMi(true)}function editI(x:I){setEi(x);setFi({competencia:x.competencia,valorEmitido:String(x.valor_emitido),valorImposto:String(x.valor_imposto),vencimento:x.vencimento,status:x.status,dataPagamento:x.data_pagamento||""});setMi(true)}
+async function calcularNeo(competencia: string){
+
+  const { data, error } = await sb
+    .from("controle_notas_fiscais")
+    .select("fornecedor,valor_nota,referencia_inicio");
+    console.log("NOTAS:", data);
+
+  if(error){
+    setMsg(error.message);
+    return null;
+  }
+
+  const total = (data || [])
+    .filter((x:any)=>{
+
+      const fornecedor =
+        String(x.fornecedor || "")
+          .toUpperCase();
+
+      const comp =
+  String(x.referencia_inicio || "")
+    .slice(0,7);
+
+      return (
+        fornecedor.includes("NEO") &&
+        comp === competencia
+      );
+
+    })
+    .reduce(
+      (s:number,x:any)=>
+        s + Number(x.valor_nota || 0),
+      0
+    );
+
+  const imposto =
+    Number((total * 0.08).toFixed(2));
+
+  const [ano,mesCompetencia] =
+    competencia.split("-").map(Number);
+
+  const vencimento =
+    new Date(
+      ano,
+      mesCompetencia,
+      20,
+      12
+    );
+
+  return{
+
+    valorEmitido:total,
+
+    valorImposto:imposto,
+
+    vencimento:
+      vencimento
+        .toISOString()
+        .slice(0,10)
+
+  };
+
+}
+async function novoI(){
+
+  const competencia = mes();
+
+  const resultado =
+    await calcularNeo(competencia);
+
+  if(!resultado){
+    return;
+}
+
+if(resultado.valorEmitido <= 0){
+
+    alert(
+      `Ainda não existe nota fiscal da NEO cadastrada para a competência ${competencia}.\n\nCadastre primeiro a nota na aba Controle de Notas para gerar automaticamente o Simples Nacional.`
+    );
+
+    return;
+
+}
+
+  setEi(null);
+
+  setFi({
+
+    competencia,
+
+    valorEmitido:
+      String(resultado.valorEmitido),
+
+    valorImposto:
+      String(resultado.valorImposto),
+
+    vencimento:
+      resultado.vencimento,
+
+    status:"Pendente",
+
+    dataPagamento:""
+
+  });
+
+  setMi(true);
+
+}
+function editI(x:I){
+
+  setEi(x);
+
+  setFi({
+
+    competencia:x.competencia,
+
+    valorEmitido:String(x.valor_emitido),
+
+    valorImposto:String(x.valor_imposto),
+
+    vencimento:x.vencimento,
+
+    status:x.status,
+
+    dataPagamento:x.data_pagamento||""
+
+  });
+
+  setMi(true);
+
+}
 async function saveI(e:FormEvent){e.preventDefault();const ve=n(fi.valorEmitido),vi=n(fi.valorImposto),al=calcAliquota(ve,vi);if(ve<=0||vi<=0){setMsg("Informe o valor emitido e o valor do imposto.");return}const p={competencia:fi.competencia,valor_emitido:ve,aliquota:al,valor_imposto:vi,vencimento:fi.vencimento,status:fi.status,data_pagamento:fi.status==="Pago"?(fi.dataPagamento||h()):null};const q=ei?await sb.from("controle_simples_nacional").update(p).eq("id",ei.id):await sb.from("controle_simples_nacional").insert(p);if(q.error)setMsg(q.error.message);else{setMi(false);await load()}}
 async function payI(x:I){const pago=x.status!=="Pago",q=await sb.from("controle_simples_nacional").update({status:pago?"Pago":"Pendente",data_pagamento:pago?h():null}).eq("id",x.id);if(q.error)setMsg(q.error.message);else await load()}async function del(t:string,id:string){if(!confirm("Deseja excluir este lançamento?"))return;const q=await sb.from(t).delete().eq("id",id);if(q.error)setMsg(q.error.message);else await load()}
 function novoP(atual=false){setEp(null);setFp(atual?{nome:"Parcelamento 01",valor:"370,00",total:"59",primeiro:h(),dia:"28"}:{nome:"",valor:"",total:"",primeiro:h(),dia:"28"});setMp(true)}function editP(x:P){setEp(x);setFp({nome:x.nome,valor:String(x.valor_parcela),total:String(x.total_parcelas),primeiro:x.primeiro_vencimento,dia:String(x.dia_vencimento)});setMp(true)}
