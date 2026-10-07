@@ -468,7 +468,7 @@ const [mensagemFolha, setMensagemFolha] =
   useState("");
 
   const [filtroFolhaPagamento, setFiltroFolhaPagamento] =
-    useState<"pendentes" | "pagos">("pendentes");
+    useState<"pendentes" | "pagosLiquido" | "pagosBruto">("pendentes");
 
   const [buscaFolha, setBuscaFolha] = useState("");
 
@@ -1555,10 +1555,17 @@ const resumoRhDaFolha = useMemo(() => {
     [folhasDaCompetencia]
   );
 
+  const valorBrutoFolha = useCallback(
+    (registro: RegistroFolha) =>
+      Number(registro.salario || 0) +
+      Number(registro.assiduidadeAtiva ? registro.valorAssiduidade || 0 : 0),
+    []
+  );
+
   const folhasBase =
-    filtroFolhaPagamento === "pagos"
-      ? folhasPagas
-      : folhasPendentes;
+    filtroFolhaPagamento === "pendentes"
+      ? folhasPendentes
+      : folhasPagas;
 
   const folhasExibidas = useMemo(() => {
     const termo = buscaFolha.trim().toLowerCase();
@@ -1571,18 +1578,19 @@ const resumoRhDaFolha = useMemo(() => {
       registro.nome.toLowerCase().includes(termo)
     );
   }, [folhasBase, buscaFolha]);
+
   const totalFolhasExibidas = useMemo(() => {
-  return folhasExibidas.reduce((total, registro) => {
-    return (
-      total +
-      Number(
-        filtroFolhaPagamento === "pagos"
-          ? registro.valorPago
-          : registro.totalDia05
-      )
-    );
-  }, 0);
-}, [folhasExibidas, filtroFolhaPagamento]);
+    return folhasExibidas.reduce((total, registro) => {
+      const valorExibido =
+        filtroFolhaPagamento === "pagosBruto"
+          ? valorBrutoFolha(registro)
+          : filtroFolhaPagamento === "pagosLiquido"
+            ? Number(registro.valorPago || 0)
+            : Number(registro.totalDia05 || 0);
+
+      return total + valorExibido;
+    }, 0);
+  }, [folhasExibidas, filtroFolhaPagamento, valorBrutoFolha]);
 
   async function salvarLancamento(
     evento: FormEvent
@@ -2963,18 +2971,6 @@ const resumoRhDaFolha = useMemo(() => {
   />
 </label>
               </div>
-              <label>
-    Desconto empréstimo CLT
-
-    <input
-        value={descontoEmprestimoClt}
-        onChange={(evento) =>
-            setDescontoEmprestimoClt(evento.target.value)
-        }
-        placeholder="Ex.: 185,42"
-        inputMode="decimal"
-    />
-</label>
 
               <div className={`payroll-modern-attendance ${assiduidadeAtiva ? "active" : ""}`}>
                 <label className="payroll-modern-switch">
@@ -3039,7 +3035,13 @@ const resumoRhDaFolha = useMemo(() => {
                 <p>{formatarCompetencia(competencia)}</p>
               </div>
 
-              <div className="payroll-modern-status-cards">
+              <div
+                className="payroll-modern-status-cards"
+                style={{
+                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                  gap: 12,
+                }}
+              >
                 <article className="pending">
                   <div className="status-icon">⌛</div>
                   <div>
@@ -3052,16 +3054,28 @@ const resumoRhDaFolha = useMemo(() => {
                 <article className="paid">
                   <div className="status-icon">✓</div>
                   <div>
-                    <span>Pagos</span>
+                    <span>Pagos Líquido</span>
                     <strong>{folhasPagas.length}</strong>
-                    <small>Folha finalizada</small>
+                    <small>Valor efetivamente pago</small>
+                  </div>
+                </article>
+
+                <article className="paid">
+                  <div className="status-icon">✓</div>
+                  <div>
+                    <span>Pagos Bruto</span>
+                    <strong>{folhasPagas.length}</strong>
+                    <small>Salário + assiduidade</small>
                   </div>
                 </article>
               </div>
             </div>
 
             <div className="payroll-modern-controls">
-              <div className="payroll-status-tabs modern">
+              <div
+                className="payroll-status-tabs modern"
+                style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}
+              >
                 <button
                   type="button"
                   className={filtroFolhaPagamento === "pendentes" ? "active" : ""}
@@ -3071,10 +3085,17 @@ const resumoRhDaFolha = useMemo(() => {
                 </button>
                 <button
                   type="button"
-                  className={filtroFolhaPagamento === "pagos" ? "active" : ""}
-                  onClick={() => setFiltroFolhaPagamento("pagos")}
+                  className={filtroFolhaPagamento === "pagosLiquido" ? "active" : ""}
+                  onClick={() => setFiltroFolhaPagamento("pagosLiquido")}
                 >
-                  ✓ Pagos ({folhasPagas.length})
+                  ✓ Pagos Líquido ({folhasPagas.length})
+                </button>
+                <button
+                  type="button"
+                  className={filtroFolhaPagamento === "pagosBruto" ? "active" : ""}
+                  onClick={() => setFiltroFolhaPagamento("pagosBruto")}
+                >
+                  ✓ Pagos Bruto ({folhasPagas.length})
                 </button>
               </div>
 
@@ -3087,11 +3108,13 @@ const resumoRhDaFolha = useMemo(() => {
                 />
               </label>
             </div>
-<div className={`payroll-total-card ${filtroFolhaPagamento}`}>
+<div className={`payroll-total-card ${filtroFolhaPagamento === "pendentes" ? "pendentes" : "pagos"}`}>
   <span>
-    {filtroFolhaPagamento === "pagos"
-      ? "TOTAL DE FOLHAS PAGAS"
-      : "TOTAL DE FOLHAS PENDENTES"}
+    {filtroFolhaPagamento === "pendentes"
+      ? "TOTAL DE FOLHAS PENDENTES"
+      : filtroFolhaPagamento === "pagosBruto"
+        ? "TOTAL DE FOLHAS PAGAS BRUTO"
+        : "TOTAL DE FOLHAS PAGAS LÍQUIDO"}
   </span>
 
   <strong>{moeda(totalFolhasExibidas)}</strong>
@@ -3107,12 +3130,16 @@ const resumoRhDaFolha = useMemo(() => {
                   <strong>
                     {filtroFolhaPagamento === "pendentes"
                       ? "Nenhuma folha pendente"
-                      : "Nenhum pagamento realizado"}
+                      : filtroFolhaPagamento === "pagosBruto"
+                        ? "Nenhuma folha paga bruto"
+                        : "Nenhuma folha paga líquido"}
                   </strong>
                   <p>
                     {filtroFolhaPagamento === "pendentes"
                       ? `Todos os colaboradores da competência ${formatarCompetencia(competencia)} já foram pagos.`
-                      : `Ainda não existem pagamentos realizados em ${formatarCompetencia(competencia)}.`}
+                      : filtroFolhaPagamento === "pagosBruto"
+                        ? `Ainda não existem folhas pagas para calcular o bruto em ${formatarCompetencia(competencia)}.`
+                        : `Ainda não existem pagamentos realizados em ${formatarCompetencia(competencia)}.`}
                   </p>
                   {filtroFolhaPagamento === "pendentes" && (
                     <div className="payroll-modern-ok">
@@ -3146,26 +3173,25 @@ const resumoRhDaFolha = useMemo(() => {
                         <span>INSS <strong>− {moeda(registro.descontoInss)}</strong></span>
                         <span>Vale <strong>− {moeda(registro.descontoVale)}</strong></span>
                         <span>Faltas <strong>− {moeda(registro.descontoFaltas)}</strong></span>
+                        <span>Empréstimo CLT <strong>− {moeda((registro as any).descontoEmprestimoClt || 0)}</strong></span>
                       </div>
-                      <span>
-  Empréstimo CLT
-  <strong>
-    − {moeda((registro as any).descontoEmprestimoClt || 0)}
-  </strong>
-</span>
 
                       <div className="payroll-modern-item-footer">
                         <div>
                           <span>
-                            {registro.pagamentoRealizado
-                              ? `Pago em ${dataISOparaBR(registro.dataPagamentoRealizado) || "—"}`
-                              : "Pagamento dia 05"}
+                            {filtroFolhaPagamento === "pagosBruto"
+                              ? "Valor bruto — salário + assiduidade"
+                              : registro.pagamentoRealizado
+                                ? `Pago em ${dataISOparaBR(registro.dataPagamentoRealizado) || "—"}`
+                                : "Pagamento dia 05"}
                           </span>
                           <strong>
                             {moeda(
-                              registro.pagamentoRealizado
-                                ? registro.valorPago
-                                : registro.totalDia05
+                              filtroFolhaPagamento === "pagosBruto"
+                                ? valorBrutoFolha(registro)
+                                : registro.pagamentoRealizado
+                                  ? registro.valorPago
+                                  : registro.totalDia05
                             )}
                           </strong>
                         </div>

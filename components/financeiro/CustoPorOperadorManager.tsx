@@ -40,13 +40,11 @@ const mesAtual = () => {
 const mesAnterior = (competencia: string) => {
   const [ano, mes] = competencia.split("-").map(Number);
   const data = new Date(ano, mes - 2, 1, 12);
-
   return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}`;
 };
 
 const nomeMes = (competencia: string) => {
   const [ano, mes] = competencia.split("-").map(Number);
-
   const texto = new Date(ano, mes - 1, 1, 12).toLocaleDateString("pt-BR", {
     month: "long",
     year: "numeric",
@@ -107,7 +105,7 @@ export default function CustoPorOperadorManager() {
 
       sb
         .from("folha_pagamentos")
-        .select("id,competencia,total_dia05,total_mensal,valor_pago"),
+        .select("id,competencia,salario,assiduidade_ativa,valor_assiduidade,pagamento_realizado,total_dia05,total_mensal,valor_pago"),
 
       sb
         .from("pontos_saques")
@@ -179,12 +177,20 @@ export default function CustoPorOperadorManager() {
       })
       .reduce((soma, item) => soma + Number(item.valor || 0), 0);
 
+    // Folha no Custo por Operador:
+    // usa o mesmo mês selecionado em Data Referência e soma apenas folhas pagas,
+    // considerando o valor bruto: Salário + Assiduidade.
     const fo = folhas
-      .filter((item) => String(item.competencia || "").slice(0, 7) === competencia)
+      .filter(
+        (item) =>
+          String(item.competencia || "").slice(0, 7) === competencia &&
+          item.pagamento_realizado === true
+      )
       .reduce(
         (soma, item) =>
           soma +
-          Number(item.total_mensal ?? item.total_dia05 ?? item.valor_pago ?? 0),
+          Number(item.salario || 0) +
+          Number(item.assiduidade_ativa ? item.valor_assiduidade || 0 : 0),
         0
       );
 
@@ -196,17 +202,8 @@ export default function CustoPorOperadorManager() {
         0
       );
 
-    /*
-      REGRA DO SIMPLES NACIONAL NO CUSTO POR OPERADOR
-
-      Competência selecionada Outubro/2026:
-      - pega o imposto mensal do Simples de Setembro/2026;
-      - soma R$ 370,00 do parcelamento mensal.
-
-      Competência selecionada Novembro/2026:
-      - pega o imposto mensal do Simples de Outubro/2026;
-      - soma R$ 370,00 do parcelamento mensal.
-    */
+    // Simples Nacional no Custo por Operador:
+    // Data Referência Outubro/2026 = Simples de Setembro/2026 + R$ 370,00.
     const competenciaSimples = mesAnterior(competencia);
 
     const impostoSimplesMensal = simples
@@ -217,7 +214,6 @@ export default function CustoPorOperadorManager() {
       .reduce((soma, item) => soma + Number(item.valor_imposto || 0), 0);
 
     const parcelamentoSimplesMensal = 370;
-
     const si = impostoSimplesMensal + parcelamentoSimplesMensal;
 
     const impostosCompetencia = inss
@@ -494,7 +490,7 @@ export default function CustoPorOperadorManager() {
                 color: "#102d57",
               }}
             >
-              DATA COMPETÊNCIA
+              DATA REFERÊNCIA
               <input
                 type="month"
                 value={competencia}
