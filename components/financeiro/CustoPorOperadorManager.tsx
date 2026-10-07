@@ -67,6 +67,7 @@ export default function CustoPorOperadorManager() {
   const [folhas, setFolhas] = useState<any[]>([]);
   const [premios, setPremios] = useState<any[]>([]);
   const [simples, setSimples] = useState<any[]>([]);
+  const [simplesParcelas, setSimplesParcelas] = useState<any[]>([]);
   const [inss, setInss] = useState<any[]>([]);
   const [parcelasInss, setParcelasInss] = useState<any[]>([]);
   const [operadores, setOperadores] = useState<any[]>([]);
@@ -84,6 +85,7 @@ export default function CustoPorOperadorManager() {
       respostaFolhas,
       respostaPremios,
       respostaSimples,
+      respostaSimplesParcelas,
       respostaInss,
       respostaParcelasInss,
       respostaOperadores,
@@ -117,13 +119,16 @@ export default function CustoPorOperadorManager() {
         .select("id,competencia,valor_imposto,status"),
 
       sb
+        .from("simples_parcelas")
+        .select("id,valor,vencimento,status"),
+
+      sb
         .from("controle_inss_fgts")
         .select("id,tipo,competencia,valor"),
 
       sb
-        .from("inss_parcelamentos")
-        .select("valor_parcela,ativo")
-        .eq("ativo", true),
+        .from("inss_parcelas")
+        .select("id,valor,vencimento,status"),
 
       sb
         .from("profiles")
@@ -138,6 +143,7 @@ export default function CustoPorOperadorManager() {
       respostaFolhas,
       respostaPremios,
       respostaSimples,
+      respostaSimplesParcelas,
       respostaInss,
       respostaParcelasInss,
       respostaOperadores,
@@ -153,6 +159,7 @@ export default function CustoPorOperadorManager() {
     setFolhas(respostaFolhas.data || []);
     setPremios(respostaPremios.data || []);
     setSimples(respostaSimples.data || []);
+    setSimplesParcelas(respostaSimplesParcelas.data || []);
     setInss(respostaInss.data || []);
     setParcelasInss(respostaParcelasInss.data || []);
     setOperadores(respostaOperadores.data || []);
@@ -202,8 +209,16 @@ export default function CustoPorOperadorManager() {
         0
       );
 
-    // Simples Nacional no Custo por Operador:
-    // Data Referência Outubro/2026 = Simples de Setembro/2026 + R$ 370,00.
+    /*
+      REGRA DO SIMPLES NACIONAL NO CUSTO POR OPERADOR
+
+      Data Referência Outubro/2026:
+      - soma o imposto mensal do Simples da competência Setembro/2026;
+      - soma as parcelas do Simples com vencimento em Outubro/2026.
+
+      Não existe valor fixo: se você alterar o valor da parcela para R$ 0,78,
+      o Custo por Operador muda automaticamente ao atualizar/recarregar.
+    */
     const competenciaSimples = mesAnterior(competencia);
 
     const impostoSimplesMensal = simples
@@ -213,17 +228,41 @@ export default function CustoPorOperadorManager() {
       )
       .reduce((soma, item) => soma + Number(item.valor_imposto || 0), 0);
 
-    const parcelamentoSimplesMensal = 370;
-    const si = impostoSimplesMensal + parcelamentoSimplesMensal;
-
-    const impostosCompetencia = inss
-      .filter((item) => String(item.competencia || "").slice(0, 7) === competencia)
+    const parcelamentoSimplesMensal = simplesParcelas
+      .filter(
+        (item) =>
+          String(item.vencimento || "").slice(0, 7) === competencia
+      )
       .reduce((soma, item) => soma + Number(item.valor || 0), 0);
 
-    const parcelamentosCompetencia = parcelasInss.reduce(
-      (soma, item) => soma + Number(item.valor_parcela || 0),
-      0
-    );
+    const si = impostoSimplesMensal + parcelamentoSimplesMensal;
+
+    /*
+      REGRA DO INSS E FGTS NO CUSTO POR OPERADOR
+
+      Data Referência Outubro/2026:
+      - soma FGTS + INSS da competência Setembro/2026;
+      - soma Parcelamento 1 + Parcelamento 2 com vencimento em Outubro/2026.
+
+      Não existe valor fixo: se você alterar o valor das parcelas, o resultado muda automaticamente.
+      Quando as parcelas terminarem, elas deixam de entrar automaticamente,
+      pois o cálculo olha apenas as parcelas existentes com vencimento na data referência.
+    */
+    const competenciaEncargos = mesAnterior(competencia);
+
+    const impostosCompetencia = inss
+      .filter(
+        (item) =>
+          String(item.competencia || "").slice(0, 7) === competenciaEncargos
+      )
+      .reduce((soma, item) => soma + Number(item.valor || 0), 0);
+
+    const parcelamentosCompetencia = parcelasInss
+      .filter(
+        (item) =>
+          String(item.vencimento || "").slice(0, 7) === competencia
+      )
+      .reduce((soma, item) => soma + Number(item.valor || 0), 0);
 
     const inf = impostosCompetencia + parcelamentosCompetencia;
 
@@ -270,6 +309,7 @@ export default function CustoPorOperadorManager() {
     folhas,
     premios,
     simples,
+    simplesParcelas,
     inss,
     parcelasInss,
     operadores,
