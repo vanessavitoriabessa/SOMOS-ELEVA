@@ -372,8 +372,20 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
 
      const ano=(matchData[3]?.length===4?matchData[3]:mesRef.slice(0,4));
      const data=`${ano}-${String(Number(matchData[2])).padStart(2,"0")}-${String(Number(matchData[1])).padStart(2,"0")}`;
-     const horas=(linha.match(/\b\d{1,2}:\d{2}\b/g)||[]).map(horaDigix).filter(Boolean);
-     if(!horas.length)return;
+
+     const trechoDepoisData=linha.slice((matchData.index||0)+matchData[0].length);
+     const temFolgaOuDsr=/\b(folga|dsr)\b/i.test(trechoDepoisData);
+     const temFalta=/\bfalta\s*:/i.test(trechoDepoisData);
+     const temAtraso=/\batraso\s*:/i.test(trechoDepoisData);
+
+     /*
+       O PDF do Digix também mostra totais como "Trab 03:03" e "Carga Horária 08:00".
+       Esses horários NÃO são marcações de ponto.
+       Por isso, usamos os quatro primeiros horários somente quando a linha é um dia trabalhado completo.
+       Folga/DSR e dias com falta ficam como erro na prévia e não são importados automaticamente.
+     */
+     const trechoAntesOcorrencia=trechoDepoisData.split(/\b(?:HE\s*Diurno|HE\s*Noturno|Atraso|Falta|Folga|DSR|Débito|Credito|Crédito)\b/i)[0]||"";
+     const horas=(trechoAntesOcorrencia.match(/\b\d{1,2}:\d{2}\b/g)||[]).map(horaDigix).filter(Boolean);
 
      const entrada=horas[0]||"";
      const saidaAlmoco=horas[1]||"";
@@ -383,20 +395,23 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
      const existe=pontos.find(p=>p.colaboradora_id===colaboradoraSelecionada.id&&p.data===data);
      const erros:string[]=[];
      if(data.slice(0,7)!==mesRef)erros.push("Fora do mês selecionado");
-     if(!entrada||!saidaAlmoco||!retorno||!saida)erros.push("Horários incompletos");
+     if(temFolgaOuDsr)erros.push("Folga/DSR — não importar");
+     if(temFalta)erros.push("Dia com falta no Digix — conferir manualmente");
+     if(temAtraso&&horas.length<6&&!temFalta)erros.push("Dia com atraso — conferir manualmente");
+     if(!temFolgaOuDsr&&!temFalta&&(!entrada||!saidaAlmoco||!retorno||!saida))erros.push("Horários incompletos");
 
      resultado.push({
       id:`pdf-digix-${idx}`,
       colaboradora_id:colaboradoraSelecionada.id,
       colaboradora_nome:colaboradoraSelecionada.nome,
       data,
-      entrada,
-      saida_almoco:saidaAlmoco,
-      retorno_almoco:retorno,
-      saida,
+      entrada:temFolgaOuDsr||temFalta?"":entrada,
+      saida_almoco:temFolgaOuDsr||temFalta?"":saidaAlmoco,
+      retorno_almoco:temFolgaOuDsr||temFalta?"":retorno,
+      saida:temFolgaOuDsr||temFalta?"":saida,
       jornada_id:jornadaPadrao,
       status:(erros.length?"erro":"ok") as "ok"|"erro",
-      mensagem:erros.join(" · ")||(existe?"Já existe ponto neste dia; será atualizado":"Pronto para importar"),
+      mensagem:erros.join(" · ")||(existe?"Já existe ponto neste dia; será substituído":"Pronto para importar"),
       jaExiste:Boolean(existe),
       observacao:`Importado do PDF Digix · ${arquivo.name}`
      });
@@ -483,7 +498,7 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
     saida,
     jornada_id:jornadaPadrao,
     status:(erros.length?"erro":"ok") as "ok"|"erro",
-    mensagem:erros.join(" · ")||(existe?"Já existe ponto neste dia; será atualizado":"Pronto para importar"),
+    mensagem:erros.join(" · ")||(existe?"Já existe ponto neste dia; será substituído":"Pronto para importar"),
     jaExiste:Boolean(existe),
     observacao:`Importado do Digix${arquivo.name?` · ${arquivo.name}`:""}`
    };
@@ -494,13 +509,34 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
  }
 
  async function confirmarImportacaoDigix(){
-  const validas=linhasImportacao.filter(l=>l.status==="ok");
-  if(!validas.length){setMsg("Nenhuma linha válida para importar.");return}
+  const linhasDoMes=linhasImportacao.filter(l=>l.colaboradora_id&&l.data&&l.data.slice(0,7)===mesRef);
+  if(!linhasDoMes.length){setMsg("Nenhuma linha do mês selecionado para atualizar.");return}
   setImportandoDigix(true);
   setMsg("");
   try{
    let salvas=0;
-   for(const linha of validas){
+   let ignoradas=0;
+
+   for(const linha of linhasDoMes){
+    /*
+      Regra de atualização:
+      sempre que importar um novo espelho do Digix, o dia do arquivo substitui o que já existia.
+      Assim, se antes entrou errado como trabalhado e agora o PDF mostra Folga/DSR/Falta,
+      o registro antigo é removido e só dias válidos são salvos novamente.
+    */
+    const apagar=await sb
+      .from("rh_ponto")
+      .delete()
+      .eq("colaboradora_id",linha.colaboradora_id)
+      .eq("data",linha.data);
+
+    if(apagar.error)throw apagar.error;
+
+    if(linha.status!=="ok"){
+      ignoradas++;
+      continue;
+    }
+
     const payload={
      colaboradora_id:linha.colaboradora_id,
      jornada_id:linha.jornada_id||null,
@@ -517,14 +553,15 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
      periodo_reposicao:null,
      data_falta_referencia:null
     };
-    const existente=pontos.find(p=>p.colaboradora_id===linha.colaboradora_id&&p.data===linha.data);
-    const q=existente?await sb.from("rh_ponto").update(payload).eq("id",existente.id):await sb.from("rh_ponto").insert(payload);
+
+    const q=await sb.from("rh_ponto").insert(payload);
     if(q.error)throw q.error;
     salvas++;
    }
+
    setModalImportacao(false);
    setLinhasImportacao([]);
-   setMsg(`${salvas} ponto(s) importado(s) do Digix com sucesso.`);
+   setMsg(`${salvas} ponto(s) importado(s) do Digix com sucesso. ${ignoradas} dia(s) com folga, DSR, falta ou erro ficaram sem lançamento para conferência manual.`);
    await carregar();
   }catch(erro){
    setMsg(erro instanceof Error?erro.message:"Não foi possível importar o arquivo do Digix.");
