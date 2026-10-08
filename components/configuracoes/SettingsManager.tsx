@@ -339,9 +339,10 @@ export default function SettingsManager() {
     });
 
   const [novoBanco, setNovoBanco] = useState("");
+  const [editandoBancoId, setEditandoBancoId] = useState<string | null>(null);
+  const [nomeBancoEdicao, setNomeBancoEdicao] = useState("");
   const [novoOrgaoConvenio, setNovoOrgaoConvenio] = useState("");
   const [buscaTabela, setBuscaTabela] = useState("");
-  const [filtroTipoTabela, setFiltroTipoTabela] = useState<"compra" | "clt">("compra");
   const [novaTabela, setNovaTabela] = useState({
     banco: "NEO",
     orgaoConvenio: "",
@@ -1098,6 +1099,55 @@ export default function SettingsManager() {
         erro instanceof Error
           ? erro.message
           : "Não foi possível atualizar o banco.",
+      );
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  function iniciarEdicaoBanco(banco: Banco) {
+    setEditandoBancoId(banco.id);
+    setNomeBancoEdicao(banco.nome);
+    setMensagem("");
+  }
+
+  function cancelarEdicaoBanco() {
+    setEditandoBancoId(null);
+    setNomeBancoEdicao("");
+  }
+
+  async function salvarEdicaoBanco() {
+    if (!editandoBancoId) return;
+
+    const nome = nomeBancoEdicao.trim().toUpperCase();
+
+    if (!nome) {
+      setMensagem("Informe o nome do banco.");
+      return;
+    }
+
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const conteudo = await chamarApi("PATCH", {
+        acao: "editar_banco",
+        banco: {
+          id: editandoBancoId,
+          nome,
+        },
+      });
+
+      setEditandoBancoId(null);
+      setNomeBancoEdicao("");
+      setMensagem(conteudo.mensagem || "Nome do banco atualizado com sucesso.");
+
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível editar o nome do banco.",
       );
     } finally {
       setProcessando(false);
@@ -2885,13 +2935,33 @@ export default function SettingsManager() {
                 const modulos = bancoModulos[banco.id] || [];
                 const clt = modulos.includes("CLT");
                 const compra = modulos.includes("COMPRA_DIVIDA");
+                const editandoBanco = editandoBancoId === banco.id;
 
                 return (
                   <article key={banco.id} className="settings-v6-bank-row">
                     <div className="settings-v6-entity">
                       <span className="settings-v6-entity-icon">B</span>
                       <div>
-                        <strong>{banco.nome}</strong>
+                        {editandoBanco ? (
+                          <input
+                            value={nomeBancoEdicao}
+                            onChange={(e) => setNomeBancoEdicao(e.target.value)}
+                            placeholder="Nome do banco"
+                            disabled={processando}
+                            style={{
+                              width: "100%",
+                              minHeight: 38,
+                              border: "1px solid #d5e0ee",
+                              borderRadius: 10,
+                              padding: "0 11px",
+                              color: "#102d57",
+                              fontWeight: 900,
+                              textTransform: "uppercase",
+                            }}
+                          />
+                        ) : (
+                          <strong>{banco.nome}</strong>
+                        )}
                         <small>{banco.ativo ? "Disponível no sistema" : "Banco desativado"}</small>
                       </div>
                     </div>
@@ -2921,12 +2991,52 @@ export default function SettingsManager() {
                     </span>
 
                     <div className="settings-row-actions">
-                      <button type="button" onClick={() => void alternarBanco(banco.id)}>
-                        {banco.ativo ? "Desativar" : "Ativar"}
-                      </button>
-                      <button type="button" className="delete" onClick={() => void excluirBanco(banco.id)}>
-                        Excluir
-                      </button>
+                      {editandoBanco ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => void salvarEdicaoBanco()}
+                            disabled={processando}
+                            style={{
+                              borderColor: "#b8e5ca",
+                              background: "#e8f8ee",
+                              color: "#08783b",
+                              fontWeight: 900,
+                            }}
+                          >
+                            Salvar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelarEdicaoBanco}
+                            disabled={processando}
+                          >
+                            Cancelar
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => iniciarEdicaoBanco(banco)}
+                            disabled={processando}
+                            style={{
+                              borderColor: "#f0cb72",
+                              background: "#fff7df",
+                              color: "#8a5b00",
+                              fontWeight: 900,
+                            }}
+                          >
+                            Editar
+                          </button>
+                          <button type="button" onClick={() => void alternarBanco(banco.id)}>
+                            {banco.ativo ? "Desativar" : "Ativar"}
+                          </button>
+                          <button type="button" className="delete" onClick={() => void excluirBanco(banco.id)}>
+                            Excluir
+                          </button>
+                        </>
+                      )}
                     </div>
                   </article>
                 );
@@ -3270,17 +3380,17 @@ export default function SettingsManager() {
             </div>
 
             <div className="settings-table-summary">
-              <button type="button" aria-pressed={filtroTipoTabela === "compra"} onClick={() => setFiltroTipoTabela("compra")} className={`settings-table-summary-card is-compra ${filtroTipoTabela === "compra" ? "selected" : ""}`}>
+              <article className="settings-table-summary-card is-compra">
                 <span>COMPRA</span>
                 <strong>{tabelasAgrupadas.totalCompra}</strong>
                 <small>{tabelasAgrupadas.totalBancosCompra} banco(s) com tabelas de compra</small>
-              </button>
+              </article>
 
-              <button type="button" aria-pressed={filtroTipoTabela === "clt"} onClick={() => setFiltroTipoTabela("clt")} className={`settings-table-summary-card is-clt ${filtroTipoTabela === "clt" ? "selected" : ""}`}>
+              <article className="settings-table-summary-card is-clt">
                 <span>CLT</span>
                 <strong>{tabelasAgrupadas.totalClt}</strong>
                 <small>{tabelasAgrupadas.totalBancosClt} banco(s) com tabelas CLT</small>
-              </button>
+              </article>
             </div>
 
             <div className="settings-table-categories">
@@ -3303,7 +3413,7 @@ export default function SettingsManager() {
                     ? `Nenhuma tabela CLT encontrada para “${buscaTabela}”.`
                     : "Nenhuma tabela CLT cadastrada.",
                 },
-              ].filter((bloco) => bloco.chave === filtroTipoTabela).map((bloco) => (
+              ].map((bloco) => (
                 <section key={bloco.chave} className="settings-table-category-card">
                   <div className="settings-table-category-header">
                     <div>

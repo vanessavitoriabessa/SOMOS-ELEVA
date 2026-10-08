@@ -26,6 +26,21 @@ type Extra = {
   ativo: boolean;
 };
 
+type Proposta = {
+  id: string;
+  cliente?: string;
+  vendedora?: string;
+  banco?: string;
+  tabela?: string;
+  valorContrato?: number;
+  valorMeta?: number;
+  percentualTabela?: number;
+  comissao?: number;
+  status?: string;
+  dataCadastro?: string;
+  dataPagamento?: string;
+};
+
 const moeda = (valor: number) =>
   Number(valor || 0).toLocaleString("pt-BR", {
     style: "currency",
@@ -40,17 +55,58 @@ const mesAtual = () => {
 const mesAnterior = (competencia: string) => {
   const [ano, mes] = competencia.split("-").map(Number);
   const data = new Date(ano, mes - 2, 1, 12);
+
   return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}`;
 };
 
 const nomeMes = (competencia: string) => {
   const [ano, mes] = competencia.split("-").map(Number);
+
   const texto = new Date(ano, mes - 1, 1, 12).toLocaleDateString("pt-BR", {
     month: "long",
     year: "numeric",
   });
 
   return texto.charAt(0).toUpperCase() + texto.slice(1);
+};
+
+const moverMes = (competencia: string, deslocamento: number) => {
+  const [ano, mes] = competencia.split("-").map(Number);
+  const data = new Date(ano, mes - 1 + deslocamento, 1, 12);
+
+  return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}`;
+};
+
+const normalizarTexto = (valor?: string | null) =>
+  String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+const nomesCorrespondem = (a?: string | null, b?: string | null) => {
+  const nomeA = normalizarTexto(a);
+  const nomeB = normalizarTexto(b);
+
+  if (!nomeA || !nomeB) return false;
+  if (nomeA === nomeB) return true;
+
+  const menor = nomeA.length <= nomeB.length ? nomeA : nomeB;
+  const maior = nomeA.length > nomeB.length ? nomeA : nomeB;
+
+  return menor.length >= 5 && maior.includes(menor);
+};
+
+const competenciaDaData = (valor?: string | null) => {
+  const texto = String(valor || "").trim();
+
+  const iso = texto.match(/^(\d{4})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}`;
+
+  const br = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (br) return `${br[3]}-${br[2]}`;
+
+  return texto.slice(0, 7);
 };
 
 export default function CustoPorOperadorManager() {
@@ -67,10 +123,17 @@ export default function CustoPorOperadorManager() {
   const [folhas, setFolhas] = useState<any[]>([]);
   const [premios, setPremios] = useState<any[]>([]);
   const [simples, setSimples] = useState<any[]>([]);
-  const [simplesParcelas, setSimplesParcelas] = useState<any[]>([]);
   const [inss, setInss] = useState<any[]>([]);
   const [parcelasInss, setParcelasInss] = useState<any[]>([]);
   const [operadores, setOperadores] = useState<any[]>([]);
+  const [propostas, setPropostas] = useState<Proposta[]>([]);
+  const [filtroLucroOperador, setFiltroLucroOperador] = useState("todos");
+  const [detalheLucroOperador, setDetalheLucroOperador] = useState<null | {
+    nome: string;
+    propostas: Array<Proposta & { lucroCalculado: number }>;
+    lucroBruto: number;
+    lucroLiquido: number;
+  }>(null);
 
   const [form, setForm] = useState(false);
   const [nome, setNome] = useState("");
@@ -85,7 +148,6 @@ export default function CustoPorOperadorManager() {
       respostaFolhas,
       respostaPremios,
       respostaSimples,
-      respostaSimplesParcelas,
       respostaInss,
       respostaParcelasInss,
       respostaOperadores,
@@ -119,16 +181,13 @@ export default function CustoPorOperadorManager() {
         .select("id,competencia,valor_imposto,status"),
 
       sb
-        .from("simples_parcelas")
-        .select("id,valor,vencimento,status"),
-
-      sb
         .from("controle_inss_fgts")
         .select("id,tipo,competencia,valor"),
 
       sb
-        .from("inss_parcelas")
-        .select("id,valor,vencimento,status"),
+        .from("inss_parcelamentos")
+        .select("valor_parcela,ativo")
+        .eq("ativo", true),
 
       sb
         .from("profiles")
@@ -143,7 +202,6 @@ export default function CustoPorOperadorManager() {
       respostaFolhas,
       respostaPremios,
       respostaSimples,
-      respostaSimplesParcelas,
       respostaInss,
       respostaParcelasInss,
       respostaOperadores,
@@ -159,10 +217,33 @@ export default function CustoPorOperadorManager() {
     setFolhas(respostaFolhas.data || []);
     setPremios(respostaPremios.data || []);
     setSimples(respostaSimples.data || []);
-    setSimplesParcelas(respostaSimplesParcelas.data || []);
     setInss(respostaInss.data || []);
     setParcelasInss(respostaParcelasInss.data || []);
     setOperadores(respostaOperadores.data || []);
+
+    try {
+      const { data: sessao } = await sb.auth.getSession();
+
+      if (sessao.session?.access_token) {
+        const resposta = await fetch("/api/propostas", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${sessao.session.access_token}`,
+          },
+          cache: "no-store",
+        });
+
+        const conteudo = (await resposta.json()) as {
+          propostas?: Proposta[];
+          erro?: string;
+        };
+
+        setPropostas(Array.isArray(conteudo.propostas) ? conteudo.propostas : []);
+      }
+    } catch (erro) {
+      console.error("Erro ao carregar propostas para lucro por operador:", erro);
+      setPropostas([]);
+    }
   }, [sb]);
 
   useEffect(() => {
@@ -184,9 +265,6 @@ export default function CustoPorOperadorManager() {
       })
       .reduce((soma, item) => soma + Number(item.valor || 0), 0);
 
-    // Folha no Custo por Operador:
-    // usa o mesmo mês selecionado em Data Referência e soma apenas folhas pagas,
-    // considerando o valor bruto: Salário + Assiduidade.
     const fo = folhas
       .filter(
         (item) =>
@@ -212,12 +290,13 @@ export default function CustoPorOperadorManager() {
     /*
       REGRA DO SIMPLES NACIONAL NO CUSTO POR OPERADOR
 
-      Data Referência Outubro/2026:
-      - soma o imposto mensal do Simples da competência Setembro/2026;
-      - soma as parcelas do Simples com vencimento em Outubro/2026.
+      Competência selecionada Outubro/2026:
+      - pega o imposto mensal do Simples de Setembro/2026;
+      - soma R$ 370,00 do parcelamento mensal.
 
-      Não existe valor fixo: se você alterar o valor da parcela para R$ 0,78,
-      o Custo por Operador muda automaticamente ao atualizar/recarregar.
+      Competência selecionada Novembro/2026:
+      - pega o imposto mensal do Simples de Outubro/2026;
+      - soma R$ 370,00 do parcelamento mensal.
     */
     const competenciaSimples = mesAnterior(competencia);
 
@@ -228,41 +307,18 @@ export default function CustoPorOperadorManager() {
       )
       .reduce((soma, item) => soma + Number(item.valor_imposto || 0), 0);
 
-    const parcelamentoSimplesMensal = simplesParcelas
-      .filter(
-        (item) =>
-          String(item.vencimento || "").slice(0, 7) === competencia
-      )
-      .reduce((soma, item) => soma + Number(item.valor || 0), 0);
+    const parcelamentoSimplesMensal = 370;
 
     const si = impostoSimplesMensal + parcelamentoSimplesMensal;
 
-    /*
-      REGRA DO INSS E FGTS NO CUSTO POR OPERADOR
-
-      Data Referência Outubro/2026:
-      - soma FGTS + INSS da competência Setembro/2026;
-      - soma Parcelamento 1 + Parcelamento 2 com vencimento em Outubro/2026.
-
-      Não existe valor fixo: se você alterar o valor das parcelas, o resultado muda automaticamente.
-      Quando as parcelas terminarem, elas deixam de entrar automaticamente,
-      pois o cálculo olha apenas as parcelas existentes com vencimento na data referência.
-    */
-    const competenciaEncargos = mesAnterior(competencia);
-
     const impostosCompetencia = inss
-      .filter(
-        (item) =>
-          String(item.competencia || "").slice(0, 7) === competenciaEncargos
-      )
+      .filter((item) => String(item.competencia || "").slice(0, 7) === competencia)
       .reduce((soma, item) => soma + Number(item.valor || 0), 0);
 
-    const parcelamentosCompetencia = parcelasInss
-      .filter(
-        (item) =>
-          String(item.vencimento || "").slice(0, 7) === competencia
-      )
-      .reduce((soma, item) => soma + Number(item.valor || 0), 0);
+    const parcelamentosCompetencia = parcelasInss.reduce(
+      (soma, item) => soma + Number(item.valor_parcela || 0),
+      0
+    );
 
     const inf = impostosCompetencia + parcelamentosCompetencia;
 
@@ -309,7 +365,6 @@ export default function CustoPorOperadorManager() {
     folhas,
     premios,
     simples,
-    simplesParcelas,
     inss,
     parcelasInss,
     operadores,
@@ -424,6 +479,76 @@ export default function CustoPorOperadorManager() {
     ["simples_nacional", "Simples Nacional", calc.si],
     ["inss_fgts", "INSS e FGTS", calc.inf],
   ] as const;
+
+  const operadoresElegiveis = useMemo(
+    () =>
+      operadores
+        .filter((item) => {
+          const perfil = normalizarTexto(item.perfil);
+
+          return (
+            item.ativo !== false &&
+            (perfil.includes("consultor") || perfil.includes("vendedor"))
+          );
+        })
+        .sort((a, b) =>
+          String(a.nome || "").localeCompare(String(b.nome || ""), "pt-BR")
+        ),
+    [operadores]
+  );
+
+  const lucroPorOperador = useMemo(() => {
+    const propostasPagas = propostas.filter(
+      (proposta) =>
+        normalizarTexto(proposta.status) === "pago" &&
+        competenciaDaData(proposta.dataPagamento || proposta.dataCadastro) ===
+          competencia
+    );
+
+    const lista = operadoresElegiveis.map((operador) => {
+      const propostasOperador = propostasPagas
+        .filter((proposta) => nomesCorrespondem(proposta.vendedora, operador.nome))
+        .map((proposta) => ({
+          ...proposta,
+          lucroCalculado: Number(proposta.comissao || 0),
+        }));
+
+      const lucroBruto = propostasOperador.reduce(
+        (soma, proposta) => soma + proposta.lucroCalculado,
+        0
+      );
+
+      return {
+        id: String(operador.id),
+        nome: String(operador.nome || "Operador(a)"),
+        lucroBruto,
+        custoOperador: calc.unit,
+        lucroLiquido: lucroBruto - calc.unit,
+        propostas: propostasOperador,
+      };
+    });
+
+    return lista.filter(
+      (item) => filtroLucroOperador === "todos" || item.id === filtroLucroOperador
+    );
+  }, [propostas, operadoresElegiveis, competencia, calc.unit, filtroLucroOperador]);
+
+  const resumoLucroOperador = useMemo(() => {
+    const lucroBruto = lucroPorOperador.reduce(
+      (soma, item) => soma + item.lucroBruto,
+      0
+    );
+    const custoTotal = lucroPorOperador.reduce(
+      (soma, item) => soma + item.custoOperador,
+      0
+    );
+
+    return {
+      lucroBruto,
+      custoTotal,
+      lucroLiquido: lucroBruto - custoTotal,
+    };
+  }, [lucroPorOperador]);
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -881,6 +1006,358 @@ export default function CustoPorOperadorManager() {
           )}
         </article>
       </section>
+
+      <section style={{ ...card, display: "grid", gap: 16 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 14,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <span style={{ color: "#155eef", fontSize: 10, fontWeight: 900 }}>
+              RESULTADO POR OPERADOR
+            </span>
+
+            <h3 style={{ margin: "6px 0 4px", color: "#102d57", fontSize: 24 }}>
+              Lucro por Operador
+            </h3>
+
+            <p style={{ margin: 0, color: "#8794a8", fontSize: 12 }}>
+              Lucro gerado pelo operador menos o custo por operador da referência.
+            </p>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => setCompetencia(moverMes(competencia, -1))}
+              style={{ ...btn, background: "#fff", color: "#155eef", border: "1px solid #ccd8ea" }}
+            >
+              ◀
+            </button>
+
+            <label
+              style={{
+                display: "grid",
+                gap: 6,
+                fontSize: 10,
+                fontWeight: 900,
+                color: "#102d57",
+              }}
+            >
+              DATA REFERÊNCIA
+              <input
+                type="month"
+                value={competencia}
+                onChange={(evento) => setCompetencia(evento.target.value)}
+                style={{
+                  height: 42,
+                  width: 190,
+                  border: "1px solid #ccd8ea",
+                  borderRadius: 10,
+                  padding: "0 12px",
+                  color: "#102d57",
+                  fontWeight: 800,
+                  background: "#fff",
+                }}
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={() => setCompetencia(moverMes(competencia, 1))}
+              style={{ ...btn, background: "#fff", color: "#155eef", border: "1px solid #ccd8ea" }}
+            >
+              ▶
+            </button>
+
+            <label
+              style={{
+                display: "grid",
+                gap: 6,
+                fontSize: 10,
+                fontWeight: 900,
+                color: "#102d57",
+              }}
+            >
+              OPERADOR(A)
+              <select
+                value={filtroLucroOperador}
+                onChange={(evento) => setFiltroLucroOperador(evento.target.value)}
+                style={{
+                  height: 42,
+                  minWidth: 230,
+                  border: "1px solid #ccd8ea",
+                  borderRadius: 10,
+                  padding: "0 12px",
+                  color: "#102d57",
+                  fontWeight: 800,
+                  background: "#fff",
+                }}
+              >
+                <option value="todos">Todos os operadores</option>
+                {operadoresElegiveis.map((operador) => (
+                  <option key={operador.id} value={String(operador.id)}>
+                    {operador.nome}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3,minmax(0,1fr))",
+            gap: 12,
+          }}
+        >
+          <article style={{ ...card, background: "#f8fbff" }}>
+            <span style={{ fontSize: 10, fontWeight: 900, color: "#65758d" }}>
+              LUCRO GERADO
+            </span>
+            <strong style={{ display: "block", marginTop: 8, fontSize: 22, color: "#102d57" }}>
+              {moeda(resumoLucroOperador.lucroBruto)}
+            </strong>
+            <small style={{ color: "#8794a8" }}>
+              Soma das comissões/propostas pagas
+            </small>
+          </article>
+
+          <article style={{ ...card, background: "#fff6cf", borderColor: "#ecd071" }}>
+            <span style={{ fontSize: 10, fontWeight: 900, color: "#111827" }}>
+              CUSTO RATEADO
+            </span>
+            <strong style={{ display: "block", marginTop: 8, fontSize: 22, color: "#111827" }}>
+              {moeda(resumoLucroOperador.custoTotal)}
+            </strong>
+            <small style={{ color: "#111827" }}>
+              {lucroPorOperador.length} operador(es) × {moeda(calc.unit)}
+            </small>
+          </article>
+
+          <article
+            style={{
+              ...card,
+              background: resumoLucroOperador.lucroLiquido >= 0 ? "#eaf8ee" : "#fdeeee",
+              borderColor: resumoLucroOperador.lucroLiquido >= 0 ? "#bfe8cc" : "#f2c7c7",
+            }}
+          >
+            <span style={{ fontSize: 10, fontWeight: 900, color: "#111827" }}>
+              LUCRO LÍQUIDO DOS OPERADORES
+            </span>
+            <strong style={{ display: "block", marginTop: 8, fontSize: 22, color: "#111827" }}>
+              {moeda(resumoLucroOperador.lucroLiquido)}
+            </strong>
+            <small style={{ color: "#111827" }}>
+              Lucro gerado − custo por operador
+            </small>
+          </article>
+        </div>
+
+        <div style={{ display: "grid", gap: 10 }}>
+          {lucroPorOperador.length === 0 ? (
+            <div style={{ padding: 20, color: "#8794a8", fontSize: 12 }}>
+              Nenhum operador encontrado para este filtro.
+            </div>
+          ) : (
+            lucroPorOperador.map((item) => (
+              <article
+                key={item.id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(220px,1fr) repeat(3,minmax(130px,.7fr)) auto",
+                  gap: 12,
+                  alignItems: "center",
+                  padding: "14px 0",
+                  borderBottom: "1px solid #edf1f6",
+                }}
+              >
+                <div>
+                  <strong style={{ color: "#102d57", fontSize: 13 }}>{item.nome}</strong>
+                  <small style={{ display: "block", marginTop: 4, color: "#8794a8" }}>
+                    {item.propostas.length} proposta(s) considerada(s)
+                  </small>
+                </div>
+
+                <div>
+                  <small style={{ display: "block", color: "#8794a8", fontSize: 10, fontWeight: 900 }}>
+                    LUCRO
+                  </small>
+                  <strong style={{ color: "#102d57" }}>{moeda(item.lucroBruto)}</strong>
+                </div>
+
+                <div>
+                  <small style={{ display: "block", color: "#8794a8", fontSize: 10, fontWeight: 900 }}>
+                    CUSTO
+                  </small>
+                  <strong style={{ color: "#102d57" }}>{moeda(item.custoOperador)}</strong>
+                </div>
+
+                <div>
+                  <small style={{ display: "block", color: "#8794a8", fontSize: 10, fontWeight: 900 }}>
+                    RESULTADO
+                  </small>
+                  <strong style={{ color: item.lucroLiquido >= 0 ? "#079447" : "#d92d20" }}>
+                    {moeda(item.lucroLiquido)}
+                  </strong>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDetalheLucroOperador({
+                      nome: item.nome,
+                      propostas: item.propostas,
+                      lucroBruto: item.lucroBruto,
+                      lucroLiquido: item.lucroLiquido,
+                    })
+                  }
+                  style={{
+                    border: "1px solid #ccd8ea",
+                    borderRadius: 9,
+                    background: "#fff",
+                    color: "#155eef",
+                    padding: "8px 12px",
+                    fontWeight: 900,
+                    cursor: "pointer",
+                  }}
+                >
+                  Ver propostas
+                </button>
+              </article>
+            ))
+          )}
+        </div>
+      </section>
+
+      {detalheLucroOperador && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,35,65,.42)",
+            zIndex: 9999,
+            display: "grid",
+            placeItems: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              width: "min(1050px,96vw)",
+              maxHeight: "90vh",
+              overflow: "auto",
+              background: "#fff",
+              borderRadius: 18,
+              border: "1px solid #dce5f2",
+              boxShadow: "0 24px 80px rgba(16,45,87,.25)",
+            }}
+          >
+            <header
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 14,
+                alignItems: "flex-start",
+                padding: 22,
+                borderBottom: "1px solid #edf1f6",
+              }}
+            >
+              <div>
+                <span style={{ color: "#155eef", fontSize: 10, fontWeight: 900 }}>
+                  PROPOSTAS DO OPERADOR
+                </span>
+                <h3 style={{ margin: "6px 0", color: "#102d57", fontSize: 23 }}>
+                  {detalheLucroOperador.nome}
+                </h3>
+                <p style={{ margin: 0, color: "#8794a8", fontSize: 12 }}>
+                  {nomeMes(competencia)} · Lucro {moeda(detalheLucroOperador.lucroBruto)} · Resultado {moeda(detalheLucroOperador.lucroLiquido)}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setDetalheLucroOperador(null)}
+                style={{
+                  border: 0,
+                  borderRadius: 10,
+                  background: "#f3f6fa",
+                  width: 38,
+                  height: 38,
+                  fontWeight: 900,
+                  cursor: "pointer",
+                }}
+              >
+                ×
+              </button>
+            </header>
+
+            <div style={{ padding: 22 }}>
+              {detalheLucroOperador.propostas.length === 0 ? (
+                <div style={{ padding: 26, textAlign: "center", color: "#8794a8" }}>
+                  Nenhuma proposta paga encontrada para este operador na data referência.
+                </div>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 820 }}>
+                    <thead>
+                      <tr>
+                        {["Cliente", "Banco", "Tabela", "Data pagamento", "Status", "Lucro"].map((coluna) => (
+                          <th
+                            key={coluna}
+                            style={{
+                              textAlign: "left",
+                              padding: "11px 10px",
+                              background: "#f4f7fb",
+                              color: "#65758d",
+                              fontSize: 10,
+                              fontWeight: 900,
+                              textTransform: "uppercase",
+                              borderBottom: "1px solid #dce5f2",
+                            }}
+                          >
+                            {coluna}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detalheLucroOperador.propostas.map((proposta) => (
+                        <tr key={proposta.id}>
+                          <td style={{ padding: "11px 10px", borderBottom: "1px solid #edf1f6" }}>
+                            {proposta.cliente || "—"}
+                          </td>
+                          <td style={{ padding: "11px 10px", borderBottom: "1px solid #edf1f6" }}>
+                            {proposta.banco || "—"}
+                          </td>
+                          <td style={{ padding: "11px 10px", borderBottom: "1px solid #edf1f6" }}>
+                            {proposta.tabela || "—"}
+                          </td>
+                          <td style={{ padding: "11px 10px", borderBottom: "1px solid #edf1f6" }}>
+                            {proposta.dataPagamento || proposta.dataCadastro || "—"}
+                          </td>
+                          <td style={{ padding: "11px 10px", borderBottom: "1px solid #edf1f6" }}>
+                            {proposta.status || "—"}
+                          </td>
+                          <td style={{ padding: "11px 10px", borderBottom: "1px solid #edf1f6", fontWeight: 900 }}>
+                            {moeda(proposta.lucroCalculado)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

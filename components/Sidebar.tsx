@@ -11,6 +11,7 @@ const operation = [
 
 const management = [
   ["🏆", "Ranking", "/ranking"],
+  ["📋", "Tabelas Comissão", "/tabelas-comissao"],
   ["📊", "Financeiro", "/financeiro"],
   ["👩‍💼", "Equipe", "/equipe"],
   ["📥", "Dados importados", "/dados-importados"],
