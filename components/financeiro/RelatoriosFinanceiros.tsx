@@ -844,6 +844,50 @@ export default function RelatoriosFinanceiros() {
           }
 
 
+
+          .rf-main-cards{
+            grid-template-columns:repeat(5,minmax(0,1fr))!important;
+            align-items:stretch!important;
+          }
+
+          .rf-despesa-bruta-card{
+            background:#fdeeee!important;
+            border-color:#f2c7c7!important;
+          }
+
+          .rf-despesa-bruta-card span,
+          .rf-despesa-bruta-card strong,
+          .rf-despesa-bruta-card small{
+            color:#111827!important;
+          }
+
+          .rf-lucro-liquido-main-card{
+            min-height:118px!important;
+            padding:20px!important;
+          }
+
+          .rf-lucro-liquido-main-card span{
+            font-size:12px!important;
+            letter-spacing:.05em!important;
+          }
+
+          .rf-lucro-liquido-main-card strong{
+            font-size:25px!important;
+            font-weight:900!important;
+          }
+
+          @media(max-width:1450px){
+            .rf-main-cards{grid-template-columns:repeat(3,minmax(0,1fr))!important;}
+          }
+
+          @media(max-width:900px){
+            .rf-main-cards{grid-template-columns:repeat(2,minmax(0,1fr))!important;}
+          }
+
+          @media(max-width:650px){
+            .rf-main-cards{grid-template-columns:1fr!important;}
+          }
+
           .rf-highlight-result{
             margin-top:10px;
             padding:14px 16px!important;
@@ -950,7 +994,11 @@ export default function RelatoriosFinanceiros() {
 
 
 
-        <article className={`rf-metric ${d.lucroLiquido<0?"negative":"positive"}`}><span>Lucro líquido empresa</span><strong>{moeda(d.lucroLiquido)}</strong><small>Lucro bruto − todas as despesas</small></article>
+        <article className="rf-metric rf-despesa-bruta-card"><span>Despesas bruta</span><strong>{moeda(d.despesaBruta)}</strong><small>Pago ou pendente</small></article>
+
+
+
+        <article className={`rf-metric rf-lucro-liquido-main-card ${d.lucroLiquido<0?"negative":"positive"}`}><span>LUCRO LÍQUIDO EMPRESA</span><strong>{moeda(d.lucroLiquido)}</strong><small>Lucro bruto − todas as despesas</small></article>
 
 
 
