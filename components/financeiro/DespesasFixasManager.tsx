@@ -6,11 +6,27 @@
 
 
 
+
+
+
+
+
+
+
+
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 
 
+
+
+
+
 import { createClient } from "@/lib/supabase/client";
+
+
+
+
 
 
 
@@ -22,7 +38,19 @@ import "./despesas-fixas.css";
 
 
 
+
+
+
+
+
+
+
+
 type Despesa = {
+
+
+
+
 
 
 
@@ -30,7 +58,15 @@ type Despesa = {
 
 
 
+
+
+
+
   nome: string;
+
+
+
+
 
 
 
@@ -38,7 +74,15 @@ type Despesa = {
 
 
 
+
+
+
+
   fornecedor: string;
+
+
+
+
 
 
 
@@ -46,7 +90,15 @@ type Despesa = {
 
 
 
+
+
+
+
   dia_vencimento: number;
+
+
+
+
 
 
 
@@ -54,7 +106,15 @@ type Despesa = {
 
 
 
+
+
+
+
   fim_competencia: string | null;
+
+
+
+
 
 
 
@@ -62,7 +122,19 @@ type Despesa = {
 
 
 
+
+
+
+
 };
+
+
+
+
+
+
+
+
 
 
 
@@ -74,7 +146,15 @@ type Pagamento = {
 
 
 
+
+
+
+
   id: string;
+
+
+
+
 
 
 
@@ -82,7 +162,15 @@ type Pagamento = {
 
 
 
+
+
+
+
   competencia: string;
+
+
+
+
 
 
 
@@ -90,11 +178,23 @@ type Pagamento = {
 
 
 
+
+
+
+
   pago_em: string;
 
 
 
+
+
+
+
   valor_pago: number;
+
+
+
+
 
 
 
@@ -106,9 +206,23 @@ type Pagamento = {
 
 
 
+
+
+
+
+
+
+
+
 type CategoriaPersonalizada={id:string;nome:string;ativo:boolean};
 
+
+
 const moeda = (v: number) =>
+
+
+
+
 
 
 
@@ -116,11 +230,23 @@ const moeda = (v: number) =>
 
 
 
+
+
+
+
     style: "currency",
 
 
 
+
+
+
+
     currency: "BRL",
+
+
+
+
 
 
 
@@ -132,7 +258,19 @@ const moeda = (v: number) =>
 
 
 
+
+
+
+
+
+
+
+
 const competenciaAtual = () => new Date().toISOString().slice(0, 7);
+
+
+
+
 
 
 
@@ -144,7 +282,19 @@ const hoje = () => new Date().toISOString().slice(0, 10);
 
 
 
+
+
+
+
+
+
+
+
 function dataVencimentoCompetencia(competencia: string, dia: number) {
+
+
+
+
 
 
 
@@ -152,7 +302,15 @@ function dataVencimentoCompetencia(competencia: string, dia: number) {
 
 
 
+
+
+
+
   const ultimoDia = new Date(ano, mes, 0).getDate();
+
+
+
+
 
 
 
@@ -160,11 +318,23 @@ function dataVencimentoCompetencia(competencia: string, dia: number) {
 
 
 
+
+
+
+
   return `${ano}-${String(mes).padStart(2, "0")}-${String(diaValido).padStart(2, "0")}`;
 
 
 
+
+
+
+
 }
+
+
+
+
 
 
 
@@ -172,7 +342,15 @@ function dataBR(data: string) {
 
 
 
+
+
+
+
   const [ano, mes, dia] = data.split("-");
+
+
+
+
 
 
 
@@ -180,7 +358,19 @@ function dataBR(data: string) {
 
 
 
+
+
+
+
 }
+
+
+
+
+
+
+
+
 
 
 
@@ -190,15 +380,33 @@ function dataBR(data: string) {
 
 const numero = (v: string) =>
 
+
+
   Number(
+
+
 
     v.replace(/\./g, "")
 
+
+
       .replace(",", ".")
+
+
 
       .replace(/[^\d.-]/g, "") || 0
 
+
+
   );
+
+
+
+
+
+
+
+
 
 
 
@@ -210,7 +418,15 @@ function iconeCategoria(categoria: string) {
 
 
 
+
+
+
+
   const chave = categoria.trim().toLowerCase();
+
+
+
+
 
 
 
@@ -218,7 +434,15 @@ function iconeCategoria(categoria: string) {
 
 
 
+
+
+
+
   if (chave === "sistemas") return "💻";
+
+
+
+
 
 
 
@@ -226,7 +450,15 @@ function iconeCategoria(categoria: string) {
 
 
 
+
+
+
+
   if (chave === "telefonia") return "📞";
+
+
+
+
 
 
 
@@ -234,7 +466,15 @@ function iconeCategoria(categoria: string) {
 
 
 
+
+
+
+
   if (chave === "jurídico") return "⚖️";
+
+
+
+
 
 
 
@@ -242,7 +482,15 @@ function iconeCategoria(categoria: string) {
 
 
 
+
+
+
+
   if (chave === "impostos") return "🏛️";
+
+
+
+
 
 
 
@@ -250,11 +498,23 @@ function iconeCategoria(categoria: string) {
 
 
 
+
+
+
+
   if (chave === "pró-labore") return "👤";
 
 
 
+
+
+
+
   return "📌";
+
+
+
+
 
 
 
@@ -266,7 +526,117 @@ function iconeCategoria(categoria: string) {
 
 
 
+
+
+function iconeFornecedor(fornecedor: string) {
+
+
+
+
+
+
+
+  const chave = fornecedor.trim().toLowerCase();
+
+
+
+
+
+
+
+  if (!chave) return "🏢";
+
+
+
+
+
+
+
+  if (chave.includes("meta") || chave.includes("facebook") || chave.includes("google") || chave.includes("tráfego") || chave.includes("trafego")) return "📣";
+
+
+
+
+
+
+
+  if (chave.includes("sistema") || chave.includes("hyper") || chave.includes("whatsapp") || chave.includes("software")) return "💻";
+
+
+
+
+
+
+
+  if (chave.includes("contador") || chave.includes("contab")) return "🧾";
+
+
+
+
+
+
+
+  if (chave.includes("aluguel") || chave.includes("sala") || chave.includes("imóvel") || chave.includes("imovel")) return "🏠";
+
+
+
+
+
+
+
+  if (chave.includes("jur")) return "⚖️";
+
+
+
+
+
+
+
+  if (chave.includes("imposto") || chave.includes("simples") || chave.includes("inss") || chave.includes("fgts")) return "🏛️";
+
+
+
+
+
+
+
+  if (chave.includes("limpeza")) return "🧹";
+
+
+
+
+
+
+
+  return "🏢";
+
+
+
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 export default function DespesasFixasManager() {
+
+
+
+
 
 
 
@@ -278,7 +648,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
   const [despesas, setDespesas] = useState<Despesa[]>([]);
+
+
+
+
 
 
 
@@ -286,7 +668,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
   const [competencia, setCompetencia] = useState(competenciaAtual());
+
+
+
+
 
 
 
@@ -294,14 +684,33 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
   const [editandoId, setEditandoId] = useState<string | null>(null);
 
 
 
+
+
+
+
   const [mensagem, setMensagem] = useState("");
+
   const [categoriasPersonalizadas,setCategoriasPersonalizadas]=useState<CategoriaPersonalizada[]>([]);
+
   const [novaCategoria,setNovaCategoria]=useState("");
+
   const [criandoCategoria,setCriandoCategoria]=useState(false);
+
+
+
+
+
+
+
+
 
 
 
@@ -313,7 +722,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
   const [categoria, setCategoria] = useState("Sistemas");
+
+
+
+
 
 
 
@@ -321,7 +738,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
   const [valor, setValor] = useState("");
+
+
+
+
 
 
 
@@ -329,7 +754,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
   const [inicio, setInicio] = useState(competenciaAtual());
+
+
+
+
 
 
 
@@ -341,15 +774,39 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
   const carregar = useCallback(async () => {
 
 
 
+
+
+
+
     const [d,p,c]=await Promise.all([
+
       supabase.from("despesas_recorrentes").select("*").order("dia_vencimento"),
+
       supabase.from("despesas_recorrentes_pagamentos").select("*").eq("competencia",competencia),
-      supabase.from("config_financeiro_itens").select("id,nome,ativo").eq("tipo","categoria_despesa").eq("ativo",true).order("nome",{ascending:true}),
+
+      supabase.from("config_financeiro_itens").select("id,nome,ativo").eq("tipo","categoria_saida").eq("ativo",true).order("nome",{ascending:true}),
+
     ]);
+
+
+
+
+
+
+
+
 
 
 
@@ -361,7 +818,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       setMensagem(d.error.message);
+
+
+
+
 
 
 
@@ -369,7 +834,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -381,11 +858,23 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       setMensagem(p.error.message);
 
 
 
+
+
+
+
       return;
+
+
+
+
 
 
 
@@ -397,13 +886,31 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
     if(c.error){setMensagem(c.error.message);return}
+
     setDespesas((d.data || []) as Despesa[]);
 
 
 
+
+
+
+
     setPagamentos((p.data || []) as Pagamento[]);
+
     setCategoriasPersonalizadas((c.data || []) as CategoriaPersonalizada[]);
+
+
+
+
 
 
 
@@ -415,11 +922,27 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
   useEffect(() => {
 
 
 
+
+
+
+
     void carregar();
+
+
+
+
 
 
 
@@ -431,7 +954,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
   const ativas = useMemo(
+
+
+
+
 
 
 
@@ -439,7 +974,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       despesas.filter(
+
+
+
+
 
 
 
@@ -447,7 +990,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
           d.ativo &&
+
+
+
+
 
 
 
@@ -455,7 +1006,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
           (!d.fim_competencia || competencia <= d.fim_competencia),
+
+
+
+
 
 
 
@@ -463,7 +1022,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
     [despesas, competencia],
+
+
+
+
 
 
 
@@ -475,7 +1042,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
   const pagos = new Set(pagamentos.map((p) => p.despesa_recorrente_id));
+
+
+
+
 
 
 
@@ -483,7 +1062,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
   const pago = pagamentos.reduce((t, p) => t + Number(p.valor_pago || 0), 0);
+
+
+
+
 
 
 
@@ -491,7 +1078,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
   const atrasadas = ativas.filter(d => !pagos.has(d.id) && dataVencimentoCompetencia(competencia,d.dia_vencimento) < hojeIso);
+
+
+
+
 
 
 
@@ -499,11 +1094,23 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
   const totalAtrasado = atrasadas.reduce((t,d)=>t+Number(d.valor||0),0);
 
 
 
+
+
+
+
   const totalPendente = pendentes.reduce((t,d)=>t+Number(d.valor||0),0);
+
+
+
+
 
 
 
@@ -515,7 +1122,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
   function limparFormulario() {
+
+
+
+
 
 
 
@@ -523,7 +1142,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
     setCategoria("Sistemas");
+
+
+
+
 
 
 
@@ -531,7 +1158,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
     setValor("");
+
+
+
+
 
 
 
@@ -539,7 +1174,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
     setInicio(competenciaAtual());
+
+
+
+
 
 
 
@@ -547,11 +1190,27 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
     setEditandoId(null);
 
 
 
+
+
+
+
   }
+
+
+
+
+
+
+
+
 
 
 
@@ -563,7 +1222,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
     if (form && !editandoId) {
+
+
+
+
 
 
 
@@ -571,11 +1238,23 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       limparFormulario();
 
 
 
+
+
+
+
       return;
+
+
+
+
 
 
 
@@ -587,7 +1266,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
     limparFormulario();
+
+
+
+
 
 
 
@@ -595,11 +1286,27 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
     setForm(true);
 
 
 
+
+
+
+
   }
+
+
+
+
+
+
+
+
 
 
 
@@ -611,7 +1318,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
     setEditandoId(item.id);
+
+
+
+
 
 
 
@@ -619,7 +1334,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
     setCategoria(item.categoria || "Sistemas");
+
+
+
+
 
 
 
@@ -627,7 +1350,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
     setValor(
+
+
+
+
 
 
 
@@ -635,7 +1366,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
         .toFixed(2)
+
+
+
+
 
 
 
@@ -643,7 +1382,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
     );
+
+
+
+
 
 
 
@@ -651,7 +1398,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
     setInicio(item.inicio_competencia || competenciaAtual());
+
+
+
+
 
 
 
@@ -659,7 +1414,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       item.fim_competencia && item.fim_competencia === item.inicio_competencia
+
+
+
+
 
 
 
@@ -667,7 +1430,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
         : "Mensal"
+
+
+
+
 
 
 
@@ -675,7 +1446,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
     setMensagem("");
+
+
+
+
 
 
 
@@ -687,7 +1466,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
     window.scrollTo({
+
+
+
+
 
 
 
@@ -695,7 +1486,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       behavior: "smooth",
+
+
+
+
 
 
 
@@ -703,7 +1502,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
   }
+
+
+
+
+
+
+
+
 
 
 
@@ -712,29 +1523,56 @@ export default function DespesasFixasManager() {
 
 
   async function criarCategoria(){
+
     const nomeCategoria=novaCategoria.trim();
+
     if(!nomeCategoria){setMensagem("Digite o nome da nova categoria.");return}
+
     const padrao=["Sistemas","Aluguel","Internet","Telefonia","Contabilidade","Jurídico","Tráfego pago","Impostos","Parcelamentos","Pró-labore","Outros"];
+
     if([...padrao,...categoriasPersonalizadas.map(x=>x.nome)].some(x=>x.toLocaleLowerCase("pt-BR")===nomeCategoria.toLocaleLowerCase("pt-BR"))){setMensagem("Essa categoria já existe.");return}
-    const {data,error}=await supabase.from("config_financeiro_itens").insert({tipo:"categoria_despesa",nome:nomeCategoria,ativo:true}).select("id,nome,ativo").single();
+
+    const {data,error}=await supabase.from("config_financeiro_itens").insert({tipo:"categoria_saida",nome:nomeCategoria,ativo:true}).select("id,nome,ativo").single();
+
     if(error||!data){setMensagem(error?.message||"Não foi possível criar a categoria.");return}
+
     setCategoriasPersonalizadas(prev=>[...prev,data as CategoriaPersonalizada].sort((x,y)=>x.nome.localeCompare(y.nome,"pt-BR")));
+
     setCategoria(nomeCategoria);setNovaCategoria("");setCriandoCategoria(false);setMensagem(`Categoria "${nomeCategoria}" criada com sucesso.`);
+
   }
 
+
+
   async function excluirCategoriaPersonalizada(item:CategoriaPersonalizada){
+
     const emUso=despesas.some(d=>d.categoria.toLocaleLowerCase("pt-BR")===item.nome.toLocaleLowerCase("pt-BR"));
+
     if(!window.confirm(emUso?`A categoria "${item.nome}" já é usada. Remover da lista mesmo assim?`:`Excluir a categoria "${item.nome}" da lista?`))return;
+
     const {error}=await supabase.from("config_financeiro_itens").update({ativo:false}).eq("id",item.id);
+
     if(error){setMensagem(error.message);return}
+
     setCategoriasPersonalizadas(prev=>prev.filter(x=>x.id!==item.id));if(categoria===item.nome)setCategoria("Outros");
+
   }
+
+
 
   async function salvar(e: FormEvent) {
 
 
 
+
+
+
+
     e.preventDefault();
+
+
+
+
 
 
 
@@ -746,7 +1584,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
     const v = numero(valor);
+
+
+
+
 
 
 
@@ -758,7 +1608,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
     if (!nome.trim() || v <= 0 || venc < 1 || venc > 31) {
+
+
+
+
 
 
 
@@ -766,11 +1628,27 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       return;
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -782,7 +1660,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       nome: nome.trim(),
+
+
+
+
 
 
 
@@ -790,7 +1676,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       fornecedor: fornecedor.trim(),
+
+
+
+
 
 
 
@@ -798,7 +1692,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       dia_vencimento: venc,
+
+
+
+
 
 
 
@@ -806,7 +1708,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       fim_competencia: frequencia === "Única" ? inicio : null,
+
+
+
+
 
 
 
@@ -814,7 +1724,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       atualizado_em: new Date().toISOString(),
+
+
+
+
 
 
 
@@ -826,7 +1744,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
     if (editandoId) {
+
+
+
+
 
 
 
@@ -834,11 +1764,23 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
         .from("despesas_recorrentes")
 
 
 
+
+
+
+
         .update(dados)
+
+
+
+
 
 
 
@@ -850,7 +1792,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
       if (error) {
+
+
+
+
 
 
 
@@ -858,11 +1812,27 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
         return;
 
 
 
+
+
+
+
       }
+
+
+
+
+
+
+
+
 
 
 
@@ -874,7 +1844,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
     } else {
+
+
+
+
 
 
 
@@ -882,7 +1860,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
         .from("despesas_recorrentes")
+
+
+
+
 
 
 
@@ -894,7 +1880,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
       if (error) {
+
+
+
+
 
 
 
@@ -902,7 +1900,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
         return;
+
+
+
+
 
 
 
@@ -914,7 +1920,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
       setMensagem(
+
+
+
+
 
 
 
@@ -922,7 +1940,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
           ? "Despesa mensal cadastrada. Ela aparecerá automaticamente nas próximas competências."
+
+
+
+
 
 
 
@@ -930,7 +1956,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       );
+
+
+
+
 
 
 
@@ -942,7 +1976,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
     limparFormulario();
+
+
+
+
 
 
 
@@ -950,7 +1996,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
     await carregar();
+
+
+
+
 
 
 
@@ -962,7 +2016,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
   async function marcarPago(item: Despesa) {
+
+
+
+
 
 
 
@@ -974,7 +2040,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
     const data = window.prompt(`Data do pagamento de ${item.nome}:`, hoje());
+
+
+
+
 
 
 
@@ -986,7 +2064,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
     const digitado = window.prompt(
+
+
+
+
 
 
 
@@ -994,11 +2084,23 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       Number(item.valor).toFixed(2).replace(".", ","),
 
 
 
+
+
+
+
     );
+
+
+
+
 
 
 
@@ -1010,11 +2112,31 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
     const v = numero(digitado);
 
 
 
+
+
+
+
     if (v <= 0) return;
+
+
+
+
+
+
+
+
 
 
 
@@ -1030,7 +2152,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
     const { data: mov, error: em } = await supabase
+
+
+
+
 
 
 
@@ -1038,7 +2172,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       .insert({
+
+
+
+
 
 
 
@@ -1046,7 +2188,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
         produto: "",
+
+
+
+
 
 
 
@@ -1054,7 +2204,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
         parceiro: item.fornecedor || null,
+
+
+
+
 
 
 
@@ -1062,7 +2220,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
         descricao: `${item.nome} — ${competencia}`,
+
+
+
+
 
 
 
@@ -1070,7 +2236,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
         data,
+
+
+
+
 
 
 
@@ -1078,7 +2252,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
         atualizado_em: new Date().toISOString(),
+
+
+
+
 
 
 
@@ -1086,7 +2268,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       .select("id")
+
+
+
+
 
 
 
@@ -1098,7 +2288,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
     if (em || !mov) {
+
+
+
+
 
 
 
@@ -1106,11 +2308,27 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       return;
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -1122,7 +2340,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       .from("despesas_recorrentes_pagamentos")
+
+
+
+
 
 
 
@@ -1130,7 +2356,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
         despesa_recorrente_id: item.id,
+
+
+
+
 
 
 
@@ -1138,7 +2372,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
         movimento_id: mov.id,
+
+
+
+
 
 
 
@@ -1146,7 +2388,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
         valor_pago: v,
+
+
+
+
 
 
 
@@ -1158,7 +2408,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
     if (ep) {
+
+
+
+
 
 
 
@@ -1166,11 +2428,27 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       return;
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -1182,11 +2460,27 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
     await carregar();
 
 
 
+
+
+
+
   }
+
+
+
+
+
+
+
+
 
 
 
@@ -1196,71 +2490,141 @@ export default function DespesasFixasManager() {
 
   async function reabrirPagamento(item: Despesa) {
 
+
+
     const pagamento = pagamentos.find((p) => p.despesa_recorrente_id === item.id);
+
+
 
     if (!pagamento) { setMensagem("Pagamento não encontrado nesta competência."); return; }
 
+
+
     if (!window.confirm(`Desfazer o pagamento de ${item.nome}? A despesa voltará para Pendente/Atrasada.`)) return;
+
+
 
     setMensagem("");
 
+
+
     if (pagamento.movimento_id) {
+
+
 
       const { error: erroMovimento } = await supabase.from("movimentos_financeiros").delete().eq("id", pagamento.movimento_id);
 
+
+
       if (erroMovimento) { setMensagem(erroMovimento.message); return; }
+
+
 
     }
 
+
+
     const { error: erroPagamento } = await supabase.from("despesas_recorrentes_pagamentos").delete().eq("id", pagamento.id);
+
+
 
     if (erroPagamento) { setMensagem(erroPagamento.message); return; }
 
+
+
     setMensagem(`${item.nome} voltou para pendente nesta competência.`);
+
+
 
     await carregar();
 
+
+
   }
+
+
+
+
 
 
 
   async function excluirDespesa(item: Despesa) {
 
+
+
     if (!window.confirm(`Excluir definitivamente a despesa fixa "${item.nome}"?`)) return;
+
+
 
     setMensagem("");
 
+
+
     const { data: historico, error: erroHistorico } = await supabase.from("despesas_recorrentes_pagamentos").select("id,movimento_id").eq("despesa_recorrente_id", item.id);
+
+
 
     if (erroHistorico) { setMensagem(erroHistorico.message); return; }
 
+
+
     for (const pagamento of historico || []) {
+
+
 
       if (pagamento.movimento_id) {
 
+
+
         const { error: erroMovimento } = await supabase.from("movimentos_financeiros").delete().eq("id", pagamento.movimento_id);
+
+
 
         if (erroMovimento) { setMensagem(erroMovimento.message); return; }
 
+
+
       }
+
+
 
     }
 
+
+
     const { error: erroPagamentos } = await supabase.from("despesas_recorrentes_pagamentos").delete().eq("despesa_recorrente_id", item.id);
+
+
 
     if (erroPagamentos) { setMensagem(erroPagamentos.message); return; }
 
+
+
     const { error } = await supabase.from("despesas_recorrentes").delete().eq("id", item.id);
+
+
 
     if (error) { setMensagem(error.message); return; }
 
+
+
     if (editandoId === item.id) { limparFormulario(); setForm(false); }
+
+
 
     setMensagem(`${item.nome} excluída com sucesso.`);
 
+
+
     await carregar();
 
+
+
   }
+
+
+
+
 
 
 
@@ -1268,7 +2632,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
     const { error } = await supabase
+
+
+
+
 
 
 
@@ -1276,7 +2648,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       .update({
+
+
+
+
 
 
 
@@ -1284,11 +2664,23 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
         atualizado_em: new Date().toISOString(),
 
 
 
+
+
+
+
       })
+
+
+
+
 
 
 
@@ -1300,7 +2692,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
     if (error) {
+
+
+
+
 
 
 
@@ -1308,11 +2712,27 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       return;
 
 
 
+
+
+
+
     }
+
+
+
+
+
+
+
+
 
 
 
@@ -1324,11 +2744,23 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       limparFormulario();
 
 
 
+
+
+
+
       setForm(false);
+
+
+
+
 
 
 
@@ -1340,7 +2772,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
     await carregar();
+
+
+
+
 
 
 
@@ -1352,7 +2796,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
   return (
+
+
+
+
 
 
 
@@ -1360,7 +2816,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       <section className="df-head">
+
+
+
+
 
 
 
@@ -1368,7 +2832,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
           <span>DESPESAS FIXAS</span>
+
+
+
+
 
 
 
@@ -1376,7 +2848,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
           <p>
+
+
+
+
 
 
 
@@ -1384,7 +2864,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
             cada mês.
+
+
+
+
 
 
 
@@ -1392,7 +2880,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
         </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -1404,7 +2904,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
           {form && !editandoId ? "Fechar" : "+ Nova despesa fixa"}
+
+
+
+
 
 
 
@@ -1412,7 +2920,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
       </section>
+
+
+
+
+
+
+
+
 
 
 
@@ -1424,7 +2944,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
         <label>
+
+
+
+
 
 
 
@@ -1432,7 +2960,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
           <input
+
+
+
+
 
 
 
@@ -1440,7 +2976,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
             value={competencia}
+
+
+
+
 
 
 
@@ -1448,7 +2992,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
           />
+
+
+
+
 
 
 
@@ -1460,7 +3012,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
         <div className="df-kpis df-kpis-status">
+
+
+
+
 
 
 
@@ -1468,7 +3032,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
           <div className="atrasado"><span>Despesas atrasadas</span><strong>{moeda(totalAtrasado)}</strong><small>{atrasadas.length} vencida(s) e não paga(s)</small></div>
+
+
+
+
 
 
 
@@ -1476,11 +3048,23 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
           <div className="pago"><span>Despesas pagas</span><strong>{moeda(pago)}</strong><small>{pagamentos.length} pagamento(s) na competência</small></div>
 
 
 
+
+
+
+
         </div>
+
+
+
+
 
 
 
@@ -1492,7 +3076,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
       {form && (
+
+
+
+
 
 
 
@@ -1500,7 +3096,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
           {editandoId && (
+
+
+
+
 
 
 
@@ -1508,7 +3112,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
               <strong>Editando despesa fixa</strong>
+
+
+
+
 
 
 
@@ -1516,7 +3128,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
                 Altere os campos abaixo e clique em “Salvar alterações”.
+
+
+
+
 
 
 
@@ -1524,7 +3144,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
             </div>
+
+
+
+
 
 
 
@@ -1536,7 +3164,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
           <label>
+
+
+
+
 
 
 
@@ -1544,7 +3184,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
             <input
+
+
+
+
 
 
 
@@ -1552,7 +3200,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
               onChange={(e) => setNome(e.target.value)}
+
+
+
+
 
 
 
@@ -1560,7 +3216,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
             />
+
+
+
+
 
 
 
@@ -1572,21 +3236,116 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
           <label>
+
+
+
+
+
+
+
+            Fornecedor
+
+
+
+
+
+
+
+            <input
+
+
+
+
+
+
+
+              value={fornecedor}
+
+
+
+
+
+
+
+              onChange={(e) => setFornecedor(e.target.value)}
+
+
+
+
+
+
+
+              placeholder="Ex.: Meta, Hyperflow, Contador..."
+
+
+
+
+
+
+
+            />
+
+
+
+
+
+
+
+          </label>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+          <label>
+
               Categoria
+
               <select value={categoria} onChange={(e)=>{if(e.target.value==="__nova__"){setCriandoCategoria(true);return}setCategoria(e.target.value)}}>
+
                 {["Sistemas","Aluguel","Internet","Telefonia","Contabilidade","Jurídico","Tráfego pago","Impostos","Parcelamentos","Pró-labore","Outros"].map(x=><option key={x} value={x}>{x}</option>)}
+
                 {categoriasPersonalizadas.map(x=><option key={x.id} value={x.nome}>{x.nome}</option>)}
+
                 <option value="__nova__">＋ Criar nova categoria</option>
+
               </select>
+
             </label>
+
             {criandoCategoria&&<div className="df-new-category">
+
               <label>Nova categoria<input value={novaCategoria} onChange={e=>setNovaCategoria(e.target.value)} placeholder="Ex.: Energia" autoFocus/></label>
+
               <button type="button" onClick={()=>void criarCategoria()}>Criar categoria</button>
+
               <button type="button" className="df-cancel-edit" onClick={()=>{setCriandoCategoria(false);setNovaCategoria("")}}>Cancelar</button>
+
             </div>}
+
             {categoriasPersonalizadas.length>0&&<div className="df-custom-categories"><strong>Minhas categorias</strong><div>
+
               {categoriasPersonalizadas.map(item=><span key={item.id}>{item.nome}<button type="button" onClick={()=>void excluirCategoriaPersonalizada(item)}>×</button></span>)}
+
             </div></div>}
 
 
@@ -1595,31 +3354,23 @@ export default function DespesasFixasManager() {
 
 
 
-          <label>
 
 
 
-            Fornecedor
 
 
 
-            <input
 
 
 
-              value={fornecedor}
 
 
 
-              onChange={(e) => setFornecedor(e.target.value)}
 
 
 
-            />
 
 
-
-          </label>
 
 
 
@@ -1628,6 +3379,10 @@ export default function DespesasFixasManager() {
 
 
           <label>
+
+
+
+
 
 
 
@@ -1635,7 +3390,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
             <input
+
+
+
+
 
 
 
@@ -1643,7 +3406,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
               onChange={(e) => setValor(e.target.value)}
+
+
+
+
 
 
 
@@ -1651,7 +3422,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
             />
+
+
+
+
 
 
 
@@ -1663,7 +3442,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
           <label>
+
+
+
+
 
 
 
@@ -1671,7 +3462,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
             <select value={frequencia} onChange={(e) => setFrequencia(e.target.value as "Mensal" | "Única")}>
+
+
+
+
 
 
 
@@ -1679,7 +3478,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
               <option value="Única">Única — somente esta competência</option>
+
+
+
+
 
 
 
@@ -1687,6 +3494,10 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
           </label>
 
 
@@ -1695,7 +3506,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
           <label>
+
+
+
+
 
 
 
@@ -1703,7 +3526,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
             <input
+
+
+
+
 
 
 
@@ -1711,7 +3542,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
               min="1"
+
+
+
+
 
 
 
@@ -1719,7 +3558,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
               value={dia}
+
+
+
+
 
 
 
@@ -1727,11 +3574,27 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
             />
 
 
 
+
+
+
+
           </label>
+
+
+
+
+
+
+
+
 
 
 
@@ -1743,7 +3606,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
             {frequencia === "Mensal" ? "Começa em" : "Competência"}
+
+
+
+
 
 
 
@@ -1751,7 +3622,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
               type="month"
+
+
+
+
 
 
 
@@ -1759,7 +3638,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
               onChange={(e) => setInicio(e.target.value)}
+
+
+
+
 
 
 
@@ -1767,7 +3654,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
           </label>
+
+
+
+
+
+
+
+
 
 
 
@@ -1779,7 +3678,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
             <strong>{frequencia === "Mensal" ? "↻ DESPESA MENSAL" : "1× DESPESA ÚNICA"}</strong>
+
+
+
+
 
 
 
@@ -1787,7 +3694,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
               {frequencia === "Mensal"
+
+
+
+
 
 
 
@@ -1795,11 +3710,23 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
                 : "Aparecerá somente no mês escolhido e não será repetida nos meses seguintes."}
 
 
 
+
+
+
+
             </span>
+
+
+
+
 
 
 
@@ -1811,11 +3738,27 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
           <button type="submit">
 
 
 
+
+
+
+
             {editandoId ? "Salvar alterações" : "Salvar"}
+
+
+
+
 
 
 
@@ -1827,7 +3770,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
           {editandoId && (
+
+
+
+
 
 
 
@@ -1835,7 +3790,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
               type="button"
+
+
+
+
 
 
 
@@ -1843,7 +3806,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
               onClick={() => {
+
+
+
+
 
 
 
@@ -1851,7 +3822,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
                 setForm(false);
+
+
+
+
 
 
 
@@ -1859,7 +3838,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
             >
+
+
+
+
 
 
 
@@ -1867,7 +3854,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
             </button>
+
+
+
+
 
 
 
@@ -1875,11 +3870,27 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
         </form>
 
 
 
+
+
+
+
       )}
+
+
+
+
+
+
+
+
 
 
 
@@ -1895,7 +3906,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
       <section className="df-list df-list-modern">
+
+
+
+
 
 
 
@@ -1903,11 +3926,23 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
           <span>Despesa</span>
 
 
 
-          <span>Categoria</span>
+
+
+
+
+          <span>Fornecedor</span>
+
+
+
+
 
 
 
@@ -1915,7 +3950,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
           <span>Vencimento</span>
+
+
+
+
 
 
 
@@ -1923,11 +3966,23 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
           <span>Status</span>
 
 
 
+
+
+
+
           <span>Ações</span>
+
+
+
+
 
 
 
@@ -1939,7 +3994,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
         {ativas.length === 0 ? (
+
+
+
+
 
 
 
@@ -1947,7 +4014,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
             Nenhuma despesa fixa nesta competência.
+
+
+
+
 
 
 
@@ -1955,7 +4030,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
         ) : (
+
+
+
+
 
 
 
@@ -1963,7 +4046,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
             <article key={item.id} className="df-expense-row">
+
+
+
+
 
 
 
@@ -1971,11 +4062,23 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
                 <strong>{item.nome}</strong>
 
 
 
-                <small>{item.fornecedor || "Sem fornecedor"}</small>
+
+
+
+
+                <small className="df-expense-category"><strong>{item.categoria || "Sem categoria"}</strong></small>
+
+
+
+
 
 
 
@@ -1987,11 +4090,27 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
               <div>
 
 
 
-                <span className="df-category-pill">
+
+
+
+
+                <span className="df-category-pill df-supplier-pill">
+
+
+
+
 
 
 
@@ -1999,7 +4118,15 @@ export default function DespesasFixasManager() {
 
 
 
-                    {iconeCategoria(item.categoria)}
+
+
+
+
+                    {iconeFornecedor(item.fornecedor)}
+
+
+
+
 
 
 
@@ -2007,7 +4134,15 @@ export default function DespesasFixasManager() {
 
 
 
-                  {item.categoria}
+
+
+
+
+                  {item.fornecedor || "Sem fornecedor"}
+
+
+
+
 
 
 
@@ -2015,7 +4150,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
               </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -2027,7 +4174,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
                 <span className={`df-frequency-pill ${item.fim_competencia === item.inicio_competencia ? "unica" : "mensal"}`}>
+
+
+
+
 
 
 
@@ -2035,11 +4190,27 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
                 </span>
 
 
 
+
+
+
+
               </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -2051,7 +4222,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
                 <span className="df-due-icon" aria-hidden="true">
+
+
+
+
 
 
 
@@ -2059,7 +4238,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
                 </span>
+
+
+
+
 
 
 
@@ -2067,7 +4254,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
               </div>
+
+
+
+
+
+
+
+
 
 
 
@@ -2083,7 +4282,23 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
+
+
+
+
               {(() => { const status=statusDespesa(item); return <span className={`df-status ${status}`}><b>{status==="pago"?"✓":status==="atrasado"?"!":"⌛"}</b>{status==="pago"?"Pago":status==="atrasado"?"Atrasado":"Pendente"}</span>; })()}
+
+
+
+
+
+
+
+
 
 
 
@@ -2095,7 +4310,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
                 <button
+
+
+
+
 
 
 
@@ -2103,7 +4326,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
                   className="edit"
+
+
+
+
 
 
 
@@ -2111,7 +4342,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
                 >
+
+
+
+
 
 
 
@@ -2119,7 +4358,19 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
                 </button>
+
+
+
+
+
+
+
+
 
 
 
@@ -2131,7 +4382,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
                   <button
+
+
+
+
 
 
 
@@ -2139,7 +4398,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
                     className="primary"
+
+
+
+
 
 
 
@@ -2147,7 +4414,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
                   >
+
+
+
+
 
 
 
@@ -2155,23 +4430,51 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
                   </button>
 
 
 
+
+
+
+
                 )}
+
+
+
+
 
 
 
                 {pagos.has(item.id) && (
 
+
+
                   <button type="button" className="secondary" onClick={() => void reabrirPagamento(item)}>
+
+
 
                     ↶ Reabrir pagamento
 
+
+
                   </button>
 
+
+
                 )}
+
+
+
+
+
+
+
+
 
 
 
@@ -2183,7 +4486,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
                   type="button"
+
+
+
+
 
 
 
@@ -2191,7 +4502,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
                   onClick={() => void pausar(item)}
+
+
+
+
 
 
 
@@ -2199,19 +4518,39 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
                   Ⅱ&nbsp;&nbsp;Pausar
 
 
 
+
+
+
+
                 </button>
+
+
+
+
 
 
 
                 <button type="button" className="delete" onClick={() => void excluirDespesa(item)}>
 
+
+
                   Excluir
 
+
+
                 </button>
+
+
+
+
 
 
 
@@ -2219,7 +4558,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
             </article>
+
+
+
+
 
 
 
@@ -2227,7 +4574,15 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
         )}
+
+
+
+
 
 
 
@@ -2235,11 +4590,23 @@ export default function DespesasFixasManager() {
 
 
 
+
+
+
+
     </div>
 
 
 
+
+
+
+
   );
+
+
+
+
 
 
 

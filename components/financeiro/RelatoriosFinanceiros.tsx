@@ -46,7 +46,7 @@ type InssFgts = { id:string; tipo?:string; competencia?:string; valor?:number; s
 
 
 
-type Folha={id:string;competencia?:string;total_dia05?:number;total_mensal?:number;pagamento_realizado?:boolean;valor_pago?:number;movimento_id?:string|null};
+type Folha={id:string;competencia?:string;salario?:number;assiduidade_ativa?:boolean;valor_assiduidade?:number;total_dia05?:number;total_mensal?:number;pagamento_realizado?:boolean;valor_pago?:number;movimento_id?:string|null};
 
 
 
@@ -286,7 +286,7 @@ export default function RelatoriosFinanceiros() {
 
 
 
-      supabase.from("folha_pagamentos").select("id,competencia,total_dia05,total_mensal,pagamento_realizado,valor_pago,movimento_id"),
+      supabase.from("folha_pagamentos").select("id,competencia,salario,assiduidade_ativa,valor_assiduidade,total_dia05,total_mensal,pagamento_realizado,valor_pago,movimento_id"),
 
 
 
@@ -386,67 +386,63 @@ export default function RelatoriosFinanceiros() {
 
 
 
-    const mesCompra = deslocarMes(competencia, -1);
+    const mesLucro = deslocarMes(competencia, -1);
 
+    const valorNotasPorFornecedor = (match: (fornecedorNormalizado: string, nota: Nota) => boolean) =>
+      notas
+        .filter((x) => {
+          const fornecedor = normalizar(x.fornecedor);
+          return (
+            match(fornecedor, x) &&
+            mesDaData(x.referencia_inicio || x.data_solicitacao) === mesLucro
+          );
+        })
+        .reduce((t, x) => t + Number(x.valor_nota || 0), 0);
 
+    const lucroNotas = [
+      {
+        nome: "NEO",
+        valor: valorNotasPorFornecedor(
+          (fornecedor, nota) =>
+            fornecedor.includes("neo") ||
+            (normalizar(nota.produto) === normalizar("Compra de Dívida") &&
+              !fornecedor.includes("3rn") &&
+              !fornecedor.includes("c6") &&
+              !fornecedor.includes("futuro") &&
+              !fornecedor.includes("amigoz") &&
+              !fornecedor.includes("finanbank"))
+        ),
+      },
+      {
+        nome: "3RN",
+        valor: valorNotasPorFornecedor(
+          (fornecedor) => fornecedor === "3rn"
+        ),
+      },
+      {
+        nome: "C6-PARCEIRO 3RN",
+        valor: valorNotasPorFornecedor(
+          (fornecedor) => fornecedor.includes("c6") && fornecedor.includes("3rn")
+        ),
+      },
+      {
+        nome: "FUTURO-FINANBANK",
+        valor: valorNotasPorFornecedor(
+          (fornecedor) => fornecedor.includes("futuro") && fornecedor.includes("finanbank")
+        ),
+      },
+      {
+        nome: "AMIGOZ-FINANBANK",
+        valor: valorNotasPorFornecedor(
+          (fornecedor) => fornecedor.includes("amigoz") && fornecedor.includes("finanbank")
+        ),
+      },
+    ];
 
-    const mes3RN = deslocarMes(competencia, -2);
+    const compra = lucroNotas.find((item) => item.nome === "NEO")?.valor || 0;
+    const rn = lucroNotas.find((item) => item.nome === "3RN")?.valor || 0;
 
-
-
-    const compra = notas
-
-
-
-      .filter(x =>
-
-
-
-        normalizar(x.produto) === normalizar("Compra de Dívida") &&
-
-
-
-        !normalizar(x.fornecedor).includes("3rn") &&
-
-
-
-        mesDaData(x.referencia_inicio || x.data_solicitacao) === mesCompra
-
-
-
-      )
-
-
-
-      .reduce((t, x) => t + Number(x.valor_nota || 0), 0);
-
-
-
-    const rn = notas
-
-
-
-      .filter(x =>
-
-
-
-        normalizar(x.fornecedor).includes("3rn") &&
-
-
-
-        mesDaData(x.referencia_inicio || x.data_solicitacao) === mes3RN
-
-
-
-      )
-
-
-
-      .reduce((t, x) => t + Number(x.valor_nota || 0), 0);
-
-
-
-    const comissaoRecebida=compra+rn;
+    const comissaoRecebida=lucroNotas.reduce((t,item)=>t+item.valor,0);
 
 
 
@@ -548,11 +544,16 @@ export default function RelatoriosFinanceiros() {
 
 
 
-    const folhaPaga=fm.filter(x=>x.pagamento_realizado).reduce((t,x)=>t+Number(x.valor_pago||0),0);
+    const valorFolhaBruto=(x:any)=>
+      Number(x.salario||0)+Number(x.assiduidade_ativa?x.valor_assiduidade||0:0);
 
 
 
-    const folhaPendente=fm.filter(x=>!x.pagamento_realizado).reduce((t,x)=>t+Number(x.total_dia05||x.total_mensal||0),0);
+    const folhaPaga=fm.filter(x=>x.pagamento_realizado).reduce((t,x)=>t+valorFolhaBruto(x),0);
+
+
+
+    const folhaPendente=fm.filter(x=>!x.pagamento_realizado).reduce((t,x)=>t+valorFolhaBruto(x),0);
 
 
 
@@ -582,7 +583,7 @@ export default function RelatoriosFinanceiros() {
 
 
 
-    const folhaTotal=fm.reduce((t,x)=>t+Number(x.total_dia05||x.total_mensal||x.valor_pago||0),0);
+    const folhaTotal=fm.reduce((t,x)=>t+valorFolhaBruto(x),0);
 
 
 
@@ -610,7 +611,7 @@ export default function RelatoriosFinanceiros() {
 
 
 
-      mesCompra,mes3RN,compra,rn,comissaoRecebida,comissaoReceber,
+      mesLucro,lucroNotas,compra,rn,comissaoRecebida,comissaoReceber,
 
 
 
@@ -842,6 +843,27 @@ export default function RelatoriosFinanceiros() {
 
           }
 
+
+          .rf-highlight-result{
+            margin-top:10px;
+            padding:14px 16px!important;
+            border:1px solid #dce3ee!important;
+            border-radius:14px!important;
+            background:#f3f6fa!important;
+          }
+
+          .rf-highlight-result strong{
+            color:#0f2d55!important;
+            font-weight:900!important;
+            text-transform:uppercase;
+          }
+
+          .rf-highlight-result small{
+            color:#0f2d55!important;
+            font-size:16px!important;
+            font-weight:900!important;
+          }
+
         `}</style>
 
 
@@ -876,7 +898,7 @@ export default function RelatoriosFinanceiros() {
 
 
 
-          <label>DATA COMPETÊNCIA<input type="month" value={competencia} onChange={e=>setCompetencia(e.target.value)} /></label>
+          <label>DATA REFERÊNCIA<input type="month" value={competencia} onChange={e=>setCompetencia(e.target.value)} /></label>
 
 
 
@@ -1178,19 +1200,13 @@ export default function RelatoriosFinanceiros() {
 
       <section className="rf-summary">
 
-
-
-        <div><span>Compra de Dívida — mês anterior</span><strong>{moeda(d.compra)}</strong><small>{nomeMes(d.mesCompra)}</small></div>
-
-
-
-        <div><span>3RN — mês retrasado</span><strong>{moeda(d.rn)}</strong><small>{nomeMes(d.mes3RN)}</small></div>
-
-
-
-        <div><span>Despesa bruta da competência</span><strong>{moeda(d.despesaBruta)}</strong><small>Fechamento total — pago ou pendente</small></div>
-
-
+        {d.lucroNotas.map((item) => (
+          <div key={item.nome}>
+            <span>{item.nome} — mês passado</span>
+            <strong>{moeda(item.valor)}</strong>
+            <small>{nomeMes(d.mesLucro)}</small>
+          </div>
+        ))}
 
       </section>
 
@@ -1222,43 +1238,18 @@ export default function RelatoriosFinanceiros() {
 
           <div className="rf-bars">
 
+            {d.lucroNotas.map((item) => (
+              <div className="rf-row" key={item.nome}>
+                <div>
+                  <strong>{item.nome} — {nomeMes(d.mesLucro)}</strong>
+                  <small>{moeda(item.valor)}</small>
+                </div>
+              </div>
+            ))}
 
-
-            <div className="rf-row">
-
-
-
-              <div><strong>Compra de Dívida — {nomeMes(d.mesCompra)}</strong><small>{moeda(d.compra)}</small></div>
-
-
-
+            <div className="rf-row rf-highlight-result">
+              <div><strong>LUCRO BRUTO</strong><small>{moeda(d.lucroBruto)}</small></div>
             </div>
-
-
-
-            <div className="rf-row">
-
-
-
-              <div><strong>3RN — {nomeMes(d.mes3RN)}</strong><small>{moeda(d.rn)}</small></div>
-
-
-
-            </div>
-
-
-
-            <div className="rf-row">
-
-
-
-              <div><strong>Lucro bruto</strong><small>{moeda(d.lucroBruto)}</small></div>
-
-
-
-            </div>
-
-
 
           </div>
 
@@ -1294,23 +1285,18 @@ export default function RelatoriosFinanceiros() {
 
             {d.composicao.map(([nome, valor]) => (
 
-
-
               <div className="rf-row" key={nome}>
-
-
-
                 <div><strong>{nome}</strong><small>{moeda(valor)}</small></div>
-
-
-
               </div>
-
-
 
             ))}
 
-
+            <div className="rf-row rf-highlight-result">
+              <div>
+                <strong>RESULTADO DE DESPESA BRUTA</strong>
+                <small>{moeda(d.despesaBruta)}</small>
+              </div>
+            </div>
 
           </div>
 

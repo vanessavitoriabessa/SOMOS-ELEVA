@@ -62,24 +62,23 @@ import "./fiscal-controls.css";
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import { ControleSimples } from "./ControlesImpostos";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import { ControleInssFgts } from "./ControleInssFgts";
-
-
 
 
 
@@ -191,7 +190,7 @@ const valorBR=(v:string|number)=>{
 
 
 
- const raw=String(v??"").replace(/\D/g,"");
+ const raw=String(v??"").replace(/\D/g,"");
 
 
 
@@ -207,7 +206,7 @@ const valorBR=(v:string|number)=>{
 
 
 
- if(!raw)return "";
+ if(!raw)return "";
 
 
 
@@ -223,7 +222,7 @@ const valorBR=(v:string|number)=>{
 
 
 
- return (Number(raw)/100).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+ return (Number(raw)/100).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
 
 
 
@@ -271,7 +270,7 @@ const numeroParaCampo=(v:number|string)=>{
 
 
 
- const num=Number(v||0);
+ const num=Number(v||0);
 
 
 
@@ -287,7 +286,7 @@ const numeroParaCampo=(v:number|string)=>{
 
 
 
- if(!num)return "";
+ if(!num)return "";
 
 
 
@@ -303,7 +302,7 @@ const numeroParaCampo=(v:number|string)=>{
 
 
 
- return num.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+ return num.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
 
 
 
@@ -367,7 +366,7 @@ const competenciaMes=(v:string)=>{
   const nomeMes=new Date(ano,m-1,1,12)
     .toLocaleDateString("pt-BR",{month:"long"})
     .toUpperCase();
-  return `${nomeMes}/${String(ano).slice(-2)}`;
+  return `${nomeMes}/${ano}`;
 };
 
 
@@ -448,7 +447,7 @@ type FornecedorNota = {
 
 
 
-  id: string;
+  id: string;
 
 
 
@@ -464,7 +463,7 @@ type FornecedorNota = {
 
 
 
-  tipo: "fornecedor_neo" | "fornecedor_3rn";
+  tipo: "fornecedor_neo" | "fornecedor_3rn";
 
 
 
@@ -480,7 +479,7 @@ type FornecedorNota = {
 
 
 
-  nome: string;
+  nome: string;
 
 
 
@@ -496,7 +495,7 @@ type FornecedorNota = {
 
 
 
-  ativo: boolean;
+  ativo: boolean;
 
 
 
@@ -560,7 +559,7 @@ type FiscalControlsProps = {
 
 
 
-  abaInicial?: AbaFiscal;
+  abaInicial?: AbaFiscal;
 
 
 
@@ -576,7 +575,7 @@ type FiscalControlsProps = {
 
 
 
-  ocultarAbasPrincipais?: boolean;
+  ocultarAbasPrincipais?: boolean;
 
 
 
@@ -640,7 +639,7 @@ export default function FiscalControls({
 
 
 
-  abaInicial = "notas",
+  abaInicial = "notas",
 
 
 
@@ -656,7 +655,7 @@ export default function FiscalControls({
 
 
 
-  ocultarAbasPrincipais = false,
+  ocultarAbasPrincipais = false,
 
 
 
@@ -688,7 +687,7 @@ export default function FiscalControls({
 
 
 
- const supabase=useMemo(()=>createClient(),[]);
+ const supabase=useMemo(()=>createClient(),[]);
 
 
 
@@ -704,7 +703,7 @@ export default function FiscalControls({
 
 
 
- const [aba,setAba]=useState<AbaFiscal>(abaInicial);
+ const [aba,setAba]=useState<AbaFiscal>(abaInicial);
 
 
 
@@ -720,7 +719,7 @@ export default function FiscalControls({
 
 
 
- useEffect(()=>{setAba(abaInicial)},[abaInicial]);
+ useEffect(()=>{setAba(abaInicial)},[abaInicial]);
 
 
 
@@ -736,7 +735,7 @@ export default function FiscalControls({
 
 
 
- const [produto,setProduto]=useState<Produto|"Geral">("CLT");
+ const [produto,setProduto]=useState<Produto|"Geral">("CLT");
 
 
 
@@ -752,15 +751,15 @@ export default function FiscalControls({
 
 
 
- const [ordem,setOrdem]=useState<"recentes"|"antigas">("recentes");
+ const [ordem,setOrdem]=useState<"recentes"|"antigas">("recentes");
 
 
 
- const [mesFiltro,setMesFiltro]=useState("");
+ const [mesFiltro,setMesFiltro]=useState("");
 
- const [dataDeFiltro,setDataDeFiltro]=useState("");
+ const [dataDeFiltro,setDataDeFiltro]=useState("");
 
- const [dataAteFiltro,setDataAteFiltro]=useState("");
+ const [dataAteFiltro,setDataAteFiltro]=useState("");
 
 
 
@@ -776,7 +775,7 @@ export default function FiscalControls({
 
 
 
- const [modal,setModal]=useState(false);
+ const [modal,setModal]=useState(false);
 
 
 
@@ -792,7 +791,7 @@ export default function FiscalControls({
 
 
 
- const [editando,setEditando]=useState<Nota|null>(null);
+ const [editando,setEditando]=useState<Nota|null>(null);
 
 
 
@@ -808,7 +807,7 @@ export default function FiscalControls({
 
 
 
- const [notas,setNotas]=useState<Nota[]>([]);
+ const [notas,setNotas]=useState<Nota[]>([]);
 
 
 
@@ -824,7 +823,7 @@ export default function FiscalControls({
 
 
 
- const [fornecedores,setFornecedores]=useState<FornecedorNota[]>([]);
+ const [fornecedores,setFornecedores]=useState<FornecedorNota[]>([]);
 
 
 
@@ -840,7 +839,7 @@ export default function FiscalControls({
 
 
 
- const [arquivo,setArquivo]=useState<File|null>(null);
+ const [arquivo,setArquivo]=useState<File|null>(null);
 
 
 
@@ -856,7 +855,7 @@ export default function FiscalControls({
 
 
 
- const [msg,setMsg]=useState("");
+ const [msg,setMsg]=useState("");
 
 
 
@@ -872,7 +871,7 @@ export default function FiscalControls({
 
 
 
- async function carregar(){
+ async function carregar(){
 
 
 
@@ -888,7 +887,7 @@ export default function FiscalControls({
 
 
 
-   const [
+   const [
 
 
 
@@ -904,7 +903,7 @@ export default function FiscalControls({
 
 
 
-     {data,error},
+     {data,error},
 
 
 
@@ -920,7 +919,7 @@ export default function FiscalControls({
 
 
 
-     {data:fornecedoresData,error:fornecedoresError},
+     {data:fornecedoresData,error:fornecedoresError},
 
 
 
@@ -936,7 +935,7 @@ export default function FiscalControls({
 
 
 
-   ] = await Promise.all([
+   ] = await Promise.all([
 
 
 
@@ -952,7 +951,7 @@ export default function FiscalControls({
 
 
 
-     supabase.from("controle_notas_fiscais").select("*").order("data_solicitacao",{ascending:false}),
+     supabase.from("controle_notas_fiscais").select("*").order("data_solicitacao",{ascending:false}),
 
 
 
@@ -968,7 +967,7 @@ export default function FiscalControls({
 
 
 
-     supabase
+     supabase
 
 
 
@@ -984,7 +983,7 @@ export default function FiscalControls({
 
 
 
-       .from("config_financeiro_itens")
+       .from("config_financeiro_itens")
 
 
 
@@ -1000,7 +999,7 @@ export default function FiscalControls({
 
 
 
-       .select("id,tipo,nome,ativo")
+       .select("id,tipo,nome,ativo")
 
 
 
@@ -1016,7 +1015,7 @@ export default function FiscalControls({
 
 
 
-       .in("tipo",["fornecedor_neo","fornecedor_3rn"])
+       .in("tipo",["fornecedor_neo","fornecedor_3rn"])
 
 
 
@@ -1032,7 +1031,7 @@ export default function FiscalControls({
 
 
 
-       .eq("ativo",true)
+       .eq("ativo",true)
 
 
 
@@ -1048,7 +1047,7 @@ export default function FiscalControls({
 
 
 
-       .order("nome",{ascending:true}),
+       .order("nome",{ascending:true}),
 
 
 
@@ -1064,7 +1063,7 @@ export default function FiscalControls({
 
 
 
-   ]);
+   ]);
 
 
 
@@ -1096,7 +1095,7 @@ export default function FiscalControls({
 
 
 
-   if(error){setMsg(error.message);return}
+   if(error){setMsg(error.message);return}
 
 
 
@@ -1112,7 +1111,7 @@ export default function FiscalControls({
 
 
 
-   if(fornecedoresError){setMsg(fornecedoresError.message);return}
+   if(fornecedoresError){setMsg(fornecedoresError.message);return}
 
 
 
@@ -1144,7 +1143,7 @@ export default function FiscalControls({
 
 
 
-   setNotas((data||[]).map((r:any)=>({
+   setNotas((data||[]).map((r:any)=>({
 
 
 
@@ -1160,7 +1159,7 @@ export default function FiscalControls({
 
 
 
-     id:String(r.id),
+     id:String(r.id),
 
 
 
@@ -1176,7 +1175,7 @@ export default function FiscalControls({
 
 
 
-     produto:r.produto,
+     produto:r.produto,
 
 
 
@@ -1192,7 +1191,7 @@ export default function FiscalControls({
 
 
 
-     fornecedor:String(r.fornecedor||""),
+     fornecedor:String(r.fornecedor||""),
 
 
 
@@ -1208,7 +1207,7 @@ export default function FiscalControls({
 
 
 
-     valor:Number(r.valor_nota||0),
+     valor:Number(r.valor_nota||0),
 
 
 
@@ -1224,7 +1223,7 @@ export default function FiscalControls({
 
 
 
-     qtd:Number(r.quantidade_operacoes||0),
+     qtd:Number(r.quantidade_operacoes||0),
 
 
 
@@ -1240,7 +1239,7 @@ export default function FiscalControls({
 
 
 
-     inicio:String(r.referencia_inicio||r.data_solicitacao||""),
+     inicio:String(r.referencia_inicio||r.data_solicitacao||""),
 
 
 
@@ -1256,7 +1255,7 @@ export default function FiscalControls({
 
 
 
-     fim:String(r.referencia_fim||r.data_solicitacao||""),
+     fim:String(r.referencia_fim||r.data_solicitacao||""),
 
 
 
@@ -1272,7 +1271,7 @@ export default function FiscalControls({
 
 
 
-     liquido:Number(r.producao_liquida||0),
+     liquido:Number(r.producao_liquida||0),
 
 
 
@@ -1288,7 +1287,7 @@ export default function FiscalControls({
 
 
 
-     parcela:Number(r.valor_parcela||0),
+     parcela:Number(r.valor_parcela||0),
 
 
 
@@ -1304,7 +1303,7 @@ export default function FiscalControls({
 
 
 
-     bruto:Number(r.valor_bruto_operacao||0),
+     bruto:Number(r.valor_bruto_operacao||0),
 
 
 
@@ -1320,7 +1319,7 @@ export default function FiscalControls({
 
 
 
-     ir:Number(r.valor_ir||0),
+     ir:Number(r.valor_ir||0),
 
 
 
@@ -1336,7 +1335,7 @@ export default function FiscalControls({
 
 
 
-     comprovante:String(r.comprovante_path||""),
+     comprovante:String(r.comprovante_path||""),
 
 
 
@@ -1352,7 +1351,7 @@ export default function FiscalControls({
 
 
 
-   })));
+   })));
 
 
 
@@ -1384,7 +1383,7 @@ export default function FiscalControls({
 
 
 
-   setFornecedores((fornecedoresData||[]) as FornecedorNota[]);
+   setFornecedores((fornecedoresData||[]) as FornecedorNota[]);
 
 
 
@@ -1400,7 +1399,7 @@ export default function FiscalControls({
 
 
 
- }
+ }
 
 
 
@@ -1416,7 +1415,7 @@ export default function FiscalControls({
 
 
 
- useEffect(()=>{void carregar()},[]);
+ useEffect(()=>{void carregar()},[]);
 
 
 
@@ -1432,7 +1431,9 @@ export default function FiscalControls({
 
 
 
- const [f,setF]=useState({fornecedor:"",valor:"",qtd:"",inicio:hoje(),fim:hoje(),liquido:"",parcela:"",bruto:"",irValor:"",comprovante:""});
+ const [f,setF]=useState({fornecedor:"",valor:"",qtd:"",inicio:hoje(),fim:hoje(),liquido:"",parcela:"",bruto:"",irValor:"",comprovante:""});
+ const [criandoFornecedor,setCriandoFornecedor]=useState(false);
+ const [novoFornecedor,setNovoFornecedor]=useState("");
 
 
 
@@ -1448,54 +1449,54 @@ export default function FiscalControls({
 
 
 
- const lista=useMemo(()=>{
 
+ const lista=useMemo(()=>{
 
 
-   const filtradas=notas.filter(x=>{
 
+   const filtradas=notas.filter(x=>{
 
 
-     const produtoOk=produto==="Geral" ? true : x.produto===produto;
 
+     const produtoOk=produto==="Geral" ? true : x.produto===produto;
 
 
-     const data=String(x.inicio||"").slice(0,10);
 
-     const competenciaOk=!mesFiltro || data.slice(0,7)===mesFiltro;
+     const data=String(x.inicio||"").slice(0,10);
 
-     const periodoOk=(!dataDeFiltro||data>=dataDeFiltro)&&(!dataAteFiltro||data<=dataAteFiltro);
+     const competenciaOk=!mesFiltro || data.slice(0,7)===mesFiltro;
 
-     return produtoOk&&competenciaOk&&periodoOk;
+     const periodoOk=(!dataDeFiltro||data>=dataDeFiltro)&&(!dataAteFiltro||data<=dataAteFiltro);
 
+     return produtoOk&&competenciaOk&&periodoOk;
 
 
-   });
 
+   });
 
 
-   return [...filtradas].sort((a,b)=>{
 
+   return [...filtradas].sort((a,b)=>{
 
 
-     const dataA=new Date(a.inicio||"1900-01-01").getTime();
 
+     const dataA=new Date(a.inicio||"1900-01-01").getTime();
 
 
-     const dataB=new Date(b.inicio||"1900-01-01").getTime();
 
+     const dataB=new Date(b.inicio||"1900-01-01").getTime();
 
 
-     return ordem==="recentes" ? dataB-dataA : dataA-dataB;
 
+     return ordem==="recentes" ? dataB-dataA : dataA-dataB;
 
 
-   });
 
+   });
 
 
- },[notas,produto,ordem,mesFiltro,dataDeFiltro,dataAteFiltro]);
 
+ },[notas,produto,ordem,mesFiltro,dataDeFiltro,dataAteFiltro]);
 
 
 
@@ -1510,8 +1511,8 @@ export default function FiscalControls({
 
 
 
- const totalNotas=lista.reduce((s,x)=>s+x.valor,0), totalProd=lista.reduce((s,x)=>s+(x.produto==="CLT"?x.liquido:x.bruto),0), totalParcela=lista.reduce((s,x)=>s+x.parcela,0), totalIr=lista.reduce((s,x)=>s+x.ir,0);
 
+ const totalNotas=lista.reduce((s,x)=>s+x.valor,0), totalProd=lista.reduce((s,x)=>s+(x.produto==="CLT"?x.liquido:x.bruto),0), totalParcela=lista.reduce((s,x)=>s+x.parcela,0), totalIr=lista.reduce((s,x)=>s+x.ir,0);
 
 
 
@@ -1526,8 +1527,8 @@ export default function FiscalControls({
 
 
 
- function abrirNovaNota(){
 
+ function abrirNovaNota(){
 
 
 
@@ -1542,8 +1543,8 @@ export default function FiscalControls({
 
 
 
-   setEditando(null);
 
+   setEditando(null);
 
 
 
@@ -1558,8 +1559,8 @@ export default function FiscalControls({
 
 
 
-   setArquivo(null);
 
+   setArquivo(null);
 
 
 
@@ -1574,8 +1575,8 @@ export default function FiscalControls({
 
 
 
-   setF({fornecedor:"",valor:"",qtd:"",inicio:hoje(),fim:hoje(),liquido:"",parcela:"",bruto:"",irValor:"",comprovante:""});
 
+   setF({fornecedor:"",valor:"",qtd:"",inicio:hoje(),fim:hoje(),liquido:"",parcela:"",bruto:"",irValor:"",comprovante:""});
 
 
 
@@ -1590,8 +1591,8 @@ export default function FiscalControls({
 
 
 
-   setModal(true);
 
+   setModal(true);
 
 
 
@@ -1606,8 +1607,8 @@ export default function FiscalControls({
 
 
 
- }
 
+ }
 
 
 
@@ -1638,8 +1639,8 @@ export default function FiscalControls({
 
 
 
- function abrirEdicao(x:Nota){
 
+ function abrirEdicao(x:Nota){
 
 
 
@@ -1654,8 +1655,8 @@ export default function FiscalControls({
 
 
 
-   setEditando(x);
 
+   setEditando(x);
 
 
 
@@ -1670,8 +1671,8 @@ export default function FiscalControls({
 
 
 
-   setArquivo(null);
 
+   setArquivo(null);
 
 
 
@@ -1686,8 +1687,8 @@ export default function FiscalControls({
 
 
 
-   setProduto(x.produto);
 
+   setProduto(x.produto);
 
 
 
@@ -1702,8 +1703,8 @@ export default function FiscalControls({
 
 
 
-   setF({
 
+   setF({
 
 
 
@@ -1718,8 +1719,8 @@ export default function FiscalControls({
 
 
 
-     fornecedor:x.fornecedor,
 
+     fornecedor:x.fornecedor,
 
 
 
@@ -1734,8 +1735,8 @@ export default function FiscalControls({
 
 
 
-     valor:numeroParaCampo(x.valor),
 
+     valor:numeroParaCampo(x.valor),
 
 
 
@@ -1750,8 +1751,8 @@ export default function FiscalControls({
 
 
 
-     qtd:String(x.qtd||""),
 
+     qtd:String(x.qtd||""),
 
 
 
@@ -1766,8 +1767,8 @@ export default function FiscalControls({
 
 
 
-     inicio:x.inicio||hoje(),
 
+     inicio:x.inicio||hoje(),
 
 
 
@@ -1782,8 +1783,8 @@ export default function FiscalControls({
 
 
 
-     fim:x.inicio||hoje(),
 
+     fim:x.inicio||hoje(),
 
 
 
@@ -1798,8 +1799,8 @@ export default function FiscalControls({
 
 
 
-     liquido:numeroParaCampo(x.liquido),
 
+     liquido:numeroParaCampo(x.liquido),
 
 
 
@@ -1814,8 +1815,8 @@ export default function FiscalControls({
 
 
 
-     parcela:numeroParaCampo(x.parcela),
 
+     parcela:numeroParaCampo(x.parcela),
 
 
 
@@ -1830,8 +1831,8 @@ export default function FiscalControls({
 
 
 
-     bruto:numeroParaCampo(x.bruto),
 
+     bruto:numeroParaCampo(x.bruto),
 
 
 
@@ -1846,8 +1847,8 @@ export default function FiscalControls({
 
 
 
-     irValor:numeroParaCampo(x.ir),
 
+     irValor:numeroParaCampo(x.ir),
 
 
 
@@ -1862,8 +1863,8 @@ export default function FiscalControls({
 
 
 
-     comprovante:x.comprovante||"",
 
+     comprovante:x.comprovante||"",
 
 
 
@@ -1878,8 +1879,8 @@ export default function FiscalControls({
 
 
 
-   });
 
+   });
 
 
 
@@ -1894,8 +1895,8 @@ export default function FiscalControls({
 
 
 
-   setModal(true);
 
+   setModal(true);
 
 
 
@@ -1910,8 +1911,8 @@ export default function FiscalControls({
 
 
 
- }
 
+ }
 
 
 
@@ -1942,8 +1943,8 @@ export default function FiscalControls({
 
 
 
- async function excluirNota(x:Nota){
 
+ async function excluirNota(x:Nota){
 
 
 
@@ -1958,8 +1959,8 @@ export default function FiscalControls({
 
 
 
-   const confirmou=window.confirm(`Excluir a nota de ${x.fornecedor} no valor de ${moeda(x.valor)}?`);
 
+   const confirmou=window.confirm(`Excluir a nota de ${x.fornecedor} no valor de ${moeda(x.valor)}?`);
 
 
 
@@ -1974,8 +1975,8 @@ export default function FiscalControls({
 
 
 
-   if(!confirmou)return;
 
+   if(!confirmou)return;
 
 
 
@@ -1990,8 +1991,8 @@ export default function FiscalControls({
 
 
 
-   setMsg("");
 
+   setMsg("");
 
 
 
@@ -2006,8 +2007,8 @@ export default function FiscalControls({
 
 
 
-   try{
 
+   try{
 
 
 
@@ -2022,8 +2023,8 @@ export default function FiscalControls({
 
 
 
-     const {error}=await supabase.from("controle_notas_fiscais").delete().eq("id",x.id);
 
+     const {error}=await supabase.from("controle_notas_fiscais").delete().eq("id",x.id);
 
 
 
@@ -2038,8 +2039,8 @@ export default function FiscalControls({
 
 
 
-     if(error)throw error;
 
+     if(error)throw error;
 
 
 
@@ -2054,8 +2055,8 @@ export default function FiscalControls({
 
 
 
-     if(x.comprovante){
 
+     if(x.comprovante){
 
 
 
@@ -2070,8 +2071,8 @@ export default function FiscalControls({
 
 
 
-       await supabase.storage.from("financeiro-comprovantes").remove([x.comprovante]);
 
+       await supabase.storage.from("financeiro-comprovantes").remove([x.comprovante]);
 
 
 
@@ -2086,8 +2087,8 @@ export default function FiscalControls({
 
 
 
-     }
 
+     }
 
 
 
@@ -2102,23 +2103,12 @@ export default function FiscalControls({
 
 
 
-     await carregar();
-if (
-  produto === "CLT" &&
-  f.fornecedor.toUpperCase().includes("NEO")
-) {
 
-  const confirmou = window.confirm(
-    "Deseja gerar automaticamente o Simples Nacional desta competência?"
-  );
+     await carregar();
 
-  if (confirmou) {
 
-    console.log("GERAR SIMPLES");
 
-  }
 
-}
 
 
 
@@ -2130,11 +2120,11 @@ if (
 
 
 
+   }catch(err){
 
 
 
 
-   }catch(err){
 
 
 
@@ -2146,11 +2136,11 @@ if (
 
 
 
+     setMsg(err instanceof Error?err.message:"Não foi possível excluir a nota.");
 
 
 
 
-     setMsg(err instanceof Error?err.message:"Não foi possível excluir a nota.");
 
 
 
@@ -2162,11 +2152,11 @@ if (
 
 
 
+   }
 
 
 
 
-   }
 
 
 
@@ -2178,11 +2168,11 @@ if (
 
 
 
+ }
 
 
 
 
- }
 
 
 
@@ -2210,11 +2200,11 @@ if (
 
 
 
+ async function salvar(e:FormEvent){
 
 
 
 
- async function salvar(e:FormEvent){
 
 
 
@@ -2226,11 +2216,11 @@ if (
 
 
 
+  e.preventDefault();setMsg("");
 
 
 
 
-  e.preventDefault();setMsg("");
 
 
 
@@ -2242,11 +2232,11 @@ if (
 
 
 
+  try{
 
 
 
 
-  try{
 
 
 
@@ -2258,11 +2248,11 @@ if (
 
 
 
+   const valor=n(f.valor),valorIr=n(f.irValor);
 
 
 
 
-   const valor=n(f.valor),valorIr=n(f.irValor);
 
 
 
@@ -2274,11 +2264,11 @@ if (
 
 
 
+   if(!f.fornecedor||valor<=0)throw new Error("Informe fornecedor e valor da nota.");
 
 
 
 
-   if(!f.fornecedor||valor<=0)throw new Error("Informe fornecedor e valor da nota.");
 
 
 
@@ -2306,11 +2296,11 @@ if (
 
 
 
+   const {data:ss}=await supabase.auth.getSession();const uid=ss.session?.user.id;if(!uid)throw new Error("Sua sessão expirou.");
 
 
 
 
-   const {data:ss}=await supabase.auth.getSession();const uid=ss.session?.user.id;if(!uid)throw new Error("Sua sessão expirou.");
 
 
 
@@ -2322,11 +2312,11 @@ if (
 
 
 
+   let path="";
 
 
 
 
-   let path="";
 
 
 
@@ -2338,11 +2328,11 @@ if (
 
 
 
+   let nomeComprovante="";
 
 
 
 
-   let nomeComprovante="";
 
 
 
@@ -2370,11 +2360,11 @@ if (
 
 
 
+   if(arquivo){
 
 
 
 
-   if(arquivo){
 
 
 
@@ -2386,11 +2376,11 @@ if (
 
 
 
+     const ext=arquivo.name.split(".").pop()||"bin";
 
 
 
 
-     const ext=arquivo.name.split(".").pop()||"bin";
 
 
 
@@ -2402,11 +2392,11 @@ if (
 
 
 
+     path=`${uid}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
 
 
 
 
-     path=`${uid}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
 
 
 
@@ -2418,11 +2408,11 @@ if (
 
 
 
+     const up=await supabase.storage.from("financeiro-comprovantes").upload(path,arquivo);
 
 
 
 
-     const up=await supabase.storage.from("financeiro-comprovantes").upload(path,arquivo);
 
 
 
@@ -2434,11 +2424,11 @@ if (
 
 
 
+     if(up.error)throw up.error;
 
 
 
 
-     if(up.error)throw up.error;
 
 
 
@@ -2450,11 +2440,11 @@ if (
 
 
 
+     nomeComprovante=arquivo.name;
 
 
 
 
-     nomeComprovante=arquivo.name;
 
 
 
@@ -2466,11 +2456,11 @@ if (
 
 
 
+   }
 
 
 
 
-   }
 
 
 
@@ -2498,11 +2488,11 @@ if (
 
 
 
+   const payload={
 
 
 
 
-   const payload={
 
 
 
@@ -2514,11 +2504,11 @@ if (
 
 
 
+     produto: produto as Produto,
 
 
 
 
-     produto: produto as Produto,
 
 
 
@@ -2530,11 +2520,11 @@ if (
 
 
 
+     fornecedor:f.fornecedor,
 
 
 
 
-     fornecedor:f.fornecedor,
 
 
 
@@ -2546,11 +2536,11 @@ if (
 
 
 
+     valor_nota:valor,
 
 
 
 
-     valor_nota:valor,
 
 
 
@@ -2562,11 +2552,11 @@ if (
 
 
 
+     quantidade_operacoes:Number(f.qtd||0),
 
 
 
 
-     quantidade_operacoes:Number(f.qtd||0),
 
 
 
@@ -2578,11 +2568,11 @@ if (
 
 
 
+     data_solicitacao:f.inicio,
 
 
 
 
-     data_solicitacao:f.inicio,
 
 
 
@@ -2594,11 +2584,11 @@ if (
 
 
 
+     referencia_inicio:f.inicio,
 
 
 
 
-     referencia_inicio:f.inicio,
 
 
 
@@ -2610,11 +2600,11 @@ if (
 
 
 
+     referencia_fim:f.inicio,
 
 
 
 
-     referencia_fim:f.inicio,
 
 
 
@@ -2626,11 +2616,11 @@ if (
 
 
 
+     producao_liquida:produto==="CLT"?n(f.liquido):0,
 
 
 
 
-     producao_liquida:produto==="CLT"?n(f.liquido):0,
 
 
 
@@ -2642,11 +2632,11 @@ if (
 
 
 
+     valor_parcela:produto==="CLT"?n(f.parcela):0,
 
 
 
 
-     valor_parcela:produto==="CLT"?n(f.parcela):0,
 
 
 
@@ -2658,11 +2648,11 @@ if (
 
 
 
+     valor_bruto_operacao:produto==="Compra de Dívida"?n(f.bruto):0,
 
 
 
 
-     valor_bruto_operacao:produto==="Compra de Dívida"?n(f.bruto):0,
 
 
 
@@ -2674,11 +2664,11 @@ if (
 
 
 
+     aliquota_ir:0,
 
 
 
 
-     aliquota_ir:0,
 
 
 
@@ -2690,11 +2680,11 @@ if (
 
 
 
+     valor_ir:valorIr,
 
 
 
 
-     valor_ir:valorIr,
 
 
 
@@ -2706,11 +2696,11 @@ if (
 
 
 
+     comprovante_path:path || editando?.comprovante || "",
 
 
 
 
-     comprovante_path:path || editando?.comprovante || "",
 
 
 
@@ -2722,11 +2712,11 @@ if (
 
 
 
+     comprovante_nome:nomeComprovante,
 
 
 
 
-     comprovante_nome:nomeComprovante,
 
 
 
@@ -2738,11 +2728,11 @@ if (
 
 
 
+     criado_por:uid
 
 
 
 
-     criado_por:uid
 
 
 
@@ -2754,11 +2744,11 @@ if (
 
 
 
+   };
 
 
 
 
-   };
 
 
 
@@ -2786,11 +2776,11 @@ if (
 
 
 
+   const operacao=editando
 
 
 
 
-   const operacao=editando
 
 
 
@@ -2802,11 +2792,11 @@ if (
 
 
 
+     ? await supabase.from("controle_notas_fiscais").update(payload).eq("id",editando.id)
 
 
 
 
-     ? await supabase.from("controle_notas_fiscais").update(payload).eq("id",editando.id)
 
 
 
@@ -2818,11 +2808,11 @@ if (
 
 
 
+     : await supabase.from("controle_notas_fiscais").insert(payload);
 
 
 
 
-     : await supabase.from("controle_notas_fiscais").insert(payload);
 
 
 
@@ -2850,11 +2840,11 @@ if (
 
 
 
+   if(operacao.error){
 
 
 
 
-   if(operacao.error){
 
 
 
@@ -2866,11 +2856,11 @@ if (
 
 
 
+     if(path){
 
 
 
 
-     if(path){
 
 
 
@@ -2882,11 +2872,11 @@ if (
 
 
 
+       await supabase.storage.from("financeiro-comprovantes").remove([path]);
 
 
 
 
-       await supabase.storage.from("financeiro-comprovantes").remove([path]);
 
 
 
@@ -2898,11 +2888,11 @@ if (
 
 
 
+     }
 
 
 
 
-     }
 
 
 
@@ -2914,11 +2904,11 @@ if (
 
 
 
+     throw operacao.error;
 
 
 
 
-     throw operacao.error;
 
 
 
@@ -2930,11 +2920,11 @@ if (
 
 
 
+   }
 
 
 
 
-   }
 
 
 
@@ -2962,11 +2952,11 @@ if (
 
 
 
+   if(editando?.comprovante && path && editando.comprovante!==path){
 
 
 
 
-   if(editando?.comprovante && path && editando.comprovante!==path){
 
 
 
@@ -2978,11 +2968,11 @@ if (
 
 
 
+     await supabase.storage.from("financeiro-comprovantes").remove([editando.comprovante]);
 
 
 
 
-     await supabase.storage.from("financeiro-comprovantes").remove([editando.comprovante]);
 
 
 
@@ -2994,11 +2984,11 @@ if (
 
 
 
+   }
 
 
 
 
-   }
 
 
 
@@ -3026,11 +3016,11 @@ if (
 
 
 
+   setModal(false);
 
 
 
 
-   setModal(false);
 
 
 
@@ -3042,11 +3032,11 @@ if (
 
 
 
+   setEditando(null);
 
 
 
 
-   setEditando(null);
 
 
 
@@ -3058,11 +3048,11 @@ if (
 
 
 
+   setArquivo(null);
 
 
 
 
-   setArquivo(null);
 
 
 
@@ -3074,11 +3064,11 @@ if (
 
 
 
+   await carregar();
 
 
 
 
-   await carregar();
 
 
 
@@ -3090,11 +3080,11 @@ if (
 
 
 
+  }catch(err){setMsg(err instanceof Error?err.message:"Não foi possível salvar.");}
 
 
 
 
-  }catch(err){setMsg(err instanceof Error?err.message:"Não foi possível salvar.");}
 
 
 
@@ -3106,11 +3096,11 @@ if (
 
 
 
+ }
 
 
 
 
- }
 
 
 
@@ -3122,27 +3112,83 @@ if (
 
 
 
+ const fornecedoresDaNota = useMemo(() => {
+   if (produto === "Geral") return [];
 
+   const tipoAtual = produto === "CLT" ? "fornecedor_3rn" : "fornecedor_neo";
 
+   const obrigatorios = produto === "CLT"
+     ? ["3RN", "C6-PARCEIRO 3RN"]
+     : ["NEO", "FUTURO-FINANBANK", "AMIGOZ-FINANBANK"];
 
+   const base = fornecedores
+     .filter((item: FornecedorNota) => item.ativo && item.tipo === tipoAtual)
+     .map((item) => ({
+       ...item,
+       nome: String(item.nome || "").trim().toUpperCase(),
+     }));
 
- const fornecedoresDaNota = fornecedores.filter(
+   obrigatorios.forEach((nome) => {
+     if (!base.some((item) => item.nome.toLocaleLowerCase("pt-BR") === nome.toLocaleLowerCase("pt-BR"))) {
+       base.push({
+         id: `padrao-${tipoAtual}-${nome}`,
+         tipo: tipoAtual,
+         nome,
+         ativo: true,
+       });
+     }
+   });
 
+   return base.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+ }, [fornecedores, produto]);
 
+ async function criarFornecedorNota(){
+   const nome = novoFornecedor.trim().toUpperCase();
 
+   if(!nome){
+     setMsg("Informe o nome do novo fornecedor.");
+     return;
+   }
 
+   if(produto === "Geral"){
+     setMsg("Selecione CLT ou Compra de Dívida para criar fornecedor.");
+     return;
+   }
 
+   if(fornecedoresDaNota.some((item) => item.nome.toLocaleLowerCase("pt-BR") === nome.toLocaleLowerCase("pt-BR"))){
+     setMsg("Esse fornecedor já existe para esta nota.");
+     setF({...f,fornecedor:nome});
+     setCriandoFornecedor(false);
+     setNovoFornecedor("");
+     return;
+   }
 
+   const tipoAtual = produto === "CLT" ? "fornecedor_3rn" : "fornecedor_neo";
 
+   const {data,error}=await supabase
+     .from("config_financeiro_itens")
+     .insert({tipo:tipoAtual,nome,ativo:true})
+     .select("id,tipo,nome,ativo")
+     .single();
 
+   if(error){
+     setMsg(error.message);
+     return;
+   }
 
+   const novo = data as FornecedorNota;
+   setFornecedores((lista)=>[...lista,novo]);
+   setF({...f,fornecedor:nome});
+   setNovoFornecedor("");
+   setCriandoFornecedor(false);
+   setMsg(`Fornecedor "${nome}" criado com sucesso.`);
+ }
 
 
 
 
 
 
-    (item: FornecedorNota) => item.ativo
 
 
 
@@ -3158,7 +3204,6 @@ if (
 
 
 
-  );
 
 
 
@@ -3171,6 +3216,7 @@ if (
 
 
 
+  return <div className="fc">{msg&&<div className="fc-msg">{msg}</div>}
 
 
 
@@ -3186,11 +3232,11 @@ if (
 
 
 
+  {!ocultarAbasPrincipais&&<nav className="fc-tabs"><button className={aba==="notas"?"on":""} onClick={()=>setAba("notas")}>Controle de Notas</button><button className={aba==="simples"?"on":""} onClick={()=>setAba("simples")}>Imposto Simples Nacional</button><button className={aba==="inss"?"on":""} onClick={()=>setAba("inss")}>Imposto INSS e FGTS</button></nav>}
 
 
 
 
-  return <div className="fc">{msg&&<div className="fc-msg">{msg}</div>}
 
 
 
@@ -3202,11 +3248,11 @@ if (
 
 
 
+  {aba==="notas"&&<><header className="fc-head"><div><b>CONTROLE FISCAL</b><h2>Controle de Notas</h2><p>Notas emitidas, valores, impostos e comprovantes.</p></div>{produto!=="Geral"&&<button onClick={abrirNovaNota}>+ Nova nota</button>}</header>
 
 
 
 
-  {!ocultarAbasPrincipais&&<nav className="fc-tabs"><button className={aba==="notas"?"on":""} onClick={()=>setAba("notas")}>Controle de Notas</button><button className={aba==="simples"?"on":""} onClick={()=>setAba("simples")}>Imposto Simples Nacional</button><button className={aba==="inss"?"on":""} onClick={()=>setAba("inss")}>Imposto INSS e FGTS</button></nav>}
 
 
 
@@ -3218,11 +3264,11 @@ if (
 
 
 
+   <div className="fc-sub fc-sub-three"><button className={produto==="Geral"?"on":""} onClick={()=>setProduto("Geral")}>Controle de notas Geral</button><button className={produto==="CLT"?"on":""} onClick={()=>setProduto("CLT")}>Controle de notas CLT</button><button className={produto==="Compra de Dívida"?"on":""} onClick={()=>setProduto("Compra de Dívida")}>Controle de notas Compra de Dívida</button></div>
 
 
 
 
-  {aba==="notas"&&<><header className="fc-head"><div><b>CONTROLE FISCAL</b><h2>Controle de Notas</h2><p>Notas emitidas, valores, impostos e comprovantes.</p></div>{produto!=="Geral"&&<button onClick={abrirNovaNota}>+ Nova nota</button>}</header>
 
 
 
@@ -3234,11 +3280,11 @@ if (
 
 
 
+   <div className="fc-kpis"><article><span>Valor total das notas</span><strong>{moeda(totalNotas)}</strong></article><article><span>{produto==="CLT"?"Produção valor líquido":"Valor bruto da operação"}</span><strong>{moeda(totalProd)}</strong></article>{produto==="CLT"&&<article><span>Valor das parcelas</span><strong>{moeda(totalParcela)}</strong></article>}<article><span>Imposto de renda</span><strong>{moeda(totalIr)}</strong></article></div>
 
 
 
 
-   <div className="fc-sub fc-sub-three"><button className={produto==="Geral"?"on":""} onClick={()=>setProduto("Geral")}>Controle de notas Geral</button><button className={produto==="CLT"?"on":""} onClick={()=>setProduto("CLT")}>Controle de notas CLT</button><button className={produto==="Compra de Dívida"?"on":""} onClick={()=>setProduto("Compra de Dívida")}>Controle de notas Compra de Dívida</button></div>
 
 
 
@@ -3250,11 +3296,11 @@ if (
 
 
 
+   <div className="fc-list-toolbar fc-filter-toolbar">
 
 
 
 
-   <div className="fc-kpis"><article><span>Valor total das notas</span><strong>{moeda(totalNotas)}</strong></article><article><span>{produto==="CLT"?"Produção valor líquido":"Valor bruto da operação"}</span><strong>{moeda(totalProd)}</strong></article>{produto==="CLT"&&<article><span>Valor das parcelas</span><strong>{moeda(totalParcela)}</strong></article>}<article><span>Imposto de renda</span><strong>{moeda(totalIr)}</strong></article></div>
 
 
 
@@ -3266,11 +3312,11 @@ if (
 
 
 
+     <div><strong>{produto==="Geral"?"Todas as notas — Geral":"Todas as notas"}</strong><span>{lista.length} {lista.length===1?"nota encontrada":"notas encontradas"}</span></div>
 
 
 
 
-   <div className="fc-list-toolbar fc-filter-toolbar">
 
 
 
@@ -3282,19 +3328,25 @@ if (
 
 
 
+     <div className="fc-filter-group">
 
 
 
+        <label>DE<input type="date" value={dataDeFiltro} onChange={e=>setDataDeFiltro(e.target.value)}/></label>
 
-     <div><strong>{produto==="Geral"?"Todas as notas — Geral":"Todas as notas"}</strong><span>{lista.length} {lista.length===1?"nota encontrada":"notas encontradas"}</span></div>
+        <label>ATÉ<input type="date" min={dataDeFiltro||undefined} value={dataAteFiltro} onChange={e=>setDataAteFiltro(e.target.value)}/></label>
 
+        <label>DATA COMPETÊNCIA<input type="month" value={mesFiltro} onChange={e=>setMesFiltro(e.target.value)}/></label>
 
+        {(mesFiltro||dataDeFiltro||dataAteFiltro)&&<button type="button" className="fc-clear-period" onClick={()=>{setMesFiltro("");setDataDeFiltro("");setDataAteFiltro("")}}>Limpar filtros</button>}
 
 
 
+        <label>Ordenar<select value={ordem} onChange={e=>setOrdem(e.target.value as "recentes"|"antigas")}><option value="recentes">Mais recentes primeiro</option><option value="antigas">Mais antigas primeiro</option></select></label>
 
 
 
+      </div>
 
 
 
@@ -3302,25 +3354,19 @@ if (
 
 
 
-     <div className="fc-filter-group">
 
 
 
-        <label>DE<input type="date" value={dataDeFiltro} onChange={e=>setDataDeFiltro(e.target.value)}/></label>
 
-        <label>ATÉ<input type="date" min={dataDeFiltro||undefined} value={dataAteFiltro} onChange={e=>setDataAteFiltro(e.target.value)}/></label>
 
-        <label>DATA COMPETÊNCIA<input type="month" value={mesFiltro} onChange={e=>setMesFiltro(e.target.value)}/></label>
 
-        {(mesFiltro||dataDeFiltro||dataAteFiltro)&&<button type="button" className="fc-clear-period" onClick={()=>{setMesFiltro("");setDataDeFiltro("");setDataAteFiltro("")}}>Limpar filtros</button>}
 
 
+   </div>
 
-        <label>Ordenar<select value={ordem} onChange={e=>setOrdem(e.target.value as "recentes"|"antigas")}><option value="recentes">Mais recentes primeiro</option><option value="antigas">Mais antigas primeiro</option></select></label>
 
 
 
-      </div>
 
 
 
@@ -3332,11 +3378,11 @@ if (
 
 
 
+   <div className="fc-table"><table><thead><tr><th>#</th><th>Fornecedor</th><th>Valor nota</th><th>Qtd.</th><th>Data competência</th><th>{produto==="CLT"?"Produção líquida":"Valor bruto"}</th>{produto==="CLT"&&<th>Parcela</th>}<th>IR</th><th>Comprovante</th><th>Ações</th></tr></thead><tbody>{lista.length?lista.map((x,i)=><tr key={x.id}><td>{i+1}</td><td>{x.fornecedor}</td><td>{moeda(x.valor)}</td><td>{x.qtd}</td><td>{competenciaMes(x.inicio)}</td><td>{moeda(x.produto==="CLT"?x.liquido:x.bruto)}</td>{produto==="CLT"&&<td>{moeda(x.parcela)}</td>}<td>{moeda(x.ir)}</td><td>{x.comprovante?"✓ Anexado":"—"}</td><td><div className="fc-actions"><button type="button" className="fc-edit" onClick={()=>abrirEdicao(x)}>Editar</button><button type="button" className="fc-delete" onClick={()=>void excluirNota(x)}>Excluir</button></div></td></tr>):<tr><td colSpan={10}>Nenhuma nota cadastrada.</td></tr>}</tbody></table></div>
 
 
 
 
-   </div>
 
 
 
@@ -3348,11 +3394,11 @@ if (
 
 
 
+  </>}
 
 
 
 
-   <div className="fc-table"><table><thead><tr><th>#</th><th>Fornecedor</th><th>Valor nota</th><th>Qtd.</th><th>Data competência</th><th>{produto==="CLT"?"Produção líquida":"Valor bruto"}</th>{produto==="CLT"&&<th>Parcela</th>}<th>IR</th><th>Comprovante</th><th>Ações</th></tr></thead><tbody>{lista.length?lista.map((x,i)=><tr key={x.id}><td>{i+1}</td><td>{x.fornecedor}</td><td>{moeda(x.valor)}</td><td>{x.qtd}</td><td>{competenciaMes(x.inicio)}</td><td>{moeda(x.produto==="CLT"?x.liquido:x.bruto)}</td>{produto==="CLT"&&<td>{moeda(x.parcela)}</td>}<td>{moeda(x.ir)}</td><td>{x.comprovante?"✓ Anexado":"—"}</td><td><div className="fc-actions"><button type="button" className="fc-edit" onClick={()=>abrirEdicao(x)}>Editar</button><button type="button" className="fc-delete" onClick={()=>void excluirNota(x)}>Excluir</button></div></td></tr>):<tr><td colSpan={10}>Nenhuma nota cadastrada.</td></tr>}</tbody></table></div>
 
 
 
@@ -3364,11 +3410,11 @@ if (
 
 
 
+  {aba==="simples"&&<ControleSimples />}
 
 
 
 
-  </>}
 
 
 
@@ -3380,11 +3426,11 @@ if (
 
 
 
+  {aba==="inss"&&<ControleInssFgts />}
 
 
 
 
-  {aba==="simples" && <ControleSimples />}
 
 
 
@@ -3396,11 +3442,11 @@ if (
 
 
 
+   {modal&&<div className="fc-bg"><form className="fc-modal" onSubmit={salvar}><header><h2>{editando?"Editar nota fiscal":"Nova nota fiscal"} — {produto}</h2><button type="button" onClick={()=>{setModal(false);setEditando(null)}}>×</button></header><div className="fc-form"><label>Fornecedor *
 
 
 
 
-  {aba==="inss"&&<ControleInssFgts />}
 
 
 
@@ -3412,11 +3458,11 @@ if (
 
 
 
+  <div className="fc-select-wrap fc-select-wrap-clean">
 
 
 
 
-   {modal&&<div className="fc-bg"><form className="fc-modal" onSubmit={salvar}><header><h2>{editando?"Editar nota fiscal":"Nova nota fiscal"} — {produto}</h2><button type="button" onClick={()=>{setModal(false);setEditando(null)}}>×</button></header><div className="fc-form"><label>Fornecedor *
 
 
 
@@ -3428,11 +3474,22 @@ if (
 
 
 
+    <select className="fc-select fc-select-clean" value={f.fornecedor} onChange={e=>{
+      if(e.target.value==="__novo__"){
+        setCriandoFornecedor(true);
+        return;
+      }
+      setCriandoFornecedor(false);
+      setF({...f,fornecedor:e.target.value});
+    }} required>
+      <option value="">Selecione o fornecedor</option>
+      {fornecedoresDaNota.map((item)=><option key={item.id} value={item.nome}>{item.nome}</option>)}
+      <option value="__novo__">＋ Criar fornecedor separado</option>
+    </select>
 
 
 
 
-  <div className="fc-select-wrap fc-select-wrap-clean">
 
 
 
@@ -3444,11 +3501,11 @@ if (
 
 
 
+    <span className="fc-select-arrow">⌄</span>
 
 
 
 
-    <select className="fc-select fc-select-clean" value={f.fornecedor} onChange={e=>setF({...f,fornecedor:e.target.value})} required>
 
 
 
@@ -3460,89 +3517,12 @@ if (
 
 
 
-
-
-
-
-      <option value="">Selecione o fornecedor</option>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      {fornecedoresDaNota.map((item)=><option key={item.id} value={item.nome}>{item.nome}</option>)}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    </select>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    <span className="fc-select-arrow">⌄</span>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  </div>
+  {criandoFornecedor&&<div className="fc-new-provider">
+    <input value={novoFornecedor} onChange={e=>setNovoFornecedor(e.target.value)} placeholder={produto==="CLT"?"Ex.: C6-PARCEIRO 3RN":"Ex.: FUTURO-FINANBANK"} autoFocus/>
+    <button type="button" onClick={()=>void criarFornecedorNota()}>Criar fornecedor</button>
+    <button type="button" className="fc-new-provider-cancel" onClick={()=>{setCriandoFornecedor(false);setNovoFornecedor("")}}>Cancelar</button>
+  </div>}
 
 </label><label>Valor da nota *<input inputMode="numeric" value={f.valor} onChange={e=>setF({...f,valor:valorBR(e.target.value)})} placeholder="0,00"/></label><label>Quantidade de operações<input type="number" value={f.qtd} onChange={e=>setF({...f,qtd:e.target.value})}/></label><label>Data competência<input type="date" value={f.inicio} onChange={e=>setF({...f,inicio:e.target.value,fim:e.target.value})}/></label>{produto==="CLT"?<><label>Produção valor líquido<input inputMode="numeric" value={f.liquido} onChange={e=>setF({...f,liquido:valorBR(e.target.value)})} placeholder="0,00"/></label><label>Valor parcela<input inputMode="numeric" value={f.parcela} onChange={e=>setF({...f,parcela:valorBR(e.target.value)})} placeholder="0,00"/></label></>:<label>Valor bruto da operação<input inputMode="numeric" value={f.bruto} onChange={e=>setF({...f,bruto:valorBR(e.target.value)})} placeholder="0,00"/></label>}<label>Valor do IR (R$) — opcional<input inputMode="numeric" value={f.irValor} onChange={e=>setF({...f,irValor:valorBR(e.target.value)})} placeholder="0,00"/></label><label className="wide">Comprovante — opcional<input type="file" accept="image/*,.pdf" onChange={e=>{const arq=e.target.files?.[0]||null;setArquivo(arq);setF({...f,comprovante:arq?.name||""})}}/><small>{f.comprovante||"Imagem ou PDF"}</small></label></div><footer><button type="button" onClick={()=>{setModal(false);setEditando(null)}}>Cancelar</button><button type="submit">{editando?"Salvar alterações":"Salvar nota"}</button></footer></form></div>}
 
@@ -3560,7 +3540,7 @@ if (
 
 
 
- </div>
+ </div>
 
 
 
