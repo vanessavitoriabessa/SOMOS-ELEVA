@@ -341,6 +341,7 @@ export default function SettingsManager() {
   const [novoBanco, setNovoBanco] = useState("");
   const [novoOrgaoConvenio, setNovoOrgaoConvenio] = useState("");
   const [buscaTabela, setBuscaTabela] = useState("");
+  const [filtroTipoTabela, setFiltroTipoTabela] = useState<"compra" | "clt">("compra");
   const [novaTabela, setNovaTabela] = useState({
     banco: "NEO",
     orgaoConvenio: "",
@@ -2031,6 +2032,51 @@ export default function SettingsManager() {
     });
   }, [tabelas, buscaTabela]);
 
+  const tabelasAgrupadas = useMemo(() => {
+    const isClt = (tabela: Tabela) => {
+      const orgaoUnico = String(tabela.orgaoConvenio || "").trim().toUpperCase();
+      const ids = tabela.orgaosConvenios.map((item) => String(item.id || "").toUpperCase());
+      const nomes = tabela.orgaosConvenios.map((item) => String(item.nome || "").trim().toUpperCase());
+      return orgaoUnico === "CLT" || ids.includes("__CLT__") || nomes.includes("CLT");
+    };
+
+    const estrutura = {
+      clt: new Map<string, Tabela[]>(),
+      compra: new Map<string, Tabela[]>(),
+    };
+
+    tabelasFiltradas.forEach((tabela) => {
+      const tipo = isClt(tabela) ? "clt" : "compra";
+      const banco = String(tabela.banco || "Sem banco").trim() || "Sem banco";
+      const mapa = estrutura[tipo];
+      mapa.set(banco, [...(mapa.get(banco) || []), tabela]);
+    });
+
+    const ordenarGrupos = (mapa: Map<string, Tabela[]>) =>
+      Array.from(mapa.entries())
+        .sort((a, b) => a[0].localeCompare(b[0], "pt-BR"))
+        .map(([banco, itens]) => ({
+          banco,
+          itens: [...itens].sort((a, b) => {
+            const nome = String(a.nome || "").localeCompare(String(b.nome || ""), "pt-BR");
+            if (nome !== 0) return nome;
+            return String(a.codigo || "").localeCompare(String(b.codigo || ""), "pt-BR");
+          }),
+        }));
+
+    const clt = ordenarGrupos(estrutura.clt);
+    const compra = ordenarGrupos(estrutura.compra);
+
+    return {
+      clt,
+      compra,
+      totalClt: clt.reduce((soma, grupo) => soma + grupo.itens.length, 0),
+      totalCompra: compra.reduce((soma, grupo) => soma + grupo.itens.length, 0),
+      totalBancosClt: clt.length,
+      totalBancosCompra: compra.length,
+    };
+  }, [tabelasFiltradas]);
+
   const resumo = useMemo(
     () => ({
       bancosAtivos: bancos.filter((item) => item.ativo).length,
@@ -2054,6 +2100,286 @@ export default function SettingsManager() {
     (plano) => plano.ativo,
   ).length;
 
+  function renderTabelaLinha(tabela: Tabela) {
+    const editando = editandoTabelaId === tabela.id;
+    const orgaosTags = tabela.orgaosConvenios.length ? (
+      tabela.orgaosConvenios.map((orgao) => <span key={orgao.id}>{orgao.nome}</span>)
+    ) : (
+      <span>{tabela.orgaoConvenio || "—"}</span>
+    );
+
+    return (
+      <article key={tabela.id} className="settings-tabela-card">
+        {editando ? (
+          <>
+            <div className="settings-tabela-card-head">
+              <div>
+                <span>EDITANDO TABELA</span>
+                <h4>{edicaoTabela.nome || "Tabela sem nome"}</h4>
+                <p>Atualize os campos abaixo sem perder a organização da tela.</p>
+              </div>
+              <strong className={tabela.ativo ? "status-active" : "status-inactive"}>
+                {tabela.ativo ? "Ativa" : "Inativa"}
+              </strong>
+            </div>
+
+            <div className="settings-tabela-edit-grid">
+              <label>
+                Nome da tabela
+                <input
+                  value={edicaoTabela.nome}
+                  onChange={(e) =>
+                    setEdicaoTabela({
+                      ...edicaoTabela,
+                      nome: e.target.value,
+                    })
+                  }
+                  disabled={processando}
+                />
+              </label>
+
+              <label>
+                Banco
+                <select
+                  value={edicaoTabela.banco}
+                  onChange={(e) =>
+                    setEdicaoTabela({
+                      ...edicaoTabela,
+                      banco: e.target.value,
+                    })
+                  }
+                  disabled={processando}
+                >
+                  {bancos
+                    .filter((banco) => banco.ativo)
+                    .map((banco) => (
+                      <option key={banco.id} value={banco.nome}>
+                        {banco.nome}
+                      </option>
+                    ))}
+                </select>
+              </label>
+
+              <div className="settings-multi-field settings-multi-edit settings-tabela-edit-field-wide">
+                <span>Produto / Órgãos / Convênios</span>
+                <button
+                  type="button"
+                  className="settings-multi-trigger compact"
+                  onClick={() => setAbrirOrgaosEdicao((atual) => !atual)}
+                  disabled={processando}
+                >
+                  <span className={orgaosEdicaoTabela.length ? "has-value" : ""}>
+                    {orgaosEdicaoTabela.length === 0
+                      ? "Selecionar"
+                      : orgaosEdicaoTabela.length === 1
+                        ? orgaosConveniosTabela.find((item) => item.id === orgaosEdicaoTabela[0])?.nome
+                        : `${orgaosEdicaoTabela.length} selecionados`}
+                  </span>
+                  <b>{abrirOrgaosEdicao ? "▲" : "▼"}</b>
+                </button>
+
+                {abrirOrgaosEdicao && (
+                  <div className="settings-multi-dropdown edit-dropdown">
+                    <div className="settings-multi-list">
+                      {orgaosConveniosTabela.filter((item) => item.ativo).map((item) => {
+                        const marcado = orgaosEdicaoTabela.includes(item.id);
+
+                        return (
+                          <button
+                            type="button"
+                            key={item.id}
+                            className={marcado ? "selected" : ""}
+                            onClick={() => {
+                              if (item.id === "__CLT__") {
+                                setOrgaosEdicaoTabela(["__CLT__"]);
+                                setEdicaoTabela({ ...edicaoTabela, orgaoConvenio: "CLT" });
+                                setAbrirOrgaosEdicao(false);
+                                return;
+                              }
+
+                              alternarOrgaoSelecionado(
+                                item.id,
+                                orgaosEdicaoTabela.filter((id) => id !== "__CLT__"),
+                                setOrgaosEdicaoTabela,
+                              );
+                            }}
+                          >
+                            <span className="multi-check">{marcado ? "✓" : ""}</span>
+                            <span>{item.nome}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <label>
+                Código
+                <input
+                  value={edicaoTabela.codigo}
+                  onChange={(e) =>
+                    setEdicaoTabela({
+                      ...edicaoTabela,
+                      codigo: e.target.value,
+                    })
+                  }
+                  inputMode="numeric"
+                  disabled={processando}
+                />
+              </label>
+
+              <label>
+                Prazo
+                <input
+                  type="number"
+                  min="1"
+                  value={edicaoTabela.prazo}
+                  onChange={(e) =>
+                    setEdicaoTabela({
+                      ...edicaoTabela,
+                      prazo: e.target.value,
+                    })
+                  }
+                  placeholder="Prazo"
+                  disabled={processando}
+                />
+              </label>
+
+              <label>
+                % para produção
+                <input
+                  value={edicaoTabela.percentual}
+                  onChange={(e) =>
+                    setEdicaoTabela({
+                      ...edicaoTabela,
+                      percentual: e.target.value,
+                    })
+                  }
+                  inputMode="decimal"
+                  disabled={processando}
+                />
+              </label>
+
+              <label>
+                % comissão banco
+                <input
+                  value={edicaoTabela.percentualComissaoBanco}
+                  onChange={(e) =>
+                    setEdicaoTabela({
+                      ...edicaoTabela,
+                      percentualComissaoBanco: e.target.value,
+                    })
+                  }
+                  inputMode="decimal"
+                  placeholder="Ex.: 28,5"
+                  disabled={processando}
+                />
+              </label>
+            </div>
+
+            <div className="settings-tabela-actions">
+              <button
+                type="button"
+                className="save-edit"
+                onClick={() => void salvarEdicaoTabela()}
+                disabled={processando}
+              >
+                Salvar
+              </button>
+
+              <button
+                type="button"
+                onClick={cancelarEdicaoTabela}
+                disabled={processando}
+              >
+                Cancelar
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="settings-tabela-card-head">
+              <div>
+                <span>{tabela.orgaosConvenios.some((orgao) => String(orgao.nome).toUpperCase() === "CLT") || String(tabela.orgaoConvenio || "").toUpperCase() === "CLT" ? "TABELA CLT" : "TABELA DE COMPRA"}</span>
+                <h4>{tabela.nome}</h4>
+                <p>
+                  {tabela.banco} • Código {tabela.codigo || "—"}
+                </p>
+              </div>
+              <strong className={tabela.ativo ? "status-active" : "status-inactive"}>
+                {tabela.ativo ? "Ativa" : "Inativa"}
+              </strong>
+            </div>
+
+            <div className="settings-tabela-info-grid">
+              <div className="settings-tabela-info-item settings-tabela-info-item-wide">
+                <small>Produto / Convênio</small>
+                <div className="settings-orgao-tags">{orgaosTags}</div>
+              </div>
+
+              <div className="settings-tabela-info-item">
+                <small>Banco</small>
+                <strong>{tabela.banco}</strong>
+              </div>
+
+              <div className="settings-tabela-info-item">
+                <small>Código</small>
+                <strong>{tabela.codigo || "—"}</strong>
+              </div>
+
+              <div className="settings-tabela-info-item">
+                <small>Prazo</small>
+                <strong>{tabela.prazo === null ? "—" : `${tabela.prazo}x`}</strong>
+              </div>
+
+              <div className="settings-tabela-info-item">
+                <small>% Produção</small>
+                <strong>{String(tabela.percentual).replace(".", ",")}%</strong>
+              </div>
+
+              <div className="settings-tabela-info-item">
+                <small>% Comissão banco</small>
+                <strong>
+                  {tabela.percentualComissaoBanco === null
+                    ? "Não informado"
+                    : `${String(tabela.percentualComissaoBanco).replace(".", ",")}%`}
+                </strong>
+              </div>
+            </div>
+
+            <div className="settings-tabela-actions">
+              <button
+                type="button"
+                onClick={() => iniciarEdicaoTabela(tabela)}
+                disabled={processando}
+              >
+                Editar
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void alternarTabela(tabela.id)}
+                disabled={processando}
+              >
+                {tabela.ativo ? "Desativar" : "Ativar"}
+              </button>
+
+              <button
+                type="button"
+                className="delete"
+                onClick={() => void excluirTabela(tabela.id)}
+                disabled={processando}
+              >
+                Excluir
+              </button>
+            </div>
+          </>
+        )}
+      </article>
+    );
+  }
+
   return (
     <div className="settings-page">
       <section className="settings-v3-intro">
@@ -2067,61 +2393,70 @@ export default function SettingsManager() {
         </div>
       </section>
 
-      <section className="settings-v3-summary">
-        <article className="blue">
-          <div className="settings-v3-kpi-icon">B</div>
-          <div>
-            <span>Bancos</span>
-            <strong>{bancos.length}</strong>
-            <small>instituições cadastradas</small>
+      {aba === "geral" && (
+        <section className="settings-hub">
+          <div className="settings-hub-head">
+            <div>
+              <span>MAPA DE CONFIGURAÇÕES</span>
+              <h3>Central administrativa do Somos Eleva</h3>
+              <p>
+                Escolha uma área para configurar. Mantive os cadastros atuais e reorganizei a navegação por módulos.
+              </p>
+            </div>
+            <strong>{bancos.length + tabelas.length + statusPropostas.length + equipesConfiguradas.length + perfisConfigurados.length}</strong>
           </div>
-        </article>
 
-        <article className="green">
-          <div className="settings-v3-kpi-icon">T</div>
-          <div>
-            <span>Tabelas</span>
-            <strong>{tabelas.length}</strong>
-            <small>regras de produção</small>
-          </div>
-        </article>
+          <div className="settings-hub-grid">
+            <button type="button" className="settings-hub-card blue" onClick={() => setAba("geral")}>
+              <span>⚙️</span>
+              <strong>Sistema</strong>
+              <small>Nome, empresa, moeda, data e padrões gerais.</small>
+            </button>
 
-        <article className="orange">
-          <div className="settings-v3-kpi-icon">S</div>
-          <div>
-            <span>Status</span>
-            <strong>{statusPropostas.length}</strong>
-            <small>status de propostas</small>
-          </div>
-        </article>
+            <button type="button" className="settings-hub-card orange" onClick={() => setAba("bancos")}>
+              <span>🏦</span>
+              <strong>Comercial</strong>
+              <small>Bancos, órgãos, tabelas, status e metas comerciais.</small>
+            </button>
 
-        <article className="purple">
-          <div className="settings-v3-kpi-icon">E</div>
-          <div>
-            <span>Equipes</span>
-            <strong>{equipesConfiguradas.length}</strong>
-            <small>equipes cadastradas</small>
-          </div>
-        </article>
+            <button type="button" className="settings-hub-card purple" onClick={() => setAba("permissoes")}>
+              <span>🔐</span>
+              <strong>Acessos e módulos</strong>
+              <small>Dashboard, Clientes, Simulação, Propostas, CLT, Protocolos e permissões.</small>
+            </button>
 
-        <article className="pink">
-          <div className="settings-v3-kpi-icon">P</div>
-          <div>
-            <span>Perfis</span>
-            <strong>{perfisConfigurados.length}</strong>
-            <small>perfis de acesso</small>
-          </div>
-        </article>
+            <button type="button" className="settings-hub-card green" onClick={() => setAba("equipes")}>
+              <span>👥</span>
+              <strong>Pessoas</strong>
+              <small>Equipes, cargos, perfis e vínculos da operação.</small>
+            </button>
 
-        <article className="teal">
-          <div className="settings-v3-kpi-icon">×</div>
-          <div>
-            <span>Multiplicador</span>
-            <strong>{geral.multiplicadorSaldo}x</strong>
-            <small>do saldo de comissão</small>
+            <button type="button" className="settings-hub-card teal" onClick={() => setAba("financeiro")}>
+              <span>💰</span>
+              <strong>Financeiro</strong>
+              <small>Produtos, parceiros, fornecedores, categorias e cadastros financeiros.</small>
+            </button>
+
+            <button type="button" className="settings-hub-card pink" onClick={() => setAba("comissoes")}>
+              <span>🎁</span>
+              <strong>Premiações</strong>
+              <small>Faixas, pontos, regras de metas e critérios de pagamento.</small>
+            </button>
+
+            <button type="button" className="settings-hub-card blue" onClick={() => setAba("permissoes")}>
+              <span>📲</span>
+              <strong>Operação</strong>
+              <small>Clientes, campanhas, ranking, WhatsApp e loja de prêmios via permissões.</small>
+            </button>
+
+            <button type="button" className="settings-hub-card orange" onClick={() => setAba("logs")}>
+              <span>📊</span>
+              <strong>Relatórios e auditoria</strong>
+              <small>Histórico, logs, indicadores e conferência das alterações.</small>
+            </button>
           </div>
-        </article>
-      </section>
+        </section>
+      )}
 
       <div className="settings-admin-layout">
         <aside
@@ -2301,7 +2636,7 @@ export default function SettingsManager() {
     }
     onClick={()=>setAba("equipes")}
   >
-    👥 Pessoas
+    👥 Pessoas e Acessos
   </button>
 
   <button
@@ -2319,7 +2654,7 @@ export default function SettingsManager() {
     className={aba==="logs" ? "active" : ""}
     onClick={()=>setAba("logs")}
   >
-    📊 Relatórios
+    📊 Auditoria
   </button>
 
 </div>
@@ -2934,293 +3269,77 @@ export default function SettingsManager() {
               </small>
             </div>
 
-            <div className="settings-table-head settings-table-grid">
-              <span>Tabela</span>
-              <span>Banco</span>
-              <span>Produto / Convênio</span>
-              <span>Código</span>
-              <span>Prazo</span>
-              <span>% Produção</span>
-              <span>% Comissão banco</span>
-              <span>Status</span>
-              <span>Ações</span>
+            <div className="settings-table-summary">
+              <button type="button" aria-pressed={filtroTipoTabela === "compra"} onClick={() => setFiltroTipoTabela("compra")} className={`settings-table-summary-card is-compra ${filtroTipoTabela === "compra" ? "selected" : ""}`}>
+                <span>COMPRA</span>
+                <strong>{tabelasAgrupadas.totalCompra}</strong>
+                <small>{tabelasAgrupadas.totalBancosCompra} banco(s) com tabelas de compra</small>
+              </button>
+
+              <button type="button" aria-pressed={filtroTipoTabela === "clt"} onClick={() => setFiltroTipoTabela("clt")} className={`settings-table-summary-card is-clt ${filtroTipoTabela === "clt" ? "selected" : ""}`}>
+                <span>CLT</span>
+                <strong>{tabelasAgrupadas.totalClt}</strong>
+                <small>{tabelasAgrupadas.totalBancosClt} banco(s) com tabelas CLT</small>
+              </button>
             </div>
 
-            <div className="settings-table-list">
-              {tabelasFiltradas.map((tabela) => {
-                const editando = editandoTabelaId === tabela.id;
+            <div className="settings-table-categories">
+              {[
+                {
+                  chave: "compra",
+                  titulo: "Tabelas de compra",
+                  descricao: "Separadas por banco para facilitar a gestão de compra de dívida e cartão.",
+                  grupos: tabelasAgrupadas.compra,
+                  vazio: buscaTabela
+                    ? `Nenhuma tabela de compra encontrada para “${buscaTabela}”.`
+                    : "Nenhuma tabela de compra cadastrada.",
+                },
+                {
+                  chave: "clt",
+                  titulo: "Tabelas de CLT",
+                  descricao: "Separadas por banco para deixar as regras CLT mais organizadas e fáceis de localizar.",
+                  grupos: tabelasAgrupadas.clt,
+                  vazio: buscaTabela
+                    ? `Nenhuma tabela CLT encontrada para “${buscaTabela}”.`
+                    : "Nenhuma tabela CLT cadastrada.",
+                },
+              ].filter((bloco) => bloco.chave === filtroTipoTabela).map((bloco) => (
+                <section key={bloco.chave} className="settings-table-category-card">
+                  <div className="settings-table-category-header">
+                    <div>
+                      <span>{bloco.chave === "compra" ? "COMPRA" : "CLT"}</span>
+                      <h3>{bloco.titulo}</h3>
+                      <p>{bloco.descricao}</p>
+                    </div>
+                    <b>
+                      {bloco.grupos.reduce((total, grupo) => total + grupo.itens.length, 0)}
+                    </b>
+                  </div>
 
-                return (
-                  <article
-                    key={tabela.id}
-                    className="settings-table-grid settings-table-row-new"
-                  >
-                    {editando ? (
-                      <>
-                        <div>
-                          <input
-                            value={edicaoTabela.nome}
-                            onChange={(e) =>
-                              setEdicaoTabela({
-                                ...edicaoTabela,
-                                nome: e.target.value,
-                              })
-                            }
-                            disabled={processando}
-                          />
-                        </div>
-
-                        <div>
-                          <select
-                            value={edicaoTabela.banco}
-                            onChange={(e) =>
-                              setEdicaoTabela({
-                                ...edicaoTabela,
-                                banco: e.target.value,
-                              })
-                            }
-                            disabled={processando}
-                          >
-                            {bancos
-                              .filter((banco) => banco.ativo)
-                              .map((banco) => (
-                                <option key={banco.id} value={banco.nome}>
-                                  {banco.nome}
-                                </option>
-                              ))}
-                          </select>
-                        </div>
-
-                        <div className="settings-multi-field settings-multi-edit">
-                          <button
-                            type="button"
-                            className="settings-multi-trigger compact"
-                            onClick={() => setAbrirOrgaosEdicao((atual) => !atual)}
-                            disabled={processando}
-                          >
-                            <span className={orgaosEdicaoTabela.length ? "has-value" : ""}>
-                              {orgaosEdicaoTabela.length === 0
-                                ? "Selecionar"
-                                : orgaosEdicaoTabela.length === 1
-                                  ? orgaosConveniosTabela.find((item) => item.id === orgaosEdicaoTabela[0])?.nome
-                                  : `${orgaosEdicaoTabela.length} selecionados`}
-                            </span>
-                            <b>{abrirOrgaosEdicao ? "▲" : "▼"}</b>
-                          </button>
-
-                          {abrirOrgaosEdicao && (
-                            <div className="settings-multi-dropdown edit-dropdown">
-                              <div className="settings-multi-list">
-                                {orgaosConveniosTabela.filter((item) => item.ativo).map((item) => {
-                                  const marcado = orgaosEdicaoTabela.includes(item.id);
-
-                                  return (
-                                    <button
-                                      type="button"
-                                      key={item.id}
-                                      className={marcado ? "selected" : ""}
-                                      onClick={() => {
-                                        if (item.id === "__CLT__") {
-                                          setOrgaosEdicaoTabela(["__CLT__"]);
-                                          setEdicaoTabela({ ...edicaoTabela, orgaoConvenio: "CLT" });
-                                          setAbrirOrgaosEdicao(false);
-                                          return;
-                                        }
-
-                                        alternarOrgaoSelecionado(
-                                          item.id,
-                                          orgaosEdicaoTabela.filter((id) => id !== "__CLT__"),
-                                          setOrgaosEdicaoTabela,
-                                        );
-                                      }}
-                                    >
-                                      <span className="multi-check">{marcado ? "✓" : ""}</span>
-                                      <span>{item.nome}</span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
+                  {bloco.grupos.length === 0 ? (
+                    <div className="settings-table-empty">{bloco.vazio}</div>
+                  ) : (
+                    <div className="settings-bank-groups">
+                      {bloco.grupos.map((grupo) => (
+                        <section key={`${bloco.chave}-${grupo.banco}`} className="settings-bank-group-card">
+                          <div className="settings-bank-group-header">
+                            <div>
+                              <span>{bloco.chave === "compra" ? "BANCO DE COMPRA" : "BANCO CLT"}</span>
+                              <h4>{grupo.banco}</h4>
+                              <p>{grupo.itens.length} tabela(s) encontrada(s) neste banco.</p>
                             </div>
-                          )}
-                        </div>
-
-                        <div>
-                          <input
-                            value={edicaoTabela.codigo}
-                            onChange={(e) =>
-                              setEdicaoTabela({
-                                ...edicaoTabela,
-                                codigo: e.target.value,
-                              })
-                            }
-                            inputMode="numeric"
-                            disabled={processando}
-                          />
-                        </div>
-
-                        <div>
-                          <input
-                            type="number"
-                            min="1"
-                            value={edicaoTabela.prazo}
-                            onChange={(e) =>
-                              setEdicaoTabela({
-                                ...edicaoTabela,
-                                prazo: e.target.value,
-                              })
-                            }
-                            placeholder="Prazo"
-                            disabled={processando}
-                          />
-                        </div>
-
-                        <div>
-                          <input
-                            value={edicaoTabela.percentual}
-                            onChange={(e) =>
-                              setEdicaoTabela({
-                                ...edicaoTabela,
-                                percentual: e.target.value,
-                              })
-                            }
-                            inputMode="decimal"
-                            disabled={processando}
-                          />
-                        </div>
-
-                        <div>
-                          <input
-                            value={edicaoTabela.percentualComissaoBanco}
-                            onChange={(e) =>
-                              setEdicaoTabela({
-                                ...edicaoTabela,
-                                percentualComissaoBanco: e.target.value,
-                              })
-                            }
-                            inputMode="decimal"
-                            placeholder="Ex.: 28,5"
-                            disabled={processando}
-                          />
-                        </div>
-
-                        <span
-                          className={
-                            tabela.ativo
-                              ? "status-active"
-                              : "status-inactive"
-                          }
-                        >
-                          {tabela.ativo ? "Ativa" : "Inativa"}
-                        </span>
-
-                        <div className="settings-row-actions">
-                          <button
-                            type="button"
-                            className="save-edit"
-                            onClick={() => void salvarEdicaoTabela()}
-                            disabled={processando}
-                          >
-                            Salvar
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={cancelarEdicaoTabela}
-                            disabled={processando}
-                          >
-                            Cancelar
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div>
-                          <strong>{tabela.nome}</strong>
-                          <span>
-                            {tabela.banco} • Código {tabela.codigo || "—"}
-                          </span>
-                        </div>
-
-                        <div>
-                          <strong>{tabela.banco}</strong>
-                        </div>
-
-                        <div>
-                          <div className="settings-orgao-tags">
-                            {tabela.orgaosConvenios.length
-                              ? tabela.orgaosConvenios.map((orgao) => <span key={orgao.id}>{orgao.nome}</span>)
-                              : <strong>{tabela.orgaoConvenio || "—"}</strong>}
+                            <b>{grupo.itens.length}</b>
                           </div>
-                        </div>
 
-                        <div>
-                          <b>{tabela.codigo || "—"}</b>
-                        </div>
-
-                        <div>
-                          <b>{tabela.prazo === null ? "—" : `${tabela.prazo}x`}</b>
-                        </div>
-
-                        <div>
-                          <b className="settings-percent-value">
-                            {String(tabela.percentual).replace(".", ",")}%
-                          </b>
-                        </div>
-
-                        <div>
-                          <b className="settings-percent-value">
-                            {tabela.percentualComissaoBanco === null
-                              ? "Não informado"
-                              : `${String(tabela.percentualComissaoBanco).replace(".", ",")}%`}
-                          </b>
-                        </div>
-
-                        <span
-                          className={
-                            tabela.ativo
-                              ? "status-active"
-                              : "status-inactive"
-                          }
-                        >
-                          {tabela.ativo ? "Ativa" : "Inativa"}
-                        </span>
-
-                        <div className="settings-row-actions">
-                          <button
-                            type="button"
-                            onClick={() => iniciarEdicaoTabela(tabela)}
-                            disabled={processando}
-                          >
-                            Editar
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => void alternarTabela(tabela.id)}
-                            disabled={processando}
-                          >
-                            {tabela.ativo ? "Desativar" : "Ativar"}
-                          </button>
-
-                          <button
-                            type="button"
-                            className="delete"
-                            onClick={() => void excluirTabela(tabela.id)}
-                            disabled={processando}
-                          >
-                            Excluir
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </article>
-                );
-              })}
-              {tabelasFiltradas.length === 0 && (
-                <div className="settings-table-empty">
-                  Nenhuma tabela encontrada para “{buscaTabela}”.
-                </div>
-              )}
+                          <div className="settings-tabela-cards-list">
+                            {grupo.itens.map((tabela) => renderTabelaLinha(tabela))}
+                          </div>
+                        </section>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              ))}
             </div>
           </section>
           </section>
