@@ -19,13 +19,18 @@ type MetaInsight = {
   date_stop?: string;
 };
 
+type MetaError = {
+  message?: string;
+  type?: string;
+  code?: number;
+  error_subcode?: number;
+  fbtrace_id?: string;
+};
+
 type MetaResponse = {
   data?: MetaInsight[];
-  error?: {
-    message?: string;
-    type?: string;
-    code?: number;
-  };
+  error?: MetaError;
+  paging?: unknown;
 };
 
 function somarLeads(actions?: MetaAction[]) {
@@ -52,15 +57,29 @@ function somarLeads(actions?: MetaAction[]) {
   return Number(lead?.value || 0);
 }
 
+function validarData(data: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(data);
+}
+
 export async function GET(request: NextRequest) {
   try {
-    const token = process.env.META_ACCESS_TOKEN;
+    /*
+     * O token fica somente no servidor/Vercel.
+     * trim() remove espaços ou quebras de linha acidentais
+     * que possam ter sido inseridos ao salvar a variável.
+     */
+    const token = process.env.META_ACCESS_TOKEN?.trim();
 
     if (!token) {
+      console.error(
+        "[META] META_ACCESS_TOKEN não configurado.",
+      );
+
       return NextResponse.json(
         {
           sucesso: false,
           erro: "META_ACCESS_TOKEN não configurado.",
+          origem: "configuracao",
         },
         {
           status: 500,
@@ -70,13 +89,26 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
 
+    const hoje = new Date().toISOString().slice(0, 10);
+
     const inicio =
-      searchParams.get("inicio") ||
-      new Date().toISOString().slice(0, 10);
+      searchParams.get("inicio") || hoje;
 
     const fim =
-      searchParams.get("fim") ||
-      inicio;
+      searchParams.get("fim") || inicio;
+
+    if (!validarData(inicio) || !validarData(fim)) {
+      return NextResponse.json(
+        {
+          sucesso: false,
+          erro: "Data inválida. Use o formato AAAA-MM-DD.",
+          origem: "parametros",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
 
     const timeRange = JSON.stringify({
       since: inicio,
@@ -88,38 +120,74 @@ export async function GET(request: NextRequest) {
       "actions",
     ].join(",");
 
-    const url =
+    const endpoint =
       `https://graph.facebook.com/${META_API_VERSION}` +
-      `/act_${META_AD_ACCOUNT_ID}/insights` +
-      `?level=campaign` +
-      `&fields=${encodeURIComponent(campos)}` +
-      `&time_range=${encodeURIComponent(timeRange)}` +
-      `&limit=500` +
-      `&access_token=${encodeURIComponent(token)}`;
+      `/act_${META_AD_ACCOUNT_ID}/insights`;
 
-    const resposta = await fetch(url, {
-      method: "GET",
-      cache: "no-store",
+    const params = new URLSearchParams({
+      level: "campaign",
+      fields: campos,
+      time_range: timeRange,
+      limit: "500",
     });
+
+    /*
+     * Enviamos o token no cabeçalho Authorization.
+     * Assim ele não fica incluído na URL da requisição.
+     */
+    const resposta = await fetch(
+      `${endpoint}?${params.toString()}`,
+      {
+        method: "GET",
+        cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
 
     const dados =
       (await resposta.json()) as MetaResponse;
 
     if (!resposta.ok || dados.error) {
-      console.error(
-        "Erro da API da Meta:",
-        dados.error,
-      );
+      const erroMeta = dados.error;
+
+      /*
+       * Nunca registramos o token.
+       * Registramos apenas os dados de diagnóstico
+       * devolvidos pela própria Meta.
+       */
+      console.error("[META] Falha na API:", {
+        http_status: resposta.status,
+        message: erroMeta?.message,
+        type: erroMeta?.type,
+        code: erroMeta?.code,
+        error_subcode: erroMeta?.error_subcode,
+        fbtrace_id: erroMeta?.fbtrace_id,
+      });
 
       return NextResponse.json(
         {
           sucesso: false,
           erro:
-            dados.error?.message ||
+            erroMeta?.message ||
             "Erro ao consultar a API da Meta.",
+
+          diagnostico: {
+            http_status: resposta.status,
+            tipo: erroMeta?.type || null,
+            codigo: erroMeta?.code || null,
+            subcodigo:
+              erroMeta?.error_subcode || null,
+            fbtrace_id:
+              erroMeta?.fbtrace_id || null,
+          },
         },
         {
-          status: resposta.status || 500,
+          status:
+            resposta.status >= 400
+              ? resposta.status
+              : 500,
         },
       );
     }
@@ -169,7 +237,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (erro) {
     console.error(
-      "Erro ao consultar Insights da Meta:",
+      "[META] Erro inesperado ao consultar Insights:",
       erro,
     );
 
@@ -178,6 +246,7 @@ export async function GET(request: NextRequest) {
         sucesso: false,
         erro:
           "Não foi possível consultar os dados da Meta.",
+        origem: "servidor",
       },
       {
         status: 500,
