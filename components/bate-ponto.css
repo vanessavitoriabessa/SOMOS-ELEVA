@@ -1989,3 +1989,401 @@
     grid-template-columns:1fr;
   }
 }
+
+/* =========================================================
+   RH / BATE-PONTO — IMPORTAÇÃO DIGIX
+   Cole no FINAL de: components/rh/bate-ponto.css
+   ========================================================= */
+
+.bp-modal-importacao{
+  width:min(1180px,96vw)!important;
+  max-height:92vh!important;
+  display:flex!important;
+  flex-direction:column!important;
+  overflow:hidden!important;
+}
+
+.bp-importacao-body{
+  display:grid;
+  gap:14px;
+  padding:18px 22px;
+  overflow:auto;
+  min-height:0;
+}
+
+.bp-importacao-aviso{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:13px 14px;
+  border:1px solid #dce7ff;
+  border-radius:12px;
+  background:#f6f9ff;
+  color:#102f5d;
+}
+
+.bp-importacao-aviso b{
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+}
+
+.bp-importacao-aviso span{
+  font-size:12px;
+  color:#64758d;
+}
+
+.bp-importacao-table{
+  overflow:auto;
+  border:1px solid #dde7f4;
+  border-radius:14px;
+}
+
+.bp-importacao-table table{
+  width:100%;
+  min-width:940px;
+  border-collapse:collapse;
+  background:#fff;
+}
+
+.bp-importacao-table th,
+.bp-importacao-table td{
+  padding:10px 12px;
+  border-bottom:1px solid #edf2f7;
+  text-align:left;
+  font-size:12px;
+  white-space:nowrap;
+}
+
+.bp-importacao-table th{
+  background:#f4f7fb;
+  color:#63718a;
+  font-size:10px;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+}
+
+.bp-importacao-table tr.ok td:first-child{
+  color:#078a45;
+  font-weight:900;
+}
+
+.bp-importacao-table tr.erro{
+  background:#fff5f4;
+}
+
+.bp-importacao-table tr.erro td:first-child,
+.bp-importacao-table tr.erro td:last-child{
+  color:#c53631;
+  font-weight:900;
+}
+
+.bp-modal-importacao footer{
+  flex:0 0 auto;
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+  padding:16px 22px;
+  border-top:1px solid #e5ecf5;
+  background:#fff;
+}
+
+.bp-modal-importacao footer button{
+  min-height:42px;
+  border-radius:10px;
+  padding:0 16px;
+  font-size:12px;
+  font-weight:900;
+}
+
+
+/* =========================================================
+   RH / BATE-PONTO — ÁREA DE IMPORTAÇÃO NO ESPELHO
+   ========================================================= */
+
+.bp-importador-digix{
+  display:grid;
+  grid-template-columns:minmax(220px,1.4fr) 210px minmax(240px,1fr) auto;
+  align-items:end;
+  gap:12px;
+  margin-bottom:16px;
+  padding:16px;
+  border:1px solid #dce7ff;
+  border-radius:14px;
+  background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%);
+}
+
+.bp-importador-digix > div{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  min-width:0;
+}
+
+.bp-importador-digix b{
+  color:#155eef;
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.09em;
+}
+
+.bp-importador-digix span{
+  color:#64758d;
+  font-size:12px;
+  line-height:1.45;
+}
+
+.bp-importador-digix label{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  color:#142e50;
+  font-size:11px;
+  font-weight:900;
+}
+
+.bp-importador-digix input,
+.bp-importador-digix select{
+  width:100%;
+  min-height:42px;
+  border:1px solid #d9e4f2;
+  border-radius:10px;
+  background:#fff;
+  color:#142e50;
+  padding:0 12px;
+  font-weight:800;
+}
+
+.bp-importador-digix button{
+  min-height:42px;
+  border:0;
+  border-radius:10px;
+  background:#155eef;
+  color:#fff;
+  padding:0 16px;
+  font-size:12px;
+  font-weight:900;
+}
+
+.bp-importador-digix button:disabled{
+  background:#c7d3ea;
+  cursor:not-allowed;
+}
+
+@media(max-width:1050px){
+  .bp-importador-digix{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .bp-importador-digix > div{
+    grid-column:1/-1;
+  }
+}
+
+@media(max-width:680px){
+  .bp-importador-digix{
+    grid-template-columns:1fr;
+  }
+}
+
+/* =========================================================
+   RH / BATE-PONTO — IMPORTAÇÃO DIGIX
+   Cole no FINAL de: components/rh/bate-ponto.css
+   ========================================================= */
+
+.bp-modal-importacao{
+  width:min(1180px,96vw)!important;
+  max-height:92vh!important;
+  display:flex!important;
+  flex-direction:column!important;
+  overflow:hidden!important;
+}
+
+.bp-importacao-body{
+  display:grid;
+  gap:14px;
+  padding:18px 22px;
+  overflow:auto;
+  min-height:0;
+}
+
+.bp-importacao-aviso{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:13px 14px;
+  border:1px solid #dce7ff;
+  border-radius:12px;
+  background:#f6f9ff;
+  color:#102f5d;
+}
+
+.bp-importacao-aviso b{
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+}
+
+.bp-importacao-aviso span{
+  font-size:12px;
+  color:#64758d;
+}
+
+.bp-importacao-table{
+  overflow:auto;
+  border:1px solid #dde7f4;
+  border-radius:14px;
+}
+
+.bp-importacao-table table{
+  width:100%;
+  min-width:940px;
+  border-collapse:collapse;
+  background:#fff;
+}
+
+.bp-importacao-table th,
+.bp-importacao-table td{
+  padding:10px 12px;
+  border-bottom:1px solid #edf2f7;
+  text-align:left;
+  font-size:12px;
+  white-space:nowrap;
+}
+
+.bp-importacao-table th{
+  background:#f4f7fb;
+  color:#63718a;
+  font-size:10px;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+}
+
+.bp-importacao-table tr.ok td:first-child{
+  color:#078a45;
+  font-weight:900;
+}
+
+.bp-importacao-table tr.erro{
+  background:#fff5f4;
+}
+
+.bp-importacao-table tr.erro td:first-child,
+.bp-importacao-table tr.erro td:last-child{
+  color:#c53631;
+  font-weight:900;
+}
+
+.bp-modal-importacao footer{
+  flex:0 0 auto;
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+  padding:16px 22px;
+  border-top:1px solid #e5ecf5;
+  background:#fff;
+}
+
+.bp-modal-importacao footer button{
+  min-height:42px;
+  border-radius:10px;
+  padding:0 16px;
+  font-size:12px;
+  font-weight:900;
+}
+
+
+/* =========================================================
+   RH / BATE-PONTO — ÁREA DE IMPORTAÇÃO NO ESPELHO
+   ========================================================= */
+
+.bp-importador-digix{
+  display:grid;
+  grid-template-columns:minmax(220px,1.4fr) 210px minmax(240px,1fr) auto;
+  align-items:end;
+  gap:12px;
+  margin-bottom:16px;
+  padding:16px;
+  border:1px solid #dce7ff;
+  border-radius:14px;
+  background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%);
+}
+
+.bp-importador-digix > div{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  min-width:0;
+}
+
+.bp-importador-digix b{
+  color:#155eef;
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.09em;
+}
+
+.bp-importador-digix span{
+  color:#64758d;
+  font-size:12px;
+  line-height:1.45;
+}
+
+.bp-importador-digix label{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  color:#142e50;
+  font-size:11px;
+  font-weight:900;
+}
+
+.bp-importador-digix input,
+.bp-importador-digix select{
+  width:100%;
+  min-height:42px;
+  border:1px solid #d9e4f2;
+  border-radius:10px;
+  background:#fff;
+  color:#142e50;
+  padding:0 12px;
+  font-weight:800;
+}
+
+.bp-importador-digix button{
+  min-height:42px;
+  border:0;
+  border-radius:10px;
+  background:#155eef;
+  color:#fff;
+  padding:0 16px;
+  font-size:12px;
+  font-weight:900;
+}
+
+.bp-importador-digix button:disabled{
+  background:#c7d3ea;
+  cursor:not-allowed;
+}
+
+@media(max-width:1050px){
+  .bp-importador-digix{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .bp-importador-digix > div{
+    grid-column:1/-1;
+  }
+}
+
+@media(max-width:680px){
+  .bp-importador-digix{
+    grid-template-columns:1fr;
+  }
+}

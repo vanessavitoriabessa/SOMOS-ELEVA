@@ -26,6 +26,11 @@ type LinhaImportacaoDigix={
  mensagem:string;
  jaExiste:boolean;
  observacao:string;
+ tipo_dia?:string|null;
+ falta?:boolean;
+ periodo_falta?:string|null;
+ apresentou_atestado?:boolean|null;
+ apagarExistente?:boolean;
 };
 
 
@@ -231,12 +236,24 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
  const tipo=String(p.tipo_dia||"");
  if(faltaIntegral(p)||faltaParcial(p)||ehReposicao(p)||["feriado","folga","atestado","justificado","atestado_parcial","justificado_parcial"].includes(tipo)||tipo.startsWith("custom:"))return 0;
  if(fimSemana(p.data))return trab(p);
- const excedenteTotal=Math.max(0,trab(p)-(j.carga||480));
- const extraTotal=excedenteTotal>TOLERANCIA_EXTRA_MIN?excedenteTotal:0;
- const extraEntrada=Math.max(0,mins(j.entrada)-mins(p.entrada));
- const extraSaida=Math.max(0,mins(p.saida)-mins(j.saida));
- const extraPontas=(extraEntrada>TOLERANCIA_EXTRA_MIN?extraEntrada:0)+(extraSaida>TOLERANCIA_EXTRA_MIN?extraSaida:0);
- return Math.max(extraTotal,extraPontas);
+
+ const trabalhado=trab(p);
+ const carga=j.carga||480;
+ const excedenteTotal=Math.max(0,trabalhado-carga);
+
+ const entradaAntes=Math.max(0,mins(j.entrada)-mins(p.entrada));
+ const saidaDepois=Math.max(0,mins(p.saida)-mins(j.saida));
+
+ const pausaPrevista=Math.max(0,mins(j.retornoAlmoco)-mins(j.saidaAlmoco));
+ const pausaReal=Math.max(0,mins(p.retorno_almoco)-mins(p.saida_almoco));
+ const almocoMenor=Math.max(0,pausaPrevista-pausaReal);
+
+ const extraPorRegra=
+  (entradaAntes>TOLERANCIA_EXTRA_MIN?entradaAntes:0)+
+  (saidaDepois>TOLERANCIA_EXTRA_MIN?saidaDepois:0)+
+  almocoMenor;
+
+ return Math.max(excedenteTotal,extraPorRegra);
 };
 
  const devidaDia=(p:Ponto)=>{const j=jornadaDo(p);if(ehReposicao(p)||["feriado","folga","atestado","justificado","atestado_parcial","justificado_parcial"].includes(p.tipo_dia||"")||String(p.tipo_dia||"").startsWith("custom:"))return 0;const carga=j.carga||480;if(faltaIntegral(p))return p.apresentou_atestado?0:carga;if(fimSemana(p.data))return 0;const faltaMin=Math.max(0,carga-trab(p));if(faltaParcial(p)&&p.apresentou_atestado)return 0;const tolerancia=Math.max(j.tolEntrada,j.tolSaida);return faltaMin<=tolerancia?0:faltaMin};
@@ -277,7 +294,7 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
 
  const extrasRestantes=Math.max(0,creditoDepoisSaldoAnterior-resumoBruto.devidas);
 
- const resumo={...resumoBruto,extras:extrasRestantes,devidas:saldoAnteriorRestante+devidasMesAtualRestante,creditos:saldoAnteriorCredito,creditosDisponiveis:saldoAnteriorCredito,compensado:compensadoSaldoAnterior+compensadoMesAtual};
+ const resumo={...resumoBruto,extras:extrasRestantes,devidas:saldoAnteriorRestante+devidasMesAtualRestante,creditos:0,creditosDisponiveis:0,compensado:compensadoSaldoAnterior+compensadoMesAtual};
 
  const saldoLiquidoMin=resumo.extras-resumo.devidas;
 
@@ -375,45 +392,100 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
 
      const trechoDepoisData=linha.slice((matchData.index||0)+matchData[0].length);
      const temFolgaOuDsr=/\b(folga|dsr)\b/i.test(trechoDepoisData);
+     const temFeriado=/\bferiado\b/i.test(trechoDepoisData);
      const temFalta=/\bfalta\s*:/i.test(trechoDepoisData);
      const temAtraso=/\batraso\s*:/i.test(trechoDepoisData);
 
      /*
        O PDF do Digix também mostra totais como "Trab 03:03" e "Carga Horária 08:00".
        Esses horários NÃO são marcações de ponto.
-       Por isso, usamos os quatro primeiros horários somente quando a linha é um dia trabalhado completo.
-       Folga/DSR e dias com falta ficam como erro na prévia e não são importados automaticamente.
+       Por isso, usamos somente as marcações reais e transformamos faltas em registros
+       de falta do RH, para o saldo não virar crédito indevido para a colaboradora.
      */
-     const trechoAntesOcorrencia=trechoDepoisData.split(/\b(?:HE\s*Diurno|HE\s*Noturno|Atraso|Falta|Folga|DSR|Débito|Credito|Crédito)\b/i)[0]||"";
-     const horas=(trechoAntesOcorrencia.match(/\b\d{1,2}:\d{2}\b/g)||[]).map(horaDigix).filter(Boolean);
+     const trechoAntesOcorrencia=trechoDepoisData.split(/\b(?:HE\s*Diurno|HE\s*Noturno|Atraso|Falta|Folga|DSR|Feriado|Débito|Credito|Crédito)\b/i)[0]||"";
+     const horasBrutas=(trechoAntesOcorrencia.match(/\b\d{1,2}:\d{2}\b/g)||[]).map(horaDigix).filter(Boolean);
+     const horasMarcacoes=(temFalta||temFolgaOuDsr||temFeriado)&&horasBrutas.length>4?horasBrutas.slice(0,-2):horasBrutas;
 
-     const entrada=horas[0]||"";
-     const saidaAlmoco=horas[1]||"";
-     const retorno=horas[2]||"";
-     const saida=horas[3]||"";
-     const jornadaPadrao=vinculos.find(v=>v.colaboradora_id===colaboradoraSelecionada.id)?.jornada_id||jornadaId||jornadas[0]?.id||"";
+     let entrada=horasMarcacoes[0]||"";
+     let saidaAlmoco=horasMarcacoes[1]||"";
+     let retorno=horasMarcacoes[2]||"";
+     let saida=horasMarcacoes[3]||"";
+     let tipoDia="normal";
+     let falta=false;
+     let periodoFalta:string|null=null;
+     let apresentouAtestado=false;
+     let status:"ok"|"erro"="ok";
+     const mensagens:string[]=[];
+     let apagarExistente=true;
+
+     if(data.slice(0,7)!==mesRef){mensagens.push("Fora do mês selecionado");status="erro";apagarExistente=false;}
+
+     if(temFolgaOuDsr){
+      mensagens.push("Folga/DSR — registro antigo será removido e o dia ficará sem lançamento");
+      status="erro";
+      entrada="";saidaAlmoco="";retorno="";saida="";
+     }else if(temFeriado){
+      tipoDia="feriado";
+      entrada="";saidaAlmoco="";retorno="";saida="";
+      mensagens.push("Feriado importado");
+     }else if(temFalta){
+      tipoDia="falta";
+      falta=true;
+      if(horasMarcacoes.length>=2){
+       if(mins(horasMarcacoes[0])>=12*60){
+        periodoFalta="manha";
+        entrada="";
+        saidaAlmoco="";
+        retorno=horasMarcacoes[0]||"";
+        saida=horasMarcacoes[1]||"";
+        mensagens.push("Falta manhã importada");
+       }else{
+        periodoFalta="tarde";
+        entrada=horasMarcacoes[0]||"";
+        saidaAlmoco=horasMarcacoes[1]||"";
+        retorno="";
+        saida="";
+        mensagens.push("Falta tarde importada");
+       }
+      }else{
+       periodoFalta="dia_inteiro";
+       entrada="";
+       saidaAlmoco="";
+       retorno="";
+       saida="";
+       mensagens.push("Falta dia inteiro importada");
+      }
+     }else if(!entrada||!saidaAlmoco||!retorno||!saida){
+      mensagens.push("Horários incompletos — conferir manualmente");
+      status="erro";
+      apagarExistente=false;
+     }else if(temAtraso&&horasMarcacoes.length<4){
+      mensagens.push("Dia com atraso incompleto — conferir manualmente");
+      status="erro";
+      apagarExistente=false;
+     }
+
      const existe=pontos.find(p=>p.colaboradora_id===colaboradoraSelecionada.id&&p.data===data);
-     const erros:string[]=[];
-     if(data.slice(0,7)!==mesRef)erros.push("Fora do mês selecionado");
-     if(temFolgaOuDsr)erros.push("Folga/DSR — não importar");
-     if(temFalta)erros.push("Dia com falta no Digix — conferir manualmente");
-     if(temAtraso&&horas.length<6&&!temFalta)erros.push("Dia com atraso — conferir manualmente");
-     if(!temFolgaOuDsr&&!temFalta&&(!entrada||!saidaAlmoco||!retorno||!saida))erros.push("Horários incompletos");
 
      resultado.push({
       id:`pdf-digix-${idx}`,
       colaboradora_id:colaboradoraSelecionada.id,
       colaboradora_nome:colaboradoraSelecionada.nome,
       data,
-      entrada:temFolgaOuDsr||temFalta?"":entrada,
-      saida_almoco:temFolgaOuDsr||temFalta?"":saidaAlmoco,
-      retorno_almoco:temFolgaOuDsr||temFalta?"":retorno,
-      saida:temFolgaOuDsr||temFalta?"":saida,
-      jornada_id:jornadaPadrao,
-      status:(erros.length?"erro":"ok") as "ok"|"erro",
-      mensagem:erros.join(" · ")||(existe?"Já existe ponto neste dia; será substituído":"Pronto para importar"),
+      entrada,
+      saida_almoco:saidaAlmoco,
+      retorno_almoco:retorno,
+      saida,
+      jornada_id:vinculos.find(v=>v.colaboradora_id===colaboradoraSelecionada.id)?.jornada_id||jornadaId||jornadas[0]?.id||"",
+      status,
+      mensagem:mensagens.join(" · ")||(existe?"Já existe ponto neste dia; será substituído":"Pronto para importar"),
       jaExiste:Boolean(existe),
-      observacao:`Importado do PDF Digix · ${arquivo.name}`
+      observacao:`Importado do PDF Digix · ${arquivo.name}`,
+      tipo_dia:tipoDia,
+      falta,
+      periodo_falta:periodoFalta,
+      apresentou_atestado:apresentouAtestado,
+      apagarExistente,
      });
     });
 
@@ -500,7 +572,12 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
     status:(erros.length?"erro":"ok") as "ok"|"erro",
     mensagem:erros.join(" · ")||(existe?"Já existe ponto neste dia; será substituído":"Pronto para importar"),
     jaExiste:Boolean(existe),
-    observacao:`Importado do Digix${arquivo.name?` · ${arquivo.name}`:""}`
+    observacao:`Importado do Digix${arquivo.name?` · ${arquivo.name}`:""}`,
+    tipo_dia:"normal",
+    falta:false,
+    periodo_falta:null,
+    apresentou_atestado:false,
+    apagarExistente:true
    };
   }).filter(l=>l.data||l.colaboradora_nome||l.entrada||l.saida);
 
@@ -516,40 +593,58 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
   try{
    let salvas=0;
    let ignoradas=0;
+   const colaboradoraImportacao=linhasDoMes[0].colaboradora_id;
+   const [anoRef,mesNumeroRef]=mesRef.split("-").map(Number);
+   const inicioMes=`${mesRef}-01`;
+   const proximoMesData=new Date(anoRef,mesNumeroRef,1,12);
+   const proximoMes=`${proximoMesData.getFullYear()}-${String(proximoMesData.getMonth()+1).padStart(2,"0")}-01`;
+
+   /*
+     Atualização segura:
+     toda vez que importar o PDF do Digix, a competência inteira da colaboradora
+     é apagada e refeita com base no arquivo atual.
+     Assim, registros antigos errados, como Folga/DSR importada como dia trabalhado,
+     não ficam presos na tabela.
+   */
+   const limpar=await sb
+     .from("rh_ponto")
+     .delete()
+     .eq("colaboradora_id",colaboradoraImportacao)
+     .gte("data",inicioMes)
+     .lt("data",proximoMes);
+
+   if(limpar.error)throw limpar.error;
+
+   const limparFechamento=await sb
+     .from("rh_fechamento_ponto")
+     .delete()
+     .eq("colaboradora_id",colaboradoraImportacao)
+     .eq("competencia",mesRef);
+
+   if(limparFechamento.error)throw limparFechamento.error;
 
    for(const linha of linhasDoMes){
-    /*
-      Regra de atualização:
-      sempre que importar um novo espelho do Digix, o dia do arquivo substitui o que já existia.
-      Assim, se antes entrou errado como trabalhado e agora o PDF mostra Folga/DSR/Falta,
-      o registro antigo é removido e só dias válidos são salvos novamente.
-    */
-    const apagar=await sb
-      .from("rh_ponto")
-      .delete()
-      .eq("colaboradora_id",linha.colaboradora_id)
-      .eq("data",linha.data);
-
-    if(apagar.error)throw apagar.error;
-
     if(linha.status!=="ok"){
       ignoradas++;
       continue;
     }
 
+    const tipoDia=linha.tipo_dia||"normal";
+    const ehSemHorario=["feriado","folga","atestado","justificado"].includes(tipoDia)||String(tipoDia).startsWith("custom:")||(tipoDia==="falta"&&linha.periodo_falta==="dia_inteiro");
+
     const payload={
      colaboradora_id:linha.colaboradora_id,
      jornada_id:linha.jornada_id||null,
      data:linha.data,
-     entrada:linha.entrada,
-     saida_almoco:linha.saida_almoco,
-     retorno_almoco:linha.retorno_almoco,
-     saida:linha.saida,
-     falta:false,
-     tipo_dia:"normal",
+     entrada:ehSemHorario?null:(linha.entrada||null),
+     saida_almoco:ehSemHorario?null:(linha.saida_almoco||null),
+     retorno_almoco:ehSemHorario?null:(linha.retorno_almoco||null),
+     saida:ehSemHorario?null:(linha.saida||null),
+     falta:linha.falta||tipoDia==="falta",
+     tipo_dia:tipoDia,
      observacao:linha.observacao,
-     periodo_falta:null,
-     apresentou_atestado:false,
+     periodo_falta:tipoDia==="falta"?linha.periodo_falta||"dia_inteiro":null,
+     apresentou_atestado:tipoDia==="falta"?!!linha.apresentou_atestado:false,
      periodo_reposicao:null,
      data_falta_referencia:null
     };
@@ -561,7 +656,7 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
 
    setModalImportacao(false);
    setLinhasImportacao([]);
-   setMsg(`${salvas} ponto(s) importado(s) do Digix com sucesso. ${ignoradas} dia(s) com folga, DSR, falta ou erro ficaram sem lançamento para conferência manual.`);
+   setMsg(`${salvas} ponto(s) importado(s) do Digix com sucesso. ${ignoradas} linha(s) ficaram sem lançamento para conferência manual. Importamos somente as marcações; horas extras e devedoras foram recalculadas pelo sistema.`);
    await carregar();
   }catch(erro){
    setMsg(erro instanceof Error?erro.message:"Não foi possível importar o arquivo do Digix.");
@@ -569,6 +664,7 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
    setImportandoDigix(false);
   }
  }
+
 
 
  function gerenciarEquipe(j:Jornada){setJornadaEquipe(j);setSelecionados(vinculos.filter(v=>v.jornada_id===j.id).map(v=>v.colaboradora_id));setModalEquipe(true)}
@@ -599,7 +695,7 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
 
   <div><span>Horas extras</span><strong>{hm(resumo.extras)}</strong></div>
 
-  <div><span>Crédito p/ compensar</span><strong>{hm(resumo.creditosDisponiveis)}</strong></div><div><span>Horas devedoras</span><strong>{hm(resumo.devidas)}</strong></div>
+  <div><span>Horas abatidas</span><strong>{hm(resumo.compensado)}</strong></div><div><span>Horas devedoras</span><strong>{hm(resumo.devidas)}</strong></div>
 
   <div><span>Saldo anterior</span><strong>{hm(saldoAnteriorDevedor)}</strong></div>
 
@@ -629,7 +725,7 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
 
  </>}
 
- {modalImportacao&&<div className="bp-bg"><div className="bp-modal bp-modal-importacao"><header><div><b className="bp-modal-eyebrow">IMPORTAÇÃO DIGIX</b><h2>Conferir arquivo de ponto</h2><small>{nomeArquivoDigix||"Arquivo selecionado"} · {linhasImportacao.filter(l=>l.status==="ok").length} linha(s) válida(s)</small></div><button type="button" onClick={()=>setModalImportacao(false)}>×</button></header><div className="bp-importacao-body"><div className="bp-importacao-aviso"><b>Antes de confirmar</b><span>Confira se colaboradora, data e horários foram reconhecidos corretamente. Linhas com erro não serão salvas.</span></div><div className="bp-importacao-table"><table><thead><tr><th>Status</th><th>Colaboradora</th><th>Data</th><th>Entrada</th><th>Almoço</th><th>Retorno</th><th>Saída</th><th>Mensagem</th></tr></thead><tbody>{linhasImportacao.map(l=><tr key={l.id} className={l.status==="ok"?"ok":"erro"}><td>{l.status==="ok"?"✓":"!"}</td><td>{l.colaboradora_nome}</td><td>{br(l.data)}</td><td>{l.entrada||"—"}</td><td>{l.saida_almoco||"—"}</td><td>{l.retorno_almoco||"—"}</td><td>{l.saida||"—"}</td><td>{l.mensagem}</td></tr>)}</tbody></table></div></div><footer><button type="button" onClick={()=>setModalImportacao(false)} disabled={importandoDigix}>Cancelar</button><button type="button" onClick={()=>void confirmarImportacaoDigix()} disabled={importandoDigix||!linhasImportacao.some(l=>l.status==="ok")}>{importandoDigix?"Importando...":"Confirmar importação"}</button></footer></div></div>}
+ {modalImportacao&&<div className="bp-bg"><div className="bp-modal bp-modal-importacao"><header><div><b className="bp-modal-eyebrow">IMPORTAÇÃO DIGIX</b><h2>Conferir arquivo de ponto</h2><small>{nomeArquivoDigix||"Arquivo selecionado"} · {linhasImportacao.filter(l=>l.status==="ok").length} linha(s) válida(s)</small></div><button type="button" onClick={()=>setModalImportacao(false)}>×</button></header><div className="bp-importacao-body"><div className="bp-importacao-aviso"><b>Antes de confirmar</b><span>Confira se colaboradora, data e horários foram reconhecidos corretamente. Linhas com erro não serão salvas; folgas e DSR removem registros antigos do dia.</span></div><div className="bp-importacao-table"><table><thead><tr><th>Status</th><th>Colaboradora</th><th>Data</th><th>Entrada</th><th>Almoço</th><th>Retorno</th><th>Saída</th><th>Mensagem</th></tr></thead><tbody>{linhasImportacao.map(l=><tr key={l.id} className={l.status==="ok"?"ok":"erro"}><td>{l.status==="ok"?"✓":"!"}</td><td>{l.colaboradora_nome}</td><td>{br(l.data)}</td><td>{l.entrada||"—"}</td><td>{l.saida_almoco||"—"}</td><td>{l.retorno_almoco||"—"}</td><td>{l.saida||"—"}</td><td>{l.mensagem}</td></tr>)}</tbody></table></div></div><footer><button type="button" onClick={()=>setModalImportacao(false)} disabled={importandoDigix}>Cancelar</button><button type="button" onClick={()=>void confirmarImportacaoDigix()} disabled={importandoDigix||!linhasImportacao.some(l=>l.status==="ok")}>{importandoDigix?"Importando...":"Confirmar importação"}</button></footer></div></div>}
 
  {modalFechamento&&pessoa&&<div className="bp-bg"><div className="bp-modal bp-modal-fechamento">
 
