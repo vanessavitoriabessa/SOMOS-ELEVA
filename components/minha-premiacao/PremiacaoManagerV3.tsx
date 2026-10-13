@@ -7,6 +7,8 @@ import MinhaPremiacaoV2, {
   SaquePremiacao,
 } from "./MinhaPremiacaoV2";
 
+const TODOS_CONSULTORES = "__TODOS__";
+
 type PropostaCompra = {
   id: string;
   cliente: string;
@@ -103,7 +105,17 @@ function normalizar(valor: string) {
     .toLowerCase();
 }
 
-
+function nomesCorrespondem(a: string, b: string) {
+  const x = normalizar(a);
+  const y = normalizar(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const px = x.split(/\s+/).filter(Boolean);
+  const py = y.split(/\s+/).filter(Boolean);
+  const menor = px.length <= py.length ? px : py;
+  const maior = px.length <= py.length ? py : px;
+  return menor.every((parte, indice) => maior[indice] === parte);
+}
 
 function dataLocal(valor?: string) {
   if (!valor) return null;
@@ -129,27 +141,6 @@ function dataLocal(valor?: string) {
 function chaveMes(data: Date | null) {
   if (!data || Number.isNaN(data.getTime())) return "";
   return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}`;
-}
-
-
-
-function nomesCorrespondem(a?: string | null, b?: string | null) {
-  const na = normalizar(String(a || ""));
-  const nb = normalizar(String(b || ""));
-  if (!na || !nb) return false;
-  if (na === nb) return true;
-
-  const tokensA = na.split(/\s+/).filter(Boolean);
-  const tokensB = nb.split(/\s+/).filter(Boolean);
-  const comuns = tokensA.filter((token) => token.length >= 3 && tokensB.includes(token));
-
-  // Nome + sobrenome em comum já identifica a consultora com segurança suficiente
-  // para compatibilizar cadastros antigos/abreviados.
-  if (comuns.length >= 2) return true;
-
-  const menor = na.length <= nb.length ? na : nb;
-  const maior = na.length > nb.length ? na : nb;
-  return menor.length >= 5 && maior.includes(menor);
 }
 
 function competenciaAtual() {
@@ -332,74 +323,6 @@ function faixaFallback(
   };
 }
 
-function premioCltCoordenacao(valorBrutoPago: number) {
-  const faixas = [
-    [10000000,5000],[9000000,4000],[8000000,3500],[7000000,3000],
-    [6000000,2500],[5000000,2000],[4000000,1500],[3000000,1000],
-    [2000000,500],[1500000,300],
-  ] as const;
-  return faixas.find(([min]) => valorBrutoPago >= min)?.[1] || 0;
-}
-
-function faixaCompraCoordenacaoFallback(producao: number): FaixaPremiacao | null {
-  const faixas = [
-    [1000000, Number.POSITIVE_INFINITY, 12000, "META R$ 1 MILHÃO"],
-    [900000, 999999.99, 10000, "META R$ 900 MIL"],
-    [800000, 899999.99, 9000, "META R$ 800 MIL"],
-    [700000, 799999.99, 8000, "META R$ 700 MIL"],
-    [600000, 699999.99, 7000, "META R$ 600 MIL"],
-    [500000, 599999.99, 5000, "META R$ 500 MIL"],
-    [400000, 499999.99, 4000, "META R$ 400 MIL"],
-    [350000, 399999.99, 3500, "META R$ 350 MIL"],
-    [300000, 349999.99, 3000, "META R$ 300 MIL"],
-    [280000, 299999.99, 2800, "META R$ 280 MIL"],
-    [260000, 279999.99, 2500, "META R$ 260 MIL"],
-    [240000, 259999.99, 2200, "META R$ 240 MIL"],
-    [220000, 239999.99, 2000, "META R$ 220 MIL"],
-    [200000, 219999.99, 1800, "META R$ 200 MIL"],
-    [180000, 199999.99, 1600, "META R$ 180 MIL"],
-    [160000, 179999.99, 1400, "META R$ 160 MIL"],
-    [140000, 159999.99, 1200, "META R$ 140 MIL"],
-    [120000, 139999.99, 1000, "META R$ 120 MIL"],
-    [90000, 119999.99, 900, "META R$ 90 MIL"],
-    [80000, 89999.99, 800, "META R$ 80 MIL"],
-    [70000, 79999.99, 700, "META R$ 70 MIL"],
-    [60000, 69999.99, 600, "META R$ 60 MIL"],
-    [50000, 59999.99, 500, "META R$ 50 MIL"],
-    [40000, 49999.99, 400, "META R$ 40 MIL"],
-    [30000, 39999.99, 300, "META R$ 30 MIL"],
-  ] as const;
-  const f = faixas.find(([min,max]) => producao >= min && producao <= max);
-  return f ? {
-    id:`fallback-coordenacao-${f[0]}`, plano_id:"fallback-coordenacao", ordem:0,
-    nome_faixa:f[3], valor_min:f[0], valor_max:Number.isFinite(f[1])?f[1]:null,
-    tipo_recompensa:"PONTOS", valor_recompensa:f[2], bonus_reais:0, ativo:true,
-  } : null;
-}
-
-function faixaSupervisaoFallback(producao: number) {
-  const faixas = [
-    [2000000,2500,"META R$ 2 MILHÕES"],[1500000,2000,"META R$ 1,5 MILHÃO"],
-    [1200000,1500,"META R$ 1,2 MILHÃO"],[1000000,1200,"META R$ 1 MILHÃO"],
-    [800000,800,"META R$ 800 MIL"],[500000,500,"META R$ 500 MIL"],
-  ] as const;
-  const f=faixas.find(([min])=>producao>=min);
-  return f
-    ? ({
-        id: `fallback-supervisao-${f[0]}`,
-        plano_id: "fallback-supervisao",
-        ordem: 0,
-        nome_faixa: f[2],
-        valor_min: f[0],
-        valor_max: null,
-        tipo_recompensa: "PONTOS",
-        valor_recompensa: f[1],
-        bonus_reais: 0,
-        ativo: true,
-      } satisfies FaixaPremiacao)
-    : null;
-}
-
 function mergePropostasComLocal(api: PropostaCompra[]) {
   let locais: any[] = [];
 
@@ -426,9 +349,9 @@ function mergePropostasComLocal(api: PropostaCompra[]) {
       locais.find(
         (item) =>
           normalizar(String(item?.cliente || "")) ===
-            normalizar(String(proposta.cliente || "")) &&
+            normalizar(proposta.cliente) &&
           normalizar(String(item?.vendedora || item?.consultora || "")) ===
-            normalizar(String(proposta.vendedora || "")),
+            normalizar(proposta.vendedora),
       );
 
     if (!local) return proposta;
@@ -455,20 +378,14 @@ function mergePropostasComLocal(api: PropostaCompra[]) {
         Number(proposta.comissao || 0) > 0
           ? Number(proposta.comissao)
           : Number(local.comissao || 0),
-      dataCadastro:
-        proposta.dataCadastro || String(local.dataCadastro || local.criadoEm || ""),
       dataPagamento:
         proposta.dataPagamento || String(local.dataPagamento || ""),
-      vendedora:
-        proposta.vendedora || String(local.vendedora || local.consultora || ""),
-      status:
-        proposta.status || String(local.status || ""),
     };
   });
 }
 
 
-function PremiacaoManagerV3() {
+export default function PremiacaoManagerV3() {
   const supabase = useMemo(() => createClient(), []);
 
   const [carregando, setCarregando] = useState(true);
@@ -487,8 +404,6 @@ function PremiacaoManagerV3() {
   const [saques, setSaques] = useState<SaquePremiacao[]>([]);
   const [previsoesLiberadas, setPrevisoesLiberadas] =
     useState<PrevisaoLiberada[]>([]);
-  const [custoEmpresaCompetencia, setCustoEmpresaCompetencia] = useState(0);
-  const [quantidadeVendedorasAtivas, setQuantidadeVendedorasAtivas] = useState(1);
 
   const [usuarioLogadoId, setUsuarioLogadoId] = useState("");
   const [nomeLogado, setNomeLogado] = useState("");
@@ -606,85 +521,7 @@ function PremiacaoManagerV3() {
         // Mantém a lista local caso o cadastro permanente do RH não esteja disponível.
       }
 
-      const nomeVanessa = "Vanessa Vitoria Nunes de Bessa";
-      const indiceVanessa = listaUsuarios.findIndex((u) =>
-        normalizar(String(u.nome || "")).includes("vanessa")
-      );
-
-      if (indiceVanessa >= 0) {
-        listaUsuarios[indiceVanessa] = {
-          ...listaUsuarios[indiceVanessa],
-          nome: nomeVanessa,
-          perfil: "Coordenadora",
-          cargo: "Coordenadora",
-        };
-      } else {
-        listaUsuarios.push({
-          id: "vanessa-coordenadora",
-          nome: nomeVanessa,
-          perfil: "Coordenadora",
-          cargo: "Coordenadora",
-        });
-      }
       setUsuarios(listaUsuarios);
-
-      const qtdVendedoras = Math.max(
-        listaUsuarios.filter((u) => perfilVendas(String(u.perfil || u.cargo || ""))).length,
-        1,
-      );
-      setQuantidadeVendedorasAtivas(qtdVendedoras);
-
-      try {
-        const inicioMes = `${competencia}-01`;
-        const [anoCusto, mesCusto] = competencia.split("-").map(Number);
-        const fimMes = `${competencia}-${String(new Date(anoCusto, mesCusto, 0).getDate()).padStart(2, "0")}`;
-
-        const [
-          { data: saidasData },
-          { data: despesasFixasData },
-          { data: pagamentosFixosData },
-          { data: folhasData },
-          { data: saquesPagosData },
-        ] = await Promise.all([
-          supabase.from("movimentos_financeiros").select("id, categoria, valor, data")
-            .eq("tipo", "Saída").gte("data", inicioMes).lte("data", fimMes),
-          supabase.from("despesas_recorrentes")
-            .select("id, valor, inicio_competencia, fim_competencia, ativo"),
-          supabase.from("despesas_recorrentes_pagamentos")
-            .select("despesa_recorrente_id, movimento_id, competencia, valor_pago")
-            .eq("competencia", competencia),
-          supabase.from("folha_pagamentos").select("total_mensal, competencia")
-            .eq("competencia", competencia),
-          supabase.from("pontos_saques")
-            .select("valor_reais, pontos_solicitados, status, processado_em")
-            .eq("status", "PAGO"),
-        ]);
-
-        const pagamentosFixos = Array.isArray(pagamentosFixosData) ? pagamentosFixosData : [];
-        const idsFixos = new Set(pagamentosFixos.map((p:any)=>String(p.movimento_id||"")).filter(Boolean));
-
-        const outrasSaidas = (Array.isArray(saidasData) ? saidasData : [])
-          .filter((m:any)=>!idsFixos.has(String(m.id||"")))
-          .filter((m:any)=>normalizar(String(m.categoria||"")) !== "folha de pagamento")
-          .reduce((t:number,m:any)=>t+Number(m.valor||0),0);
-
-        const fixasPrevistas = (Array.isArray(despesasFixasData) ? despesasFixasData : [])
-          .filter((d:any)=>d.ativo!==false &&
-            competencia>=String(d.inicio_competencia||"") &&
-            (!d.fim_competencia || competencia<=String(d.fim_competencia)))
-          .reduce((t:number,d:any)=>t+Number(d.valor||0),0);
-
-        const folhaMes = (Array.isArray(folhasData) ? folhasData : [])
-          .reduce((t:number,f:any)=>t+Number(f.total_mensal||0),0);
-
-        const premiacoesPagas = (Array.isArray(saquesPagosData) ? saquesPagosData : [])
-          .filter((s:any)=>String(s.processado_em||"").slice(0,7)===competencia)
-          .reduce((t:number,s:any)=>t+Number(s.valor_reais||s.pontos_solicitados||0),0);
-
-        setCustoEmpresaCompetencia(outrasSaidas + fixasPrevistas + folhaMes + premiacoesPagas);
-      } catch {
-        setCustoEmpresaCompetencia(0);
-      }
 
       const login = localStorage.getItem("somos-eleva-usuario") || "";
       const matricula =
@@ -744,10 +581,9 @@ function PremiacaoManagerV3() {
         );
       }
 
-      const propostasApiBrutas = Array.isArray(conteudoPropostas.propostas)
+      const propostasApi = Array.isArray(conteudoPropostas.propostas)
         ? (conteudoPropostas.propostas as PropostaCompra[])
         : [];
-      const propostasApi = mergePropostasComLocal(propostasApiBrutas);
 
       // Mantém exatamente os valores que a Gestão de Propostas recebeu:
       // valorContrato, valorMeta, percentualTabela, comissao, status,
@@ -757,14 +593,9 @@ function PremiacaoManagerV3() {
       setTabelasConfiguradas([]);
 
       const [anoComp, mesComp] = competencia.split("-").map(Number);
-      const mesProdCompraApi = new Date(anoComp, mesComp - 2, 1);
-      const competenciaCompraApi = `${mesProdCompraApi.getFullYear()}-${String(
-        mesProdCompraApi.getMonth() + 1,
-      ).padStart(2, "0")}`;
-      const limiteComp = new Date(anoComp, mesComp - 1, 19, 23, 59, 59);
+      const limiteComp = new Date(anoComp, mesComp, 19, 23, 59, 59);
       const daCompetencia = propostasApi.filter(
-        (proposta) =>
-          chaveMes(dataLocal(proposta.dataCadastro)) === competenciaCompraApi,
+        (proposta) => chaveMes(dataLocal(proposta.dataCadastro)) === competencia,
       );
       const pagasNoPrazo = daCompetencia.filter((proposta) => {
         if (normalizar(proposta.status) !== "pago") return false;
@@ -773,7 +604,7 @@ function PremiacaoManagerV3() {
       });
 
       setDiagnosticoApi(
-        `Fonte Gestão de Propostas / Compra: ${daCompetencia.length} digitada(s) em ${competenciaCompraApi} e ${pagasNoPrazo.length} paga(s) até dia 19 de ${competencia}.`,
+        `Fonte Gestão de Propostas: ${daCompetencia.length} digitada(s) em ${competencia} e ${pagasNoPrazo.length} paga(s) até dia 19 do mês seguinte.`,
       );
 
       const [
@@ -940,8 +771,6 @@ function PremiacaoManagerV3() {
     propostas.forEach((proposta) => adicionar(String(proposta.vendedora || "")));
     clt.forEach((registro) => adicionar(String(registro.consultora || "")));
 
-    adicionar("Vanessa Vitoria Nunes de Bessa");
-
     if (!ehGestor && nomeLogado) {
       return [canonico(nomeLogado) || nomeLogado];
     }
@@ -956,10 +785,16 @@ function PremiacaoManagerV3() {
       return;
     }
 
-    // Para gestor, inicializa a primeira colaboradora apenas uma vez.
-    // Não sobrescreve uma seleção feita manualmente no seletor.
-    if (!consultoraSelecionada) {
-      setConsultoraSelecionada(nomesConsultoras[0] || "");
+    if (
+      consultoraSelecionada !== TODOS_CONSULTORES &&
+      (
+        !consultoraSelecionada ||
+        !nomesConsultoras.some(
+          (nome) => normalizar(nome) === normalizar(consultoraSelecionada),
+        )
+      )
+    ) {
+      setConsultoraSelecionada(TODOS_CONSULTORES);
     }
   }, [
     ehGestor,
@@ -969,6 +804,8 @@ function PremiacaoManagerV3() {
   ]);
 
   const usuarioSelecionado = useMemo(() => {
+    if (ehGestor && consultoraSelecionada === TODOS_CONSULTORES) return null;
+
     const nome = ehGestor ? consultoraSelecionada : nomeLogado;
     const chave = normalizar(nome);
 
@@ -977,14 +814,7 @@ function PremiacaoManagerV3() {
       usuarios.find((usuario) =>
         nomesCorrespondem(String(usuario.nome || ""), nome),
       ) ||
-      (chave.includes("vanessa")
-        ? {
-            id: "vanessa-coordenadora",
-            nome: "Vanessa Vitoria Nunes de Bessa",
-            perfil: "Coordenadora",
-            cargo: "Coordenadora",
-          }
-        : null)
+      null
     );
   }, [usuarios, ehGestor, consultoraSelecionada, nomeLogado]);
 
@@ -1111,33 +941,33 @@ function PremiacaoManagerV3() {
     !selecionadoEhVinicius &&
     !selecionadoEhSupervisao &&
     perfilOperacional(perfilSelecionado);
-  const selecionadoEhCoordenacao =
-    nomeSelecionadoNormalizado.includes("vanessa") ||
-    perfilCoordenacao(perfilSelecionado);
+  const selecionadoEhCoordenacao = perfilCoordenacao(perfilSelecionado);
 
   const resumo = useMemo(() => {
     const nome = ehGestor ? consultoraSelecionada : nomeLogado;
     const chave = normalizar(nome);
 
     // COMPETÊNCIA DA COMPRA:
-    // A competência selecionada na tela é o MÊS DO PAGAMENTO DA PREMIAÇÃO.
-    // Ex.: SETEMBRO/2026 => Compra digitada de 01/08 a 31/08 e paga até 19/09.
-    const [anoCompetencia, mesCompetencia] = competencia.split("-").map(Number);
-    const mesProducaoCompra = new Date(anoCompetencia, mesCompetencia - 2, 1);
-    const competenciaCompra = `${mesProducaoCompra.getFullYear()}-${String(
-      mesProducaoCompra.getMonth() + 1,
-    ).padStart(2, "0")}`;
-
+    // 1) nasce pela data de digitação;
+    // 2) continua pertencendo a esse mês se o pagamento ocorrer até dia 19
+    //    do mês seguinte;
+    // 3) apenas status PAGO entra em produção/pontuação.
     const propostasDigitadas = propostas.filter((proposta) => {
       return (
-        nomesCorrespondem(String(proposta.vendedora || ""), String(nome || "")) &&
-        chaveMes(dataLocal(proposta.dataCadastro)) === competenciaCompra
+        normalizar(proposta.vendedora) === chave &&
+        chaveMes(dataLocal(proposta.dataCadastro)) === competencia
       );
     });
 
+    const [anoCompetencia, mesCompetencia] = competencia
+      .split("-")
+      .map(Number);
+
+    // JS usa mês base zero; mesCompetencia já é 1..12.
+    // Ex.: competência 2026-08 -> new Date(2026, 8, 19) = 19/09/2026.
     const limitePagamentoCompra = new Date(
       anoCompetencia,
-      mesCompetencia - 1,
+      mesCompetencia,
       19,
       23,
       59,
@@ -1155,6 +985,204 @@ function PremiacaoManagerV3() {
       },
     );
 
+    if (ehGestor && consultoraSelecionada === TODOS_CONSULTORES) {
+      const nomesBase = nomesConsultoras.filter((nome) => nome && nome !== TODOS_CONSULTORES);
+
+      const pertenceAoGrupo = (nomeBruto: string) =>
+        nomesBase.some((nome) => nomesCorrespondem(nomeBruto, nome));
+
+      const propostasDigitadasTodos = propostas.filter(
+        (proposta) =>
+          pertenceAoGrupo(String(proposta.vendedora || "")) &&
+          chaveMes(dataLocal(proposta.dataCadastro)) === competencia,
+      );
+
+      const propostasPagasTodos = propostasDigitadasTodos.filter((proposta) => {
+        if (normalizar(proposta.status) !== "pago") return false;
+        const pagamento = dataLocal(proposta.dataPagamento);
+        return Boolean(pagamento && pagamento <= limitePagamentoCompra);
+      });
+
+      const registrosCltPagosTodos = clt.filter((registro) => {
+        const data = dataLocal(
+          registro.dataPagamento ||
+            registro.atualizadoEm ||
+            registro.criadoEm,
+        );
+
+        return (
+          normalizar(registro.status) === "pago" &&
+          pertenceAoGrupo(String(registro.consultora || "")) &&
+          chaveMes(data) === competencia
+        );
+      });
+
+      const pontosPorConsultora = nomesBase.map((nomeConsultora) => {
+        const chavePessoa = normalizar(nomeConsultora);
+
+        const comprasPessoa = propostasPagasTodos.filter(
+          (proposta) =>
+            normalizar(proposta.vendedora) === chavePessoa ||
+            nomesCorrespondem(String(proposta.vendedora || ""), nomeConsultora),
+        );
+
+        const cltPessoa = registrosCltPagosTodos.filter(
+          (registro) =>
+            normalizar(registro.consultora) === chavePessoa ||
+            nomesCorrespondem(String(registro.consultora || ""), nomeConsultora),
+        );
+
+        const producaoCompraPessoa = comprasPessoa.reduce(
+          (total, proposta) => total + valorValidoProposta(proposta),
+          0,
+        );
+
+        const producaoCltPessoa = cltPessoa.reduce(
+          (total, registro) => total + Number(registro.parcela || 0),
+          0,
+        );
+
+        const faixaCompraPessoa =
+          faixaDoPlano(planoCompra, faixas, producaoCompraPessoa) ||
+          faixaFallback("COMPRA", producaoCompraPessoa);
+
+        const faixaCltPessoa =
+          faixaDoPlano(planoClt, faixas, producaoCltPessoa) ||
+          faixaFallback("CLT", producaoCltPessoa);
+
+        const premioCompraPessoa = recompensaFaixa(faixaCompraPessoa as any);
+        const premioCltBasePessoa = recompensaFaixa(faixaCltPessoa as any);
+
+        const minimoCltPessoa = Number(planoClt?.parametros?.clt_minimo || 20000);
+        const limiteCompraPessoa = Number(
+          planoClt?.parametros?.compra_abaixo_minimo_pontos?.limite_compra ||
+            30000,
+        );
+        const percentualCompraComCltPessoa = Number(
+          planoClt?.parametros?.compra_abaixo_minimo_pontos
+            ?.percentual_premiacao_compra || 1,
+        );
+
+        const complementoPessoa =
+          producaoCltPessoa >= minimoCltPessoa &&
+          producaoCompraPessoa > 0 &&
+          producaoCompraPessoa < limiteCompraPessoa
+            ? producaoCompraPessoa * (percentualCompraComCltPessoa / 100)
+            : 0;
+
+        return {
+          compra: premioCompraPessoa,
+          clt: premioCltBasePessoa + complementoPessoa,
+          complemento: complementoPessoa,
+        };
+      });
+
+      const producaoCompraTodos = propostasPagasTodos.reduce(
+        (total, proposta) => total + valorValidoProposta(proposta),
+        0,
+      );
+
+      const producaoCltTodos = registrosCltPagosTodos.reduce(
+        (total, registro) => total + Number(registro.parcela || 0),
+        0,
+      );
+
+      const movimentosTodos: MovimentoPremiacao[] = [
+        ...propostasPagasTodos.map((proposta) => ({
+          id: `todos-compra-${proposta.id}`,
+          propostaId: proposta.id,
+          produto: "Compra de Dívida" as const,
+          cliente: proposta.cliente || "Cliente",
+          descricao: `${proposta.vendedora || "Consultor(a)"} • ${proposta.tabela || "Compra de Dívida"}`,
+          data: proposta.dataPagamento || proposta.dataCadastro,
+          banco: proposta.banco || "",
+          tabela: proposta.tabela || "",
+          valorContrato: Number(proposta.valorContrato || 0),
+          pesoTabela: pesoProposta(proposta),
+          producaoValida: valorValidoProposta(proposta),
+          comissaoEmpresa: comissaoEmpresaProposta(proposta),
+          valorParcelaClt: 0,
+        })),
+        ...registrosCltPagosTodos.map((registro) => ({
+          id: `todos-clt-${registro.id}`,
+          propostaId: registro.id,
+          produto: "CLT" as const,
+          cliente: registro.nome || "Cliente CLT",
+          descricao: `${registro.consultora || "Consultor(a)"} • Parcela CLT`,
+          data:
+            registro.dataPagamento ||
+            registro.atualizadoEm ||
+            registro.criadoEm ||
+            "",
+          banco: "",
+          tabela: "",
+          valorContrato: 0,
+          pesoTabela: 0,
+          producaoValida: Number(registro.parcela || 0),
+          comissaoEmpresa: 0,
+          valorParcelaClt: Number(registro.parcela || 0),
+        })),
+      ].sort((a, b) => {
+        const dataA = dataLocal(a.data)?.getTime() || 0;
+        const dataB = dataLocal(b.data)?.getTime() || 0;
+        return dataB - dataA;
+      });
+
+      const propostasAguardandoTodos = propostasDigitadasTodos.filter(
+        (proposta) => normalizar(proposta.status) !== "pago",
+      );
+
+      return {
+        nome: "Todos os consultores",
+        propostasPagas: propostasPagasTodos,
+        registrosCltPagos: registrosCltPagosTodos,
+        movimentos: movimentosTodos,
+        producaoCompra: producaoCompraTodos,
+        producaoClt: producaoCltTodos,
+        producaoDigitada: producaoCompraTodos + producaoCltTodos,
+        producaoEmFormacao: propostasAguardandoTodos.reduce(
+          (total, proposta) => total + Number(proposta.valorContrato || 0),
+          0,
+        ),
+        valorPagoBruto: propostasPagasTodos.reduce(
+          (total, proposta) => total + Number(proposta.valorContrato || 0),
+          0,
+        ),
+        comissaoEmpresa: propostasPagasTodos.reduce(
+          (total, proposta) => total + comissaoEmpresaProposta(proposta),
+          0,
+        ),
+        faixaCompra: { nome_faixa: "Resultado de todos" },
+        faixaClt: { nome_faixa: "Resultado de todos" },
+        pontosCompraPrevistos: pontosPorConsultora.reduce(
+          (total, item) => total + item.compra,
+          0,
+        ),
+        pontosCltPrevistos: pontosPorConsultora.reduce(
+          (total, item) => total + item.clt,
+          0,
+        ),
+        complementoCompraComClt: pontosPorConsultora.reduce(
+          (total, item) => total + item.complemento,
+          0,
+        ),
+        totalPrevisto: pontosPorConsultora.reduce(
+          (total, item) => total + item.compra + item.clt,
+          0,
+        ),
+        contratosDigitados:
+          propostasDigitadasTodos.length + registrosCltPagosTodos.length,
+        contratosConfirmados:
+          propostasPagasTodos.length + registrosCltPagosTodos.length,
+        contratosEmFormacao: propostasAguardandoTodos.length,
+        contratosForaPrazo: propostasDigitadasTodos.filter((proposta) => {
+          if (normalizar(proposta.status) !== "pago") return false;
+          const pagamento = dataLocal(proposta.dataPagamento);
+          return Boolean(pagamento && pagamento > limitePagamentoCompra);
+        }).length,
+      };
+    }
+
     const registrosCltPagos = clt.filter((registro) => {
       const data = dataLocal(
         registro.dataPagamento ||
@@ -1164,7 +1192,7 @@ function PremiacaoManagerV3() {
 
       return (
         normalizar(registro.status) === "pago" &&
-        nomesCorrespondem(String(registro.consultora || ""), String(nome || "")) &&
+        normalizar(registro.consultora) === chave &&
         chaveMes(data) === competencia
       );
     });
@@ -1179,7 +1207,7 @@ function PremiacaoManagerV3() {
     if (selecionadoEhSupervisao) {
       const propostasEmpresaDigitadas = propostas.filter(
         (proposta) =>
-          chaveMes(dataLocal(proposta.dataCadastro)) === competenciaCompra,
+          chaveMes(dataLocal(proposta.dataCadastro)) === competencia,
       );
 
       const propostasEmpresaPagas = propostasEmpresaDigitadas.filter(
@@ -1218,9 +1246,11 @@ function PremiacaoManagerV3() {
       const producaoTotalSupervisao =
         producaoCompraEquipe + producaoCltEquipe;
 
-      const faixaSupervisao =
-        faixaDoPlano(planoSupervisao, faixas, producaoTotalSupervisao) ||
-        faixaSupervisaoFallback(producaoTotalSupervisao);
+      const faixaSupervisao = faixaDoPlano(
+        planoSupervisao,
+        faixas,
+        producaoTotalSupervisao,
+      );
 
       const premioSupervisao = recompensaFaixa(faixaSupervisao);
 
@@ -1333,7 +1363,7 @@ function PremiacaoManagerV3() {
 
       const propostasEmpresaDigitadas = propostas.filter(
         (proposta) =>
-          chaveMes(dataLocal(proposta.dataCadastro)) === competenciaCompra,
+          chaveMes(dataLocal(proposta.dataCadastro)) === competencia,
       );
 
       const propostasEmpresaPagas = propostasEmpresaDigitadas.filter(
@@ -1444,7 +1474,7 @@ function PremiacaoManagerV3() {
 
     if (selecionadoEhOperacional) {
       const digitadasEmpresa = propostas.filter(
-        (p) => chaveMes(dataLocal(p.dataCadastro)) === competenciaCompra,
+        (p) => chaveMes(dataLocal(p.dataCadastro)) === competencia,
       );
       const pagasEmpresa = digitadasEmpresa.filter((p) => {
         if (normalizar(p.status) !== "pago") return false;
@@ -1479,10 +1509,6 @@ function PremiacaoManagerV3() {
         producaoValida: valorValidoProposta(p),
         comissaoEmpresa: comissaoEmpresaProposta(p),
         valorParcelaClt: 0,
-        dataDigitacao: p.dataCadastro || "",
-        dataPagamento: p.dataPagamento || "",
-        valorBruto: Number(p.valorContrato || 0),
-        percentualVendedor: pesoProposta(p),
       }));
 
       return {
@@ -1517,57 +1543,37 @@ function PremiacaoManagerV3() {
 
     if (selecionadoEhCoordenacao) {
       const digitadasEmpresa = propostas.filter(
-        (p) => chaveMes(dataLocal(p.dataCadastro)) === competenciaCompra,
+        (p) => chaveMes(dataLocal(p.dataCadastro)) === competencia,
       );
       const pagasEmpresa = digitadasEmpresa.filter((p) => {
         if (normalizar(p.status) !== "pago") return false;
         const pagamento = dataLocal(p.dataPagamento);
         return Boolean(pagamento && pagamento <= limitePagamentoCompra);
       });
-      // VANESSA / COORDENAÇÃO:
-      // A competência exibida (ex.: setembro/2026) é a competência de pagamento da premiação.
-      // A produção-base é o MÊS ANTERIOR (competenciaCompra; ex.: agosto/2026).
-      // Para CLT, reproduzir o filtro da tela CLT:
-      // status PAGO + dataPagamento dentro do mês de produção + soma de valorAprovado.
       const cltEmpresaPago = clt.filter((r) => {
-        const dataPagamento = dataLocal(r.dataPagamento);
-        return (
-          normalizar(r.status) === "pago" &&
-          chaveMes(dataPagamento) === competenciaCompra
-        );
+        const data = dataLocal(r.dataPagamento || r.atualizadoEm || r.criadoEm);
+        return normalizar(r.status) === "pago" && chaveMes(data) === competencia;
       });
       const compraEmpresa = pagasEmpresa.reduce(
         (total, p) => total + valorValidoProposta(p), 0
       );
-      // VANESSA / COORDENAÇÃO:
-      // CLT entra pelo VALOR BRUTO/LIBERADO das operações CLT PAGAS da empresa
-      // na competência. NÃO usar a soma das parcelas.
-      const cltBrutoEmpresa = cltEmpresaPago.reduce(
+      const cltEmpresa = cltEmpresaPago.reduce(
         (total, r) => total + Number(r.valorAprovado || 0),
         0,
       );
       const metaClt = Number(
         planoCoordenacao?.parametros?.meta_clt_empresa || 1500000,
       );
-      const bateuMetaClt = cltBrutoEmpresa >= metaClt;
-      // Se a empresa bateu R$ 1,5 milhão no CLT, Vanessa NÃO precisa
-      // cumprir uma meta mínima de Compra: recebe pela faixa correspondente
-      // ao total líquido que a empresa vendeu em Compra.
-      // Sem a meta CLT, a Compra só ativa a partir de R$ 260 mil.
-      const minimoCompraSemMetaClt = Number(
-        planoCoordenacao?.parametros?.compra_minima_sem_meta_clt || 260000,
-      );
-      const compraHabilitada = bateuMetaClt || compraEmpresa >= minimoCompraSemMetaClt;
-      const faixaCoordPlano = compraHabilitada
-        ? faixaDoPlano(planoCoordenacao, faixas, compraEmpresa)
-        : null;
-      const faixaCoordFallback = compraHabilitada && !faixaCoordPlano
-        ? faixaCompraCoordenacaoFallback(compraEmpresa)
-        : null;
-      const faixaCoord: FaixaPremiacao | null =
-        faixaCoordPlano || faixaCoordFallback;
+      const bateuMetaClt = cltEmpresa >= metaClt;
+      const minimoCompra = bateuMetaClt
+        ? Number(planoCoordenacao?.parametros?.compra_minima_com_meta_clt || 30000)
+        : Number(planoCoordenacao?.parametros?.compra_minima_sem_meta_clt || 260000);
+      const faixaCoord =
+        compraEmpresa >= minimoCompra
+          ? faixaDoPlano(planoCoordenacao, faixas, compraEmpresa)
+          : null;
       const premioCompraCoord = recompensaFaixa(faixaCoord);
-      const bonusClt = premioCltCoordenacao(cltBrutoEmpresa);
+      const bonusClt = bateuMetaClt ? 300 : 0;
 
       const movimentosCoord: MovimentoPremiacao[] = [
         ...pagasEmpresa.map((p) => ({
@@ -1608,7 +1614,7 @@ function PremiacaoManagerV3() {
         registrosCltPagos: cltEmpresaPago,
         movimentos: movimentosCoord,
         producaoCompra: compraEmpresa,
-        producaoClt: cltBrutoEmpresa,
+        producaoClt: cltEmpresa,
         producaoDigitada: compraEmpresa,
         producaoEmFormacao: 0,
         valorPagoBruto: pagasEmpresa.reduce(
@@ -1616,7 +1622,7 @@ function PremiacaoManagerV3() {
         ),
         comissaoEmpresa: 0,
         faixaCompra: faixaCoord,
-        faixaClt: bonusClt > 0 ? { nome_faixa: "META CLT COORDENAÇÃO" } : null,
+        faixaClt: bateuMetaClt ? { nome_faixa: "META CLT R$ 1,5 MILHÃO LIBERADO" } : null,
         pontosCompraPrevistos: premioCompraCoord,
         pontosCltPrevistos: bonusClt,
         complementoCompraComClt: 0,
@@ -1663,11 +1669,11 @@ function PremiacaoManagerV3() {
         ?.percentual_premiacao_compra || 1,
     );
 
-    const bateuMetaCompra = producaoCompra >= limiteCompra;
-    const bateuMetaClt = producaoClt >= minimoClt;
     const complementoCompraComClt =
-      producaoClt > 0 && producaoCompra > 0 && (bateuMetaCompra || bateuMetaClt)
-        ? producaoClt * (percentualCompraComClt / 100)
+      producaoClt >= minimoClt &&
+      producaoCompra > 0 &&
+      producaoCompra < limiteCompra
+        ? producaoCompra * (percentualCompraComClt / 100)
         : 0;
 
     const pontosCltPrevistos = premioCltBase + complementoCompraComClt;
@@ -1687,10 +1693,6 @@ function PremiacaoManagerV3() {
         producaoValida: valorValidoProposta(proposta),
         comissaoEmpresa: comissaoEmpresaProposta(proposta),
         valorParcelaClt: 0,
-        dataDigitacao: proposta.dataCadastro || "",
-        dataPagamento: proposta.dataPagamento || "",
-        valorBruto: Number(proposta.valorContrato || 0),
-        percentualVendedor: pesoProposta(proposta),
       })),
       ...registrosCltPagos.map((registro) => ({
         id: `clt-${registro.id}`,
@@ -1710,10 +1712,6 @@ function PremiacaoManagerV3() {
         producaoValida: Number(registro.parcela || 0),
         comissaoEmpresa: 0,
         valorParcelaClt: Number(registro.parcela || 0),
-        dataDigitacao: registro.criadoEm || "",
-        dataPagamento: registro.dataPagamento || "",
-        valorBruto: Number(registro.valorAprovado || 0),
-        percentualVendedor: 100,
       })),
     ].sort((a, b) => {
       const dataA = dataLocal(a.data)?.getTime() || 0;
@@ -1777,6 +1775,7 @@ function PremiacaoManagerV3() {
     propostas,
     clt,
     competencia,
+    nomesConsultoras,
     planoCompra,
     planoClt,
     faixas,
@@ -2414,8 +2413,6 @@ function PremiacaoManagerV3() {
         faixaClt={resumo.faixaClt?.nome_faixa || ""}
         complementoCompraComClt={resumo.complementoCompraComClt}
         comissaoEmpresa={resumo.comissaoEmpresa}
-        custoEmpresaCompetencia={custoEmpresaCompetencia}
-        quantidadeVendedorasAtivas={quantidadeVendedorasAtivas}
         movimentos={resumo.movimentos}
         saldoPontos={saldoPontos}
         saldoDisponivelSaque={saldoDisponivelSaque}
@@ -2434,5 +2431,3 @@ function PremiacaoManagerV3() {
     </>
   );
 }
-
-export default PremiacaoManagerV3;
