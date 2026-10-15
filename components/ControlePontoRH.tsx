@@ -237,23 +237,15 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
  if(faltaIntegral(p)||faltaParcial(p)||ehReposicao(p)||["feriado","folga","atestado","justificado","atestado_parcial","justificado_parcial"].includes(tipo)||tipo.startsWith("custom:"))return 0;
  if(fimSemana(p.data))return trab(p);
 
- const trabalhado=trab(p);
- const carga=j.carga||480;
- const excedenteTotal=Math.max(0,trabalhado-carga);
-
- const entradaAntes=Math.max(0,mins(j.entrada)-mins(p.entrada));
- const saidaDepois=Math.max(0,mins(p.saida)-mins(j.saida));
-
- const pausaPrevista=Math.max(0,mins(j.retornoAlmoco)-mins(j.saidaAlmoco));
- const pausaReal=Math.max(0,mins(p.retorno_almoco)-mins(p.saida_almoco));
- const almocoMenor=Math.max(0,pausaPrevista-pausaReal);
-
- const extraPorRegra=
-  (entradaAntes>TOLERANCIA_EXTRA_MIN?entradaAntes:0)+
-  (saidaDepois>TOLERANCIA_EXTRA_MIN?saidaDepois:0)+
-  almocoMenor;
-
- return Math.max(excedenteTotal,extraPorRegra);
+ /*
+   Regra correta:
+   o Digix só traz as batidas.
+   O sistema soma o tempo trabalhado real do dia e compara com a carga de 8h.
+   Entrar antes, sair depois ou fazer almoço menor já aparece no total trabalhado.
+   Só vira crédito bruto do mês quando passar mais de 10 minutos da carga diária.
+ */
+ const excedenteTotal=Math.max(0,trab(p)-(j.carga||480));
+ return excedenteTotal>TOLERANCIA_EXTRA_MIN?excedenteTotal:0;
 };
 
  const devidaDia=(p:Ponto)=>{const j=jornadaDo(p);if(ehReposicao(p)||["feriado","folga","atestado","justificado","atestado_parcial","justificado_parcial"].includes(p.tipo_dia||"")||String(p.tipo_dia||"").startsWith("custom:"))return 0;const carga=j.carga||480;if(faltaIntegral(p))return p.apresentou_atestado?0:carga;if(fimSemana(p.data))return 0;const faltaMin=Math.max(0,carga-trab(p));if(faltaParcial(p)&&p.apresentou_atestado)return 0;const tolerancia=Math.max(j.tolEntrada,j.tolSaida);return faltaMin<=tolerancia?0:faltaMin};
@@ -693,9 +685,13 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
 
  <div className="bp-resumo-faixa">
 
-  <div><span>Horas extras</span><strong>{hm(resumo.extras)}</strong></div>
+  <div><span>Crédito bruto do mês</span><strong>{hm(creditoBrutoMes)}</strong></div>
 
-  <div><span>Horas abatidas</span><strong>{hm(resumo.compensado)}</strong></div><div><span>Horas devedoras</span><strong>{hm(resumo.devidas)}</strong></div>
+  <div><span>Abatido nas horas devidas</span><strong>{hm(resumo.compensado)}</strong></div>
+
+  <div><span>Extra real após abatimento</span><strong>{hm(resumo.extras)}</strong></div>
+
+  <div><span>Horas devedoras</span><strong>{hm(resumo.devidas)}</strong></div>
 
   <div><span>Saldo anterior</span><strong>{hm(saldoAnteriorDevedor)}</strong></div>
 
@@ -711,7 +707,7 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
 
   <div className="bp-fechamento-faixa-info"><b>FECHAMENTO INDIVIDUAL</b><span>{pessoa?(colaboradoras.find(c=>c.id===pessoa)?.nome||"Colaboradora"):"Selecione uma colaboradora"} · {mesRef.split("-").reverse().join("/")}</span></div>
 
-  {pessoa&&<><div className={`bp-resultado-mini ${saldoLiquidoMin<0?"deve":saldoLiquidoMin>0?"recebe":"zerado"}`}><span>SALDO DO MÊS</span><strong>{saldoLiquidoMin<0?"COLABORADORA DEVE À EMPRESA":saldoLiquidoMin>0?"EMPRESA DEVE À COLABORADORA":"SEM SALDO DE HORAS"} · {hm(saldoLiquidoAbs)}</strong><small>Saldo já compensado automaticamente</small></div><button type="button" onClick={()=>setModalFechamento(true)}>{fechamentoAtual?.status==="FECHADO"?"Ver fechamento":"Fechar competência"}</button></>}
+  {pessoa&&<><div className={`bp-resultado-mini ${saldoLiquidoMin<0?"deve":saldoLiquidoMin>0?"recebe":"zerado"}`}><span>SALDO FINAL</span><strong>{saldoLiquidoMin<0?"COLABORADORA DEVE À EMPRESA":saldoLiquidoMin>0?"EMPRESA DEVE À COLABORADORA":"SEM SALDO DE HORAS"} · {hm(saldoLiquidoAbs)}</strong><small>Após abater saldo anterior e horas devedoras</small></div><button type="button" onClick={()=>setModalFechamento(true)}>{fechamentoAtual?.status==="FECHADO"?"Ver fechamento":"Fechar competência"}</button></>}
 
  </section>
 
@@ -733,9 +729,9 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
 
   <div className="bp-fechamento-modal-body">
 
-   <div className="bp-modal-metricas"><article><span>Horas previstas</span><strong>{hm(horasPrevistas)}</strong></article><article><span>Horas trabalhadas</span><strong>{hm(horasTrabalhadas)}</strong></article><article><span>Horas extras</span><strong>{hm(resumo.extras)}</strong><small>{moeda(valorExtrasTotal)}</small></article><article><span>Horas de reposição</span><strong>{hm(resumoBruto.reposicao)}</strong><small>Horas trabalhadas especificamente para repor faltas</small></article><article><span>Saldo anterior</span><strong>{hm(saldoAnteriorDevedor)}</strong><small>Débito acumulado de competências anteriores</small></article><article><span>Abatido do saldo anterior</span><strong>{hm(compensadoSaldoAnterior)}</strong><small>Horas do mês usadas para compensar débitos antigos</small></article><article><span>Horas compensadas</span><strong>{hm(resumo.compensado)}</strong><small>Reposição e extras abatidas automaticamente das horas devedoras</small></article><article><span>Horas devedoras</span><strong>{hm(resumo.devidas)}</strong><small>Saldo restante devido à empresa</small></article><article><span>Faltas</span><strong>{resumo.faltas}</strong></article><article><span>Valor da hora</span><strong>{moeda(vh)}</strong></article></div>
+   <div className="bp-modal-metricas"><article><span>Horas previstas</span><strong>{hm(horasPrevistas)}</strong></article><article><span>Horas trabalhadas</span><strong>{hm(horasTrabalhadas)}</strong></article><article><span>Crédito bruto do mês</span><strong>{hm(creditoBrutoMes)}</strong><small>Antes de abater dívidas</small></article><article><span>Abatido nas horas devidas</span><strong>{hm(resumo.compensado)}</strong><small>Usadas para quitar saldo anterior/devedor</small></article><article><span>Extra real após abatimento</span><strong>{hm(resumo.extras)}</strong><small>{moeda(valorExtrasTotal)}</small></article><article><span>Horas de reposição</span><strong>{hm(resumoBruto.reposicao)}</strong><small>Horas trabalhadas especificamente para repor faltas</small></article><article><span>Saldo anterior</span><strong>{hm(saldoAnteriorDevedor)}</strong><small>Débito acumulado de competências anteriores</small></article><article><span>Abatido do saldo anterior</span><strong>{hm(compensadoSaldoAnterior)}</strong><small>Horas do mês usadas para compensar débitos antigos</small></article><article><span>Horas devedoras</span><strong>{hm(resumo.devidas)}</strong><small>Saldo restante devido à empresa</small></article><article><span>Faltas</span><strong>{resumo.faltas}</strong></article><article><span>Valor da hora</span><strong>{moeda(vh)}</strong></article></div>
 
-   <div className="bp-origem-extras"><div className="bp-origem-extras-head"><b>DE ONDE VIERAM AS HORAS EXTRAS</b><span>{hm(resumo.extras)} no total</span></div>{lista.filter(p=>extraDia(p)>0).length?lista.filter(p=>extraDia(p)>0).map(p=>{const j=jornadaDo(p);return <div className="bp-extra-dia" key={p.id}><span><b>{br(p.data)}</b> · {j.nome}</span><span>Trabalhado {hm(trab(p))}</span><strong>+ {hm(extraDia(p))}</strong></div>}):<div className="bp-extra-vazio">Nenhum dia gerou hora extra nesta competência.</div>}</div>
+   <div className="bp-origem-extras"><div className="bp-origem-extras-head"><b>DE ONDE VEIO O CRÉDITO BRUTO</b><span>{hm(creditoBrutoMes)} bruto · {hm(resumo.extras)} extra real</span></div>{lista.filter(p=>extraDia(p)>0).length?lista.filter(p=>extraDia(p)>0).map(p=>{const j=jornadaDo(p);return <div className="bp-extra-dia" key={p.id}><span><b>{br(p.data)}</b> · {j.nome}</span><span>Trabalhado {hm(trab(p))}</span><strong>+ {hm(extraDia(p))}</strong></div>}):<div className="bp-extra-vazio">Nenhum dia gerou hora extra nesta competência.</div>}</div>
 
    <div className={`bp-resultado-final ${saldoLiquidoMin<0?"deve":saldoLiquidoMin>0?"recebe":"zerado"}`}><div><span>RESULTADO DO FECHAMENTO</span><strong>{saldoLiquidoMin<0?"COLABORADORA DEVE À EMPRESA":saldoLiquidoMin>0?"EMPRESA DEVE À COLABORADORA":"SEM SALDO DE HORAS"}</strong><small>Saldo final após compensação automática das horas do mês.</small></div><b>{hm(saldoLiquidoAbs)}</b></div>
 

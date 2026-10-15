@@ -386,7 +386,7 @@ export default function RelatoriosFinanceiros() {
 
 
 
-    const mesLucro = deslocarMes(competencia, -1);
+    const mesLucro = competencia;
 
     const valorNotasPorFornecedor = (match: (fornecedorNormalizado: string, nota: Nota) => boolean) =>
       notas
@@ -394,6 +394,8 @@ export default function RelatoriosFinanceiros() {
           const fornecedor = normalizar(x.fornecedor);
           return (
             match(fornecedor, x) &&
+            // Relatório usa a própria DATA REFERÊNCIA selecionada.
+            // Ex.: outubro/2026 só considera notas com competência outubro/2026.
             mesDaData(x.referencia_inicio || x.data_solicitacao) === mesLucro
           );
         })
@@ -982,7 +984,7 @@ export default function RelatoriosFinanceiros() {
 
 
 
-        <article className="rf-metric positive"><span>Total comissão recebida</span><strong>{moeda(d.comissaoRecebida)}</strong><small>Controle de Notas: Compra de Dívida + 3RN</small></article>
+        <article className="rf-metric positive"><span>Total comissão recebida</span><strong>{moeda(d.comissaoRecebida)}</strong><small>Controle de Notas da data referência</small></article>
 
 
 
@@ -1250,7 +1252,7 @@ export default function RelatoriosFinanceiros() {
 
         {d.lucroNotas.map((item) => (
           <div key={item.nome}>
-            <span>{item.nome} — mês passado</span>
+            <span>{item.nome} — data referência</span>
             <strong>{moeda(item.valor)}</strong>
             <small>{nomeMes(d.mesLucro)}</small>
           </div>

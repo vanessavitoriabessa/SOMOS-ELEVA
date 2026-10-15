@@ -110,6 +110,14 @@ export type SaquePremiacao = {
 
 
 
+const TODOS_CONSULTORES = "__TODOS__";
+
+function moverCompetencia(valor: string, deslocamento: number) {
+  const [ano, mes] = String(valor || "").split("-").map(Number);
+  const base = new Date(ano || new Date().getFullYear(), (mes || 1) - 1 + deslocamento, 1, 12);
+  return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}`;
+}
+
 type Props = {
 
   nomeUsuario: string;
@@ -388,8 +396,6 @@ const [abaAdmin, setAbaAdmin] = useState<
   const [filtroProduto, setFiltroProduto] = useState<
     "todos" | "compra" | "clt"
   >("todos");
-  const [filtroDataInicialPremiacao,setFiltroDataInicialPremiacao]=useState("");
-  const [filtroDataFinalPremiacao,setFiltroDataFinalPremiacao]=useState("");
 
   const [secaoV7, setSecaoV7] = useState<
     "visao" | "colaboradoras" | "conferencia"
@@ -457,14 +463,17 @@ const [abaAdmin, setAbaAdmin] = useState<
 
 
 
-  const passaData=(valor?:string|null)=>{
-    const d=String(valor||"").slice(0,10);
-    if(filtroDataInicialPremiacao&&(!d||d<filtroDataInicialPremiacao)) return false;
-    if(filtroDataFinalPremiacao&&(!d||d>filtroDataFinalPremiacao)) return false;
-    return true;
-  };
-  const saquesPendentes=saques.filter(s=>s.status==="SOLICITADO"&&passaData(s.solicitado_em));
-  const saquesProcessados=saques.filter(s=>s.status!=="SOLICITADO"&&passaData(s.processado_em||s.solicitado_em));
+  const saquesPendentes = saques.filter(
+
+    (saque) => saque.status === "SOLICITADO",
+
+  );
+
+  const saquesProcessados = saques.filter(
+
+    (saque) => saque.status !== "SOLICITADO",
+
+  );
 
 
 
@@ -478,14 +487,33 @@ const [abaAdmin, setAbaAdmin] = useState<
 
 
 
-  const movimentosFiltrados=useMemo(()=>movimentos.filter(item=>{
-    if(filtroProduto==="compra"&&item.produto!=="Compra de Dívida") return false;
-    if(filtroProduto==="clt"&&item.produto!=="CLT") return false;
-    const d=String(item.dataPagamento||item.data||"").slice(0,10);
-    if(filtroDataInicialPremiacao&&(!d||d<filtroDataInicialPremiacao)) return false;
-    if(filtroDataFinalPremiacao&&(!d||d>filtroDataFinalPremiacao)) return false;
-    return true;
-  }),[movimentos,filtroProduto,filtroDataInicialPremiacao,filtroDataFinalPremiacao]);
+  const movimentosFiltrados = useMemo(() => {
+
+    if (filtroProduto === "compra") {
+
+      return movimentos.filter(
+
+        (item) => item.produto === "Compra de Dívida",
+
+      );
+
+    }
+
+
+
+    if (filtroProduto === "clt") {
+
+      return movimentos.filter((item) => item.produto === "CLT");
+
+    }
+
+
+
+    return movimentos;
+
+  }, [movimentos, filtroProduto]);
+
+
 
   const movimentosCompra = movimentos.filter((m) => m.produto === "Compra de Dívida");
 
@@ -548,15 +576,16 @@ const [abaAdmin, setAbaAdmin] = useState<
 
   const cltParcelasPagas = movimentosClt.reduce((t,m)=>t+Number(m.valorParcelaClt||m.producaoValida||0),0);
 
-  const diferencaPremiacao =
-  Number(premiacaoExibida || 0) - Number(pontosTotalPrevisto || 0);
+  // A premiação acumulada da competência também compõe o custo da empresa.
+  // Se a gestão editar manualmente a premiação, o Custo PA reage imediatamente
+  // ao valor conferido exibido no card.
+  const custoEmpresaComPremiacao =
+    Number(custoEmpresaCompetencia || 0) + Number(premiacaoExibida || 0);
 
-const custoEmpresaComPremiacao =
-  Number(custoEmpresaCompetencia || 0) + diferencaPremiacao;
+  const custoPa =
+    custoEmpresaComPremiacao /
+    Math.max(Number(quantidadeVendedorasAtivas || 1), 1);
 
-const custoPa =
-  custoEmpresaComPremiacao /
-  Math.max(Number(quantidadeVendedorasAtivas || 1), 1);
   const comissaoEmpresaBruta = movimentosCompra.reduce((t,m)=>t+Number(m.comissaoEmpresa||0),0);
   const comissaoEmpresaLiquida = Math.max(comissaoEmpresaBruta - custoPa, 0);
   const brutoSelecionado = Math.max(movimentos.reduce((t,m)=>t+Number(m.valorBruto ?? m.valorContrato ?? 0),0),0);
@@ -783,7 +812,7 @@ const custoPa =
 
         <nav className="premio-v8-nav">
           <button type="button" className={`premio-v8-nav-card blue ${secaoV7 === "visao" && abaAdmin === "conferencia" ? "active" : ""}`} onClick={() => { setAbaAdmin("conferencia"); setSecaoV7("visao"); }}>
-            <i className="premio-v8-icon">▦</i><span><strong>Conferência do Mês</strong><small>Analise e publique</small></span>
+            <i className="premio-v8-icon">⌂</i><span><strong>Visão Geral</strong><small>Resumo completo</small></span>
           </button>
           <button type="button" className="premio-v8-nav-card green" onClick={() => setVisaoGestor("carteira")}>
             <i className="premio-v8-icon">▥</i><span><strong>Minha Produção</strong><small>Acompanhe seus resultados</small></span>
@@ -797,29 +826,21 @@ const custoPa =
           <button type="button" className={`premio-v8-nav-card rose ${secaoV7 === "colaboradoras" ? "active-soft" : ""}`} onClick={() => { setAbaAdmin("conferencia"); setSecaoV7("colaboradoras"); }}>
             <i className="premio-v8-icon">♟</i><span><strong>Colaboradoras</strong><small>Veja o time completo</small></span>
           </button>
-
+          <button type="button" className={`premio-v8-nav-card cyan ${secaoV7 === "conferencia" ? "active-soft" : ""}`} onClick={() => { setAbaAdmin("conferencia"); setSecaoV7("conferencia"); }}>
+            <i className="premio-v8-icon">▦</i><span><strong>Conferência do Mês</strong><small>Analise e publique</small></span>
+          </button>
         </nav>
 
-        <div className="premio-v8-global-filters">
-          <label><span>Competência</span><input type="month" value={competencia} onChange={e=>onCompetenciaChange(e.target.value)}/></label>
-          <label><span>Data inicial</span><input type="date" value={filtroDataInicialPremiacao} onChange={e=>setFiltroDataInicialPremiacao(e.target.value)}/></label>
-          <label><span>Data final</span><input type="date" value={filtroDataFinalPremiacao} onChange={e=>setFiltroDataFinalPremiacao(e.target.value)}/></label>
-          {podeGerenciar&&<label><span>Consultor(a)</span><select value={consultoraSelecionada} onChange={e=>onConsultoraChange(e.target.value)}>{consultorasComVanessa.map(n=><option key={n} value={n}>{n}</option>)}</select></label>}
-          <label><span>Produto</span><select value={filtroProduto} onChange={e=>setFiltroProduto(e.target.value as "todos"|"compra"|"clt")}><option value="todos">Todos</option><option value="compra">Compra de Dívida</option><option value="clt">CLT</option></select></label>
-        </div>
-
-        {abaAdmin !== "saques" && (
-        <section className="premio-v7-person">
+        <section className="premio-v7-person" style={{display:"grid",gridTemplateColumns:"minmax(220px,1fr) minmax(170px,210px) minmax(280px,340px) minmax(190px,220px)",gap:16,alignItems:"center",width:"100%",boxSizing:"border-box"}}>
           <div className="premio-v7-avatar">{nomeExibido.charAt(0).toUpperCase()}</div>
           <div className="premio-v7-person-copy">
             <div className="premio-v7-person-name"><h2>{nomeExibido}</h2><span>PIX cadastrado</span></div>
             <p>Vendedora <b>|</b> {pixDaColaboradora(nomeExibido).tipo || "CPF"}: {pixDaColaboradora(nomeExibido).chave || "—"}</p>
           </div>
-          <label className="premio-v7-colab-select"><span>Colaboradora</span><select value={consultoraSelecionada} onChange={(e) => onConsultoraChange(e.target.value)}>{consultorasComVanessa.map((nome) => <option key={nome} value={nome}>{nome}</option>)}</select></label>
-          <label className="premio-v7-period"><span>Competência atual</span><input type="month" value={competencia} onChange={(e) => onCompetenciaChange(e.target.value)} /><small>ⓘ Compra: digitadas no mês anterior<br />(pagamento até dia 19)</small></label>
-          <button type="button" className="premio-v7-update" onClick={() => void onAtualizar()} disabled={processando}>↻ {processando ? "Atualizando..." : "Atualizar e recalcular"}</button>
+          <label className="premio-v7-colab-select"><span>Consultor(a)</span><select value={consultoraSelecionada} onChange={(e) => onConsultoraChange(e.target.value)}>{podeGerenciar && <option value={TODOS_CONSULTORES}>Todos</option>}{consultorasComVanessa.map((nome) => <option key={nome} value={nome}>{nome}</option>)}</select></label>
+          <label className="premio-v7-period"><span>REFERÊNCIA</span><div style={{display:"grid",gridTemplateColumns:"34px minmax(0,1fr) 34px",gap:6,alignItems:"center",width:"100%",minWidth:0}}><button aria-label="Mês anterior" title="Mês anterior" type="button" onClick={() => onCompetenciaChange(moverCompetencia(competencia,-1))} style={{height:42,width:34,padding:0,border:"1px solid #d7e3f5",borderRadius:10,background:"#fff",color:"#1f61ee",fontWeight:900,cursor:"pointer",justifySelf:"stretch"}}>&lt;</button><input type="month" value={competencia} onChange={(e) => onCompetenciaChange(e.target.value)} style={{width:"100%",minWidth:0,boxSizing:"border-box"}} /><button aria-label="Próximo mês" title="Próximo mês" type="button" onClick={() => onCompetenciaChange(moverCompetencia(competencia,1))} style={{height:42,width:34,padding:0,border:"1px solid #d7e3f5",borderRadius:10,background:"#fff",color:"#1f61ee",fontWeight:900,cursor:"pointer",justifySelf:"stretch"}}>&gt;</button></div><small>Escolha o mês de referência para recalcular a premiação.</small></label>
+          <button type="button" className="premio-v7-update" style={{width:"min(100%, 300px)",maxWidth:"300px",minWidth:0,whiteSpace:"nowrap",justifySelf:"start",boxSizing:"border-box",padding:"12px 18px"}} onClick={() => void onAtualizar()} disabled={processando}>↻ {processando ? "Atualizando..." : "Atualizar e recalcular"}</button>
         </section>
-        )}
 
         {abaAdmin === "conferencia" && secaoV7 === "colaboradoras" && (
           <section className="premio-v7-collaborators-panel">
@@ -1525,21 +1546,19 @@ const custoPa =
                 <h3>Pontos liberados</h3>
                 <p>Créditos já confirmados pela gestão.</p>
               </div>
-              {abaAdmin === "liberados" && (
-                <div className="premio-v8-liberados-actions">
-                  <button
-                    type="button"
-                    className={mostrarContratosSecundarios ? "active" : ""}
-                    onClick={() => setMostrarContratosSecundarios((atual) => !atual)}
-                  >
-                    <span className="premio-v8-contract-icon">▣</span>
-                    <span>Meus Contratos</span>
-                  </button>
-                </div>
-              )}
+              <div className="premio-v8-liberados-actions">
+                <button
+                  type="button"
+                  className={mostrarContratosSecundarios ? "active" : ""}
+                  onClick={() => setMostrarContratosSecundarios((atual) => !atual)}
+                >
+                  <span className="premio-v8-contract-icon">▣</span>
+                  <span>Meus Contratos</span>
+                </button>
+              </div>
             </div>
 
-            {abaAdmin === "liberados" && mostrarContratosSecundarios && (
+            {mostrarContratosSecundarios && (
               <div className="premio-v8-secondary-contracts">
                 <div className="premio-v8-secondary-contracts-head">
                   <div>
@@ -1634,7 +1653,25 @@ const custoPa =
 
           <section className="premio-v4-panel premio-v8-saques-panel">
 
+            <div className="premio-v4-section-head">
 
+              <div>
+
+                <span>CONTROLE DE SAQUES</span>
+
+                <h3>Solicitações das colaboradoras</h3>
+
+                <p>
+
+                  Tudo que elas solicitarem aparece automaticamente aqui.
+
+                </p>
+
+              </div>
+
+              <b>{saquesPendentes.length}</b>
+
+            </div>
 
 
 
@@ -2141,41 +2178,6 @@ const custoPa =
         )}
 
       <style jsx global>{`
-.premio-v8-global-filters{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:14px 0;padding:12px;border:1px solid #dce7f6;border-radius:14px;background:#fff}.premio-v8-global-filters label{display:flex;flex-direction:column;gap:5px}.premio-v8-global-filters label span{font-size:10px;font-weight:900;color:#60728f;text-transform:uppercase}.premio-v8-global-filters input,.premio-v8-global-filters select{min-height:39px;border:1px solid #dce5f2;border-radius:9px;padding:0 10px;background:#fff;color:#102d55;font-weight:700}@media(max-width:1100px){.premio-v8-global-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.premio-v8-global-filters{grid-template-columns:1fr}}
-
-        /* V8.14 — Solicitar Saque é uma tela independente */
-        .premio-v8-saques-panel .premio-v8-liberados-head,
-        .premio-v8-saques-panel .premio-v8-liberados-actions,
-        .premio-v8-saques-panel .premio-v8-secondary-contracts {
-          display:none !important;
-        }
-
-        /* V8.15 — Saque sem qualquer atalho/contador de contratos */
-        .premio-v8-saques-panel > .premio-v4-section-head:not(.premio-v8-saque-head) {
-          display:none !important;
-        }
-        .premio-v8-saques-panel > button,
-        .premio-v8-saques-panel > .premio-v8-liberados-head,
-        .premio-v8-saques-panel > .premio-v8-liberados-actions,
-        .premio-v8-saques-panel > .premio-v8-secondary-contracts {
-          display:none !important;
-        }
-
-        /* V8.10 — menu principal sem duplicidade */
-        .premio-v8-nav {
-          grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-        }
-        @media (max-width: 1100px) {
-          .premio-v8-nav {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-          }
-        }
-        @media (max-width: 720px) {
-          .premio-v8-nav {
-            grid-template-columns: 1fr !important;
-          }
-        }
-
         /* V8.9 — Pontos Liberados: somente UM botão azul */
         .premio-v8-liberados-head {
           display:flex !important;
