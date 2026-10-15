@@ -36,6 +36,13 @@ type RegistroClt = {
   id: string;
   nome: string;
   consultora: string;
+  banco?: string;
+  prazo?: number;
+  tabelaBancoId?: string | null;
+  tabela?: string;
+  tabelaCodigo?: string;
+  tabelaPrazo?: number | null;
+  tabelaAtiva?: boolean;
   valorAprovado?: number;
   parcela: number;
   status: string;
@@ -54,7 +61,6 @@ type TabelaConfigurada = {
   percentualComissaoBanco: number;
   ativo: boolean;
 };
-
 
 type UsuarioLocal = {
   id?: string;
@@ -258,7 +264,6 @@ function recompensaFaixa(faixa: FaixaPremiacao | null) {
   return Number(faixa.valor_recompensa || 0) + Number(faixa.bonus_reais || 0);
 }
 
-
 const FAIXAS_COMPRA_FALLBACK = [
   [30000, 39999.99, 400, "FAIXA 1"],
   [40000, 49999.99, 600, "FAIXA 2"],
@@ -383,7 +388,6 @@ function mergePropostasComLocal(api: PropostaCompra[]) {
     };
   });
 }
-
 
 export default function PremiacaoManagerV3() {
   const supabase = useMemo(() => createClient(), []);
@@ -1114,8 +1118,11 @@ export default function PremiacaoManagerV3() {
             registro.atualizadoEm ||
             registro.criadoEm ||
             "",
-          banco: "",
-          tabela: "",
+          banco: registro.banco || "",
+          tabela: registro.tabelaBancoId ? String(registro.tabela || "") : "",
+          tabelaBancoId: registro.tabelaBancoId || null,
+          tabelaCodigo: registro.tabelaCodigo || "",
+          tabelaPrazo: registro.tabelaPrazo ?? null,
           valorContrato: 0,
           pesoTabela: 0,
           producaoValida: Number(registro.parcela || 0),
@@ -1281,8 +1288,11 @@ export default function PremiacaoManagerV3() {
             registro.atualizadoEm ||
             registro.criadoEm ||
             "",
-          banco: "",
-          tabela: "",
+          banco: registro.banco || "",
+          tabela: registro.tabelaBancoId ? String(registro.tabela || "") : "",
+          tabelaBancoId: registro.tabelaBancoId || null,
+          tabelaCodigo: registro.tabelaCodigo || "",
+          tabelaPrazo: registro.tabelaPrazo ?? null,
           valorContrato: 0,
           pesoTabela: 0,
           producaoValida: Number(registro.parcela || 0),
@@ -1598,8 +1608,11 @@ export default function PremiacaoManagerV3() {
           cliente: r.nome || "Cliente CLT",
           descricao: "Parcela CLT",
           data: r.dataPagamento || r.atualizadoEm || r.criadoEm || "",
-          banco: "",
-          tabela: "",
+          banco: r.banco || "",
+          tabela: r.tabelaBancoId ? String(r.tabela || "") : "",
+          tabelaBancoId: r.tabelaBancoId || null,
+          tabelaCodigo: r.tabelaCodigo || "",
+          tabelaPrazo: r.tabelaPrazo ?? null,
           valorContrato: 0,
           pesoTabela: 0,
           producaoValida: Number(r.valorAprovado || 0),
@@ -1705,8 +1718,11 @@ export default function PremiacaoManagerV3() {
           registro.atualizadoEm ||
           registro.criadoEm ||
           "",
-        banco: "",
-        tabela: "",
+        banco: registro.banco || "",
+        tabela: registro.tabelaBancoId ? String(registro.tabela || "") : "",
+        tabelaBancoId: registro.tabelaBancoId || null,
+        tabelaCodigo: registro.tabelaCodigo || "",
+        tabelaPrazo: registro.tabelaPrazo ?? null,
         valorContrato: 0,
         pesoTabela: 0,
         producaoValida: Number(registro.parcela || 0),

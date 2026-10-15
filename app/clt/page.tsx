@@ -5,7 +5,7 @@ export default function CltPage() {
   return (
     <AppShell
       title="CLT"
-      subtitle="Cadastre clientes, acompanhe análises e organize propostas de empréstimo CLT."
+      subtitle="Cadastro e acompanhamento de contratos CLT."
     >
       <CltManager />
     </AppShell>

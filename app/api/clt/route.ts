@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 
-
-
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
-
-
 import { createAdminClient } from "@/lib/supabase/admin";
-
-
+import {
+  bancosCltCorrespondem,
+  ehTabelaClt,
+  prazoTabelaCompativel,
+  tabelaCltPublica,
+  type TabelaCltOpcao,
+} from "@/lib/clt/tabelas";
 
 export const dynamic = "force-dynamic";
-
-
 
 const STATUS = [
 
@@ -28,15 +27,13 @@ const STATUS = [
 
   "Pago",
 
+  "Cancelado",
+
   "Recusado",
 
 ] as const;
 
-
-
 type StatusClt = (typeof STATUS)[number];
-
-
 
 type Perfil = {
 
@@ -53,8 +50,6 @@ type Perfil = {
   ativo: boolean;
 
 };
-
-
 
 type RegistroRecebido = {
 
@@ -80,6 +75,8 @@ type RegistroRecebido = {
 
   banco?: string;
 
+  tabelaBancoId?: string | null;
+
   consultora?: string;
 
   status?: string;
@@ -89,8 +86,6 @@ type RegistroRecebido = {
   atualizadoEm?: string;
 
 };
-
-
 
 type LinhaClt = {
 
@@ -114,6 +109,8 @@ type LinhaClt = {
 
   banco: string;
 
+  tabela_banco_id: string | null;
+
   consultora_id: string | null;
 
   consultora: string;
@@ -128,15 +125,11 @@ type LinhaClt = {
 
 };
 
-
-
 function respostaErro(erro: string, status: number) {
 
   return NextResponse.json({ erro }, { status });
 
 }
-
-
 
 function normalizarTexto(valor: unknown) {
 
@@ -152,61 +145,39 @@ function normalizarTexto(valor: unknown) {
 
 }
 
-
-
 function apenasNumeros(valor: unknown) {
 
   return String(valor || "").replace(/\D/g, "");
 
 }
 
-
-
 function numeroSeguro(valor: unknown) {
 
   const numero = Number(valor || 0);
-
-
 
   return Number.isFinite(numero) ? numero : 0;
 
 }
 
-
-
 function dataSegura(valor: unknown) {
 
   const texto = String(valor || "").trim();
 
-
-
   if (!texto) return null;
 
-
-
   const encontrada = texto.match(/^\d{4}-\d{2}-\d{2}/);
-
-
 
   return encontrada ? encontrada[0] : null;
 
 }
 
-
-
 function dataHoraSegura(valor: unknown, fallback = new Date().toISOString()) {
 
   const texto = String(valor || "").trim();
 
-
-
   if (!texto) return fallback;
 
-
-
   const direta = new Date(texto);
-
-
 
   if (!Number.isNaN(direta.getTime())) {
 
@@ -214,25 +185,17 @@ function dataHoraSegura(valor: unknown, fallback = new Date().toISOString()) {
 
   }
 
-
-
   const brasileira = texto.match(
 
     /^(\d{2})\/(\d{2})\/(\d{4})(?:,?\s+(\d{2}):(\d{2})(?::(\d{2}))?)?/,
 
   );
 
-
-
   if (!brasileira) return fallback;
-
-
 
   const [, dia, mes, ano, hora = "00", minuto = "00", segundo = "00"] =
 
     brasileira;
-
-
 
   const convertida = new Date(
 
@@ -240,31 +203,19 @@ function dataHoraSegura(valor: unknown, fallback = new Date().toISOString()) {
 
   );
 
-
-
   return Number.isNaN(convertida.getTime()) ? fallback : convertida.toISOString();
 
 }
-
-
 
 function formatarDataHora(valor: unknown) {
 
   const texto = String(valor || "").trim();
 
-
-
   if (!texto) return "";
-
-
 
   const data = new Date(texto);
 
-
-
   if (Number.isNaN(data.getTime())) return texto;
-
-
 
   return new Intl.DateTimeFormat("pt-BR", {
 
@@ -278,19 +229,13 @@ function formatarDataHora(valor: unknown) {
 
 }
 
-
-
 function statusSeguro(valor: unknown): StatusClt {
 
   const texto = String(valor || "") as StatusClt;
 
-
-
   return STATUS.includes(texto) ? texto : "Novo lead";
 
 }
-
-
 
 function perfilEhConsultora(perfil: string) {
 
@@ -298,15 +243,11 @@ function perfilEhConsultora(perfil: string) {
 
 }
 
-
-
 function perfilEhSupervisora(perfil: string) {
 
   return normalizarTexto(perfil).includes("supervisor");
 
 }
-
-
 
 async function idsConsultorasDoTime(
 
@@ -318,8 +259,6 @@ async function idsConsultorasDoTime(
 
   if (!perfil.time_id) return [] as string[];
 
-
-
   const { data, error } = await supabase
 
     .from("profiles")
@@ -330,15 +269,11 @@ async function idsConsultorasDoTime(
 
     .eq("time_id", perfil.time_id);
 
-
-
   if (error) {
 
     throw new Error(`Não foi possível identificar as consultoras do time: ${error.message}`);
 
   }
-
-
 
   return (data || [])
 
@@ -350,33 +285,23 @@ async function idsConsultorasDoTime(
 
 }
 
-
-
 function nomesCorrespondem(nomeA: unknown, nomeB: unknown) {
 
   const a = normalizarTexto(nomeA);
 
   const b = normalizarTexto(nomeB);
 
-
-
   if (!a || !b) return false;
 
   if (a === b) return true;
-
-
 
   const menor = a.length <= b.length ? a : b;
 
   const maior = a.length > b.length ? a : b;
 
-
-
   return menor.length >= 5 && maior.includes(menor);
 
 }
-
-
 
 function perfilPodeAcessar(perfil: string) {
 
@@ -400,9 +325,7 @@ function perfilPodeAcessar(perfil: string) {
 
 }
 
-
-
-function linhaParaRegistro(linha: LinhaClt) {
+function linhaParaRegistro(linha: LinhaClt, tabela?: TabelaCltOpcao) {
 
   return {
 
@@ -425,6 +348,12 @@ function linhaParaRegistro(linha: LinhaClt) {
     prazo: numeroSeguro(linha.prazo),
 
     banco: String(linha.banco || ""),
+    tabelaBancoId: linha.tabela_banco_id || null,
+    tabela: tabela?.nome || "",
+    tabelaCodigo: tabela?.codigo || "",
+    tabelaPrazo: tabela?.prazo ?? null,
+    tabelaAtiva: tabela?.ativo ?? false,
+    tabelaEncontrada: Boolean(tabela),
 
     consultora: String(linha.consultora || ""),
 
@@ -438,13 +367,9 @@ function linhaParaRegistro(linha: LinhaClt) {
 
 }
 
-
-
 async function autenticar(request: NextRequest) {
 
   const autorizacao = request.headers.get("authorization");
-
-
 
   if (!autorizacao || !autorizacao.startsWith("Bearer ")) {
 
@@ -456,8 +381,6 @@ async function autenticar(request: NextRequest) {
 
   }
 
-
-
   const token = autorizacao.replace("Bearer ", "").trim();
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -467,8 +390,6 @@ async function autenticar(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
 
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-
 
   if (!supabaseUrl || !publishableKey) {
 
@@ -486,8 +407,6 @@ async function autenticar(request: NextRequest) {
 
   }
 
-
-
   const verificador = createSupabaseClient(supabaseUrl, publishableKey, {
 
     auth: {
@@ -502,13 +421,9 @@ async function autenticar(request: NextRequest) {
 
   });
 
-
-
   const { data: dadosAutenticacao, error: erroAutenticacao } =
 
     await verificador.auth.getUser(token);
-
-
 
   if (erroAutenticacao || !dadosAutenticacao.user) {
 
@@ -520,11 +435,7 @@ async function autenticar(request: NextRequest) {
 
   }
 
-
-
   const supabase = createAdminClient();
-
-
 
   const { data: perfil, error: erroPerfil } = await supabase
 
@@ -536,13 +447,9 @@ async function autenticar(request: NextRequest) {
 
   .maybeSingle();
 
-
-
 if (erroPerfil) {
 
   console.error("Erro ao buscar profile:", erroPerfil);
-
-
 
   return {
 
@@ -558,13 +465,9 @@ if (erroPerfil) {
 
 }
 
-
-
 if (!perfil) {
 
   console.error("Usuário autenticado:", dadosAutenticacao.user.id);
-
-
 
   return {
 
@@ -580,11 +483,7 @@ if (!perfil) {
 
 }
 
-
-
   const perfilAtual = perfil as Perfil;
-
-
 
   if (!perfilAtual.ativo || !perfilPodeAcessar(perfilAtual.perfil)) {
 
@@ -596,8 +495,6 @@ if (!perfil) {
 
   }
 
-
-
   return {
 
     supabase,
@@ -607,8 +504,6 @@ if (!perfil) {
   };
 
 }
-
-
 
 async function listarConsultoras(
 
@@ -622,15 +517,11 @@ async function listarConsultoras(
 
     .select("id, nome, perfil, ativo");
 
-
-
   if (error) {
 
     throw new Error("Não foi possível consultar as consultoras.");
 
   }
-
-
 
   return (data || []).filter((perfil) =>
 
@@ -639,8 +530,6 @@ async function listarConsultoras(
   ) as Perfil[];
 
 }
-
-
 
 function encontrarConsultora(consultoras: Perfil[], nome: string) {
 
@@ -652,13 +541,9 @@ function encontrarConsultora(consultoras: Perfil[], nome: string) {
 
 }
 
-
-
 function podeAlterarRegistro(perfil: Perfil, linha: LinhaClt) {
 
   if (!perfilEhConsultora(perfil.perfil)) return true;
-
-
 
   return (
 
@@ -670,7 +555,113 @@ function podeAlterarRegistro(perfil: Perfil, linha: LinhaClt) {
 
 }
 
+// Somente metadados: nenhum percentual financeiro é consultado ou enviado por este fluxo.
+const COLUNAS_TABELA_CLT = "id, banco, nome, codigo, prazo, orgao_convenio, ativo";
 
+async function carregarCatalogoTabelasClt(supabase: ReturnType<typeof createAdminClient>) {
+  const tabelas: TabelaCltOpcao[] = [];
+  const tamanho = 1000;
+  for (let inicio = 0; ; inicio += tamanho) {
+    const { data, error } = await supabase
+      .from("config_tabelas")
+      .select(COLUNAS_TABELA_CLT)
+      .eq("ativo", true)
+      .order("id", { ascending: true })
+      .range(inicio, inicio + tamanho - 1);
+    if (error) throw new Error(`Não foi possível carregar as tabelas CLT: ${error.message}`);
+    const pagina = (data || []) as unknown as Record<string, unknown>[];
+    tabelas.push(...pagina.map(tabelaCltPublica).filter((tabela) => ehTabelaClt(tabela.orgaoConvenio)));
+    if (pagina.length < tamanho) break;
+  }
+  return tabelas.sort((a, b) =>
+    a.banco.localeCompare(b.banco, "pt-BR") ||
+    a.nome.localeCompare(b.nome, "pt-BR") ||
+    Number(a.prazo || 0) - Number(b.prazo || 0),
+  );
+}
+
+async function carregarMapaTabelasClt(
+  supabase: ReturnType<typeof createAdminClient>,
+  linhas: LinhaClt[],
+): Promise<Map<string, TabelaCltOpcao>> {
+  const ids = Array.from(new Set(linhas.map((linha) => linha.tabela_banco_id).filter(Boolean))) as string[];
+  const mapa = new Map<string, TabelaCltOpcao>();
+  // Inclui inativas já vinculadas, sem oferecê-las para novos vínculos.
+  for (let inicio = 0; inicio < ids.length; inicio += 100) {
+    const { data, error } = await supabase
+      .from("config_tabelas")
+      .select(COLUNAS_TABELA_CLT)
+      .in("id", ids.slice(inicio, inicio + 100));
+    if (error) throw new Error(`Não foi possível ler as tabelas vinculadas: ${error.message}`);
+    for (const item of (data || []) as unknown as Record<string, unknown>[]) {
+      const tabela = tabelaCltPublica(item);
+      mapa.set(tabela.id, tabela);
+    }
+  }
+  return mapa;
+}
+
+function idTabelaRecebido(registro: RegistroRecebido, anterior?: LinhaClt): string | null {
+  // Cliente antigo da API que não envia este campo NÃO apaga o vínculo existente.
+  if (!Object.prototype.hasOwnProperty.call(registro, "tabelaBancoId")) {
+    return anterior?.tabela_banco_id || null;
+  }
+  if (registro.tabelaBancoId === null || registro.tabelaBancoId === "") return null;
+  if (typeof registro.tabelaBancoId !== "string") throw new Error("Selecione uma tabela válida.");
+  const id = registro.tabelaBancoId.trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    throw new Error("O identificador da tabela bancária é inválido.");
+  }
+  return id;
+}
+
+async function validarVinculoTabelaClt(
+  supabase: ReturnType<typeof createAdminClient>,
+  banco: string,
+  prazo: number,
+  id: string | null,
+  anterior?: LinhaClt,
+): Promise<void> {
+  // Não há inferência por banco/prazo. Sem escolha explícita, permanece sem tabela.
+  if (!id) return;
+  const { data, error } = await supabase
+    .from("config_tabelas")
+    .select(COLUNAS_TABELA_CLT)
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(`Não foi possível validar a tabela: ${error.message}`);
+  if (!data) throw new Error("A tabela selecionada não foi encontrada.");
+  const tabela = tabelaCltPublica(data as unknown as Record<string, unknown>);
+  if (!ehTabelaClt(tabela.orgaoConvenio)) throw new Error("Selecione uma tabela do produto CLT.");
+  if (!bancosCltCorrespondem(tabela.banco, banco)) {
+    throw new Error("A tabela selecionada não pertence ao banco deste contrato.");
+  }
+  if (!prazoTabelaCompativel(tabela.prazo, prazo)) {
+    throw new Error("O prazo do contrato não corresponde ao prazo da tabela selecionada.");
+  }
+  if (!tabela.ativo && anterior?.tabela_banco_id !== id) {
+    throw new Error("Esta tabela está inativa. Selecione uma tabela ativa.");
+  }
+}
+
+async function podeAlterarRegistroSeguro(
+  supabase: ReturnType<typeof createAdminClient>,
+  perfil: Perfil,
+  linha: LinhaClt,
+): Promise<boolean> {
+  if (!podeAlterarRegistro(perfil, linha)) return false;
+  if (!perfilEhSupervisora(perfil.perfil)) return true;
+  const ids = await idsConsultorasDoTime(supabase, perfil);
+  return Boolean(linha.consultora_id) && ids.includes(String(linha.consultora_id));
+}
+
+async function registroComTabela(
+  supabase: ReturnType<typeof createAdminClient>,
+  linha: LinhaClt,
+) {
+  const mapa = await carregarMapaTabelasClt(supabase, [linha]);
+  return linhaParaRegistro(linha, mapa.get(linha.tabela_banco_id || ""));
+}
 
 async function carregarTodosRegistrosClt(
 
@@ -684,13 +675,9 @@ async function carregarTodosRegistrosClt(
 
   let inicio = 0;
 
-
-
   while (true) {
 
     const fim = inicio + tamanhoPagina - 1;
-
-
 
     const { data, error } = await supabase
 
@@ -720,6 +707,8 @@ async function carregarTodosRegistrosClt(
 
         banco,
 
+        tabela_banco_id,
+
         consultora_id,
 
         consultora,
@@ -740,8 +729,6 @@ async function carregarTodosRegistrosClt(
 
       .range(inicio, fim);
 
-
-
     if (error) {
 
       throw new Error(
@@ -752,13 +739,9 @@ async function carregarTodosRegistrosClt(
 
     }
 
-
-
     const pagina = (data || []) as LinhaClt[];
 
     todos.push(...pagina);
-
-
 
     if (pagina.length < tamanhoPagina) {
 
@@ -766,19 +749,13 @@ async function carregarTodosRegistrosClt(
 
     }
 
-
-
     inicio += tamanhoPagina;
 
   }
 
-
-
   return todos;
 
 }
-
-
 
 async function montarLinha(
 
@@ -794,6 +771,8 @@ async function montarLinha(
 
     importacao?: boolean;
 
+    existente?: LinhaClt;
+
   },
 
 ): Promise<LinhaClt> {
@@ -802,11 +781,7 @@ async function montarLinha(
 
     opcoes?.consultoras || (await listarConsultoras(supabase));
 
-
-
   const nomeRecebido = String(registro.consultora || "").trim();
-
-
 
   if (
 
@@ -824,15 +799,11 @@ async function montarLinha(
 
   }
 
-
-
   const nomeConsultora = perfilEhConsultora(perfil.perfil)
 
     ? perfil.nome
 
     : nomeRecebido;
-
-
 
   if (!nomeConsultora) {
 
@@ -840,15 +811,11 @@ async function montarLinha(
 
   }
 
-
-
   const consultora = perfilEhConsultora(perfil.perfil)
 
     ? perfil
 
     : encontrarConsultora(consultoras, nomeConsultora);
-
-
 
   if (!consultora && !opcoes?.importacao) {
 
@@ -856,15 +823,11 @@ async function montarLinha(
 
   }
 
-
-
   if (consultora && !consultora.ativo && !opcoes?.importacao) {
 
     throw new Error("A consultora selecionada está inativa.");
 
   }
-
-
 
   const id = String(registro.id || crypto.randomUUID()).trim();
 
@@ -891,8 +854,14 @@ const dataPagamento = dataSegura(registro.dataPagamento);
   const prazo = numeroSeguro(registro.prazo);
 
   const banco = String(registro.banco || "").trim();
-
-
+  // Backups antigos normalizados no navegador podem enviar null. A importação
+  // não desfaz uma conferência de tabela já feita; remoção exige edição explícita.
+  const registroParaVinculo = opcoes?.importacao && opcoes.existente?.tabela_banco_id &&
+    (registro.tabelaBancoId == null || registro.tabelaBancoId === "")
+      ? { ...registro, tabelaBancoId: opcoes.existente.tabela_banco_id }
+      : registro;
+  const tabelaBancoId = idTabelaRecebido(registroParaVinculo, opcoes?.existente);
+  await validarVinculoTabelaClt(supabase, banco, prazo, tabelaBancoId, opcoes?.existente);
 
   if (!nome) throw new Error("Informe o nome completo.");
 
@@ -914,19 +883,13 @@ const dataPagamento = dataSegura(registro.dataPagamento);
 
   if (!banco) throw new Error("Informe o banco.");
 
-
-
 if (status === "Pago" && !dataPagamento) {
 
   throw new Error("Informe a data do pagamento.");
 
 }
 
-
-
 const agora = new Date().toISOString();
-
-
 
   return {
 
@@ -950,6 +913,8 @@ const agora = new Date().toISOString();
 
     banco,
 
+    tabela_banco_id: tabelaBancoId,
+
     consultora_id: consultora?.id || null,
 
 consultora: consultora?.nome || nomeConsultora,
@@ -966,31 +931,33 @@ atualizado_em: dataHoraSegura(registro.atualizadoEm, agora),
 
 }
 
-
-
 export async function GET(request: NextRequest) {
 
   try {
 
     const autenticacao = await autenticar(request);
 
-
-
     if ("resposta" in autenticacao) return autenticacao.resposta;
-
-
 
     const { supabase, perfil } = autenticacao;
 
-
+    if (request.nextUrl.searchParams.get("modo") === "tabelas") {
+      const [tabelas, respostaBancos] = await Promise.all([
+        carregarCatalogoTabelasClt(supabase),
+        supabase.from("config_bancos").select("id, nome, ativo").eq("ativo", true).order("nome"),
+      ]);
+      if (respostaBancos.error) {
+        throw new Error(`Não foi possível carregar os bancos: ${respostaBancos.error.message}`);
+      }
+      return NextResponse.json(
+        { tabelas, bancos: respostaBancos.data || [] },
+        { headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
 
     const linhas = await carregarTodosRegistrosClt(supabase);
 
-
-
     let permitidas = linhas;
-
-
 
     if (perfilEhConsultora(perfil.perfil)) {
 
@@ -1004,7 +971,7 @@ export async function GET(request: NextRequest) {
 
     }
 
-
+    const tabelasVinculadas = await carregarMapaTabelasClt(supabase, permitidas);
 
     return NextResponse.json({
 
@@ -1018,9 +985,11 @@ export async function GET(request: NextRequest) {
 
       },
 
-      registros: permitidas.map(linhaParaRegistro),
+      registros: permitidas.map((linha) =>
+        linhaParaRegistro(linha, tabelasVinculadas.get(linha.tabela_banco_id || "")),
+      ),
 
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
 
   } catch (erro) {
 
@@ -1040,19 +1009,13 @@ export async function GET(request: NextRequest) {
 
 }
 
-
-
 export async function POST(request: NextRequest) {
 
   try {
 
     const autenticacao = await autenticar(request);
 
-
-
     if ("resposta" in autenticacao) return autenticacao.resposta;
-
-
 
     const { supabase, perfil } = autenticacao;
 
@@ -1066,13 +1029,9 @@ export async function POST(request: NextRequest) {
 
     };
 
-
-
     if (dados.acao === "importar_local") {
 
       const recebidos = Array.isArray(dados.registros) ? dados.registros : [];
-
-
 
       if (!recebidos.length) {
 
@@ -1094,13 +1053,12 @@ export async function POST(request: NextRequest) {
 
       }
 
-
-
       const consultoras = await listarConsultoras(supabase);
 
       const existentes = await carregarTodosRegistrosClt(supabase);
 
       const porId = new Map(existentes.map((linha) => [linha.id, linha]));
+
 const linhas: LinhaClt[] = [];
 
       let importadas = 0;
@@ -1110,8 +1068,6 @@ const linhas: LinhaClt[] = [];
       let ignoradas = 0;
 
       let falhas = 0;
-
-
 
       for (const registro of recebidos.slice(0, 2000)) {
 
@@ -1123,25 +1079,21 @@ const linhas: LinhaClt[] = [];
 
             importacao: true,
 
+            existente: porId.get(String(registro.id || "")),
+
           });
-
-
 
           const existentePorId = porId.get(linha.id);
 
-
-
           if (existentePorId) {
 
-            if (!podeAlterarRegistro(perfil, existentePorId)) {
+            if (!(await podeAlterarRegistroSeguro(supabase, perfil, existentePorId))) {
 
               ignoradas += 1;
 
               continue;
 
             }
-
-
 
             linha.criado_por = existentePorId.criado_por || linha.criado_por;
 
@@ -1154,9 +1106,11 @@ const linhas: LinhaClt[] = [];
             continue;
 
           }
+
 linhas.push(linha);
 
           porId.set(linha.id, linha);
+
 importadas += 1;
 
         } catch {
@@ -1167,8 +1121,6 @@ importadas += 1;
 
       }
 
-
-
       if (linhas.length) {
 
         const { error } = await supabase.from("clt_registros").upsert(linhas, {
@@ -1176,8 +1128,6 @@ importadas += 1;
           onConflict: "id",
 
         });
-
-
 
         if (error) {
 
@@ -1192,8 +1142,6 @@ importadas += 1;
         }
 
       }
-
-
 
       return NextResponse.json({
 
@@ -1219,11 +1167,7 @@ importadas += 1;
 
     }
 
-
-
     const registro = dados.registro;
-
-
 
     if (!registro) {
 
@@ -1231,9 +1175,8 @@ importadas += 1;
 
     }
 
-
-
     const linha = await montarLinha(supabase, perfil, registro);
+
 const { data, error } = await supabase
 
       .from("clt_registros")
@@ -1243,8 +1186,6 @@ const { data, error } = await supabase
       .select()
 
       .single();
-
-
 
     if (error) {
 
@@ -1258,15 +1199,13 @@ const { data, error } = await supabase
 
     }
 
-
-
     return NextResponse.json(
 
       {
 
         mensagem: "Cliente CLT cadastrado com sucesso.",
 
-        registro: linhaParaRegistro(data as LinhaClt),
+        registro: await registroComTabela(supabase, data as LinhaClt),
 
       },
 
@@ -1292,49 +1231,43 @@ const { data, error } = await supabase
 
 }
 
-
-
 export async function PATCH(request: NextRequest) {
 
   try {
 
     const autenticacao = await autenticar(request);
 
-
-
     if ("resposta" in autenticacao) return autenticacao.resposta;
-
-
 
     const { supabase, perfil } = autenticacao;
 
-    const dados = (await request.json()) as { registro?: RegistroRecebido };
+    const dados = (await request.json()) as {
+      registro?: RegistroRecebido;
+      acao?: string;
+      id?: string;
+      tabelaBancoId?: string | null;
+    };
+    const somenteTabela = dados.acao === "vincular_tabela";
 
     const registro = dados.registro;
 
-    const id = String(registro?.id || "").trim();
+    const id = String(somenteTabela ? dados.id || "" : registro?.id || "").trim();
 
-
-
-    if (!registro || !id) {
+    if (!id || (!somenteTabela && !registro)) {
 
       return respostaErro("O registro CLT não foi informado.", 400);
 
     }
 
-
-
     const { data: atual, error: erroAtual } = await supabase
 
       .from("clt_registros")
 
-      .select("\*")
+      .select("*")
 
       .eq("id", id)
 
       .single();
-
-
 
     if (erroAtual || !atual) {
 
@@ -1342,9 +1275,7 @@ export async function PATCH(request: NextRequest) {
 
     }
 
-
-
-    if (!podeAlterarRegistro(perfil, atual as LinhaClt)) {
+    if (!(await podeAlterarRegistroSeguro(supabase, perfil, atual as LinhaClt))) {
 
       return respostaErro(
 
@@ -1356,13 +1287,34 @@ export async function PATCH(request: NextRequest) {
 
     }
 
+    if (somenteTabela) {
+      if (!Object.prototype.hasOwnProperty.call(dados, "tabelaBancoId")) {
+        return respostaErro("Informe a tabela, ou null para remover o vínculo.", 400);
+      }
+      const idTabela = idTabelaRecebido({ tabelaBancoId: dados.tabelaBancoId });
+      await validarVinculoTabelaClt(
+        supabase, String(atual.banco || ""), numeroSeguro(atual.prazo), idTabela, atual as LinhaClt,
+      );
+      const { data: salvo, error: erroVinculo } = await supabase
+        .from("clt_registros")
+        .update({ tabela_banco_id: idTabela })
+        .eq("id", id)
+        .select()
+        .single();
+      if (erroVinculo) return respostaErro(`Não foi possível salvar a tabela: ${erroVinculo.message}`, 400);
+      return NextResponse.json({
+        mensagem: idTabela ? "Tabela vinculada ao contrato." : "Contrato mantido sem tabela selecionada.",
+        registro: await registroComTabela(supabase, salvo as LinhaClt),
+      });
+    }
 
-
-    const linha = await montarLinha(supabase, perfil, registro);
+    if (!registro) return respostaErro("Os dados do registro CLT não foram enviados.", 400);
+    const linha = await montarLinha(supabase, perfil, registro, { existente: atual as LinhaClt });
 
     linha.criado_por = String((atual as LinhaClt).criado_por || "") || perfil.id;
 
     linha.criado_em = (atual as LinhaClt).criado_em;
+
 const { data, error } = await supabase
 
       .from("clt_registros")
@@ -1374,8 +1326,6 @@ const { data, error } = await supabase
       .select()
 
       .single();
-
-
 
     if (error) {
 
@@ -1389,13 +1339,11 @@ const { data, error } = await supabase
 
     }
 
-
-
     return NextResponse.json({
 
       mensagem: "Registro CLT atualizado com sucesso.",
 
-      registro: linhaParaRegistro(data as LinhaClt),
+      registro: await registroComTabela(supabase, data as LinhaClt),
 
     });
 
@@ -1417,19 +1365,13 @@ const { data, error } = await supabase
 
 }
 
-
-
 export async function DELETE(request: NextRequest) {
 
   try {
 
     const autenticacao = await autenticar(request);
 
-
-
     if ("resposta" in autenticacao) return autenticacao.resposta;
-
-
 
     const { supabase, perfil } = autenticacao;
 
@@ -1437,27 +1379,21 @@ export async function DELETE(request: NextRequest) {
 
     const id = String(dados.id || "").trim();
 
-
-
     if (!id) {
 
       return respostaErro("O registro CLT não foi informado.", 400);
 
     }
 
-
-
     const { data: atual, error: erroAtual } = await supabase
 
       .from("clt_registros")
 
-      .select("\*")
+      .select("*")
 
       .eq("id", id)
 
       .single();
-
-
 
     if (erroAtual || !atual) {
 
@@ -1465,9 +1401,7 @@ export async function DELETE(request: NextRequest) {
 
     }
 
-
-
-    if (!podeAlterarRegistro(perfil, atual as LinhaClt)) {
+    if (!(await podeAlterarRegistroSeguro(supabase, perfil, atual as LinhaClt))) {
 
       return respostaErro(
 
@@ -1479,11 +1413,7 @@ export async function DELETE(request: NextRequest) {
 
     }
 
-
-
     const { error } = await supabase.from("clt_registros").delete().eq("id", id);
-
-
 
     if (error) {
 
@@ -1496,8 +1426,6 @@ export async function DELETE(request: NextRequest) {
       );
 
     }
-
-
 
     return NextResponse.json({
 

@@ -1,7 +1,5 @@
 "use client";
 
-
-
 import { useEffect, FormEvent, useMemo, useState } from "react";
 
 import {
@@ -38,8 +36,6 @@ import {
 
 import "./minha-premiacao-v2.css";
 
-
-
 export type MovimentoPremiacao = {
 
   id: string;
@@ -57,6 +53,9 @@ export type MovimentoPremiacao = {
   banco: string;
 
   tabela: string;
+  tabelaBancoId?: string | null;
+  tabelaCodigo?: string;
+  tabelaPrazo?: number | null;
 
   valorContrato: number;
 
@@ -77,8 +76,6 @@ export type MovimentoPremiacao = {
   percentualVendedor?: number;
 
 };
-
-
 
 export type SaquePremiacao = {
 
@@ -108,8 +105,6 @@ export type SaquePremiacao = {
 
 };
 
-
-
 const TODOS_CONSULTORES = "__TODOS__";
 
 function moverCompetencia(valor: string, deslocamento: number) {
@@ -130,8 +125,6 @@ type Props = {
 
   podeGerenciar: boolean;
 
-
-
   nomesConsultoras?: string[];
 
   pixPorColaboradora?: Record<string, { chave: string; tipo: string }>;
@@ -139,8 +132,6 @@ type Props = {
   consultoraSelecionada: string;
 
   competencia: string;
-
-
 
   producaoCompra: number;
 
@@ -161,8 +152,6 @@ type Props = {
   contratosEmFormacao: number;
 
   contratosForaPrazo?: number;
-
-
 
   pontosCompraPrevistos: number;
 
@@ -188,15 +177,11 @@ type Props = {
 
   premiacaoJaLiberada: boolean;
 
-
-
   saques?: SaquePremiacao[];
 
   extrato?: any[];
 
   processando: boolean;
-
-
 
   onConsultoraChange: (nome: string) => void;
 
@@ -240,8 +225,6 @@ type Props = {
 
 };
 
-
-
 function moeda(valor: number) {
 
   return Number(valor || 0).toLocaleString("pt-BR", {
@@ -253,8 +236,6 @@ function moeda(valor: number) {
   });
 
 }
-
-
 
 function pontos(valor: number) {
 
@@ -268,8 +249,6 @@ function pontos(valor: number) {
 
 }
 
-
-
 function porcentagem(valor: number) {
 
   return Number(valor || 0).toLocaleString("pt-BR", {
@@ -281,8 +260,6 @@ function porcentagem(valor: number) {
   });
 
 }
-
-
 
 function dataPt(valor?: string | null) {
 
@@ -296,11 +273,16 @@ function dataPt(valor?: string | null) {
 
 }
 
-
+function nomeTabelaContrato(item: MovimentoPremiacao): string {
+  if (item.produto === "CLT") {
+    if (!item.tabelaBancoId) return "Sem tabela selecionada";
+    return item.tabela?.trim() || "Tabela vinculada indisponível";
+  }
+  return item.tabela || item.descricao || "Sem tabela selecionada";
+}
 
 export default function MinhaPremiacaoV2(props: Props) {
   const [mostrarContratosSecundarios, setMostrarContratosSecundarios] = useState(false);
-
 
   const {
 
@@ -444,8 +426,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
   const cltPrevistaSegura = Number(pontosCltPrevistos ?? 0) || 0;
 
-
-
   const consultorasFiltradas = nomesConsultoras.filter((nome) =>
 
     nome.toLowerCase().includes(busca.trim().toLowerCase()),
@@ -460,9 +440,6 @@ const [abaAdmin, setAbaAdmin] = useState<
     return lista.sort((a, b) => a.localeCompare(b, "pt-BR"));
   }, [consultorasFiltradas]);
 
-
-
-
   const saquesPendentes = saques.filter(
 
     (saque) => saque.status === "SOLICITADO",
@@ -475,8 +452,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
   );
 
-
-
   const creditosLiberados = useMemo(
 
     () => extrato.filter((item) => item.tipo === "CREDITO"),
@@ -484,8 +459,6 @@ const [abaAdmin, setAbaAdmin] = useState<
     [extrato],
 
   );
-
-
 
   const movimentosFiltrados = useMemo(() => {
 
@@ -499,21 +472,15 @@ const [abaAdmin, setAbaAdmin] = useState<
 
     }
 
-
-
     if (filtroProduto === "clt") {
 
       return movimentos.filter((item) => item.produto === "CLT");
 
     }
 
-
-
     return movimentos;
 
   }, [movimentos, filtroProduto]);
-
-
 
   const movimentosCompra = movimentos.filter((m) => m.produto === "Compra de Dívida");
 
@@ -604,10 +571,6 @@ const [abaAdmin, setAbaAdmin] = useState<
     };
   });
 
-
-
-
-
   function chaveNomePix(nome: string) {
 
     return String(nome || "")
@@ -622,15 +585,11 @@ const [abaAdmin, setAbaAdmin] = useState<
 
   }
 
-
-
   function pixDaColaboradora(nome: string) {
 
     return pixPorColaboradora[chaveNomePix(nome)] || { chave: "", tipo: "" };
 
   }
-
-
 
   async function copiarPix(nome: string) {
 
@@ -654,8 +613,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
   }
 
-
-
   function abrirConferencia() {
 
     setPontosCompraLiberar(String(compraPrevistaSegura));
@@ -668,13 +625,9 @@ const [abaAdmin, setAbaAdmin] = useState<
 
   }
 
-
-
   async function confirmarLiberacao(evento: FormEvent<HTMLFormElement>) {
 
     evento.preventDefault();
-
-
 
     const compra = Number(
 
@@ -688,8 +641,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
     );
 
-
-
     if (!Number.isFinite(compra) || compra < 0) {
 
       setErroModal("Informe uma pontuação válida para Compra.");
@@ -698,8 +649,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
     }
 
-
-
     if (!Number.isFinite(clt) || clt < 0) {
 
       setErroModal("Informe uma pontuação válida para CLT.");
@@ -707,8 +656,6 @@ const [abaAdmin, setAbaAdmin] = useState<
       return;
 
     }
-
-
 
     try {
 
@@ -728,23 +675,17 @@ const [abaAdmin, setAbaAdmin] = useState<
 
   }
 
-
-
   async function enviarSaque(evento: FormEvent<HTMLFormElement>) {
 
     evento.preventDefault();
 
     setErroModal("");
 
-
-
     const quantidade = Number(
 
       String(pontosSaque).replace(/\./g, "").replace(",", "."),
 
     );
-
-
 
     if (!Number.isFinite(quantidade) || quantidade <= 0) {
 
@@ -754,8 +695,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
     }
 
-
-
     if (quantidade > saldoDisponivelSaque) {
 
       setErroModal("A quantidade é maior que o saldo disponível.");
@@ -764,8 +703,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
     }
 
-
-
     if (chavePix.trim().length < 3) {
 
       setErroModal("Informe uma chave PIX válida.");
@@ -773,8 +710,6 @@ const [abaAdmin, setAbaAdmin] = useState<
       return;
 
     }
-
-
 
     try {
 
@@ -801,8 +736,6 @@ const [abaAdmin, setAbaAdmin] = useState<
     }
 
   }
-
-
 
   if (podeGerenciar && visaoGestor === "gestao") {
 
@@ -968,8 +901,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
                 </div>
 
-
-
                 <div className="premio-v4-search">
 
                   <Search size={16} />
@@ -985,8 +916,6 @@ const [abaAdmin, setAbaAdmin] = useState<
                   />
 
                 </div>
-
-
 
                 <div className="premio-v4-pessoas-list">
 
@@ -1032,8 +961,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
               </aside>
 
-
-
               <main className="premio-v4-main">
 
                 <section className="premio-v4-resumo">
@@ -1055,8 +982,6 @@ const [abaAdmin, setAbaAdmin] = useState<
                       </p>
 
                     </div>
-
-
 
                     <div className="premio-v4-pix-box">
 
@@ -1110,8 +1035,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
                     </div>
 
-
-
                     <span
 
                       className={
@@ -1147,8 +1070,6 @@ const [abaAdmin, setAbaAdmin] = useState<
                     </span>
 
                   </div>
-
-
 
                   <div className="premio-v4-resumo-grid">
 
@@ -1204,8 +1125,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
                   </div>
 
-
-
                   {complementoCompraComClt > 0 && (
 
                     <div className="premio-v4-rule">
@@ -1232,8 +1151,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
                   )}
 
-
-
                   <div className="premio-v4-total">
 
                     <div>
@@ -1249,8 +1166,6 @@ const [abaAdmin, setAbaAdmin] = useState<
                       </small>
 
                     </div>
-
-
 
                     <button
 
@@ -1273,8 +1188,6 @@ const [abaAdmin, setAbaAdmin] = useState<
                   </div>
 
                 </section>
-
-
 
                 <section className="premio-v4-detail">
 
@@ -1376,8 +1289,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
                         </button>
 
-
-
                         <button
 
                           type="button"
@@ -1415,8 +1326,6 @@ const [abaAdmin, setAbaAdmin] = useState<
                           Compra de Dívida
 
                         </button>
-
-
 
                         <button
 
@@ -1458,15 +1367,11 @@ const [abaAdmin, setAbaAdmin] = useState<
 
                       </div>
 
-
-
                       <b>{movimentosFiltrados.length}</b>
 
                     </div>
 
                   </div>
-
-
 
                   <div className="premio-v4-rule">
 
@@ -1493,24 +1398,34 @@ const [abaAdmin, setAbaAdmin] = useState<
                     <table className="premio-v4-table">
 
                       <thead><tr>
-                          <th>Data digitação</th><th>Data pagamento cliente</th><th>Cliente</th><th>Produto</th>
+                          <th>Data digitação</th><th>Data pagamento cliente</th><th>Cliente</th><th>Produto</th><th>Banco</th>
                           <th>Valor parcela / líquido</th><th>% vendedor(a)</th><th>Valor bruto</th><th>Tabela</th>
                           <th>% comissão empresa</th><th>Valor comissão empresa</th><th>Lucro bruto empresa</th>
                           <th>Custo PA</th><th>Lucro líquido empresa</th>
                         </tr></thead>
                         <tbody>
                           {movimentosComFinanceiro.length===0 ? (
-                            <tr><td colSpan={13}><div className="premio-v4-empty">Nenhum contrato encontrado para o filtro selecionado.</div></td></tr>
+                            <tr><td colSpan={14}><div className="premio-v4-empty">Nenhum contrato encontrado para o filtro selecionado.</div></td></tr>
                           ) : movimentosComFinanceiro.map((item)=>(
                             <tr key={item.id}>
                               <td>{dataPt(item.dataDigitacao || item.data)}</td>
                               <td>{dataPt(item.dataPagamento || item.data)}</td>
                               <td><strong>{item.cliente}</strong></td>
                               <td><span className="premio-v4-product">{item.produto}</span></td>
+                              <td>{item.banco || "Não informado"}</td>
                               <td><b>{moeda(item.produto==="CLT" ? item.valorParcelaClt : item.producaoValida)}</b></td>
                               <td>{item.produto==="CLT" ? "100%" : `${porcentagem(item.percentualVendedor ?? item.pesoTabela)}%`}</td>
                               <td>{moeda(item.valorBruto ?? item.valorContrato ?? 0)}</td>
-                              <td>{item.tabela || item.descricao || "—"}</td>
+                              <td>
+                                <span style={item.produto === "CLT" && !item.tabelaBancoId ? { color: "#9a6400", fontWeight: 700 } : undefined}>
+                                  {nomeTabelaContrato(item)}
+                                </span>
+                                {item.produto === "CLT" && item.tabelaBancoId && (
+                                  <small style={{ display: "block", marginTop: 3, color: "#617391" }}>
+                                    {[item.tabelaCodigo, item.tabelaPrazo ? `${item.tabelaPrazo} meses` : ""].filter(Boolean).join(" • ")}
+                                  </small>
+                                )}
+                              </td>
                               <td className="internal-col">{item.produto==="Compra de Dívida" ? `${porcentagem(item.percentualComissaoEmpresa || 0)}%` : "—"}</td>
                               <td className="internal-col">{item.produto==="Compra de Dívida" ? moeda(item.comissaoEmpresa) : "—"}</td>
                               <td className="internal-col">{moeda(item.lucroBrutoEmpresa || 0)}</td>
@@ -1533,8 +1448,6 @@ const [abaAdmin, setAbaAdmin] = useState<
           </>
 
         )}
-
-
 
         {abaAdmin === "liberados" && (
 
@@ -1583,7 +1496,8 @@ const [abaAdmin, setAbaAdmin] = useState<
                         <div>
                           <strong>{item.cliente || "Cliente"}</strong>
                           <small>
-                            {item.produto} • Digitação: {dataPt(item.dataDigitacao || item.data)} • Pagamento: {dataPt(item.dataPagamento || item.data)}
+                            {item.produto} • Banco: {item.banco || "Não informado"} • {nomeTabelaContrato(item)}
+                             {" • "}Digitação: {dataPt(item.dataDigitacao || item.data)} • Pagamento: {dataPt(item.dataPagamento || item.data)}
                           </small>
                         </div>
                         <div className="premio-v8-secondary-value">
@@ -1596,8 +1510,6 @@ const [abaAdmin, setAbaAdmin] = useState<
                 )}
               </div>
             )}
-
-
 
             <div className="premio-v4-history">
 
@@ -1647,8 +1559,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
         )}
 
-
-
         {abaAdmin === "saques" && (
 
           <section className="premio-v4-panel premio-v8-saques-panel">
@@ -1672,8 +1582,6 @@ const [abaAdmin, setAbaAdmin] = useState<
               <b>{saquesPendentes.length}</b>
 
             </div>
-
-
 
             <div className="premio-v4-saque-list">
 
@@ -1713,8 +1621,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
                     </div>
 
-
-
                     <div>
 
                       <span>Pontos</span>
@@ -1726,8 +1632,6 @@ const [abaAdmin, setAbaAdmin] = useState<
                       </strong>
 
                     </div>
-
-
 
                     <div>
 
@@ -1753,8 +1657,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
                     </div>
 
-
-
                     <div>
 
                       <span>PIX</span>
@@ -1762,8 +1664,6 @@ const [abaAdmin, setAbaAdmin] = useState<
                       <strong>{saque.chave_pix || "Não informado"}</strong>
 
                     </div>
-
-
 
                     <div className="premio-v4-saque-actions">
 
@@ -1821,8 +1721,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
             </div>
 
-
-
             {saquesProcessados.length > 0 && (
 
               <div className="premio-v4-processed">
@@ -1854,8 +1752,6 @@ const [abaAdmin, setAbaAdmin] = useState<
           </section>
 
         )}
-
-
 
         {modalPix && (
 
@@ -1957,8 +1853,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
         )}
 
-
-
         {editarPremiacaoAberto&&(
         <div className="premio-v7-edit-award-backdrop" onMouseDown={()=>setEditarPremiacaoAberto(false)}>
           <div className="premio-v7-edit-award" onMouseDown={(e)=>e.stopPropagation()}>
@@ -2049,8 +1943,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
               </div>
 
-
-
               <div className="premio-v4-modal-grid">
 
                 <label>
@@ -2077,8 +1969,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
                 </label>
 
-
-
                 <label>
 
                   Pontos CLT / complemento
@@ -2100,8 +1990,6 @@ const [abaAdmin, setAbaAdmin] = useState<
                 </label>
 
               </div>
-
-
 
               <div className="premio-v4-modal-total">
 
@@ -2131,15 +2019,11 @@ const [abaAdmin, setAbaAdmin] = useState<
 
               </div>
 
-
-
               {erroModal && (
 
                 <div className="premio-v4-modal-error">{erroModal}</div>
 
               )}
-
-
 
               <div className="premio-v4-modal-actions">
 
@@ -2343,8 +2227,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
   }
 
-
-
   const meusSaquesPendentes = saques.filter(
 
     (saque) =>
@@ -2356,8 +2238,6 @@ const [abaAdmin, setAbaAdmin] = useState<
       saque.usuario_nome.toLowerCase() === (carteiraNome || nomeUsuario).toLowerCase(),
 
   );
-
-
 
   return (
 
@@ -2431,8 +2311,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
         </div>
 
-
-
         <label>
 
           <CalendarDays size={17} />
@@ -2450,8 +2328,6 @@ const [abaAdmin, setAbaAdmin] = useState<
         </label>
 
       </section>
-
-
 
       <section className="premio-v4-colab-cards">
 
@@ -2479,8 +2355,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
         </article>
 
-
-
         <article>
 
           <Landmark size={23} />
@@ -2492,8 +2366,6 @@ const [abaAdmin, setAbaAdmin] = useState<
           <small>{moeda(saldoDisponivelSaque)}</small>
 
         </article>
-
-
 
         <article>
 
@@ -2508,8 +2380,6 @@ const [abaAdmin, setAbaAdmin] = useState<
         </article>
 
       </section>
-
-
 
       <section className="premio-v4-colab-actions">
 
@@ -2569,8 +2439,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
       </section>
 
-
-
       <section className="premio-v4-panel">
 
         <div className="premio-v4-section-head">
@@ -2586,8 +2454,6 @@ const [abaAdmin, setAbaAdmin] = useState<
           </div>
 
         </div>
-
-
 
         <div className="premio-v4-history">
 
@@ -2639,8 +2505,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
       </section>
 
-
-
       {modalSaque && (
 
         <div
@@ -2687,8 +2551,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
             </div>
 
-
-
             <div className="premio-v4-modal-balance">
 
               <span>Saldo disponível</span>
@@ -2698,8 +2560,6 @@ const [abaAdmin, setAbaAdmin] = useState<
               <b>{moeda(saldoDisponivelSaque)}</b>
 
             </div>
-
-
 
             <label className="premio-v4-modal-field">
 
@@ -2716,8 +2576,6 @@ const [abaAdmin, setAbaAdmin] = useState<
               />
 
             </label>
-
-
 
             <label className="premio-v4-modal-field">
 
@@ -2753,15 +2611,11 @@ const [abaAdmin, setAbaAdmin] = useState<
 
             </label>
 
-
-
             {erroModal && (
 
               <div className="premio-v4-modal-error">{erroModal}</div>
 
             )}
-
-
 
             <div className="premio-v4-modal-actions">
 
@@ -2785,7 +2639,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
       )}
 
-    
       <style jsx global>{`
         /* V8.5 — classes REAIS das abas Pontos Liberados / Solicitar Saque */
         .premio-v8-saques-panel .premio-v4-section-head > div > span { font-size: 12px !important; letter-spacing: .08em; }

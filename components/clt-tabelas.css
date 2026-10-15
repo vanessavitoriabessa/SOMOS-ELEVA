@@ -1,0 +1,15 @@
+/* Complemento isolado: mantém o layout CLT existente. */
+.clt-page .clt-form-grid > label { min-width: 0; }
+.clt-page .clt-tabela-campo select { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; }
+.clt-page .clt-tabela-ajuda,
+.clt-page .clt-tabela-aviso { display: block; margin-top: 6px; font-size: 12px; line-height: 1.45; font-weight: 500; text-transform: none; letter-spacing: normal; }
+.clt-page .clt-tabela-ajuda { color: #617391; }
+.clt-page .clt-tabela-aviso { color: #a15c00; }
+.clt-page .clt-tabela-resumo { min-width: 0; overflow-wrap: anywhere; }
+.clt-page .clt-tabela-resumo > small { display: block; }
+.clt-page .clt-tabela-resumo b.clt-sem-tabela { color: #9a6400; font-weight: 700; }
+.clt-page .clt-actions { flex-wrap: wrap; gap: 10px; }
+.clt-page .clt-actions .clt-salvar-tabela { background: #fff7dc; color: #865600; border: 1px solid #e7bd55; border-radius: 10px; padding: 12px 16px; font-weight: 800; cursor: pointer; }
+.clt-page .clt-actions .clt-salvar-tabela:disabled { opacity: .6; cursor: wait; }
+.clt-page .clt-actions .clt-salvar-tabela:focus-visible { outline: 2px solid #1267f5; outline-offset: 3px; }
+
