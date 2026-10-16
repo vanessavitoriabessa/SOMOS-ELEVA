@@ -1,6 +1,8 @@
 "use client";
+// ELEVA | TITULOS MAIUSCULOS + VALOR ENQUADRADO | 16/10/2026 | ARQUIVO COMPLETO V4
 
-import { useEffect, type FormEvent, useMemo, useState } from "react";
+import { useEffect, type FormEvent, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { ResumoCustoPa } from "@/lib/financeiro/custo-pa";
 
 import {
@@ -114,7 +116,20 @@ function moverCompetencia(valor: string, deslocamento: number) {
   return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}`;
 }
 
+/** Dados opcionais: preencher somente com valores reais da mesma pessoa/referência.
+ * O chamador atual não fornece estes dois valores de CLT; ausência não vira zero.
+ */
+type ResumoEmpresaClt = {
+  referencia: string;
+  operador: string;
+  liquidoEmpresaPago: number | null;
+  comissaoEmpresaBruta: number | null;
+};
+
 type Props = {
+  financeiroClt?: ResumoEmpresaClt | null;
+  /** Metas visuais opcionais. Não alteram faixas, premiação ou regras no banco. */
+  metasVisuais?: { clt?: number | null; compra?: number | null };
 
   nomeUsuario: string;
 
@@ -286,6 +301,226 @@ function nomeTabelaContrato(item: MovimentoPremiacao): string {
   return item.tabela || item.descricao || "Sem tabela selecionada";
 }
 
+type ProdutoEdicaoPremiacao = "CLT" | "COMPRA" | "TOTAL";
+
+type AjustePremiacaoLocal = {
+  contexto: string;
+  clt: number | null;
+  compra: number | null;
+};
+
+/** Aceita reais/pontos com até duas casas, sem transformar 10.50 em 1050. */
+function lerValorPremiacao(texto: string): number | null {
+  const limpo = texto.trim().replace(/^R\$\s*/i, "").replace(/\s/g, "");
+  if (!limpo) return null;
+  let normalizado: string;
+  if (limpo.includes(",")) {
+    if (!/^(?:\d+|\d{1,3}(?:\.\d{3})+)(?:,\d{1,2})?$/.test(limpo)) return null;
+    normalizado = limpo.replace(/\./g, "").replace(",", ".");
+  } else {
+    if (/^\d{1,3}(?:\.\d{3})+$/.test(limpo)) normalizado = limpo.replace(/\./g, "");
+    else if (/^\d+(?:\.\d{1,2})?$/.test(limpo)) normalizado = limpo;
+    else return null;
+  }
+  const valor = Number(normalizado);
+  const centavos = Math.round(valor * 100);
+  return Number.isFinite(valor) && valor >= 0 && Number.isSafeInteger(centavos)
+    ? centavos / 100 : null;
+}
+
+function valorPremiacaoSeguro(valor: number): number {
+  return Number.isFinite(valor) && valor >= 0 ? Math.round(valor * 100) / 100 : 0;
+}
+
+function somarPremiacoes(clt: number, compra: number): number {
+  return (Math.round(clt * 100) + Math.round(compra * 100)) / 100;
+}
+
+function textoValorPremiacao(valor: number): string {
+  return valorPremiacaoSeguro(valor).toFixed(2).replace(".", ",");
+}
+
+function progressoMetaPremiacao(producao: number, meta: number | null): number {
+  if (meta === null || !Number.isFinite(meta) || meta <= 0) return 0;
+  if (!Number.isFinite(producao) || producao <= 0) return 0;
+  // Não arredonda para 100% antes de atingir a meta.
+  return Math.min(100, Math.floor((producao / meta) * 100));
+}
+
+function metaPositiva(valor: number | null | undefined, padrao: number | null): number | null {
+  if (valor === null) return null;
+  return typeof valor === "number" && Number.isFinite(valor) && valor > 0 ? valor : padrao;
+}
+
+function valorFinanceiroValido(valor: number | null | undefined): number | null {
+  return typeof valor === "number" && Number.isFinite(valor) ? valor : null;
+}
+
+/** Modal fora dos contêineres do dashboard para não ficar preso à lateral. */
+function EdicaoPremiacaoModal({ tipo, nome, clt, compra, automaticoClt, automaticoCompra, onFechar, onSalvar }: {
+  tipo: ProdutoEdicaoPremiacao;
+  nome: string;
+  clt: number;
+  compra: number;
+  automaticoClt: number;
+  automaticoCompra: number;
+  onFechar: () => void;
+  onSalvar: (clt: number, compra: number) => void;
+}) {
+  const [textoClt, setTextoClt] = useState(textoValorPremiacao(clt));
+  const [textoCompra, setTextoCompra] = useState(textoValorPremiacao(compra));
+  const [erro, setErro] = useState("");
+  const painel = useRef<HTMLDivElement>(null);
+  const valorClt = lerValorPremiacao(textoClt);
+  const valorCompra = lerValorPremiacao(textoCompra);
+  const total = valorClt === null || valorCompra === null ? null : somarPremiacoes(valorClt, valorCompra);
+
+  useEffect(() => {
+    const focoAnterior = document.activeElement as HTMLElement | null;
+    const overflowAnterior = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    painel.current?.querySelector<HTMLInputElement>("input")?.focus();
+    return () => {
+      document.body.style.overflow = overflowAnterior;
+      focoAnterior?.focus();
+    };
+  }, []);
+
+  function salvar(evento: FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    if (valorClt === null || valorCompra === null || total === null) {
+      setErro("Informe um valor válido, não negativo, com no máximo duas casas decimais.");
+      return;
+    }
+    onSalvar(valorClt, valorCompra);
+  }
+
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="eleva-premio-modal-mask" onMouseDown={(e) => { if (e.target === e.currentTarget) onFechar(); }}>
+      <div ref={painel} className="eleva-premio-modal" role="dialog" aria-modal="true" aria-labelledby="eleva-premio-edicao-titulo"
+        onKeyDown={(e) => {
+          if (e.key === "Escape") { e.preventDefault(); onFechar(); }
+          if (e.key !== "Tab") return;
+          const focaveis = Array.from(painel.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), [tabindex="0"]') || []);
+          const primeiro = focaveis[0];
+          const ultimo = focaveis[focaveis.length - 1];
+          if (e.shiftKey && document.activeElement === primeiro) { e.preventDefault(); ultimo?.focus(); }
+          else if (!e.shiftKey && document.activeElement === ultimo) { e.preventDefault(); primeiro?.focus(); }
+        }}>
+        <header><div><span>CONFERÊNCIA DA PREMIAÇÃO</span>
+          <h3 id="eleva-premio-edicao-titulo">{tipo === "TOTAL" ? "Conferir as duas premiações" : `Editar premiação ${tipo === "CLT" ? "CLT" : "Compra de Dívida"}`}</h3>
+          <p>{nome}</p></div><button type="button" aria-label="Fechar edição" onClick={onFechar}>×</button></header>
+        <form onSubmit={salvar}>
+          <div className="eleva-premio-edit-inputs">
+            {tipo !== "COMPRA" && <label>Premiação acumulada CLT
+              <div><input aria-label="Valor da premiação CLT" inputMode="decimal" value={textoClt} onChange={(e) => { setTextoClt(e.target.value); setErro(""); }} /><b>pts</b></div>
+              <small>Sistema: {pontos(automaticoClt)} pts</small></label>}
+            {tipo !== "CLT" && <label>Premiação acumulada Compra de Dívida
+              <div><input aria-label="Valor da premiação Compra de Dívida" inputMode="decimal" value={textoCompra} onChange={(e) => { setTextoCompra(e.target.value); setErro(""); }} /><b>pts</b></div>
+              <small>Sistema: {pontos(automaticoCompra)} pts</small></label>}
+          </div>
+          <div className="eleva-premio-edit-total"><span>Total premiação acumulada</span><strong>{total === null ? "—" : `${pontos(total)} pts`}</strong>
+            <small>CLT + Compra de Dívida. O total nunca é editado separado das parcelas.</small></div>
+          <p className="eleva-premio-edit-note">Este ajuste é uma conferência local. Não altera Custo PA, comissão da empresa nem libera pontos. Ao trocar a pessoa, a referência ou recarregar a página, o ajuste é descartado.</p>
+          {erro && <p className="eleva-premio-edit-error" role="alert">{erro}</p>}
+          <footer><button type="button" onClick={onFechar}>Cancelar</button><button type="submit">Salvar ajuste</button></footer>
+        </form>
+      </div>
+    </div>, document.body,
+  );
+}
+
+function BarraMetaPremiacao({ titulo, producao, meta, observacao, liberada = false }: {
+  titulo: string;
+  producao: number;
+  meta: number | null;
+  observacao?: string;
+  liberada?: boolean;
+}) {
+  const percentual = liberada ? 100 : progressoMetaPremiacao(producao, meta);
+  const faltante = meta === null ? null : Math.max(meta - producao, 0);
+  return <article className="eleva-meta-produto" title={observacao}>
+    <div className="eleva-meta-head"><h3>{titulo}</h3><b>{meta === null && !liberada ? "—" : `${percentual}%`}</b></div>
+    <div className="eleva-meta-progress" role="progressbar" aria-label={titulo} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentual} aria-valuetext={meta === null && !liberada ? "Sem meta individual definida" : `${percentual}%`}>
+      <i style={{ width: `${percentual}%` }} />
+    </div>
+    <p><b>{moeda(producao)}</b>{meta !== null ? <> de {moeda(meta)} · {liberada ? "Liberada pela regra de CLT" : faltante && faltante > 0 ? `Faltam ${moeda(faltante)}` : "Meta atingida"}</> : " · Sem meta separada definida"}</p>
+    {observacao && <small className="eleva-classic-sr-only">{observacao}</small>}
+  </article>;
+}
+
+
+/** Ajuste visual apenas: conserva todos os dígitos e não altera o valor financeiro. */
+function ValorAguardandoEnquadrado({ valor }: { valor: number }) {
+  const caixaRef = useRef<HTMLElement>(null);
+  const textoRef = useRef<HTMLSpanElement>(null);
+  const texto = moeda(valor);
+
+  useEffect(() => {
+    const caixa = caixaRef.current;
+    const conteudo = textoRef.current;
+    if (!caixa || !conteudo) return;
+
+    let ativo = true;
+    let quadro = 0;
+    let ultimaLargura = -1;
+
+    function ajustar() {
+      if (!ativo || !caixa || !conteudo) return;
+      const disponivel = Math.max(0, caixa.clientWidth - 2);
+      if (disponivel <= 0) return;
+
+      // Mede com a fonte normal e reduz somente quando o número não cabe.
+      const fonteBase = Number.parseFloat(window.getComputedStyle(caixa).fontSize) || 24;
+      conteudo.style.fontSize = `${fonteBase}px`;
+      let fonte = fonteBase;
+      for (let tentativa = 0; tentativa < 5; tentativa += 1) {
+        const larguraTexto = conteudo.getBoundingClientRect().width;
+        if (larguraTexto <= disponivel || larguraTexto <= 0) break;
+        fonte = Math.max(1, Math.floor(fonte * disponivel / larguraTexto * 100) / 100);
+        conteudo.style.fontSize = `${fonte}px`;
+      }
+    }
+
+    function agendar() {
+      if (!ativo) return;
+      window.cancelAnimationFrame(quadro);
+      quadro = window.requestAnimationFrame(ajustar);
+    }
+
+    const observador = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver((entradas) => {
+          const largura = entradas[0]?.contentRect.width ?? 0;
+          // Alterar a fonte pode mudar a altura; só a largura exige novo ajuste.
+          if (Math.abs(largura - ultimaLargura) > 0.25) {
+            ultimaLargura = largura;
+            agendar();
+          }
+        })
+      : null;
+    observador?.observe(caixa);
+    window.addEventListener("resize", agendar);
+    document.fonts?.addEventListener("loadingdone", agendar);
+    void document.fonts?.ready.then(agendar, () => undefined);
+    ajustar();
+
+    return () => {
+      ativo = false;
+      window.cancelAnimationFrame(quadro);
+      observador?.disconnect();
+      window.removeEventListener("resize", agendar);
+      document.fonts?.removeEventListener("loadingdone", agendar);
+    };
+  }, [texto]);
+
+  return (
+    <strong ref={caixaRef} className="eleva-classic-wait-value" title={texto}>
+      <span ref={textoRef}>{texto}</span>
+    </strong>
+  );
+}
+
 export default function MinhaPremiacaoV2(props: Props) {
   const [mostrarContratosSecundarios, setMostrarContratosSecundarios] = useState(false);
 
@@ -392,9 +627,8 @@ const [abaAdmin, setAbaAdmin] = useState<
   const [pixEdicaoTipo, setPixEdicaoTipo] = useState("");
   const [pixEdicaoChave, setPixEdicaoChave] = useState("");
 
-  const [editarPremiacaoAberto,setEditarPremiacaoAberto]=useState(false);
-  const [premiacaoManual,setPremiacaoManual]=useState<number|null>(null);
-  const [premiacaoManualTexto,setPremiacaoManualTexto]=useState("");
+  const [edicaoPremiacao, setEdicaoPremiacao] = useState<{ contexto: string; tipo: ProdutoEdicaoPremiacao } | null>(null);
+  const [ajustePremiacao, setAjustePremiacao] = useState<AjustePremiacaoLocal>({ contexto: "", clt: null, compra: null });
 
   const [busca, setBusca] = useState("");
 
@@ -496,22 +730,40 @@ const [abaAdmin, setAbaAdmin] = useState<
 
   const compraBrutaPaga = movimentosCompra.reduce((t,m)=>t+Number(m.valorBruto ?? m.valorContrato ?? 0),0);
 
-  useEffect(()=>{
-    setPremiacaoManual(null);
-    setPremiacaoManualTexto("");
-    setEditarPremiacaoAberto(false);
-  },[consultoraSelecionada,competencia]);
+  const contextoPremiacao = `${competencia}|${consultoraSelecionada}|${nomeExibido}`;
+  const ajusteAtual = ajustePremiacao.contexto === contextoPremiacao
+    ? ajustePremiacao : { contexto: contextoPremiacao, clt: null, compra: null };
+  const premiacaoCltAutomatica = valorPremiacaoSeguro(pontosCltPrevistos);
+  const premiacaoCompraAutomatica = valorPremiacaoSeguro(pontosCompraPrevistos);
+  const premiacaoCltExibida = ajusteAtual.clt ?? premiacaoCltAutomatica;
+  const premiacaoCompraExibida = ajusteAtual.compra ?? premiacaoCompraAutomatica;
+  const premiacaoAutomaticaTotal = somarPremiacoes(premiacaoCltAutomatica, premiacaoCompraAutomatica);
+  const premiacaoExibida = somarPremiacoes(premiacaoCltExibida, premiacaoCompraExibida);
+  const temAjusteManual = ajusteAtual.clt !== null || ajusteAtual.compra !== null;
+  const premiacaoDivergente = ![pontosCltPrevistos, pontosCompraPrevistos, pontosTotalPrevisto].every((v) => Number.isFinite(v) && v >= 0)
+    || Math.abs(premiacaoAutomaticaTotal - valorPremiacaoSeguro(pontosTotalPrevisto)) > 0.009;
+  const todosSelecionados = consultoraSelecionada === TODOS_CONSULTORES;
+  const podeEditarPremiacao = podeGerenciar && !processando && !premiacaoJaLiberada && !todosSelecionados;
 
-  const premiacaoExibida=premiacaoManual??pontosTotalPrevisto;
-  function abrirEdicaoPremiacao(){
-    setPremiacaoManualTexto(String(premiacaoExibida.toFixed(2)).replace(".",","));
-    setEditarPremiacaoAberto(true);
+  useEffect(() => {
+    setEdicaoPremiacao(null);
+    setAjustePremiacao({ contexto: contextoPremiacao, clt: null, compra: null });
+    setModalConferencia(false);
+  }, [contextoPremiacao]);
+
+  function abrirEdicaoPremiacao(tipo: ProdutoEdicaoPremiacao = "TOTAL") {
+    if (!podeEditarPremiacao) return;
+    setEdicaoPremiacao({ contexto: contextoPremiacao, tipo });
   }
-  function salvarEdicaoPremiacao(){
-    const valor=Number(premiacaoManualTexto.replace(/\./g,"").replace(",","."));
-    if(!Number.isFinite(valor)||valor<0)return;
-    setPremiacaoManual(valor);
-    setEditarPremiacaoAberto(false);
+
+  function salvarEdicaoPremiacao(cltConferido: number, compraConferida: number) {
+    if (!podeEditarPremiacao || edicaoPremiacao?.contexto !== contextoPremiacao) return;
+    setAjustePremiacao({
+      contexto: contextoPremiacao,
+      clt: cltConferido === premiacaoCltAutomatica ? null : cltConferido,
+      compra: compraConferida === premiacaoCompraAutomatica ? null : compraConferida,
+    });
+    setEdicaoPremiacao(null);
   }
 
   function abrirEdicaoColaboradora(nome: string) {
@@ -537,17 +789,27 @@ const [abaAdmin, setAbaAdmin] = useState<
   const ehVanessa = nomeMetaNormalizado.includes("vanessa");
   const ehRaissa = nomeMetaNormalizado.includes("raissa");
 
-  // Sthefane: meta exclusiva de Compra de Dívida da empresa.
-  // R$ 500 mil = R$ 250; R$ 1 milhão = R$ 500 (faixa não cumulativa).
-  const metaVisualValor = ehSthefane ? 500000 : ehVinicius ? 1000000 : 30000;
-  const producaoVisualMeta = ehSthefane || ehVinicius ? compraLiquidaPaga : compraLiquidaPaga;
-  const percentualVisualMeta = Math.min(
-    100,
-    Math.round((producaoVisualMeta / Math.max(metaVisualValor, 1)) * 100),
-  );
-  const faltanteVisualMeta = Math.max(metaVisualValor - producaoVisualMeta, 0);
-
-  const cltParcelasPagas = movimentosClt.reduce((t,m)=>t+Number(m.valorParcelaClt||m.producaoValida||0),0);
+  const cltParcelasPagas = movimentosClt.reduce((total, movimento) => total + Number(movimento.valorParcelaClt ?? 0), 0);
+  const primeiroNomeMeta = todosSelecionados ? "Todos" : (nomeExibido.trim().split(/\s+/)[0] || "Operador(a)");
+  // Para consultoras, a meta visual CLT acompanha o fallback de 20 mil já
+  // existente em PremiacaoManagerV3. Compra mantém os 30 mil do arquivo recebido.
+  // Não usa valor liberado como parcelas, inclusive na visão da coordenação.
+  const metaCltPadrao = todosSelecionados || ehSthefane || ehVinicius ? null : ehVanessa ? 1500000 : ehRaissa ? 500000 : 20000;
+  const metaCompraPadrao = todosSelecionados ? null : ehSthefane ? 500000 : ehVinicius ? 1000000 : ehVanessa ? 260000 : ehRaissa ? 500000 : 30000;
+  const metaCltVisual = metaPositiva(props.metasVisuais?.clt, metaCltPadrao);
+  const metaCompraVisual = metaPositiva(props.metasVisuais?.compra, metaCompraPadrao);
+  const producaoMetaClt = ehVanessa ? Number(producaoClt || 0) : cltParcelasPagas;
+  const compraLiberadaMetaClt = ehVanessa && Number(producaoClt || 0) >= 1500000;
+  const observacaoMetaClt = todosSelecionados ? "Metas individuais: selecione uma colaboradora."
+    : ehVanessa ? "Coordenação: meta sobre o valor liberado pago, não sobre parcelas."
+    : ehRaissa ? "Parcela CLT da meta conjunta de R$ 500.000,00. Não é uma segunda meta."
+    : ehSthefane || ehVinicius ? "A regra deste perfil não define uma meta CLT separada."
+    : "Progresso sobre as parcelas CLT pagas da operadora.";
+  const observacaoMetaCompra = todosSelecionados ? "Metas individuais: selecione uma colaboradora."
+    : ehVanessa && compraLiberadaMetaClt ? "Compra liberada pela meta CLT: sem meta mínima de Compra, conforme regra existente."
+    : ehRaissa ? `Meta conjunta (CLT + Compra): ${moeda(compraLiquidaPaga + cltParcelasPagas)} de ${moeda(500000)}.`
+    : ehSthefane || ehVinicius ? "Meta de Compra da empresa, conforme regra existente deste perfil."
+    : "Progresso sobre a produção líquida paga de Compra de Dívida.";
 
   // Consome apenas o resumo financeiro da MESMA referência.
   // Não soma premiação manual, não reaproveita outro mês e não recalcula o rateio.
@@ -559,8 +821,25 @@ const [abaAdmin, setAbaAdmin] = useState<
   const referenciaCustoLabel = /^\d{4}-\d{2}$/.test(competencia)
     ? `${competencia.slice(5, 7)}/${competencia.slice(0, 4)}` : "não selecionada";
 
+  // Os movimentos vêm da apuração existente de contratos pagos. Os filtros de
+  // referência/status seguem no Manager e NÃO são modificados por esta tela.
   const comissaoEmpresaBruta = movimentosCompra.reduce((t,m)=>t+Number(m.comissaoEmpresa||0),0);
   const comissaoEmpresaLiquida = custoPa === null ? null : Math.max(comissaoEmpresaBruta - custoPa, 0);
+  const financeiroCltConfirmado = props.financeiroClt?.referencia === competencia
+    && chaveNomePix(props.financeiroClt.operador) === chaveNomePix(nomeExibido)
+      ? props.financeiroClt : null;
+  // Nunca interpreta o comissaoEmpresa: 0 do CLT legado como comissão conhecida.
+  // Sem contratos CLT na apuração a soma é zero; com contratos e sem dados, é —.
+  const liquidoEmpresaClt = financeiroCltConfirmado
+    ? valorFinanceiroValido(financeiroCltConfirmado.liquidoEmpresaPago)
+    : movimentosClt.length === 0 ? 0 : null;
+  const comissaoEmpresaClt = financeiroCltConfirmado
+    ? valorFinanceiroValido(financeiroCltConfirmado.comissaoEmpresaBruta)
+    : movimentosClt.length === 0 ? 0 : null;
+  // Mantém o piso zero já existente neste card de Minha Premiação.
+  // O relatório de Lucro por Operador (que pode mostrar prejuízo) não é alterado.
+  const comissaoLiquidaCard = custoPa === null || comissaoEmpresaClt === null
+    ? null : Math.max(comissaoEmpresaBruta + comissaoEmpresaClt - custoPa, 0);
   const brutoSelecionado = Math.max(movimentos.reduce((t,m)=>t+Number(m.valorBruto ?? m.valorContrato ?? 0),0),0);
 
   const movimentosComFinanceiro = movimentosFiltrados.map((item) => {
@@ -620,47 +899,21 @@ const [abaAdmin, setAbaAdmin] = useState<
   }
 
   function abrirConferencia() {
-
-    setPontosCompraLiberar(String(compraPrevistaSegura));
-
-    setPontosCltLiberar(String(cltPrevistaSegura));
-
+    setPontosCompraLiberar(textoValorPremiacao(premiacaoCompraExibida));
+    setPontosCltLiberar(textoValorPremiacao(premiacaoCltExibida));
     setErroModal("");
-
     setModalConferencia(true);
-
   }
 
   async function confirmarLiberacao(evento: FormEvent<HTMLFormElement>) {
 
     evento.preventDefault();
 
-    const compra = Number(
-
-      String(pontosCompraLiberar).replace(/\./g, "").replace(",", "."),
-
-    );
-
-    const clt = Number(
-
-      String(pontosCltLiberar).replace(/\./g, "").replace(",", "."),
-
-    );
-
-    if (!Number.isFinite(compra) || compra < 0) {
-
-      setErroModal("Informe uma pontuação válida para Compra.");
-
+    const compra = lerValorPremiacao(pontosCompraLiberar);
+    const clt = lerValorPremiacao(pontosCltLiberar);
+    if (compra === null || clt === null) {
+      setErroModal("Informe valores válidos e não negativos para CLT e Compra, com até duas casas decimais.");
       return;
-
-    }
-
-    if (!Number.isFinite(clt) || clt < 0) {
-
-      setErroModal("Informe uma pontuação válida para CLT.");
-
-      return;
-
     }
 
     try {
@@ -747,7 +1000,7 @@ const [abaAdmin, setAbaAdmin] = useState<
 
     return (
 
-      <div className="premio-v4-page">
+      <div className="premio-v4-page eleva-premiacao-cards-v2">
 
         <nav className="premio-v8-nav">
           <button type="button" className={`premio-v8-nav-card blue ${secaoV7 === "visao" && abaAdmin === "conferencia" ? "active" : ""}`} onClick={() => { setAbaAdmin("conferencia"); setSecaoV7("visao"); }}>
@@ -770,15 +1023,29 @@ const [abaAdmin, setAbaAdmin] = useState<
           </button>
         </nav>
 
-        <section className="premio-v7-person" style={{display:"grid",gridTemplateColumns:"minmax(220px,1fr) minmax(170px,210px) minmax(280px,340px) minmax(190px,220px)",gap:16,alignItems:"center",width:"100%",boxSizing:"border-box"}}>
-          <div className="premio-v7-avatar">{nomeExibido.charAt(0).toUpperCase()}</div>
-          <div className="premio-v7-person-copy">
-            <div className="premio-v7-person-name"><h2>{nomeExibido}</h2><span>PIX cadastrado</span></div>
-            <p>Vendedora <b>|</b> {pixDaColaboradora(nomeExibido).tipo || "CPF"}: {pixDaColaboradora(nomeExibido).chave || "—"}</p>
+        <section className="eleva-classic-person" aria-label="Colaboradora e referência">
+          <div className="eleva-classic-identity">
+            <div className="eleva-classic-avatar" aria-hidden="true">{nomeExibido.charAt(0).toUpperCase()}</div>
+            <div className="eleva-classic-person-copy">
+              <h2>{nomeExibido}</h2>
+              <p>{todosSelecionados ? "Visão consolidada dos consultores" : props.perfilUsuario && (ehVanessa || ehRaissa || ehSthefane || ehVinicius) ? "Conferência da colaboradora" : "Vendedora"}
+                {!todosSelecionados && <> · {pixDaColaboradora(nomeExibido).tipo || "CPF"}: {pixDaColaboradora(nomeExibido).chave || "—"}</>}
+              </p>
+            </div>
+            {!todosSelecionados && <span className="eleva-classic-pix">{pixDaColaboradora(nomeExibido).chave ? "PIX cadastrado" : "PIX não cadastrado"}</span>}
           </div>
-          <label className="premio-v7-colab-select"><span>Consultor(a)</span><select value={consultoraSelecionada} onChange={(e) => onConsultoraChange(e.target.value)}>{podeGerenciar && <option value={TODOS_CONSULTORES}>Todos</option>}{consultorasComVanessa.map((nome) => <option key={nome} value={nome}>{nome}</option>)}</select></label>
-          <label className="premio-v7-period"><span>REFERÊNCIA</span><div style={{display:"grid",gridTemplateColumns:"34px minmax(0,1fr) 34px",gap:6,alignItems:"center",width:"100%",minWidth:0}}><button aria-label="Mês anterior" title="Mês anterior" type="button" onClick={() => onCompetenciaChange(moverCompetencia(competencia,-1))} style={{height:42,width:34,padding:0,border:"1px solid #d7e3f5",borderRadius:10,background:"#fff",color:"#1f61ee",fontWeight:900,cursor:"pointer",justifySelf:"stretch"}}>&lt;</button><input type="month" value={competencia} onChange={(e) => onCompetenciaChange(e.target.value)} style={{width:"100%",minWidth:0,boxSizing:"border-box"}} /><button aria-label="Próximo mês" title="Próximo mês" type="button" onClick={() => onCompetenciaChange(moverCompetencia(competencia,1))} style={{height:42,width:34,padding:0,border:"1px solid #d7e3f5",borderRadius:10,background:"#fff",color:"#1f61ee",fontWeight:900,cursor:"pointer",justifySelf:"stretch"}}>&gt;</button></div><small>Escolha o mês de referência para recalcular a premiação.</small></label>
-          <button type="button" className="premio-v7-update" style={{width:"min(100%, 300px)",maxWidth:"300px",minWidth:0,whiteSpace:"nowrap",justifySelf:"start",boxSizing:"border-box",padding:"12px 18px"}} onClick={() => void onAtualizar()} disabled={processando}>↻ {processando ? "Atualizando..." : "Atualizar e recalcular"}</button>
+          <div className="eleva-classic-person-controls">
+            <label><span>Consultor(a)</span><select value={consultoraSelecionada} onChange={(e) => onConsultoraChange(e.target.value)}>
+              {podeGerenciar && <option value={TODOS_CONSULTORES}>Todos</option>}
+              {consultorasComVanessa.map((nome) => <option key={nome} value={nome}>{nome}</option>)}
+            </select></label>
+            <label><span>Referência</span><div className="eleva-classic-month">
+              <button aria-label="Mês anterior" title="Mês anterior" type="button" onClick={() => onCompetenciaChange(moverCompetencia(competencia,-1))}>‹</button>
+              <input aria-label="Referência da premiação" type="month" value={competencia} onChange={(e) => onCompetenciaChange(e.target.value)} />
+              <button aria-label="Próximo mês" title="Próximo mês" type="button" onClick={() => onCompetenciaChange(moverCompetencia(competencia,1))}>›</button>
+            </div></label>
+            <button type="button" className="eleva-classic-update" onClick={() => void onAtualizar()} disabled={processando}>↻ {processando ? "Atualizando..." : "Atualizar e recalcular"}</button>
+          </div>
         </section>
 
         {abaAdmin === "conferencia" && secaoV7 === "colaboradoras" && (
@@ -806,103 +1073,87 @@ const [abaAdmin, setAbaAdmin] = useState<
 
           <>
 
-            <section className="premio-v4-kpis">
-                <article><span>{ehVanessa ? "CLT — valor bruto/liberado pago" : "CLT — parcelas pagas"}</span><strong>{moeda(ehVanessa ? Number(producaoClt || 0) : cltParcelasPagas)}</strong><small>{faixaClt || "Abaixo da primeira faixa"}</small></article>
-                <article><span>Compra de Dívida — líquido pago</span><strong>{moeda(compraLiquidaPaga)}</strong><small>{faixaCompra || "Abaixo da primeira faixa"}</small></article>
-                <article><span>Compra de Dívida — bruto pago</span><strong>{moeda(compraBrutaPaga)}</strong><small>{movimentosCompra.length} contrato(s) elegível(is)</small></article>
-                <article className="internal"><span>Comissão empresa — bruto</span><strong>{moeda(comissaoEmpresaBruta)}</strong><small>Antes do Custo PA</small></article>
-                <article className="internal"><span>Comissão empresa — líquido</span><strong>{moedaFinanceira(comissaoEmpresaLiquida)}</strong><small>Comissão bruta menos Custo PA</small></article>
-                <article className="premio-custo-pa-financeiro" aria-live="polite" aria-busy={carregandoCustoPa}>
-                  <span>Custo PA</span>
+            <div className="eleva-classic-scope">
+              <section className="eleva-classic-summary" aria-label="Indicadores de CLT, Compra de Dívida e empresa">
+                <article className="eleva-classic-kpi tone-blue" data-card="clt-parcelas">
+                  <span>CLT - PARCELAS OPERADOR PAGAS</span>
+                  <strong>{moeda(cltParcelasPagas)}</strong>
+                  <small>{faixaClt || "Abaixo da primeira faixa"}</small>
+                </article>
+                <article className="eleva-classic-kpi tone-green" data-card="clt-liquido">
+                  <span>CLT - LIQUIDO EMPRESA PAGO</span>
+                  <strong>{moedaFinanceira(liquidoEmpresaClt)}</strong>
+                  <small>{liquidoEmpresaClt === null ? "Valor CLT não informado" : "Valor informado pela apuração CLT"}</small>
+                </article>
+                <article className="eleva-classic-kpi tone-gold" data-card="clt-comissao">
+                  <span>CLT - COMISSÃO EMPRESA BRUTO</span>
+                  <strong>{moedaFinanceira(comissaoEmpresaClt)}</strong>
+                  <small>{comissaoEmpresaClt === null ? "Comissão CLT não informada" : "Comissão da empresa, antes do custo"}</small>
+                </article>
+                <article className="eleva-classic-kpi tone-green" data-card="compra-liquido">
+                  <span>COMPRA DE DIVIDA - LIQUIDO OPERADOR PAGO</span>
+                  <strong>{moeda(compraLiquidaPaga)}</strong>
+                  <small>{faixaCompra || "Abaixo da primeira faixa"}</small>
+                </article>
+                <article className="eleva-classic-kpi tone-lilac" data-card="compra-bruto">
+                  <span>COMPRA DE DIVIDA - BRUTO EMPRESA PAGO</span>
+                  <strong>{moeda(compraBrutaPaga)}</strong>
+                  <small>{movimentosCompra.length} contrato(s) na apuração</small>
+                </article>
+                <article className="eleva-classic-kpi tone-gold" data-card="compra-comissao">
+                  <span>COMPRA DE DIVIDA - COMISSÃO EMPRESA BRUTO</span>
+                  <strong>{moeda(comissaoEmpresaBruta)}</strong>
+                  <small>Antes do Custo por Operador</small>
+                </article>
+                <article className="eleva-classic-kpi tone-blue" data-card="custo" aria-live="polite" aria-busy={carregandoCustoPa}>
+                  <span>CUSTO POR OPERADOR</span>
                   <strong>{moedaFinanceira(custoPa)}</strong>
-                  <small>Financeiro · Referência {referenciaCustoLabel}</small>
-                  <small title={erroCustoPa || undefined}>
-                    {carregandoCustoPa ? "Atualizando Custo PA..." : custoConfirmado
-                      ? `${moeda(custoConfirmado.custoTotal)} ÷ ${custoConfirmado.quantidadeOperadores} operador(es)`
-                      : "Custo PA indisponível para esta referência"}
+                  <small title={erroCustoPa || (custoConfirmado ? `${moeda(custoConfirmado.custoTotal)} ÷ ${custoConfirmado.quantidadeOperadores} operador(es)` : undefined)}>
+                    {carregandoCustoPa ? "Atualizando Custo PA..." : custoConfirmado ? `Financeiro · Referência ${referenciaCustoLabel}` : "Custo indisponível nesta referência"}
                   </small>
                 </article>
-                <article><span>Aguardando pagar</span><strong>{moeda(producaoEmFormacao)}</strong><small>{contratosEmFormacao} proposta(s) ainda não paga(s)</small></article>
-                <article className="points"><span>Premiação automática</span><strong>{pontos(pontosTotalPrevisto)} pts</strong><small>{pontosTotalPrevisto > 0 ? "1 ponto = R$ 1,00" : "NÃO BATEU META"}</small></article>
+                <article className="eleva-classic-kpi tone-pink" data-card="comissao-liquida">
+                  <span>COMISSÃO LIQUIDA EMPRESA</span>
+                  <strong>{moedaFinanceira(comissaoLiquidaCard)}</strong>
+                  <small title={comissaoEmpresaClt === null ? `Total ainda indisponível. Parcial de Compra pela regra atual: ${moedaFinanceira(comissaoEmpresaLiquida)}` : undefined}>
+                    {custoPa === null ? "Aguardando Custo PA da referência" : comissaoEmpresaClt === null ? "Aguardando comissão CLT" : "Comissão CLT + Compra − Custo PA"}
+                  </small>
+                </article>
               </section>
 
-            <section className="premio-v7-goal-row">
-              <article className="premio-v7-wait"><span>⌛ Aguardando pagar</span><strong>{moeda(producaoEmFormacao)}</strong><small>{contratosEmFormacao} proposta(s)</small></article>
-              <article className="premio-v7-award">
-                <div className="premio-v7-award-edit-head"><span>🏆 Premiação acumulada</span><button type="button" onClick={abrirEdicaoPremiacao}>✏️ Editar</button></div>
-                <strong>{pontos(premiacaoExibida)} pts</strong>
-                <small>{premiacaoManual===null?`Calculado automaticamente • ${moeda(pontosTotalPrevisto)}`:`Sistema: ${pontos(pontosTotalPrevisto)} pts • Ajustado manualmente`}</small>
-              </article>
-              {ehVanessa ? (
-              <article className="premio-v7-goal premio-v7-goal-vanessa">
-                <div>
-                  <span>🎯 CLT bruto/liberado — Vanessa • mês de produção</span>
-                  <b>{Math.min(100, Math.floor((Number(producaoClt || 0) / 1500000) * 100))}%</b>
-                </div>
-                <div className="premio-v7-progress">
-                  <i style={{width: `${Math.min(100, (Number(producaoClt || 0) / 1500000) * 100)}%`}} />
-                </div>
-                <small>
-                  <b>{moeda(Number(producaoClt || 0))}</b> de {moeda(1500000)}
-                  {Number(producaoClt || 0) < 1500000
-                    ? ` • Faltam ${moeda(1500000 - Number(producaoClt || 0))}`
-                    : " • Meta CLT atingida"}
-                </small>
-
-                <div style={{height: 1, background: "#e3ebf7", margin: "10px 0"}} />
-
-                <div>
-                  <span>💰 COMPRA DE DÍVIDA LÍQUIDA — EMPRESA</span>
-                  <b>{Number(producaoClt || 0) >= 1500000 ? "100%" : `${Math.min(100, Math.floor((compraLiquidaPaga / 260000) * 100))}%`}</b>
-                </div>
-                <div className="premio-v7-progress">
-                  <i style={{width: `${Number(producaoClt || 0) >= 1500000 ? 100 : Math.min(100, (compraLiquidaPaga / 260000) * 100)}%`}} />
-                </div>
-                <small>
-                  <b>{moeda(compraLiquidaPaga)}</b>
-                  {Number(producaoClt || 0) >= 1500000
-                    ? " • LIBERADA — sem meta mínima de Compra"
-                    : ` de ${moeda(260000)} • Faltam ${moeda(Math.max(260000 - compraLiquidaPaga, 0))}`}
-                </small>
-              </article>
-            ) : ehRaissa ? (
-              <article className="premio-v7-goal">
-                {(() => {
-                  const totalRaissa = compraLiquidaPaga + cltParcelasPagas;
-                  const metaRaissa = 500000;
-                  const percentualRaissa = Math.min(100, Math.floor((totalRaissa / metaRaissa) * 100));
-                  const faltanteRaissa = Math.max(metaRaissa - totalRaissa, 0);
-                  return (
-                    <>
-                      <div>
-                        <span>🎯 Meta Supervisão — Raissa</span>
-                        <b>{percentualRaissa}%</b>
-                      </div>
-                      <div className="premio-v7-progress"><i style={{width: `${percentualRaissa}%`}} /></div>
-                      <small>
-                        <b>{moeda(totalRaissa)}</b> de {moeda(metaRaissa)}
-                        {faltanteRaissa > 0 ? ` • Faltam ${moeda(faltanteRaissa)}` : " • Meta atingida"}
-                      </small>
-                      <small>Compra líquida {moeda(compraLiquidaPaga)} + parcelas CLT {moeda(cltParcelasPagas)}</small>
-                    </>
-                  );
-                })()}
-              </article>
-            ) : (
-              <article className="premio-v7-goal">
-                <div>
-                  <span>🎯 Meta do mês — {nomeExibido.split(" ")[0]}</span>
-                  <b>{percentualVisualMeta}%</b>
-                </div>
-                <div className="premio-v7-progress"><i style={{width: `${percentualVisualMeta}%`}} /></div>
-                <small>
-                  <b>{moeda(producaoVisualMeta)}</b> de {moeda(metaVisualValor)}
-                  {faltanteVisualMeta > 0 ? ` • Faltam ${moeda(faltanteVisualMeta)}` : " • Meta atingida"}
-                </small>
-              </article>
-            )}
-              <article className="premio-v7-motivation"><b>🏆</b><div><strong>Você está no<br/>caminho certo!</strong><small>Consistência gera conquistas.</small></div></article>
-            </section>
+              <section className="eleva-classic-bottom" aria-label="Premiações acumuladas e metas do mês">
+                <article className="eleva-classic-panel eleva-classic-wait">
+                  <span>⌛ AGUARDANDO PAGAR</span>
+                  <ValorAguardandoEnquadrado valor={producaoEmFormacao} />
+                  <small>{contratosEmFormacao} proposta(s)</small>
+                </article>
+                <article className="eleva-classic-panel eleva-classic-award area-clt" data-award="clt">
+                  <header><h3>🏆 Premiação acumulada CLT</h3><button type="button" disabled={!podeEditarPremiacao} onClick={() => abrirEdicaoPremiacao("CLT")} aria-label="Editar premiação CLT"><span aria-hidden="true">✏️</span> Editar</button></header>
+                  <strong>{pontos(premiacaoCltExibida)} <em>pts</em></strong>
+                  <small>{ajusteAtual.clt === null ? "Calculado automaticamente" : "Ajustado manualmente"} · {moeda(premiacaoCltExibida)}</small>
+                  {complementoCompraComClt > 0 && <small>Inclui complemento de {moeda(complementoCompraComClt)}.</small>}
+                  {ehVinicius && <small>Bônus de meta da empresa, conforme a regra de Qualidade.</small>}
+                </article>
+                <article className="eleva-classic-panel eleva-classic-award area-compra" data-award="compra">
+                  <header><h3>🏆 Premiação acumulada Compra de Dívida</h3><button type="button" disabled={!podeEditarPremiacao} onClick={() => abrirEdicaoPremiacao("COMPRA")} aria-label="Editar premiação Compra de Dívida"><span aria-hidden="true">✏️</span> Editar</button></header>
+                  <strong>{pontos(premiacaoCompraExibida)} <em>pts</em></strong>
+                  <small>{ajusteAtual.compra === null ? "Calculado automaticamente" : "Ajustado manualmente"} · {moeda(premiacaoCompraExibida)}</small>
+                </article>
+                <article className="eleva-classic-panel eleva-classic-award area-total" data-award="total">
+                  <header><h3>🏆 Total premiação acumulada</h3><button type="button" disabled={!podeEditarPremiacao} onClick={() => abrirEdicaoPremiacao("TOTAL")} aria-label="Editar composição do total da premiação"><span aria-hidden="true">✏️</span> Editar</button></header>
+                  <strong>{pontos(premiacaoExibida)} <em>pts</em></strong>
+                  <small>CLT + Compra de Dívida · {moeda(premiacaoExibida)}</small>
+                </article>
+                <section className="eleva-classic-panel eleva-classic-goals" aria-label="Metas por produto">
+                  <BarraMetaPremiacao titulo={`🎯 Meta do mês CLT — ${primeiroNomeMeta}`} producao={producaoMetaClt} meta={metaCltVisual} observacao={observacaoMetaClt} />
+                  <BarraMetaPremiacao titulo={`🎯 Meta do mês Compra de Dívida — ${primeiroNomeMeta}`} producao={compraLiquidaPaga} meta={metaCompraVisual} liberada={compraLiberadaMetaClt} observacao={observacaoMetaCompra} />
+                </section>
+                <article className="eleva-classic-panel eleva-classic-motivation"><b aria-hidden="true">🏆</b><div><strong>Você está no<br />caminho certo!</strong><small>Consistência gera conquistas.</small></div></article>
+              </section>
+              {premiacaoDivergente && <p className="eleva-classic-notice" role="alert">A soma de CLT + Compra ({pontos(premiacaoAutomaticaTotal)} pts) difere do total recebido ({pontos(pontosTotalPrevisto)} pts). Confira a origem antes de liberar.</p>}
+              {temAjusteManual && <p className="eleva-classic-notice">Ajuste local da pessoa e referência selecionadas. Os valores editados serão levados à conferência; salvar não libera pontos.</p>}
+              {todosSelecionados && <p className="eleva-classic-notice">Selecione uma colaboradora para editar a premiação e visualizar as metas individuais.</p>}
+            </div>
 
             <section className="premio-v4-layout">
 
@@ -1132,7 +1383,7 @@ const [abaAdmin, setAbaAdmin] = useState<
 
                       <span>Premiação</span>
 
-                      <strong>{pontos(pontosCompraPrevistos + pontosCltPrevistos)} pts</strong>
+                      <strong>{pontos(premiacaoExibida)} pts</strong>
 
                       <small>{premiacaoJaLiberada ? "Premiação paga / liberada" : "Aguardando sua conferência"}</small>
 
@@ -1172,11 +1423,11 @@ const [abaAdmin, setAbaAdmin] = useState<
 
                       <span>Pontuação prevista</span>
 
-                      <strong>{pontos(pontosTotalPrevisto)} pts</strong>
+                      <strong>{pontos(premiacaoExibida)} pts</strong>
 
                       <small>
 
-                        Equivalente a {moeda(pontosTotalPrevisto)}
+                        Equivalente a {moeda(premiacaoExibida)}
 
                       </small>
 
@@ -1868,17 +2119,151 @@ const [abaAdmin, setAbaAdmin] = useState<
 
         )}
 
-        {editarPremiacaoAberto&&(
-        <div className="premio-v7-edit-award-backdrop" onMouseDown={()=>setEditarPremiacaoAberto(false)}>
-          <div className="premio-v7-edit-award" onMouseDown={(e)=>e.stopPropagation()}>
-            <header><div><span>CONFERÊNCIA DA PREMIAÇÃO</span><h3>Editar valor antes de liberar</h3></div><button type="button" onClick={()=>setEditarPremiacaoAberto(false)}>×</button></header>
-            <article><span>Calculado pelo sistema</span><strong>{pontos(pontosTotalPrevisto)} pts</strong></article>
-            <label><span>Valor conferido</span><div><input value={premiacaoManualTexto} onChange={(e)=>setPremiacaoManualTexto(e.target.value)} inputMode="decimal"/><b>pts</b></div></label>
-            <p>🔒 Salvar o ajuste não libera pontos. A liberação continua somente em “Conferir e liberar”.</p>
-            <footer><button type="button" onClick={()=>setEditarPremiacaoAberto(false)}>Cancelar</button><button type="button" className="save" onClick={salvarEdicaoPremiacao}>Salvar ajuste</button></footer>
-          </div>
-        </div>
-      )}
+        {edicaoPremiacao?.contexto === contextoPremiacao && podeEditarPremiacao && (
+          <EdicaoPremiacaoModal
+            key={`${edicaoPremiacao.contexto}|${edicaoPremiacao.tipo}`}
+            tipo={edicaoPremiacao.tipo}
+            nome={nomeExibido}
+            clt={premiacaoCltExibida}
+            compra={premiacaoCompraExibida}
+            automaticoClt={premiacaoCltAutomatica}
+            automaticoCompra={premiacaoCompraAutomatica}
+            onFechar={() => setEdicaoPremiacao(null)}
+            onSalvar={salvarEdicaoPremiacao}
+          />
+        )}
+        <style>{`
+/* ELEVA - Mesmo estilo da tela original. Somente apresentação. */
+.eleva-premiacao-cards-v2 { min-width:0; max-width:100%; box-sizing:border-box; }
+.eleva-classic-scope { width:100%; min-width:0; container:eleva-premiacao / inline-size; display:block; }
+.eleva-classic-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin:16px 0 14px; }
+.eleva-classic-kpi,.eleva-classic-panel { min-width:0; box-sizing:border-box; border:1px solid #dce5f2; border-radius:18px; box-shadow:0 2px 7px rgba(23,54,96,.025); }
+.eleva-classic-kpi { container:eleva-valor / inline-size; min-height:132px; padding:18px 20px; display:flex; flex-direction:column; align-items:stretch; justify-content:flex-start; background:#f7fbff; }
+.eleva-classic-kpi.tone-blue { background:#f5faff; }
+.eleva-classic-kpi.tone-green { background:#f0faf5; }
+.eleva-classic-kpi.tone-lilac { background:#f5f2ff; }
+.eleva-classic-kpi.tone-gold { background:#fff9e9; }
+.eleva-classic-kpi.tone-pink { background:#fff2f6; }
+.eleva-classic-kpi>span { display:block; min-height:34px; margin:0; color:#617895; font-size:13px; line-height:1.3; font-weight:650; text-transform:uppercase; letter-spacing:0; overflow-wrap:normal; word-break:normal; }
+.eleva-classic-kpi>strong { display:block; margin:8px 0 0; color:#12355e; font-family:inherit; font-size:29px; font-size:clamp(22px,10.7cqw,32px); font-weight:800; line-height:1.12; letter-spacing:-.6px; font-variant-numeric:tabular-nums; white-space:nowrap; word-break:normal; overflow-wrap:normal; }
+.eleva-classic-kpi>small { display:block; margin:10px 0 0; color:#8391a5; font-size:10.5px; line-height:1.4; font-weight:400; }
+.eleva-classic-bottom { display:grid; grid-template-columns:minmax(0,1fr) repeat(3,minmax(0,1.1fr)) minmax(0,2.45fr) minmax(0,1.2fr); grid-template-areas:"wait awardclt awardcompra awardtotal goals motive"; gap:12px; align-items:stretch; margin:0 0 14px; }
+.eleva-classic-panel { padding:17px 15px; background:#f5f9ff; }
+.eleva-classic-wait { grid-area:wait; display:flex; flex-direction:column; min-width:0; }
+.eleva-classic-wait>span { color:#365b8b; font-size:12px; line-height:1.4; font-weight:750; }
+.eleva-classic-wait>strong { display:block; width:100%; min-width:0; max-width:100%; box-sizing:border-box; margin-top:13px; color:#153d70; font-size:24px; font-weight:800; letter-spacing:-.5px; line-height:1.15; white-space:nowrap; }
+/* Não usa corte, reticências ou arredondamento. O texto é medido e encaixado. */
+.eleva-classic-wait>.eleva-classic-wait-value { min-height:28px; padding:0; border:0; overflow:visible; text-overflow:clip; }
+.eleva-classic-wait>.eleva-classic-wait-value>span { display:inline-block; width:max-content; max-width:none; margin:0; padding:0; font-family:inherit; font-weight:inherit; line-height:inherit; color:inherit; letter-spacing:inherit; white-space:nowrap; word-break:normal; overflow-wrap:normal; vertical-align:top; }
+.eleva-classic-panel small { display:block; font-size:10px; color:#8492a6; font-weight:400; line-height:1.5; }
+.eleva-classic-wait>small { margin-top:8px; }
+.eleva-classic-award { background:#f1f7ff; display:flex; flex-direction:column; }
+.eleva-classic-award.area-clt { grid-area:awardclt; }
+.eleva-classic-award.area-compra { grid-area:awardcompra; }
+.eleva-classic-award.area-total { grid-area:awardtotal; background:#edf5ff; }
+.eleva-classic-award>header { display:flex; align-items:flex-start; justify-content:space-between; gap:7px; min-height:64px; padding:0; border:0; margin:0; background:transparent; }
+.eleva-classic-award h3 { flex:1 1 0; min-width:0; margin:0; font-size:11.5px; line-height:1.35; color:#235183; font-weight:750; text-transform:none; letter-spacing:0; }
+.eleva-classic-award header button { flex:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; width:44px; min-height:38px; box-sizing:border-box; border:1px solid #cbdcf7; border-radius:8px; padding:3px 4px; background:#fff; color:#1261e8; font-family:inherit; font-size:9px; font-weight:750; line-height:1.1; cursor:pointer; }
+.eleva-classic-award header button span { color:inherit; font-size:12px; }
+.eleva-classic-award header button:disabled { opacity:.55; cursor:not-allowed; }
+.eleva-classic-award>strong { display:block; margin:12px 0 0; color:#1564ef; font-size:27px; font-weight:800; line-height:1.15; letter-spacing:-.5px; white-space:nowrap; }
+.eleva-classic-award em { font-style:normal; font-size:17px; }
+.eleva-classic-award>small { margin-top:9px; }
+.eleva-classic-goals { grid-area:goals; background:#fff; padding:17px 18px; }
+.eleva-meta-produto { min-width:0; }
+.eleva-meta-produto+.eleva-meta-produto { margin-top:14px; }
+.eleva-meta-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.eleva-meta-head h3 { font-size:12px; line-height:1.35; font-weight:750; color:#173d6b; margin:0; letter-spacing:0; }
+.eleva-meta-head>b { font-size:12px; line-height:1.35; color:#183c67; white-space:nowrap; }
+.eleva-meta-progress { margin:9px 0 6px; height:11px; box-sizing:border-box; border:1px solid #d5e0ed; border-radius:20px; background:#eaf1f9; overflow:hidden; }
+.eleva-meta-progress>i { display:block; height:100%; border-radius:20px; background:#1766ef; transition:width .25s ease; }
+.eleva-meta-produto>p { margin:0; color:#8695a9; font-size:9.5px; line-height:1.5; font-weight:400; }
+.eleva-meta-produto>p b { font-weight:600; }
+.eleva-classic-motivation { grid-area:motive; display:flex; align-items:center; justify-content:center; gap:12px; background:linear-gradient(135deg,#fff9e9,#f3f8ff); }
+.eleva-classic-motivation>b { font-size:37px; line-height:1; flex:none; }
+.eleva-classic-motivation strong { font-size:14px; line-height:1.25; font-weight:750; color:#19426d; }
+.eleva-classic-motivation small { margin-top:7px; font-size:9px; }
+.eleva-classic-notice { margin:8px 0 14px; padding:9px 12px; border:1px solid #dce7f6; border-radius:10px; background:#f4f8ff; color:#607b9f; font-size:11px; line-height:1.45; }
+.eleva-classic-notice[role="alert"] { background:#fff8e9; color:#856018; border-color:#eeddb9; }
+.eleva-classic-sr-only { position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip-path:inset(50%)!important; white-space:nowrap!important; border:0!important; }
+/* A identidade e filtros ficam alinhados, sem avatar sozinho numa coluna larga. */
+.eleva-classic-person { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:18px 24px; padding:20px; margin:16px 0 0; border:1px solid #dce5f2; border-radius:18px; background:#fff; box-sizing:border-box; }
+.eleva-classic-identity { flex:1 1 330px; min-width:0; display:flex; align-items:center; gap:13px; }
+.eleva-classic-avatar { width:54px; height:54px; flex:none; border-radius:50%; display:grid; place-items:center; color:#1769f2; background:#eaf2ff; font-size:25px; font-weight:800; }
+.eleva-classic-person-copy { min-width:0; }
+.eleva-classic-person h2 { color:#12365f; font-size:21px; line-height:1.25; margin:0; font-weight:750; overflow-wrap:break-word; }
+.eleva-classic-person p { color:#8793a6; font-size:11px; line-height:1.5; margin:5px 0 0; }
+.eleva-classic-pix { background:#dff8ea; color:#188750; font-size:10px; font-weight:750; border-radius:16px; padding:7px 9px; flex:0 0 auto; }
+.eleva-classic-person-controls { flex:1.4 1 640px; display:grid; grid-template-columns:minmax(170px,1fr) minmax(210px,.95fr) auto; align-items:end; gap:12px; min-width:0; }
+.eleva-classic-person-controls label { display:flex; flex-direction:column; min-width:0; gap:6px; }
+.eleva-classic-person-controls label>span { font-size:10px; line-height:1.3; color:#8190a5; font-weight:500; }
+.eleva-classic-person-controls select,.eleva-classic-person-controls input { height:40px; padding:0 11px; border:1px solid #d5e1f4; border-radius:9px; background:#fff; box-sizing:border-box; color:#163b68; width:100%; min-width:0; font-family:inherit; font-size:11px; }
+.eleva-classic-month { display:grid; grid-template-columns:30px minmax(0,1fr) 30px; gap:5px; min-width:0; }
+.eleva-classic-month button { width:30px; height:40px; padding:0; border:1px solid #d5e1f4; border-radius:9px; background:#fff; color:#1967ef; font-size:23px; cursor:pointer; }
+.eleva-classic-person .eleva-classic-update { height:40px; border:0; border-radius:9px; padding:0 18px; background:#1464ef; color:#fff; font-family:inherit; font-size:12px; font-weight:650; cursor:pointer; white-space:nowrap; }
+.eleva-classic-update:disabled { opacity:.65; cursor:wait; }
+.eleva-classic-person button:focus-visible,.eleva-classic-person select:focus-visible,.eleva-classic-person input:focus-visible,.eleva-classic-award button:focus-visible { outline:3px solid #ffb05a; outline-offset:2px; }
+@container eleva-premiacao (min-width:1850px) { .eleva-classic-summary { grid-template-columns:repeat(8,minmax(0,1fr)); } }
+@container eleva-premiacao (max-width:1199px) {
+ .eleva-classic-bottom { grid-template-columns:repeat(3,minmax(0,1fr)); grid-template-areas:"awardclt awardcompra awardtotal" "goals goals wait" "goals goals motive"; }
+ .eleva-classic-award { min-height:140px; }
+ .eleva-classic-award>header { min-height:38px; }
+ .eleva-classic-goals { display:flex; flex-direction:column; justify-content:center; }
+ .eleva-classic-motivation { padding:12px; }
+ .eleva-classic-wait { padding:12px 16px; }
+}
+@container eleva-premiacao (max-width:1000px) { .eleva-classic-summary { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@container eleva-premiacao (max-width:620px) {
+ .eleva-classic-bottom { grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-areas:"awardclt awardcompra" "awardtotal wait" "goals goals" "motive motive"; }
+ .eleva-classic-panel { padding:15px; }
+ .eleva-classic-motivation { justify-content:flex-start; }
+ .eleva-classic-award>strong { font-size:25px; }
+ .eleva-classic-award>header { min-height:52px; }
+}
+@container eleva-premiacao (max-width:450px) {
+ .eleva-classic-summary { grid-template-columns:minmax(0,1fr); gap:10px; }
+ .eleva-classic-kpi { min-height:125px; padding:18px; }
+ .eleva-classic-kpi>span { min-height:0; }
+ .eleva-classic-bottom { grid-template-columns:minmax(0,1fr); grid-template-areas:"awardclt" "awardcompra" "awardtotal" "goals" "wait" "motive"; gap:10px; }
+ .eleva-classic-award>header { min-height:30px; }
+ .eleva-classic-award { min-height:125px; }
+ .eleva-classic-award>strong { margin-top:8px; }
+ .eleva-classic-motivation strong br { display:none; }
+}
+@media(max-width:760px) {
+ .eleva-classic-person { padding:16px; }
+ .eleva-classic-person-controls { flex-basis:100%; grid-template-columns:1fr; }
+ .eleva-classic-person .eleva-classic-update { width:100%; }
+ .eleva-classic-pix { display:none; }
+ .eleva-classic-person h2 { font-size:19px; }
+}
+@media(prefers-reduced-motion:reduce) { .eleva-meta-progress>i { transition:none; } }
+
+.eleva-premio-modal-mask { position:fixed; inset:0; z-index:100000; display:flex; justify-content:center; align-items:center; padding:16px; box-sizing:border-box; background:rgba(9,29,57,.5); }
+.eleva-premio-modal { width:min(620px,100%); max-height:calc(100dvh - 32px); overflow-y:auto; box-sizing:border-box; background:white; border:1px solid #d5e2f4; border-radius:18px; padding:22px; box-shadow:0 22px 90px rgba(10,32,75,.25); font-family:inherit; }
+.eleva-premio-modal header { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; border-bottom:1px solid #e4ecf7; padding-bottom:14px; }
+.eleva-premio-modal header span { color:#1468f5; font-size:10px; font-weight:850; letter-spacing:.06em; }
+.eleva-premio-modal header h3 { color:#123769; margin:7px 0; font-size:21px; line-height:1.3; }
+.eleva-premio-modal header p { color:#6c82a1; font-size:12px; margin:0; }
+.eleva-premio-modal header button { width:34px; height:34px; background:#eef4fc; color:#224a7c; border:0; border-radius:9px; font-size:25px; cursor:pointer; flex:none; }
+.eleva-premio-edit-inputs { display:grid; gap:16px; margin:18px 0; }
+.eleva-premio-edit-inputs label { display:grid; gap:7px; color:#284974; font-size:12px; font-weight:800; }
+.eleva-premio-edit-inputs label > div { display:flex; border:1px solid #ceddf2; border-radius:10px; overflow:hidden; }
+.eleva-premio-edit-inputs input { width:100%; min-width:0; border:0; padding:10px 12px; height:44px; font:inherit; font-size:19px; color:#12386b; box-sizing:border-box; }
+.eleva-premio-edit-inputs label b { padding:13px; color:#195de1; background:#f6f9ff; font-size:12px; }
+.eleva-premio-edit-inputs small { color:#8596ad; font-weight:500; font-size:11px; }
+.eleva-premio-edit-total { padding:14px; border:1px solid #c5d9fa; border-radius:12px; background:#f2f7ff; }
+.eleva-premio-edit-total span { display:block; color:#5d789d; font-size:11px; font-weight:750; }
+.eleva-premio-edit-total strong { display:block; color:#195fe0; margin:7px 0; font-size:27px; }
+.eleva-premio-edit-total small { display:block; color:#6d85a5; font-size:11px; line-height:1.5; }
+.eleva-premio-edit-note { color:#617b9b; font-size:11px; line-height:1.6; }
+.eleva-premio-edit-error { padding:10px; color:#b82031; background:#fff1f2; border:1px solid #f4cad0; border-radius:9px; font-size:12px; }
+.eleva-premio-modal footer { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:9px; margin-top:16px; }
+.eleva-premio-modal footer button { min-height:40px; border:1px solid #cddcf1; padding:0 14px; border-radius:9px; font:inherit; font-size:13px; font-weight:800; background:#fff; color:#35608d; cursor:pointer; }
+.eleva-premio-modal footer button[type="submit"] { background:#1468f5; border-color:#1468f5; color:#fff; }
+.eleva-award-card button:focus-visible,.eleva-premio-modal button:focus-visible,.eleva-premio-modal input:focus-visible { outline:3px solid #ffa14c; outline-offset:2px; }
+
+        `}</style>
 
       <style jsx>{`
         .premio-v7-award-edit-head{display:flex;justify-content:space-between;align-items:center}.premio-v7-award-edit-head button{border:1px solid #b9d0ff;background:#fff;color:#1267f5;border-radius:7px;padding:4px 7px;font-size:8px;font-weight:900;cursor:pointer}
@@ -2012,22 +2397,10 @@ const [abaAdmin, setAbaAdmin] = useState<
 
                 <strong>
 
-                  {pontos(
-
-                    (Number(
-
-                      String(pontosCompraLiberar || "0").replace(",", "."),
-
-                    ) || 0) +
-
-                      (Number(
-
-                        String(pontosCltLiberar || "0").replace(",", "."),
-
-                      ) || 0),
-
-                  )}{" "}
-
+                  {pontos(somarPremiacoes(
+                    lerValorPremiacao(pontosCompraLiberar) ?? 0,
+                    lerValorPremiacao(pontosCltLiberar) ?? 0,
+                  ))}{" "}
                   pts
 
                 </strong>
@@ -2809,3 +3182,5 @@ const [abaAdmin, setAbaAdmin] = useState<
   );
 
 }
+
+// FIM DO ARQUIVO COMPLETO - MinhaPremiacaoV2.tsx - TITULOS E VALOR V4

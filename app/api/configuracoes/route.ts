@@ -77,7 +77,10 @@ type TabelaPayload = {
   percentual?: number | string;
 
   percentualComissaoBanco?: number | string | null;
+  /** Compatibilidade com clientes antigos que enviavam um prazo exato. */
   prazo?: number | string | null;
+  prazoInicial?: number | string | null;
+  prazoFinal?: number | string | null;
 
   ativo?: boolean;
 
@@ -363,7 +366,7 @@ export async function GET(
 
         .select(
 
-          "id, banco, orgao_convenio, nome, codigo, prazo, percentual, percentual_comissao_banco, ativo, criado_em, atualizado_em",
+          "id, banco, orgao_convenio, nome, codigo, prazo, prazo_inicial, prazo_final, percentual, percentual_comissao_banco, ativo, criado_em, atualizado_em",
 
         )
 
@@ -833,13 +836,29 @@ export async function POST(
 
 
 
-      const prazoRaw = body.tabela?.prazo;
-      const prazo =
-        prazoRaw === null ||
-        prazoRaw === undefined ||
-        String(prazoRaw).trim() === ""
+      const prazoLegadoRaw = body.tabela?.prazo;
+      const prazoInicialRaw =
+        body.tabela?.prazoInicial !== undefined
+          ? body.tabela.prazoInicial
+          : prazoLegadoRaw;
+      const prazoFinalRaw =
+        body.tabela?.prazoFinal !== undefined
+          ? body.tabela.prazoFinal
+          : prazoLegadoRaw;
+
+      const prazoInicial =
+        prazoInicialRaw === null ||
+        prazoInicialRaw === undefined ||
+        String(prazoInicialRaw).trim() === ""
           ? null
-          : Math.max(1, Math.trunc(numero(prazoRaw)));
+          : Math.max(1, Math.trunc(numero(prazoInicialRaw)));
+
+      const prazoFinal =
+        prazoFinalRaw === null ||
+        prazoFinalRaw === undefined ||
+        String(prazoFinalRaw).trim() === ""
+          ? null
+          : Math.max(1, Math.trunc(numero(prazoFinalRaw)));
 
       const tabelaClt = orgaoConvenio === "CLT";
 
@@ -912,9 +931,23 @@ export async function POST(
         );
 
       }
-      if (tabelaClt && prazo === null) {
+      if (tabelaClt && (prazoInicial === null || prazoFinal === null)) {
         return NextResponse.json(
-          { erro: "Informe o prazo da tabela CLT." },
+          { erro: "Informe o prazo inicial e o prazo final da tabela CLT." },
+          { status: 400 },
+        );
+      }
+
+      if ((prazoInicial === null) !== (prazoFinal === null)) {
+        return NextResponse.json(
+          { erro: "Preencha os dois campos do prazo ou deixe os dois em branco." },
+          { status: 400 },
+        );
+      }
+
+      if (prazoInicial !== null && prazoFinal !== null && prazoInicial > prazoFinal) {
+        return NextResponse.json(
+          { erro: "O prazo inicial não pode ser maior que o prazo final." },
           { status: 400 },
         );
       }
@@ -1007,7 +1040,13 @@ export async function POST(
           nome,
 
           codigo,
-          prazo,
+          // Mantém o campo antigo somente quando a faixa é um prazo exato.
+          prazo:
+            prazoInicial !== null && prazoInicial === prazoFinal
+              ? prazoInicial
+              : null,
+          prazo_inicial: prazoInicial,
+          prazo_final: prazoFinal,
 
           percentual,
 
@@ -1604,12 +1643,52 @@ export async function PATCH(
           ).trim();
 
       }
-      if (body.tabela?.prazo !== undefined) {
-        const prazoRaw = body.tabela.prazo;
-        atualizacao.prazo =
-          prazoRaw === null || String(prazoRaw).trim() === ""
+      if (
+        body.tabela?.prazoInicial !== undefined ||
+        body.tabela?.prazoFinal !== undefined ||
+        body.tabela?.prazo !== undefined
+      ) {
+        const prazoLegadoRaw = body.tabela?.prazo;
+        const inicioRaw =
+          body.tabela?.prazoInicial !== undefined
+            ? body.tabela.prazoInicial
+            : prazoLegadoRaw;
+        const finalRaw =
+          body.tabela?.prazoFinal !== undefined
+            ? body.tabela.prazoFinal
+            : prazoLegadoRaw;
+
+        const inicio =
+          inicioRaw === null ||
+          inicioRaw === undefined ||
+          String(inicioRaw).trim() === ""
             ? null
-            : Math.max(1, Math.trunc(numero(prazoRaw)));
+            : Math.max(1, Math.trunc(numero(inicioRaw)));
+        const final =
+          finalRaw === null ||
+          finalRaw === undefined ||
+          String(finalRaw).trim() === ""
+            ? null
+            : Math.max(1, Math.trunc(numero(finalRaw)));
+
+        if ((inicio === null) !== (final === null)) {
+          return NextResponse.json(
+            { erro: "Preencha os dois campos do prazo ou deixe os dois em branco." },
+            { status: 400 },
+          );
+        }
+
+        if (inicio !== null && final !== null && inicio > final) {
+          return NextResponse.json(
+            { erro: "O prazo inicial não pode ser maior que o prazo final." },
+            { status: 400 },
+          );
+        }
+
+        atualizacao.prazo_inicial = inicio;
+        atualizacao.prazo_final = final;
+        atualizacao.prazo =
+          inicio !== null && inicio === final ? inicio : null;
       }
 
 

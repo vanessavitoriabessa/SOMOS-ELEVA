@@ -11,6 +11,7 @@ import {
   bancosCltCorrespondem,
   ehTabelaClt,
   prazoTabelaCompativel,
+  rotuloPrazoTabelaClt,
   rotuloTabelaClt,
   type TabelaCltOpcao,
 } from "@/lib/clt/tabelas";
@@ -58,6 +59,8 @@ type RegistroClt = {
   tabela?: string;
   tabelaCodigo?: string;
   tabelaPrazo?: number | null;
+  tabelaPrazoInicial?: number | null;
+  tabelaPrazoFinal?: number | null;
   tabelaAtiva?: boolean;
   tabelaEncontrada?: boolean;
 
@@ -366,6 +369,18 @@ banco: String(item.banco || ""),
     tabela: String(item.tabela || ""),
     tabelaCodigo: String(item.tabelaCodigo || ""),
     tabelaPrazo: item.tabelaPrazo == null ? null : Number(item.tabelaPrazo),
+    tabelaPrazoInicial:
+      item.tabelaPrazoInicial == null
+        ? item.tabelaPrazo == null
+          ? null
+          : Number(item.tabelaPrazo)
+        : Number(item.tabelaPrazoInicial),
+    tabelaPrazoFinal:
+      item.tabelaPrazoFinal == null
+        ? item.tabelaPrazo == null
+          ? null
+          : Number(item.tabelaPrazo)
+        : Number(item.tabelaPrazoFinal),
     tabelaAtiva: item.tabelaAtiva === true,
     tabelaEncontrada: item.tabelaEncontrada === true,
 
@@ -1201,7 +1216,7 @@ export default function CltManager() {
   ), [tabelasClt, form.banco]);
 
   const tabelasDisponiveis = useMemo(() => tabelasDoBanco.filter((tabela) =>
-    prazoTabelaCompativel(tabela.prazo, form.prazo),
+    prazoTabelaCompativel(tabela.prazoInicial, tabela.prazoFinal, form.prazo),
   ), [tabelasDoBanco, form.prazo]);
 
   const registroEditado = registros.find((item) => item.id === editandoId);
@@ -1218,12 +1233,20 @@ export default function CltManager() {
   function mudarPrazo(prazo: string) {
     setForm((atual) => {
       const tabela = tabelasClt.find((item) => item.id === atual.tabelaBancoId);
-      const prazoTabela = tabela ? tabela.prazo : registroEditado?.tabelaPrazo ?? null;
+      const prazoInicialTabela = tabela
+        ? tabela.prazoInicial
+        : registroEditado?.tabelaPrazoInicial ?? registroEditado?.tabelaPrazo ?? null;
+      const prazoFinalTabela = tabela
+        ? tabela.prazoFinal
+        : registroEditado?.tabelaPrazoFinal ?? registroEditado?.tabelaPrazo ?? null;
       return {
         ...atual,
         prazo,
-        tabelaBancoId: !atual.tabelaBancoId || prazoTabelaCompativel(prazoTabela, prazo)
-          ? atual.tabelaBancoId : "",
+        tabelaBancoId:
+          !atual.tabelaBancoId ||
+          prazoTabelaCompativel(prazoInicialTabela, prazoFinalTabela, prazo)
+            ? atual.tabelaBancoId
+            : "",
       };
     });
   }
@@ -1998,7 +2021,13 @@ banco: item.banco,
                   <option value={form.tabelaBancoId}>
                     {registroEditado?.tabela || "Tabela vinculada"}
                     {registroEditado?.tabelaCodigo ? ` • Código ${registroEditado.tabelaCodigo}` : ""}
-                    {registroEditado?.tabelaPrazo ? ` • ${registroEditado.tabelaPrazo} meses` : ""}
+                    {registroEditado?.tabelaBancoId
+                      ? ` • ${rotuloPrazoTabelaClt({
+                          prazo: registroEditado.tabelaPrazo ?? null,
+                          prazoInicial: registroEditado.tabelaPrazoInicial ?? null,
+                          prazoFinal: registroEditado.tabelaPrazoFinal ?? null,
+                        })}`
+                      : ""}
                     {registroEditado?.tabelaAtiva === false ? " (histórico/inativa)" : " (vinculada)"}
                   </option>
                 )}
@@ -2495,7 +2524,14 @@ banco: item.banco,
                         {item.tabelaBancoId ? (
                           <>
                             <b>{item.tabela || "Tabela vinculada indisponível"}</b>
-                            <small>{[item.tabelaCodigo, item.tabelaPrazo ? `${item.tabelaPrazo} meses` : ""].filter(Boolean).join(" • ")}</small>
+                            <small>{[
+                              item.tabelaCodigo,
+                              rotuloPrazoTabelaClt({
+                                prazo: item.tabelaPrazo ?? null,
+                                prazoInicial: item.tabelaPrazoInicial ?? null,
+                                prazoFinal: item.tabelaPrazoFinal ?? null,
+                              }),
+                            ].filter(Boolean).join(" • ")}</small>
                           </>
                         ) : <b className="clt-sem-tabela">Sem tabela selecionada</b>}
                       </div>

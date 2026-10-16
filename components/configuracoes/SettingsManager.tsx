@@ -19,7 +19,10 @@ type Tabela = {
   codigo: string;
   percentual: number;
   percentualComissaoBanco: number | null;
+  /** Campo legado: tabelas antigas tinham apenas um prazo exato. */
   prazo: number | null;
+  prazoInicial: number | null;
+  prazoFinal: number | null;
   ativo: boolean;
 };
 
@@ -207,12 +210,12 @@ const bancosPadrao: Banco[] = [
 ];
 
 const tabelasPadrao: Tabela[] = [
-  { id: "neo-normal-399", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "NORMAL", codigo: "399", percentual: 100, percentualComissaoBanco: null, prazo: null, ativo: true },
-  { id: "neo-flex-1-379", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "FLEX 1", codigo: "379", percentual: 75, percentualComissaoBanco: null, prazo: null, ativo: true },
-  { id: "neo-flex-2-359", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "FLEX 2", codigo: "359", percentual: 50, percentualComissaoBanco: null, prazo: null, ativo: true },
-  { id: "neo-flex-3-339", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "FLEX 3", codigo: "339", percentual: 40, percentualComissaoBanco: null, prazo: null, ativo: true },
-  { id: "neo-flex-4-319", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "FLEX 4", codigo: "319", percentual: 20, percentualComissaoBanco: null, prazo: null, ativo: true },
-  { id: "neo-flex-5-299", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "FLEX 5", codigo: "299", percentual: 8, percentualComissaoBanco: null, prazo: null, ativo: true },
+  { id: "neo-normal-399", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "NORMAL", codigo: "399", percentual: 100, percentualComissaoBanco: null, prazo: null, prazoInicial: null, prazoFinal: null, ativo: true },
+  { id: "neo-flex-1-379", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "FLEX 1", codigo: "379", percentual: 75, percentualComissaoBanco: null, prazo: null, prazoInicial: null, prazoFinal: null, ativo: true },
+  { id: "neo-flex-2-359", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "FLEX 2", codigo: "359", percentual: 50, percentualComissaoBanco: null, prazo: null, prazoInicial: null, prazoFinal: null, ativo: true },
+  { id: "neo-flex-3-339", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "FLEX 3", codigo: "339", percentual: 40, percentualComissaoBanco: null, prazo: null, prazoInicial: null, prazoFinal: null, ativo: true },
+  { id: "neo-flex-4-319", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "FLEX 4", codigo: "319", percentual: 20, percentualComissaoBanco: null, prazo: null, prazoInicial: null, prazoFinal: null, ativo: true },
+  { id: "neo-flex-5-299", banco: "NEO", orgaoConvenio: "", orgaosConvenios: [], nome: "FLEX 5", codigo: "299", percentual: 8, percentualComissaoBanco: null, prazo: null, prazoInicial: null, prazoFinal: null, ativo: true },
 ];
 
 const configPadrao: ConfiguracaoGeral = {
@@ -249,6 +252,19 @@ function moeda(valor: number) {
     style: "currency",
     currency: "BRL",
   });
+}
+
+function rotuloPrazoTabela(
+  prazoInicial: number | null,
+  prazoFinal: number | null,
+  prazoLegado: number | null = null,
+) {
+  const inicio = prazoInicial ?? prazoLegado;
+  const fim = prazoFinal ?? prazoLegado;
+
+  if (inicio === null && fim === null) return "—";
+  if (inicio !== null && fim !== null && inicio === fim) return `${inicio} meses`;
+  return `${inicio ?? fim} a ${fim ?? inicio} meses`;
 }
 
 export default function SettingsManager() {
@@ -350,7 +366,8 @@ export default function SettingsManager() {
     codigo: "",
     percentual: "",
     percentualComissaoBanco: "",
-    prazo: "",
+    prazoInicial: "",
+    prazoFinal: "",
   });
 
   const [editandoTabelaId, setEditandoTabelaId] = useState<string | null>(null);
@@ -361,7 +378,8 @@ export default function SettingsManager() {
     codigo: "",
     percentual: "",
     percentualComissaoBanco: "",
-    prazo: "",
+    prazoInicial: "",
+    prazoFinal: "",
   });
   const [novaMeta, setNovaMeta] = useState({
     nome: "",
@@ -803,6 +821,18 @@ export default function SettingsManager() {
               item.prazo === null || item.prazo === undefined
                 ? null
                 : Number(item.prazo),
+            prazoInicial:
+              item.prazo_inicial === null || item.prazo_inicial === undefined
+                ? item.prazo === null || item.prazo === undefined
+                  ? null
+                  : Number(item.prazo)
+                : Number(item.prazo_inicial),
+            prazoFinal:
+              item.prazo_final === null || item.prazo_final === undefined
+                ? item.prazo === null || item.prazo === undefined
+                  ? null
+                  : Number(item.prazo)
+                : Number(item.prazo_final),
             ativo: item.ativo !== false,
           }))
         : [];
@@ -1303,14 +1333,26 @@ export default function SettingsManager() {
       percentualComissaoBancoTexto === ""
         ? null
         : numero(percentualComissaoBancoTexto);
-    const prazoTexto = novaTabela.prazo.trim();
-    const prazo = prazoTexto === "" ? null : Math.max(1, Math.trunc(numero(prazoTexto)));
+    const prazoInicialTexto = novaTabela.prazoInicial.trim();
+    const prazoFinalTexto = novaTabela.prazoFinal.trim();
+    const prazoInicial =
+      prazoInicialTexto === "" ? null : Math.max(1, Math.trunc(numero(prazoInicialTexto)));
+    const prazoFinal =
+      prazoFinalTexto === "" ? null : Math.max(1, Math.trunc(numero(prazoFinalTexto)));
     const tabelaClt = orgaosNovaTabela.includes("__CLT__");
 
     if (!novaTabela.banco) return setMensagem("Selecione o banco.");
     if (!nome) return setMensagem("Informe o nome da tabela.");
     if (!codigo) return setMensagem("Informe o código da tabela.");
-    if (tabelaClt && prazo === null) return setMensagem("Informe o prazo da tabela CLT.");
+    if (tabelaClt && (prazoInicial === null || prazoFinal === null)) {
+      return setMensagem("Informe o prazo inicial e o prazo final da tabela CLT.");
+    }
+    if (prazoInicial !== null && prazoFinal !== null && prazoInicial > prazoFinal) {
+      return setMensagem("O prazo inicial não pode ser maior que o prazo final.");
+    }
+    if ((prazoInicial === null) !== (prazoFinal === null)) {
+      return setMensagem("Preencha os dois campos do prazo ou deixe os dois em branco.");
+    }
     if (percentual <= 0 || percentual > 100) {
       return setMensagem("Informe um percentual de produção entre 0,01% e 100%.");
     }
@@ -1338,7 +1380,8 @@ export default function SettingsManager() {
           codigo,
           percentual,
           percentualComissaoBanco,
-          prazo,
+          prazoInicial,
+          prazoFinal,
         },
       });
 
@@ -1351,7 +1394,8 @@ export default function SettingsManager() {
         codigo: "",
         percentual: "",
         percentualComissaoBanco: "",
-        prazo: "",
+        prazoInicial: "",
+        prazoFinal: "",
       });
 
       setMensagem(
@@ -1389,7 +1433,18 @@ export default function SettingsManager() {
         tabela.percentualComissaoBanco === null
           ? ""
           : String(tabela.percentualComissaoBanco).replace(".", ","),
-      prazo: tabela.prazo === null ? "" : String(tabela.prazo),
+      prazoInicial:
+        tabela.prazoInicial === null
+          ? tabela.prazo === null
+            ? ""
+            : String(tabela.prazo)
+          : String(tabela.prazoInicial),
+      prazoFinal:
+        tabela.prazoFinal === null
+          ? tabela.prazo === null
+            ? ""
+            : String(tabela.prazo)
+          : String(tabela.prazoFinal),
     });
     setMensagem("");
   }
@@ -1405,7 +1460,8 @@ export default function SettingsManager() {
       codigo: "",
       percentual: "",
       percentualComissaoBanco: "",
-      prazo: "",
+      prazoInicial: "",
+      prazoFinal: "",
     });
   }
 
@@ -1421,13 +1477,26 @@ export default function SettingsManager() {
       percentualComissaoBancoTexto === ""
         ? null
         : numero(percentualComissaoBancoTexto);
-    const prazoTexto = edicaoTabela.prazo.trim();
-    const prazo = prazoTexto === "" ? null : Math.max(1, Math.trunc(numero(prazoTexto)));
+    const prazoInicialTexto = edicaoTabela.prazoInicial.trim();
+    const prazoFinalTexto = edicaoTabela.prazoFinal.trim();
+    const prazoInicial =
+      prazoInicialTexto === "" ? null : Math.max(1, Math.trunc(numero(prazoInicialTexto)));
+    const prazoFinal =
+      prazoFinalTexto === "" ? null : Math.max(1, Math.trunc(numero(prazoFinalTexto)));
     const tabelaClt = orgaosEdicaoTabela.includes("__CLT__");
 
     if (!edicaoTabela.banco) return setMensagem("Selecione o banco.");
     if (!nome) return setMensagem("Informe o nome da tabela.");
     if (!codigo) return setMensagem("Informe o código da tabela.");
+    if (tabelaClt && (prazoInicial === null || prazoFinal === null)) {
+      return setMensagem("Informe o prazo inicial e o prazo final da tabela CLT.");
+    }
+    if (prazoInicial !== null && prazoFinal !== null && prazoInicial > prazoFinal) {
+      return setMensagem("O prazo inicial não pode ser maior que o prazo final.");
+    }
+    if ((prazoInicial === null) !== (prazoFinal === null)) {
+      return setMensagem("Preencha os dois campos do prazo ou deixe os dois em branco.");
+    }
     if (percentual <= 0 || percentual > 100) {
       return setMensagem("Informe um percentual de produção entre 0,01% e 100%.");
     }
@@ -1456,6 +1525,8 @@ export default function SettingsManager() {
           codigo,
           percentual,
           percentualComissaoBanco,
+          prazoInicial,
+          prazoFinal,
         },
       });
 
@@ -2068,7 +2139,11 @@ export default function SettingsManager() {
         tabela.orgaoConvenio,
         tabela.orgaosConvenios.map((item) => item.nome).join(" "),
         tabela.codigo,
-        tabela.prazo === null ? "" : String(tabela.prazo),
+        tabela.prazoInicial === null && tabela.prazoFinal === null
+          ? tabela.prazo === null
+            ? ""
+            : String(tabela.prazo)
+          : `${tabela.prazoInicial ?? ""} ${tabela.prazoFinal ?? ""}`,
         String(tabela.percentual),
         tabela.percentualComissaoBanco === null
           ? ""
@@ -2281,19 +2356,46 @@ export default function SettingsManager() {
 
               <label>
                 Prazo
-                <input
-                  type="number"
-                  min="1"
-                  value={edicaoTabela.prazo}
-                  onChange={(e) =>
-                    setEdicaoTabela({
-                      ...edicaoTabela,
-                      prazo: e.target.value,
-                    })
-                  }
-                  placeholder="Prazo"
-                  disabled={processando}
-                />
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)",
+                    gap: 8,
+                    alignItems: "center",
+                  }}
+                >
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={edicaoTabela.prazoInicial}
+                    onChange={(e) =>
+                      setEdicaoTabela({
+                        ...edicaoTabela,
+                        prazoInicial: e.target.value,
+                      })
+                    }
+                    placeholder="Inicial"
+                    aria-label="Prazo inicial"
+                    disabled={processando}
+                  />
+                  <span style={{ color: "#66758d", fontWeight: 900 }}>a</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={edicaoTabela.prazoFinal}
+                    onChange={(e) =>
+                      setEdicaoTabela({
+                        ...edicaoTabela,
+                        prazoFinal: e.target.value,
+                      })
+                    }
+                    placeholder="Final"
+                    aria-label="Prazo final"
+                    disabled={processando}
+                  />
+                </div>
               </label>
 
               <label>
@@ -2380,7 +2482,7 @@ export default function SettingsManager() {
 
               <div className="settings-tabela-info-item">
                 <small>Prazo</small>
-                <strong>{tabela.prazo === null ? "—" : `${tabela.prazo}x`}</strong>
+                <strong>{rotuloPrazoTabela(tabela.prazoInicial, tabela.prazoFinal, tabela.prazo)}</strong>
               </div>
 
               <div className="settings-tabela-info-item">
@@ -3281,20 +3383,51 @@ export default function SettingsManager() {
 
               <label>
                 Prazo
-                <input
-                  type="number"
-                  min="1"
-                  value={novaTabela.prazo}
-                  onChange={(e) =>
-                    setNovaTabela({
-                      ...novaTabela,
-                      prazo: e.target.value,
-                    })
-                  }
-                  placeholder={orgaosNovaTabela.includes("__CLT__") ? "Ex.: 12" : "Opcional"}
-                  disabled={processando}
-                />
-                <small>{orgaosNovaTabela.includes("__CLT__") ? "Prazo em meses da tabela CLT." : "Opcional para tabelas não CLT."}</small>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)",
+                    gap: 8,
+                    alignItems: "center",
+                  }}
+                >
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={novaTabela.prazoInicial}
+                    onChange={(e) =>
+                      setNovaTabela({
+                        ...novaTabela,
+                        prazoInicial: e.target.value,
+                      })
+                    }
+                    placeholder={orgaosNovaTabela.includes("__CLT__") ? "Inicial: 12" : "Inicial"}
+                    aria-label="Prazo inicial"
+                    disabled={processando}
+                  />
+                  <span style={{ color: "#66758d", fontWeight: 900 }}>a</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={novaTabela.prazoFinal}
+                    onChange={(e) =>
+                      setNovaTabela({
+                        ...novaTabela,
+                        prazoFinal: e.target.value,
+                      })
+                    }
+                    placeholder={orgaosNovaTabela.includes("__CLT__") ? "Final: 60" : "Final"}
+                    aria-label="Prazo final"
+                    disabled={processando}
+                  />
+                </div>
+                <small>
+                  {orgaosNovaTabela.includes("__CLT__")
+                    ? "Informe a faixa em meses. Ex.: 12 a 60."
+                    : "Opcional para tabelas não CLT."}
+                </small>
               </label>
 
               <label>

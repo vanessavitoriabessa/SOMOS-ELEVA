@@ -352,6 +352,8 @@ function linhaParaRegistro(linha: LinhaClt, tabela?: TabelaCltOpcao) {
     tabela: tabela?.nome || "",
     tabelaCodigo: tabela?.codigo || "",
     tabelaPrazo: tabela?.prazo ?? null,
+    tabelaPrazoInicial: tabela?.prazoInicial ?? null,
+    tabelaPrazoFinal: tabela?.prazoFinal ?? null,
     tabelaAtiva: tabela?.ativo ?? false,
     tabelaEncontrada: Boolean(tabela),
 
@@ -556,7 +558,8 @@ function podeAlterarRegistro(perfil: Perfil, linha: LinhaClt) {
 }
 
 // Somente metadados: nenhum percentual financeiro é consultado ou enviado por este fluxo.
-const COLUNAS_TABELA_CLT = "id, banco, nome, codigo, prazo, orgao_convenio, ativo";
+const COLUNAS_TABELA_CLT =
+  "id, banco, nome, codigo, prazo, prazo_inicial, prazo_final, orgao_convenio, ativo";
 
 async function carregarCatalogoTabelasClt(supabase: ReturnType<typeof createAdminClient>) {
   const tabelas: TabelaCltOpcao[] = [];
@@ -576,7 +579,8 @@ async function carregarCatalogoTabelasClt(supabase: ReturnType<typeof createAdmi
   return tabelas.sort((a, b) =>
     a.banco.localeCompare(b.banco, "pt-BR") ||
     a.nome.localeCompare(b.nome, "pt-BR") ||
-    Number(a.prazo || 0) - Number(b.prazo || 0),
+    Number(a.prazoInicial ?? a.prazo ?? 0) -
+      Number(b.prazoInicial ?? b.prazo ?? 0),
   );
 }
 
@@ -636,7 +640,7 @@ async function validarVinculoTabelaClt(
   if (!bancosCltCorrespondem(tabela.banco, banco)) {
     throw new Error("A tabela selecionada não pertence ao banco deste contrato.");
   }
-  if (!prazoTabelaCompativel(tabela.prazo, prazo)) {
+  if (!prazoTabelaCompativel(tabela.prazoInicial, tabela.prazoFinal, prazo)) {
     throw new Error("O prazo do contrato não corresponde ao prazo da tabela selecionada.");
   }
   if (!tabela.ativo && anterior?.tabela_banco_id !== id) {

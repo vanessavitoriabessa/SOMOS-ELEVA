@@ -634,7 +634,7 @@ export default function TabelasComissaoManager() {
             lineHeight: 1.25,
           }}
         >
-          {valor || "A preencher"}
+          {valor || ""}
         </span>
       );
     }
