@@ -1,13 +1,24 @@
 "use client";
+// ELEVA | LUCRO POR OPERADOR | 16/10/2026 | ARQUIVO COMPLETO
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useCustoPaFinanceiro } from "@/lib/financeiro/useCustoPaFinanceiro";
 import MinhaPremiacaoV2, {
-  MovimentoPremiacao,
-  SaquePremiacao,
+  type MovimentoPremiacao,
+  type SaquePremiacao,
 } from "./MinhaPremiacaoV2";
 
+import LucroPorOperador, {
+  type LinhaLucroOperador,
+  type PropostaLucroOperador,
+} from "@/components/financeiro/LucroPorOperador";
+
 const TODOS_CONSULTORES = "__TODOS__";
+
+type PremiacaoManagerProps = {
+  modo?: "premiacao" | "lucro-operador";
+};
 
 type PropostaCompra = {
   id: string;
@@ -389,13 +400,18 @@ function mergePropostasComLocal(api: PropostaCompra[]) {
   });
 }
 
-export default function PremiacaoManagerV3() {
+export default function PremiacaoManagerV3({ modo = "premiacao" }: PremiacaoManagerProps = {}) {
   const supabase = useMemo(() => createClient(), []);
 
   const [carregando, setCarregando] = useState(true);
   const [processando, setProcessando] = useState(false);
   const [mensagem, setMensagem] = useState("");
   const [diagnosticoApi, setDiagnosticoApi] = useState("");
+  // Não mostrar um resultado antigo como se tivesse sido consultado no novo mês.
+  const sequenciaCarga = useRef(0);
+  const cargaEmAndamento = useRef(false);
+  const [referenciaLida, setReferenciaLida] = useState("");
+  const [erroLeituraLucro, setErroLeituraLucro] = useState<string | null>(null);
 
   const [competencia, setCompetencia] = useState(competenciaAtual());
   const [propostas, setPropostas] = useState<PropostaCompra[]>([]);
@@ -415,10 +431,21 @@ export default function PremiacaoManagerV3() {
   const [consultoraSelecionada, setConsultoraSelecionada] = useState("");
 
   const ehGestor = perfilGestor(perfilLogado);
+  // Exibe a fonte financeira sem depender da consultora selecionada.
+  // O cliente e as permissões de acesso ao banco continuam sendo os existentes.
+  const podeConsultarLucro = ehGestor || normalizar(perfilLogado).includes("financeir");
+  const custoFinanceiro = useCustoPaFinanceiro(
+    supabase,
+    competencia,
+    modo === "lucro-operador" ? podeConsultarLucro : ehGestor,
+  );
 
   const carregar = useCallback(async (): Promise<boolean> => {
+    const numeroCarga = ++sequenciaCarga.current;
+    cargaEmAndamento.current = true;
     setCarregando(true);
     setMensagem("");
+    setErroLeituraLucro(null);
 
     try {
       const { data: sessaoData, error: sessaoErro } =
@@ -525,6 +552,7 @@ export default function PremiacaoManagerV3() {
         // Mantém a lista local caso o cadastro permanente do RH não esteja disponível.
       }
 
+      if (numeroCarga !== sequenciaCarga.current) return false;
       setUsuarios(listaUsuarios);
 
       const login = localStorage.getItem("somos-eleva-usuario") || "";
@@ -583,6 +611,13 @@ export default function PremiacaoManagerV3() {
         throw new Error(
           conteudoClt.erro || "Não foi possível carregar os registros CLT.",
         );
+      }
+
+      if (numeroCarga !== sequenciaCarga.current) return false;
+      if (modo === "lucro-operador" && (
+        !Array.isArray(conteudoPropostas.propostas) || !Array.isArray(conteudoClt.registros)
+      )) {
+        throw new Error("A consulta das propostas retornou uma resposta incompleta. Atualize novamente.");
       }
 
       const propostasApi = Array.isArray(conteudoPropostas.propostas)
@@ -654,6 +689,7 @@ export default function PremiacaoManagerV3() {
       if (saquesErro) throw new Error(saquesErro.message);
       if (previsoesErro) throw new Error(previsoesErro.message);
 
+      if (numeroCarga !== sequenciaCarga.current) return false;
       setPlanos((planosData || []) as PlanoPremiacao[]);
       setFaixas((faixasData || []) as FaixaPremiacao[]);
       setExtrato(Array.isArray(extratoData) ? extratoData : []);
@@ -661,22 +697,43 @@ export default function PremiacaoManagerV3() {
       setPrevisoesLiberadas(
         (Array.isArray(previsoesData) ? previsoesData : []) as PrevisaoLiberada[],
       );
+      setReferenciaLida(competencia);
       return true;
     } catch (erro) {
-      setMensagem(
-        erro instanceof Error
-          ? erro.message
-          : "Não foi possível carregar a premiação.",
-      );
+      if (numeroCarga !== sequenciaCarga.current) return false;
+      const texto = erro instanceof Error ? erro.message : "Não foi possível carregar a premiação.";
+      setMensagem(texto);
+      setErroLeituraLucro(texto);
       return false;
     } finally {
-      setCarregando(false);
+      if (numeroCarga === sequenciaCarga.current) {
+        cargaEmAndamento.current = false;
+        setCarregando(false);
+      }
     }
-  }, [supabase, competencia]);
+  }, [supabase, competencia, modo]);
 
   useEffect(() => {
     void carregar();
+    return () => { ++sequenciaCarga.current; cargaEmAndamento.current = false; };
   }, [carregar]);
+
+  useEffect(() => {
+    if (modo !== "lucro-operador") return;
+    const consultarSeVisivel = () => {
+      if (document.visibilityState !== "hidden" && !cargaEmAndamento.current) {
+        void carregar();
+      }
+    };
+    const intervalo = window.setInterval(consultarSeVisivel, 60000);
+    window.addEventListener("focus", consultarSeVisivel);
+    document.addEventListener("visibilitychange", consultarSeVisivel);
+    return () => {
+      window.clearInterval(intervalo);
+      window.removeEventListener("focus", consultarSeVisivel);
+      document.removeEventListener("visibilitychange", consultarSeVisivel);
+    };
+  }, [carregar, modo]);
 
   const pixPorColaboradora = useMemo(() => {
     const mapa: Record<string, { chave: string; tipo: string }> = {};
@@ -947,11 +1004,19 @@ export default function PremiacaoManagerV3() {
     perfilOperacional(perfilSelecionado);
   const selecionadoEhCoordenacao = perfilCoordenacao(perfilSelecionado);
 
-  const resumo = useMemo(() => {
-    const nome = ehGestor ? consultoraSelecionada : nomeLogado;
+  const { resumo, linhasLucro } = useMemo(() => {
+    // Uma única apuração. Minha Premiação e o relatório chamam este mesmo corpo.
+    function apurarPessoa(
+      nome: string,
+      agruparTodos: boolean,
+      selecionadoEhVinicius: boolean,
+      selecionadoEhSupervisao: boolean,
+      selecionadoEhOperacional: boolean,
+      selecionadoEhCoordenacao: boolean,
+    ) {
     const chave = normalizar(nome);
 
-    // COMPETÊNCIA DA COMPRA:
+    // REFERÊNCIA DA COMPRA:
     // 1) nasce pela data de digitação;
     // 2) continua pertencendo a esse mês se o pagamento ocorrer até dia 19
     //    do mês seguinte;
@@ -968,7 +1033,7 @@ export default function PremiacaoManagerV3() {
       .map(Number);
 
     // JS usa mês base zero; mesCompetencia já é 1..12.
-    // Ex.: competência 2026-08 -> new Date(2026, 8, 19) = 19/09/2026.
+    // Ex.: referência 2026-08 -> new Date(2026, 8, 19) = 19/09/2026.
     const limitePagamentoCompra = new Date(
       anoCompetencia,
       mesCompetencia,
@@ -989,7 +1054,7 @@ export default function PremiacaoManagerV3() {
       },
     );
 
-    if (ehGestor && consultoraSelecionada === TODOS_CONSULTORES) {
+    if (agruparTodos) {
       const nomesBase = nomesConsultoras.filter((nome) => nome && nome !== TODOS_CONSULTORES);
 
       const pertenceAoGrupo = (nomeBruto: string) =>
@@ -1355,7 +1420,7 @@ export default function PremiacaoManagerV3() {
     // VINICIUS ------------------------------------------------------------
     // 1) Vendas próprias seguem exatamente a mesma regra de premiação da Compra
     //    usada pelas consultoras/vendedoras.
-    // 2) Soma R$ 5,00 por CADA contrato de Compra pago da empresa na competência.
+    // 2) Soma R$ 5,00 por CADA contrato de Compra pago da empresa na referência.
     // 3) Se a produção válida da empresa atingir R$ 1.000.000, mantém o bônus
     //    de meta configurado (padrão R$ 500,00).
     if (selecionadoEhVinicius) {
@@ -1784,7 +1849,141 @@ export default function PremiacaoManagerV3() {
       contratosEmFormacao: propostasAguardando.length,
       contratosForaPrazo: propostasForaPrazo.length,
     };
+
+    }
+
+    const resumo = apurarPessoa(
+      ehGestor ? consultoraSelecionada : nomeLogado,
+      ehGestor && consultoraSelecionada === TODOS_CONSULTORES,
+      selecionadoEhVinicius, selecionadoEhSupervisao,
+      selecionadoEhOperacional, selecionadoEhCoordenacao,
+    );
+
+    const linhasLucro: LinhaLucroOperador[] = [];
+    if (modo !== "lucro-operador" || !podeConsultarLucro || !custoFinanceiro.dados) {
+      return { resumo, linhasLucro };
+    }
+
+    // Mesmo conjunto que recebe uma cota de Custo PA no Financeiro.
+    // Lideranças que não estão no rateio não são somadas outra vez como vendas.
+    const operadoresDoRateio = custoFinanceiro.dados.operadores
+      .filter((pessoa) => pessoa.ativo && perfilVendas(pessoa.perfil));
+    const idsVisitados = new Set<string>();
+    const propostasPorId = new Map(propostas.map((p) => [String(p.id), p]));
+    const cltPorId = new Map(clt.map((p) => [String(p.id), p]));
+
+    for (const operador of operadoresDoRateio) {
+      if (idsVisitados.has(operador.id)) continue;
+      idsVisitados.add(operador.id);
+      const usuarioExato = usuarios.find((u) => normalizar(u.nome || "") === normalizar(operador.nome));
+      const correspondentes = usuarios.filter((u) => nomesCorrespondem(u.nome || "", operador.nome));
+      // Se o nome é ambíguo, não escolhemos uma pessoa aleatória.
+      const usuario = usuarioExato || (correspondentes.length === 1 ? correspondentes[0] : undefined);
+      const nome = String(usuario?.nome || operador.nome).trim();
+      const perfil = String(usuario?.perfil || usuario?.cargo || "");
+      const ehVinicius = normalizar(nome).includes("vinicius");
+      const ehSupervisao = normalizar(nome).includes("raissa") || perfilSupervisao(perfil);
+      const ehOperacional = !ehVinicius && !ehSupervisao && perfilOperacional(perfil);
+      const ehCoordenacao = perfilCoordenacao(perfil);
+      const coletivo = ehVinicius || ehSupervisao || ehOperacional || ehCoordenacao;
+      const resultado = apurarPessoa(nome, false, ehVinicius, ehSupervisao, ehOperacional, ehCoordenacao);
+      // Este é EXATAMENTE o reduce do card "Comissão empresa — bruto".
+      // Lucro realizado: somente contratos confirmados como PAGOS e com data real de pagamento.
+      // Mantém as regras de referência da apuração original de Minha Premiação.
+      const compras = resultado.movimentos.filter((m) => {
+        if (m.produto !== "Compra de Dívida") return false;
+        const origem = propostasPorId.get(String(m.propostaId));
+        return Boolean(
+          origem &&
+          normalizar(origem.status) === "pago" &&
+          dataLocal(origem.dataPagamento)
+        );
+      });
+      const lucroBruto = compras.reduce((total, m) => total + Number(m.comissaoEmpresa || 0), 0);
+      const listaPropostas = new Map<string, PropostaLucroOperador>();
+
+      for (const movimento of resultado.movimentos) {
+        const compra = movimento.produto === "Compra de Dívida";
+        const origemCompra = compra ? propostasPorId.get(String(movimento.propostaId)) : undefined;
+        const origemClt = !compra ? cltPorId.get(String(movimento.propostaId)) : undefined;
+        const chave = `${movimento.produto}:${movimento.propostaId}`;
+        listaPropostas.set(chave, {
+          chave, propostaId: movimento.propostaId, produto: movimento.produto,
+          cliente: movimento.cliente, banco: movimento.banco, tabela: movimento.tabela,
+          responsavel: origemCompra?.vendedora || origemClt?.consultora || nome,
+          dataDigitacao: origemCompra?.dataCadastro || origemClt?.criadoEm || "",
+          dataPagamento: origemCompra?.dataPagamento || origemClt?.dataPagamento || "",
+          status: origemCompra?.status || origemClt?.status || "Pago",
+          comissao: compra && origemCompra &&
+            normalizar(origemCompra.status) === "pago" &&
+            dataLocal(origemCompra.dataPagamento)
+              ? Number(movimento.comissaoEmpresa || 0) : null,
+          considerada: Boolean(compra && origemCompra &&
+            normalizar(origemCompra.status) === "pago" &&
+            dataLocal(origemCompra.dataPagamento)),
+          motivo: !compra ? "CLT consta na produção, mas não compõe o card de comissão bruta no código atual."
+            : !origemCompra || normalizar(origemCompra.status) !== "pago"
+              ? "Não compõe: contrato ainda não está PAGO."
+              : !dataLocal(origemCompra.dataPagamento)
+                ? "Não compõe: pagamento sem data válida."
+                : "Compõe Comissão empresa — bruto em Minha Premiação.",
+        });
+      }
+
+      const [ano, mes] = competencia.split("-").map(Number);
+      const limite = new Date(ano, mes, 19, 23, 59, 59);
+      // Inclui as outras propostas da referência para explicar exclusões.
+      for (const proposta of propostas) {
+        if (chaveMes(dataLocal(proposta.dataCadastro)) !== competencia) continue;
+        if (!coletivo && normalizar(proposta.vendedora) !== normalizar(nome)) continue;
+        const chave = `Compra de Dívida:${proposta.id}`;
+        if (listaPropostas.has(chave)) continue;
+        const pagamento = dataLocal(proposta.dataPagamento);
+        const motivo = normalizar(proposta.status) !== "pago"
+          ? `Não compõe: status ${proposta.status || "não informado"}.`
+          : !pagamento ? "Não compõe: pagamento sem data válida."
+          : pagamento > limite ? "Não compõe: pagamento após o dia 19 do mês seguinte."
+          : "Não compõe os movimentos desta pessoa em Minha Premiação.";
+        listaPropostas.set(chave, {
+          chave, propostaId: proposta.id, produto: "Compra de Dívida", cliente: proposta.cliente,
+          banco: proposta.banco || "", tabela: proposta.tabela || "", responsavel: proposta.vendedora,
+          dataDigitacao: proposta.dataCadastro, dataPagamento: proposta.dataPagamento || "",
+          status: proposta.status, comissao: null, considerada: false, motivo,
+        });
+      }
+      for (const registro of clt) {
+        const pago = normalizar(registro.status) === "pago";
+        const data = pago ? registro.dataPagamento || registro.atualizadoEm || registro.criadoEm : registro.criadoEm;
+        if (chaveMes(dataLocal(data)) !== competencia) continue;
+        if (!coletivo && normalizar(registro.consultora) !== normalizar(nome)) continue;
+        const chave = `CLT:${registro.id}`;
+        if (listaPropostas.has(chave)) continue;
+        listaPropostas.set(chave, {
+          chave, propostaId: registro.id, produto: "CLT", cliente: registro.nome,
+          banco: registro.banco || "", tabela: registro.tabelaBancoId ? registro.tabela || "" : "Sem tabela selecionada",
+          responsavel: registro.consultora, dataDigitacao: registro.criadoEm || "",
+          dataPagamento: registro.dataPagamento || "", status: registro.status,
+          comissao: null, considerada: false,
+          motivo: "Não compõe Comissão empresa — bruto em Minha Premiação.",
+        });
+      }
+      const propostasDetalhadas = [...listaPropostas.values()].sort((a, b) =>
+        (dataLocal(b.dataDigitacao)?.getTime() || 0) - (dataLocal(a.dataDigitacao)?.getTime() || 0)
+        || a.chave.localeCompare(b.chave),
+      );
+      linhasLucro.push({
+        id: operador.id, nome, perfil: operador.perfil, coletivo, lucroBruto,
+        comissoes: compras.map((m) => ({ chave: `${m.produto}:${m.propostaId}`, valor: Number(m.comissaoEmpresa || 0) })),
+        propostas: propostasDetalhadas,
+        alerta: !usuarioExato && correspondentes.length > 1
+          ? "Nome ambíguo no RH. A apuração usa o nome exato do Financeiro; confira o cadastro."
+          : coletivo ? "Esta pessoa tem apuração coletiva em Minha Premiação; não representa apenas vendas próprias." : "",
+      });
+    }
+    linhasLucro.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    return { resumo, linhasLucro };
   }, [
+    modo, podeConsultarLucro, custoFinanceiro.dados, usuarios,
     ehGestor,
     consultoraSelecionada,
     nomeLogado,
@@ -1950,7 +2149,7 @@ export default function PremiacaoManagerV3() {
 
     if (previsaoExistente?.status === "LIBERADA") {
       throw new Error(
-        `O plano ${plano.nome} já foi liberado para esta colaboradora nesta competência.`,
+        `O plano ${plano.nome} já foi liberado para esta colaboradora nesta referência.`,
       );
     }
 
@@ -2008,7 +2207,7 @@ export default function PremiacaoManagerV3() {
     }
 
     if (jaLiberada) {
-      setMensagem("Esta premiação já foi liberada nesta competência.");
+      setMensagem("Esta premiação já foi liberada nesta referência.");
       return;
     }
 
@@ -2273,7 +2472,7 @@ export default function PremiacaoManagerV3() {
       throw new Error("Informe uma quantidade válida dentro do saldo disponível.");
     }
 
-    // Vincula o saque à competência selecionada. Isso permite que o Financeiro
+    // Vincula o saque à referência selecionada. Isso permite que o Financeiro
     // mostre o pagamento no mês correto, inclusive Sthefane e Vinicius.
     const competenciaId = await garantirCompetencia();
 
@@ -2376,15 +2575,37 @@ export default function PremiacaoManagerV3() {
     setMensagem("Atualizando dados e recalculando a premiação...");
 
     try {
-      const ok = await carregar();
+      const [ok, custoOk] = await Promise.all([
+        carregar(),
+        (modo === "lucro-operador" ? podeConsultarLucro : ehGestor)
+          ? custoFinanceiro.atualizar() : Promise.resolve(true),
+      ]);
       if (ok) {
-        setMensagem(
-          "Atualização concluída. Contratos pagos e pontuação foram recalculados.",
-        );
+        setMensagem(custoOk
+          ? "Atualização concluída. Produção recalculada e Custo PA consultado pela referência selecionada."
+          : "Produção atualizada. Custo PA indisponível; confira a consulta ao Financeiro.");
       }
     } finally {
       setProcessando(false);
     }
+  }
+
+  if (modo === "lucro-operador") {
+    return (
+      <LucroPorOperador
+        referencia={competencia}
+        onReferenciaChange={setCompetencia}
+        linhas={linhasLucro}
+        custo={custoFinanceiro.resumo}
+        carregando={carregando || (!erroLeituraLucro && referenciaLida !== competencia)}
+        carregandoCusto={custoFinanceiro.carregando}
+        erroDados={erroLeituraLucro}
+        erroCusto={custoFinanceiro.erro}
+        permitido={podeConsultarLucro}
+        processando={processando}
+        onAtualizar={atualizarAgora}
+      />
+    );
   }
 
   if (carregando) {
@@ -2429,6 +2650,9 @@ export default function PremiacaoManagerV3() {
         faixaClt={resumo.faixaClt?.nome_faixa || ""}
         complementoCompraComClt={resumo.complementoCompraComClt}
         comissaoEmpresa={resumo.comissaoEmpresa}
+        custoPaFinanceiro={custoFinanceiro.resumo}
+        carregandoCustoPa={custoFinanceiro.carregando}
+        erroCustoPa={custoFinanceiro.erro}
         movimentos={resumo.movimentos}
         saldoPontos={saldoPontos}
         saldoDisponivelSaque={saldoDisponivelSaque}

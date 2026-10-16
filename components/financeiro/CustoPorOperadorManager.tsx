@@ -8,6 +8,8 @@ import {
   type CSSProperties,
 } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useCustoPaFinanceiro } from "@/lib/financeiro/useCustoPaFinanceiro";
+import { notificarAlteracaoCustoPa, referenciaCustoPaValida, type CalculoCustoPa } from "@/lib/financeiro/custo-pa";
 
 type Config = {
   id: number;
@@ -52,14 +54,8 @@ const mesAtual = () => {
   return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}`;
 };
 
-const mesAnterior = (competencia: string) => {
-  const [ano, mes] = competencia.split("-").map(Number);
-  const data = new Date(ano, mes - 2, 1, 12);
-
-  return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}`;
-};
-
 const nomeMes = (competencia: string) => {
+  if (!referenciaCustoPaValida(competencia)) return "Selecione a referência";
   const [ano, mes] = competencia.split("-").map(Number);
 
   const texto = new Date(ano, mes - 1, 1, 12).toLocaleDateString("pt-BR", {
@@ -116,16 +112,18 @@ export default function CustoPorOperadorManager() {
   const [dataDe, setDataDe] = useState("");
   const [dataAte, setDataAte] = useState("");
 
-  const [config, setConfig] = useState<Config[]>([]);
-  const [extras, setExtras] = useState<Extra[]>([]);
+  const custoFinanceiro = useCustoPaFinanceiro(sb, competencia);
+  const atualizarCusto = custoFinanceiro.atualizar;
+  const config = custoFinanceiro.dados?.config ?? [];
+  const operadores = custoFinanceiro.dados?.operadores ?? [];
+  const custoDisponivel = custoFinanceiro.calculo !== null;
+  // O objeto vazio organiza a tela durante a consulta; seus zeros não são exibidos.
+  const calc: CalculoCustoPa = custoFinanceiro.calculo ?? {
+    referencia: competencia, df: 0, fo: 0, pr: 0, si: 0, inf: 0, ad: 0,
+    ex: [], qtd: 0, total: 0, unit: 0,
+  };
+  const moedaCusto = (valor: number) => custoDisponivel ? moeda(valor) : "—";
 
-  const [fixas, setFixas] = useState<any[]>([]);
-  const [folhas, setFolhas] = useState<any[]>([]);
-  const [premios, setPremios] = useState<any[]>([]);
-  const [simples, setSimples] = useState<any[]>([]);
-  const [inss, setInss] = useState<any[]>([]);
-  const [parcelasInss, setParcelasInss] = useState<any[]>([]);
-  const [operadores, setOperadores] = useState<any[]>([]);
   const [propostas, setPropostas] = useState<Proposta[]>([]);
   const [filtroLucroOperador, setFiltroLucroOperador] = useState("todos");
   const [detalheLucroOperador, setDetalheLucroOperador] = useState<null | {
@@ -140,87 +138,7 @@ export default function CustoPorOperadorManager() {
   const [valor, setValor] = useState("");
   const [obs, setObs] = useState("");
 
-  const carregar = useCallback(async () => {
-    const [
-      respostaConfig,
-      respostaExtras,
-      respostaFixas,
-      respostaFolhas,
-      respostaPremios,
-      respostaSimples,
-      respostaInss,
-      respostaParcelasInss,
-      respostaOperadores,
-    ] = await Promise.all([
-      sb
-        .from("custo_operador_config")
-        .select("id,chave,nome,ativo,ordem")
-        .order("ordem"),
-
-      sb
-        .from("custo_operador_adicionais")
-        .select("id,competencia,nome,valor,observacao,ativo")
-        .order("criado_em", { ascending: false }),
-
-      sb
-        .from("despesas_recorrentes")
-        .select("id,valor,inicio_competencia,fim_competencia,ativo")
-        .eq("ativo", true),
-
-      sb
-        .from("folha_pagamentos")
-        .select("id,competencia,salario,assiduidade_ativa,valor_assiduidade,pagamento_realizado,total_dia05,total_mensal,valor_pago"),
-
-      sb
-        .from("pontos_saques")
-        .select("id,pontos_solicitados,valor_reais,status,processado_em")
-        .eq("status", "PAGO"),
-
-      sb
-        .from("controle_simples_nacional")
-        .select("id,competencia,valor_imposto,status"),
-
-      sb
-        .from("controle_inss_fgts")
-        .select("id,tipo,competencia,valor"),
-
-      sb
-        .from("inss_parcelamentos")
-        .select("valor_parcela,ativo")
-        .eq("ativo", true),
-
-      sb
-        .from("profiles")
-        .select("id,nome,perfil,ativo")
-        .eq("ativo", true),
-    ]);
-
-    for (const resposta of [
-      respostaConfig,
-      respostaExtras,
-      respostaFixas,
-      respostaFolhas,
-      respostaPremios,
-      respostaSimples,
-      respostaInss,
-      respostaParcelasInss,
-      respostaOperadores,
-    ]) {
-      if (resposta.error) {
-        throw resposta.error;
-      }
-    }
-
-    setConfig((respostaConfig.data || []) as Config[]);
-    setExtras((respostaExtras.data || []) as Extra[]);
-    setFixas(respostaFixas.data || []);
-    setFolhas(respostaFolhas.data || []);
-    setPremios(respostaPremios.data || []);
-    setSimples(respostaSimples.data || []);
-    setInss(respostaInss.data || []);
-    setParcelasInss(respostaParcelasInss.data || []);
-    setOperadores(respostaOperadores.data || []);
-
+  const carregarPropostas = useCallback(async () => {
     try {
       const { data: sessao } = await sb.auth.getSession();
 
@@ -247,128 +165,12 @@ export default function CustoPorOperadorManager() {
   }, [sb]);
 
   useEffect(() => {
-    carregar().catch(console.error);
-  }, [carregar]);
+    void carregarPropostas();
+  }, [carregarPropostas]);
 
-  const ativa = (chave: string) =>
-    config.find((item) => item.chave === chave)?.ativo ?? true;
-
-  const calc = useMemo(() => {
-    const df = fixas
-      .filter((item) => {
-        const inicio = String(item.inicio_competencia || "0000-00").slice(0, 7);
-        const fim = item.fim_competencia
-          ? String(item.fim_competencia).slice(0, 7)
-          : null;
-
-        return inicio <= competencia && (!fim || fim >= competencia);
-      })
-      .reduce((soma, item) => soma + Number(item.valor || 0), 0);
-
-    const fo = folhas
-      .filter(
-        (item) =>
-          String(item.competencia || "").slice(0, 7) === competencia &&
-          item.pagamento_realizado === true
-      )
-      .reduce(
-        (soma, item) =>
-          soma +
-          Number(item.salario || 0) +
-          Number(item.assiduidade_ativa ? item.valor_assiduidade || 0 : 0),
-        0
-      );
-
-    const pr = premios
-      .filter((item) => String(item.processado_em || "").slice(0, 7) === competencia)
-      .reduce(
-        (soma, item) =>
-          soma + Number(item.valor_reais ?? item.pontos_solicitados ?? 0),
-        0
-      );
-
-    /*
-      REGRA DO SIMPLES NACIONAL NO CUSTO POR OPERADOR
-
-      Competência selecionada Outubro/2026:
-      - pega o imposto mensal do Simples de Setembro/2026;
-      - soma R$ 370,00 do parcelamento mensal.
-
-      Competência selecionada Novembro/2026:
-      - pega o imposto mensal do Simples de Outubro/2026;
-      - soma R$ 370,00 do parcelamento mensal.
-    */
-    const competenciaSimples = mesAnterior(competencia);
-
-    const impostoSimplesMensal = simples
-      .filter(
-        (item) =>
-          String(item.competencia || "").slice(0, 7) === competenciaSimples
-      )
-      .reduce((soma, item) => soma + Number(item.valor_imposto || 0), 0);
-
-    const parcelamentoSimplesMensal = 370;
-
-    const si = impostoSimplesMensal + parcelamentoSimplesMensal;
-
-    const impostosCompetencia = inss
-      .filter((item) => String(item.competencia || "").slice(0, 7) === competencia)
-      .reduce((soma, item) => soma + Number(item.valor || 0), 0);
-
-    const parcelamentosCompetencia = parcelasInss.reduce(
-      (soma, item) => soma + Number(item.valor_parcela || 0),
-      0
-    );
-
-    const inf = impostosCompetencia + parcelamentosCompetencia;
-
-    const ex = extras.filter((item) => item.competencia === competencia);
-
-    const ad = ex
-      .filter((item) => item.ativo)
-      .reduce((soma, item) => soma + Number(item.valor || 0), 0);
-
-    const qtd = operadores.filter((item) => {
-      const perfil = String(item.perfil || "")
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase();
-
-      return perfil.includes("consultor") || perfil.includes("vendedor");
-    }).length;
-
-    const total =
-      (ativa("despesas_fixas") ? df : 0) +
-      (ativa("folha") ? fo : 0) +
-      (ativa("premiacoes_pagas") ? pr : 0) +
-      (ativa("simples_nacional") ? si : 0) +
-      (ativa("inss_fgts") ? inf : 0) +
-      ad;
-
-    return {
-      df,
-      fo,
-      pr,
-      si,
-      inf,
-      ad,
-      ex,
-      qtd,
-      total,
-      unit: qtd ? total / qtd : 0,
-    };
-  }, [
-    competencia,
-    config,
-    extras,
-    fixas,
-    folhas,
-    premios,
-    simples,
-    inss,
-    parcelasInss,
-    operadores,
-  ]);
+  const carregar = useCallback(async () => {
+    await Promise.all([atualizarCusto(), carregarPropostas()]);
+  }, [atualizarCusto, carregarPropostas]);
 
   async function toggleConfig(item: Config) {
     const ativo = !item.ativo;
@@ -383,11 +185,8 @@ export default function CustoPorOperadorManager() {
       return;
     }
 
-    setConfig((atuais) =>
-      atuais.map((configItem) =>
-        configItem.id === item.id ? { ...configItem, ativo } : configItem
-      )
-    );
+    notificarAlteracaoCustoPa();
+    await atualizarCusto();
   }
 
   async function adicionar() {
@@ -421,6 +220,7 @@ export default function CustoPorOperadorManager() {
     setValor("");
     setObs("");
     setForm(false);
+    notificarAlteracaoCustoPa();
     await carregar();
   }
 
@@ -435,6 +235,7 @@ export default function CustoPorOperadorManager() {
       return;
     }
 
+    notificarAlteracaoCustoPa();
     await carregar();
   }
 
@@ -451,6 +252,7 @@ export default function CustoPorOperadorManager() {
       return;
     }
 
+    notificarAlteracaoCustoPa();
     await carregar();
   }
 
@@ -552,6 +354,14 @@ export default function CustoPorOperadorManager() {
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
+      <div role={custoFinanceiro.erro ? "alert" : "status"} aria-live="polite"
+        style={{ padding: "10px 14px", borderRadius: 10, background: custoFinanceiro.erro ? "#fff2f0" : "#eef5ff", color: "#17345f", fontSize: 12 }}>
+        {custoFinanceiro.erro
+          ? `Custo PA indisponível para esta referência. ${custoFinanceiro.erro}`
+          : custoFinanceiro.carregando
+            ? "Consultando o Custo PA no Financeiro..."
+            : `Referência: ${nomeMes(competencia)}. Mesma fonte usada em Minha Premiação. Atualização automática a cada 60 segundos e ao voltar à aba.`}
+      </div>
       <section
         style={{
           ...card,
@@ -674,7 +484,7 @@ export default function CustoPorOperadorManager() {
             </label>
           </div>
 
-          <button type="button" onClick={() => void carregar()} style={btn}>
+          <button type="button" onClick={() => void carregar()} disabled={custoFinanceiro.carregando} style={btn}>
             ATUALIZAR
           </button>
 
@@ -692,14 +502,14 @@ export default function CustoPorOperadorManager() {
         }}
       >
         {[
-          ["CUSTO POR OPERADOR(A)-PA", moeda(calc.unit), nomeMes(competencia)],
-          ["CUSTO TOTAL", moeda(calc.total), "Total incluído na composição"],
+          ["CUSTO POR OPERADOR(A)-PA", moedaCusto(calc.unit), nomeMes(competencia)],
+          ["CUSTO TOTAL", moedaCusto(calc.total), "Total incluído na composição"],
           [
             "OPERADORES(AS)",
-            String(calc.qtd),
+            custoDisponivel ? String(calc.qtd) : "—",
             "Consultores(as) / vendedores(as) ativos",
           ],
-          ["CÁLCULO", moeda(calc.unit), `${moeda(calc.total)} ÷ ${calc.qtd}`],
+          ["CÁLCULO", moedaCusto(calc.unit), `${moedaCusto(calc.total)} ÷ ${calc.qtd}`],
         ].map(([titulo, valorCard, descricao]) => (
           <article key={titulo} style={{ ...card, minHeight: 105 }}>
             <span style={{ fontSize: 10, fontWeight: 900, color: "#65758d" }}>
@@ -865,12 +675,12 @@ export default function CustoPorOperadorManager() {
                 </div>
 
                 <strong style={{ color: "#102d57" }}>
-                  {moeda(Number(valorItem))}
+                  {moedaCusto(Number(valorItem))}
                 </strong>
 
                 <button
                   type="button"
-                  disabled={!cfg}
+                  disabled={!cfg || custoFinanceiro.carregando}
                   onClick={() => cfg && void toggleConfig(cfg)}
                   style={{
                     border: "1px solid #ccd8ea",
@@ -896,7 +706,7 @@ export default function CustoPorOperadorManager() {
             }}
           >
             <strong>Custos adicionais ativos</strong>
-            <strong>{moeda(calc.ad)}</strong>
+            <strong>{moedaCusto(calc.ad)}</strong>
           </div>
 
           <div
@@ -911,7 +721,7 @@ export default function CustoPorOperadorManager() {
           >
             <strong style={{ color: "#102d57" }}>CUSTO TOTAL</strong>
             <strong style={{ color: "#155eef", fontSize: 20 }}>
-              {moeda(calc.total)}
+              {moedaCusto(calc.total)}
             </strong>
           </div>
         </article>
@@ -926,7 +736,7 @@ export default function CustoPorOperadorManager() {
           </h3>
 
           <p style={{ margin: "0 0 14px", color: "#8794a8", fontSize: 11 }}>
-            Itens cadastrados manualmente para esta competência.
+            Itens cadastrados manualmente para esta referência.
           </p>
 
           {calc.ex.length === 0 ? (
@@ -1134,10 +944,10 @@ export default function CustoPorOperadorManager() {
               CUSTO RATEADO
             </span>
             <strong style={{ display: "block", marginTop: 8, fontSize: 22, color: "#111827" }}>
-              {moeda(resumoLucroOperador.custoTotal)}
+              {moedaCusto(resumoLucroOperador.custoTotal)}
             </strong>
             <small style={{ color: "#111827" }}>
-              {lucroPorOperador.length} operador(es) × {moeda(calc.unit)}
+              {lucroPorOperador.length} operador(es) × {moedaCusto(calc.unit)}
             </small>
           </article>
 
@@ -1152,7 +962,7 @@ export default function CustoPorOperadorManager() {
               LUCRO LÍQUIDO DOS OPERADORES
             </span>
             <strong style={{ display: "block", marginTop: 8, fontSize: 22, color: "#111827" }}>
-              {moeda(resumoLucroOperador.lucroLiquido)}
+              {moedaCusto(resumoLucroOperador.lucroLiquido)}
             </strong>
             <small style={{ color: "#111827" }}>
               Lucro gerado − custo por operador
@@ -1196,7 +1006,7 @@ export default function CustoPorOperadorManager() {
                   <small style={{ display: "block", color: "#8794a8", fontSize: 10, fontWeight: 900 }}>
                     CUSTO
                   </small>
-                  <strong style={{ color: "#102d57" }}>{moeda(item.custoOperador)}</strong>
+                  <strong style={{ color: "#102d57" }}>{moedaCusto(item.custoOperador)}</strong>
                 </div>
 
                 <div>
@@ -1204,7 +1014,7 @@ export default function CustoPorOperadorManager() {
                     RESULTADO
                   </small>
                   <strong style={{ color: item.lucroLiquido >= 0 ? "#079447" : "#d92d20" }}>
-                    {moeda(item.lucroLiquido)}
+                    {moedaCusto(item.lucroLiquido)}
                   </strong>
                 </div>
 
@@ -1277,7 +1087,7 @@ export default function CustoPorOperadorManager() {
                   {detalheLucroOperador.nome}
                 </h3>
                 <p style={{ margin: 0, color: "#8794a8", fontSize: 12 }}>
-                  {nomeMes(competencia)} · Lucro {moeda(detalheLucroOperador.lucroBruto)} · Resultado {moeda(detalheLucroOperador.lucroLiquido)}
+                  {nomeMes(competencia)} · Lucro {moeda(detalheLucroOperador.lucroBruto)} · Resultado {moedaCusto(detalheLucroOperador.lucroLiquido)}
                 </p>
               </div>
 

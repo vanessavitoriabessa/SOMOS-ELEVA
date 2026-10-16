@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, FormEvent, useMemo, useState } from "react";
+import { useEffect, type FormEvent, useMemo, useState } from "react";
+import type { ResumoCustoPa } from "@/lib/financeiro/custo-pa";
 
 import {
 
@@ -166,7 +167,11 @@ type Props = {
   complementoCompraComClt: number;
 
   comissaoEmpresa: number;
+  // Compatibilidade de tipos com chamadores antigos: não é mais fonte de cálculo.
   custoEmpresaCompetencia?: number;
+  custoPaFinanceiro?: ResumoCustoPa | null;
+  carregandoCustoPa?: boolean;
+  erroCustoPa?: string | null;
   quantidadeVendedorasAtivas?: number;
 
   movimentos?: MovimentoPremiacao[];
@@ -335,8 +340,9 @@ export default function MinhaPremiacaoV2(props: Props) {
     complementoCompraComClt,
 
     comissaoEmpresa,
-    custoEmpresaCompetencia = 0,
-    quantidadeVendedorasAtivas = 1,
+    custoPaFinanceiro = null,
+    carregandoCustoPa = false,
+    erroCustoPa = null,
 
     movimentos = [],
 
@@ -543,31 +549,31 @@ const [abaAdmin, setAbaAdmin] = useState<
 
   const cltParcelasPagas = movimentosClt.reduce((t,m)=>t+Number(m.valorParcelaClt||m.producaoValida||0),0);
 
-  // A premiação acumulada da competência também compõe o custo da empresa.
-  // Se a gestão editar manualmente a premiação, o Custo PA reage imediatamente
-  // ao valor conferido exibido no card.
-  const custoEmpresaComPremiacao =
-    Number(custoEmpresaCompetencia || 0) + Number(premiacaoExibida || 0);
-
-  const custoPa =
-    custoEmpresaComPremiacao /
-    Math.max(Number(quantidadeVendedorasAtivas || 1), 1);
+  // Consome apenas o resumo financeiro da MESMA referência.
+  // Não soma premiação manual, não reaproveita outro mês e não recalcula o rateio.
+  const custoConfirmado = !erroCustoPa && custoPaFinanceiro?.referencia === competencia
+    ? custoPaFinanceiro : null;
+  const custoPa = custoConfirmado?.custoPa ?? null;
+  const moedaFinanceira = (valor: number | null | undefined) =>
+    typeof valor === "number" && Number.isFinite(valor) ? moeda(valor) : "—";
+  const referenciaCustoLabel = /^\d{4}-\d{2}$/.test(competencia)
+    ? `${competencia.slice(5, 7)}/${competencia.slice(0, 4)}` : "não selecionada";
 
   const comissaoEmpresaBruta = movimentosCompra.reduce((t,m)=>t+Number(m.comissaoEmpresa||0),0);
-  const comissaoEmpresaLiquida = Math.max(comissaoEmpresaBruta - custoPa, 0);
+  const comissaoEmpresaLiquida = custoPa === null ? null : Math.max(comissaoEmpresaBruta - custoPa, 0);
   const brutoSelecionado = Math.max(movimentos.reduce((t,m)=>t+Number(m.valorBruto ?? m.valorContrato ?? 0),0),0);
 
   const movimentosComFinanceiro = movimentosFiltrados.map((item) => {
     const valorBrutoItem = Number(item.valorBruto ?? item.valorContrato ?? 0);
     const percentualComissao = valorBrutoItem > 0 ? (Number(item.comissaoEmpresa||0)/valorBrutoItem)*100 : 0;
-    const custoRateado = brutoSelecionado > 0 ? custoPa*(valorBrutoItem/brutoSelecionado) : 0;
+    const custoRateado = custoPa === null ? null : brutoSelecionado > 0 ? custoPa*(valorBrutoItem/brutoSelecionado) : 0;
     const lucroBruto = Number(item.comissaoEmpresa||0);
     return {
       ...item,
       percentualComissaoEmpresa: percentualComissao,
       custoPaRateado: custoRateado,
       lucroBrutoEmpresa: lucroBruto,
-      lucroLiquidoEmpresa: lucroBruto-custoRateado,
+      lucroLiquidoEmpresa: custoRateado === null ? null : lucroBruto-custoRateado,
     };
   });
 
@@ -805,8 +811,17 @@ const [abaAdmin, setAbaAdmin] = useState<
                 <article><span>Compra de Dívida — líquido pago</span><strong>{moeda(compraLiquidaPaga)}</strong><small>{faixaCompra || "Abaixo da primeira faixa"}</small></article>
                 <article><span>Compra de Dívida — bruto pago</span><strong>{moeda(compraBrutaPaga)}</strong><small>{movimentosCompra.length} contrato(s) elegível(is)</small></article>
                 <article className="internal"><span>Comissão empresa — bruto</span><strong>{moeda(comissaoEmpresaBruta)}</strong><small>Antes do Custo PA</small></article>
-                <article className="internal"><span>Comissão empresa — líquido</span><strong>{moeda(comissaoEmpresaLiquida)}</strong><small>Comissão bruta menos Custo PA</small></article>
-                <article><span>Custo PA</span><strong>{moeda(custoPa)}</strong><small>{moeda(custoEmpresaComPremiacao)} ÷ {quantidadeVendedorasAtivas} vendedora(s)</small></article>
+                <article className="internal"><span>Comissão empresa — líquido</span><strong>{moedaFinanceira(comissaoEmpresaLiquida)}</strong><small>Comissão bruta menos Custo PA</small></article>
+                <article className="premio-custo-pa-financeiro" aria-live="polite" aria-busy={carregandoCustoPa}>
+                  <span>Custo PA</span>
+                  <strong>{moedaFinanceira(custoPa)}</strong>
+                  <small>Financeiro · Referência {referenciaCustoLabel}</small>
+                  <small title={erroCustoPa || undefined}>
+                    {carregandoCustoPa ? "Atualizando Custo PA..." : custoConfirmado
+                      ? `${moeda(custoConfirmado.custoTotal)} ÷ ${custoConfirmado.quantidadeOperadores} operador(es)`
+                      : "Custo PA indisponível para esta referência"}
+                  </small>
+                </article>
                 <article><span>Aguardando pagar</span><strong>{moeda(producaoEmFormacao)}</strong><small>{contratosEmFormacao} proposta(s) ainda não paga(s)</small></article>
                 <article className="points"><span>Premiação automática</span><strong>{pontos(pontosTotalPrevisto)} pts</strong><small>{pontosTotalPrevisto > 0 ? "1 ponto = R$ 1,00" : "NÃO BATEU META"}</small></article>
               </section>
@@ -977,7 +992,7 @@ const [abaAdmin, setAbaAdmin] = useState<
 
                         {contratosConfirmados} contrato(s) confirmado(s) na
 
-                        competência.
+                        referência.
 
                       </p>
 
@@ -1079,7 +1094,7 @@ const [abaAdmin, setAbaAdmin] = useState<
 
                       <strong>{moeda(producaoDigitada)}</strong>
 
-                      <small>{contratosDigitados} proposta(s) da competência</small>
+                      <small>{contratosDigitados} proposta(s) da referência</small>
 
                     </article>
 
@@ -1429,8 +1444,8 @@ const [abaAdmin, setAbaAdmin] = useState<
                               <td className="internal-col">{item.produto==="Compra de Dívida" ? `${porcentagem(item.percentualComissaoEmpresa || 0)}%` : "—"}</td>
                               <td className="internal-col">{item.produto==="Compra de Dívida" ? moeda(item.comissaoEmpresa) : "—"}</td>
                               <td className="internal-col">{moeda(item.lucroBrutoEmpresa || 0)}</td>
-                              <td>{moeda(item.custoPaRateado || 0)}</td>
-                              <td><strong>{moeda(item.lucroLiquidoEmpresa || 0)}</strong></td>
+                              <td>{moedaFinanceira(item.custoPaRateado)}</td>
+                              <td><strong>{moedaFinanceira(item.lucroLiquidoEmpresa)}</strong></td>
                             </tr>
                           ))}
                         </tbody>
@@ -1476,7 +1491,7 @@ const [abaAdmin, setAbaAdmin] = useState<
                 <div className="premio-v8-secondary-contracts-head">
                   <div>
                     <strong>Contratos de {nomeExibido}</strong>
-                    <small>Contratos usados na formação da produção da competência.</small>
+                    <small>Contratos usados na formação da produção da referência.</small>
                   </div>
                   <span>{movimentosFiltrados.length} contrato(s)</span>
                 </div>
@@ -1488,7 +1503,7 @@ const [abaAdmin, setAbaAdmin] = useState<
                 </div>
 
                 {movimentosFiltrados.length === 0 ? (
-                  <div className="premio-v8-secondary-empty">Nenhum contrato encontrado para esta colaboradora na competência.</div>
+                  <div className="premio-v8-secondary-empty">Nenhum contrato encontrado para esta colaboradora na referência.</div>
                 ) : (
                   <div className="premio-v8-secondary-list">
                     {movimentosFiltrados.map((item) => (

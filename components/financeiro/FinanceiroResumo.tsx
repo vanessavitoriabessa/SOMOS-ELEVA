@@ -14,6 +14,7 @@ type AbaFinanceiro =
 
 type Props = {
   onNavigate: (aba: AbaFinanceiro) => void;
+  modo?: "visao-geral" | "custo-operador";
 };
 
 type BaixaPagamento = {
@@ -91,23 +92,45 @@ function dentroPeriodo(data: string | null | undefined, inicio: string, fim: str
   return valor >= inicio && valor <= fim;
 }
 
-export default function FinanceiroResumo({ onNavigate }: Props) {
+export default function FinanceiroResumo({
+  onNavigate,
+  modo = "visao-geral",
+}: Props) {
   const supabase = useMemo(() => createClient(), []);
   const [baixas, setBaixas] = useState<BaixaPagamento[]>([]);
   const [movimentos, setMovimentos] = useState<Movimento[]>([]);
   const [despesasFixas, setDespesasFixas] = useState<DespesaRecorrente[]>([]);
   const [pagamentosFixos, setPagamentosFixos] = useState<PagamentoDespesaRecorrente[]>([]);
   const [premiacoesPagas, setPremiacoesPagas] = useState<SaquePremiacaoPago[]>([]);
-  const [carregando, setCarregando] = useState(true);
-  const [periodo, setPeriodo] = useState<"mes" | "personalizado">("mes");
-  const [dataInicial, setDataInicial] = useState(primeiroDiaMes());
-  const [dataFinal, setDataFinal] = useState(ultimoDiaMes());
 
-  const carregar = useCallback(async () => {
-    setCarregando(true);
+const [folhas, setFolhas] = useState<any[]>([]);
+const [simplesNacional, setSimplesNacional] = useState<any[]>([]);
+const [inssFgts, setInssFgts] = useState<any[]>([]);
+const [operadores, setOperadores] = useState<any[]>([]);
+const [configCustoOperador, setConfigCustoOperador] = useState<any[]>([]);
+const [custosAdicionais, setCustosAdicionais] = useState<any[]>([]);
 
+const [carregando, setCarregando] = useState(true);
+const [periodo, setPeriodo] = useState<"mes" | "personalizado">("mes");
+const [dataInicial, setDataInicial] = useState(primeiroDiaMes());
+const [dataFinal, setDataFinal] = useState(ultimoDiaMes());
+
+const carregar = useCallback(async () => {
     try {
-      const [resBaixas, resMovimentos, resFixas, resPagamentosFixos, resPremiacoesPagas] = await Promise.all([
+      const [
+  resBaixas,
+  resMovimentos,
+  resFixas,
+  resPagamentosFixos,
+  resPremiacoesPagas,
+  resFolhas,
+  resSimples,
+  resInssFgts,
+  resOperadores,
+  resConfigCustoOperador,
+  resCustosAdicionais
+] = await Promise.all([
+
         supabase
           .from("baixas_pagamentos")
           .select("id,banco,tabela,cliente,comissao_prevista,valor_recebido,data_prevista_recebimento,data_recebimento")
@@ -128,19 +151,65 @@ export default function FinanceiroResumo({ onNavigate }: Props) {
           .from("pontos_saques")
           .select("id,pontos_solicitados,valor_reais,status,processado_em")
           .eq("status", "PAGO"),
-      ]);
+
+      supabase
+  .from("folha_pagamentos")
+  .select("id,competencia,total_dia05,total_mensal,valor_pago"),
+
+supabase
+  .from("controle_simples_nacional")
+  .select("id,competencia,valor_imposto"),
+
+supabase
+  .from("controle_inss_fgts")
+  .select("id,tipo,competencia,valor"),
+
+supabase
+  .from("profiles")
+  .select("id,nome,perfil,ativo")
+  .eq("ativo", true),
+  supabase
+  .from("custo_operador_config")
+  .select("id,chave,nome,ativo,ordem")
+  .order("ordem", { ascending: true }),
+
+supabase
+  .from("custo_operador_adicionais")
+  .select("id,competencia,nome,valor,observacao,ativo,criado_em")
+  .order("criado_em", { ascending: false }),
+  ]);
+
 
       if (resBaixas.error) throw resBaixas.error;
-      if (resMovimentos.error) throw resMovimentos.error;
-      if (resFixas.error) throw resFixas.error;
-      if (resPagamentosFixos.error) throw resPagamentosFixos.error;
-      if (resPremiacoesPagas.error) throw resPremiacoesPagas.error;
+if (resMovimentos.error) throw resMovimentos.error;
+if (resFixas.error) throw resFixas.error;
+if (resPagamentosFixos.error) throw resPagamentosFixos.error;
+if (resPremiacoesPagas.error) throw resPremiacoesPagas.error;
+if (resFolhas.error) throw resFolhas.error;
+if (resSimples.error) throw resSimples.error;
+if (resInssFgts.error) throw resInssFgts.error;
+if (resOperadores.error) throw resOperadores.error;
+if (resConfigCustoOperador.error) throw resConfigCustoOperador.error;
+if (resCustosAdicionais.error) throw resCustosAdicionais.error;
 
-      setBaixas((resBaixas.data || []) as BaixaPagamento[]);
-      setMovimentos((resMovimentos.data || []) as Movimento[]);
-      setDespesasFixas((resFixas.data || []) as DespesaRecorrente[]);
-      setPagamentosFixos((resPagamentosFixos.data || []) as PagamentoDespesaRecorrente[]);
-      setPremiacoesPagas((resPremiacoesPagas.data || []) as SaquePremiacaoPago[]);
+setBaixas((resBaixas.data || []) as BaixaPagamento[]);
+setMovimentos((resMovimentos.data || []) as Movimento[]);
+setDespesasFixas((resFixas.data || []) as DespesaRecorrente[]);
+setPagamentosFixos(
+  (resPagamentosFixos.data || []) as PagamentoDespesaRecorrente[]
+);
+setPremiacoesPagas(
+  (resPremiacoesPagas.data || []) as SaquePremiacaoPago[]
+);
+
+setFolhas(resFolhas.data || []);
+setSimplesNacional(resSimples.data || []);
+setInssFgts(resInssFgts.data || []);
+setOperadores(resOperadores.data || []);
+setConfigCustoOperador(resConfigCustoOperador.data || []);
+setCustosAdicionais(resCustosAdicionais.data || []);
+setConfigCustoOperador(resConfigCustoOperador.data || []);
+setCustosAdicionais(resCustosAdicionais.data || []);
     } finally {
       setCarregando(false);
     }
@@ -220,6 +289,139 @@ export default function FinanceiroResumo({ onNavigate }: Props) {
   );
 
   const competencia = dataInicial.slice(0, 7);
+  const custoPorOperador = useMemo(() => {
+  // 1. DESPESAS FIXAS da competência
+  const totalDespesasFixas = despesasFixas
+    .filter((item) => {
+      const inicio = String(
+        item.inicio_competencia || "0000-00"
+      ).slice(0, 7);
+
+      const fim = item.fim_competencia
+        ? String(item.fim_competencia).slice(0, 7)
+        : null;
+
+      return (
+        inicio <= competencia &&
+        (!fim || fim >= competencia)
+      );
+    })
+    .reduce(
+      (total, item) =>
+        total + Number(item.valor || 0),
+      0
+    );
+
+  // 2. FOLHA da competência
+  const totalFolha = folhas
+    .filter(
+      (item) =>
+        String(item.competencia || "").slice(0, 7) ===
+        competencia
+    )
+    .reduce(
+      (total, item) =>
+        total +
+        Number(
+          item.total_mensal ??
+            item.total_dia05 ??
+            item.valor_pago ??
+            0
+        ),
+      0
+    );
+
+  // 3. PREMIAÇÕES PAGAS na competência
+  const totalPremiacoes = premiacoesPagas
+    .filter(
+      (item) =>
+        String(item.processado_em || "").slice(0, 7) ===
+        competencia
+    )
+    .reduce(
+      (total, item) =>
+        total +
+        Number(
+          item.valor_reais ||
+            item.pontos_solicitados ||
+            0
+        ),
+      0
+    );
+
+  // 4. SIMPLES NACIONAL da competência
+  const totalSimples = simplesNacional
+    .filter(
+      (item) =>
+        String(item.competencia || "").slice(0, 7) ===
+        competencia
+    )
+    .reduce(
+      (total, item) =>
+        total + Number(item.valor_imposto || 0),
+      0
+    );
+
+  // 5. INSS + FGTS da competência
+  const totalInssFgts = inssFgts
+    .filter(
+      (item) =>
+        String(item.competencia || "").slice(0, 7) ===
+        competencia
+    )
+    .reduce(
+      (total, item) =>
+        total + Number(item.valor || 0),
+      0
+    );
+
+  // Somente Consultores(as) / Vendedores(as) ativos
+  const quantidadeOperadores = operadores.filter(
+    (item) => {
+      const perfil = String(item.perfil || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+
+      return (
+        perfil.includes("consultor") ||
+        perfil.includes("vendedor")
+      );
+    }
+  ).length;
+
+  const custoTotal =
+    totalDespesasFixas +
+    totalFolha +
+    totalPremiacoes +
+    totalSimples +
+    totalInssFgts;
+
+  const valorPorOperador =
+    quantidadeOperadores > 0
+      ? custoTotal / quantidadeOperadores
+      : 0;
+
+  return {
+  totalDespesasFixas,
+  totalFolha,
+  totalPremiacoes,
+  totalSimples,
+  totalInssFgts,
+  custoTotal,
+  quantidadeOperadores,
+  valorPorOperador,
+};
+
+}, [
+  competencia,
+  despesasFixas,
+  folhas,
+  premiacoesPagas,
+  simplesNacional,
+  inssFgts,
+  operadores,
+]);
 
   const despesasFixasMes = useMemo(
     () =>
@@ -304,6 +506,265 @@ export default function FinanceiroResumo({ onNavigate }: Props) {
   );
 
   const proximasDespesas = despesasFixasPendentesMes.slice(0, 5);
+  if (modo === "custo-operador") {
+  return (
+    <div className="fin-home fin-home-modern">
+      <section className="fin-home-top modern">
+        <section
+  style={{
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) 320px",
+    gap: 14,
+    alignItems: "start",
+  }}
+>
+  <article
+    style={{
+      background: "#fff",
+      border: "1px solid #dce5f2",
+      borderRadius: 16,
+      padding: 22,
+    }}
+  >
+    <div style={{ marginBottom: 18 }}>
+      <span
+        style={{
+          color: "#155eef",
+          fontSize: 9,
+          fontWeight: 900,
+          letterSpacing: ".08em",
+        }}
+      >
+        DETALHAMENTO
+      </span>
+
+      <h3
+        style={{
+          margin: "5px 0 0",
+          color: "#102d57",
+          fontSize: 19,
+        }}
+      >
+        Composição do custo
+      </h3>
+
+      <p
+        style={{
+          margin: "5px 0 0",
+          color: "#8b97a9",
+          fontSize: 10,
+        }}
+      >
+        Valores contabilizados na competência selecionada.
+      </p>
+    </div>
+
+    {[
+      ["Despesas Fixas", custoPorOperador.totalDespesasFixas],
+      ["Folha", custoPorOperador.totalFolha],
+      ["Premiações Pagas", custoPorOperador.totalPremiacoes],
+      ["Simples Nacional", custoPorOperador.totalSimples],
+      ["INSS e FGTS", custoPorOperador.totalInssFgts],
+    ].map(([nome, valor]) => (
+      <div
+        key={String(nome)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 15,
+          padding: "13px 0",
+          borderBottom: "1px solid #edf1f6",
+        }}
+      >
+        <span
+          style={{
+            color: "#52637e",
+            fontSize: 11,
+            fontWeight: 800,
+          }}
+        >
+          {String(nome)}
+        </span>
+
+        <strong
+          style={{
+            color: "#102d57",
+            fontSize: 13,
+          }}
+        >
+          {moeda(Number(valor || 0))}
+        </strong>
+      </div>
+    ))}
+
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        paddingTop: 18,
+      }}
+    >
+      <strong style={{ color: "#102d57", fontSize: 13 }}>
+        CUSTO TOTAL
+      </strong>
+
+      <strong style={{ color: "#155eef", fontSize: 20 }}>
+        {moeda(custoPorOperador.custoTotal)}
+      </strong>
+    </div>
+  </article>
+
+  <article
+    style={{
+      background: "#fff",
+      border: "1px solid #dce5f2",
+      borderRadius: 16,
+      padding: 22,
+    }}
+  >
+    <span
+      style={{
+        color: "#155eef",
+        fontSize: 9,
+        fontWeight: 900,
+        letterSpacing: ".08em",
+      }}
+    >
+      FÓRMULA ATUAL
+    </span>
+
+    <h3
+      style={{
+        margin: "5px 0 15px",
+        color: "#102d57",
+        fontSize: 19,
+      }}
+    >
+      Como é calculado
+    </h3>
+
+    <div
+      style={{
+        padding: 15,
+        borderRadius: 12,
+        background: "#f7f9fd",
+        color: "#52637e",
+        fontSize: 11,
+        lineHeight: 1.7,
+      }}
+    >
+      Despesas Fixas
+      <br />
+      + Folha
+      <br />
+      + Premiações Pagas
+      <br />
+      + Simples Nacional
+      <br />
+      + INSS e FGTS
+    </div>
+
+    <div
+      style={{
+        marginTop: 15,
+        paddingTop: 15,
+        borderTop: "1px solid #edf1f6",
+      }}
+    >
+      <strong
+        style={{
+          display: "block",
+          color: "#102d57",
+          fontSize: 13,
+        }}
+      >
+        {moeda(custoPorOperador.custoTotal)}
+      </strong>
+
+      <span
+        style={{
+          display: "block",
+          marginTop: 4,
+          color: "#8b97a9",
+          fontSize: 10,
+        }}
+      >
+        ÷ {custoPorOperador.quantidadeOperadores} operadores(as)
+      </span>
+
+      <strong
+        style={{
+          display: "block",
+          marginTop: 10,
+          color: "#0b8d4c",
+          fontSize: 21,
+        }}
+      >
+        {moeda(custoPorOperador.valorPorOperador)}
+      </strong>
+    </div>
+  </article>
+</section>
+
+        <div>
+          <span>CENTRO FINANCEIRO</span>
+          <h2>Custo por Operador(a)-PA</h2>
+          <p>
+            Composição dos custos da competência e custo médio por operador(a).
+          </p>
+        </div>
+
+        <div className="fin-period-label">
+          <small>Competência</small>
+          <strong>
+            {new Date(`${dataInicial}T12:00:00`).toLocaleDateString(
+              "pt-BR",
+              {
+                month: "long",
+                year: "numeric",
+              }
+            )}
+          </strong>
+        </div>
+      </section>
+
+      <section className="fin-home-kpis modern">
+        <article className="fin-kpi-primary">
+          <span>CUSTO POR OPERADOR(A)-PA</span>
+          <strong>{moeda(custoPorOperador.valorPorOperador)}</strong>
+          <small>
+            Custo médio por consultor(a) na competência
+          </small>
+        </article>
+
+        <article>
+          <span>CUSTO TOTAL</span>
+          <strong>{moeda(custoPorOperador.custoTotal)}</strong>
+          <small>
+            Soma dos custos considerados na competência
+          </small>
+        </article>
+
+        <article>
+          <span>OPERADORES(AS)</span>
+          <strong>{custoPorOperador.quantidadeOperadores}</strong>
+          <small>Consultores(as) / vendedores(as) ativos</small>
+        </article>
+
+        <article className="fin-kpi-success">
+          <span>CÁLCULO</span>
+          <strong>{moeda(custoPorOperador.valorPorOperador)}</strong>
+          <small>
+            {moeda(custoPorOperador.custoTotal)} ÷{" "}
+            {custoPorOperador.quantidadeOperadores} operador(a)(s)
+          </small>
+        </article>
+      </section>
+    </div>
+  );
+}
 
   return (
     <div className="fin-home fin-home-modern">
@@ -397,7 +858,19 @@ export default function FinanceiroResumo({ onNavigate }: Props) {
           gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
           gap: 12,
         }}
-      >
+      > <article>
+  <span>CUSTO POR OPERADOR(A)-PA</span>
+
+  <strong>
+    {moeda(custoPorOperador.valorPorOperador)}
+  </strong>
+
+  <small>q
+    {moeda(custoPorOperador.custoTotal)} ÷{" "}
+    {custoPorOperador.quantidadeOperadores} consultor(a)(s)
+  </small>
+</article>
+
         <article
           onClick={() => onNavigate("movimentacoes")}
           style={{
