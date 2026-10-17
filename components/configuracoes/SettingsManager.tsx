@@ -32,6 +32,8 @@ type OrgaoConvenio = {
   ativo: boolean;
 };
 
+type FiltroTipoTabela = "TODAS" | "COMPRA" | "CLT";
+
 type EquipeConfigurada = {
   id: string;
   nome: string;
@@ -267,6 +269,22 @@ function rotuloPrazoTabela(
   return `${inicio ?? fim} a ${fim ?? inicio} meses`;
 }
 
+function tabelaEhClt(tabela: Tabela) {
+  const orgaoUnico = String(tabela.orgaoConvenio || "").trim().toUpperCase();
+  const ids = tabela.orgaosConvenios.map((item) =>
+    String(item.id || "").trim().toUpperCase(),
+  );
+  const nomes = tabela.orgaosConvenios.map((item) =>
+    String(item.nome || "").trim().toUpperCase(),
+  );
+
+  return (
+    orgaoUnico === "CLT" ||
+    ids.includes("__CLT__") ||
+    nomes.includes("CLT")
+  );
+}
+
 export default function SettingsManager() {
   const supabase = useMemo(() => createClient(), []);
 
@@ -359,6 +377,8 @@ export default function SettingsManager() {
   const [nomeBancoEdicao, setNomeBancoEdicao] = useState("");
   const [novoOrgaoConvenio, setNovoOrgaoConvenio] = useState("");
   const [buscaTabela, setBuscaTabela] = useState("");
+  const [filtroTipoTabela, setFiltroTipoTabela] =
+    useState<FiltroTipoTabela>("TODAS");
   const [novaTabela, setNovaTabela] = useState({
     banco: "NEO",
     orgaoConvenio: "",
@@ -1616,6 +1636,73 @@ export default function SettingsManager() {
     }
   }
 
+  async function duplicarTabela(tabela: Tabela) {
+    setProcessando(true);
+    setMensagem("");
+
+    try {
+      const clt = tabelaEhClt(tabela);
+      const nomeBase = `${String(tabela.nome || "TABELA").trim()} - CÓPIA`;
+      const nomesExistentes = new Set(
+        tabelas
+          .filter(
+            (item) =>
+              String(item.banco || "").trim().toUpperCase() ===
+                String(tabela.banco || "").trim().toUpperCase() &&
+              tabelaEhClt(item) === clt,
+          )
+          .map((item) => String(item.nome || "").trim().toUpperCase()),
+      );
+
+      let nomeDuplicado = nomeBase;
+      let sequencia = 2;
+
+      while (nomesExistentes.has(nomeDuplicado.toUpperCase())) {
+        nomeDuplicado = `${nomeBase} ${sequencia}`;
+        sequencia += 1;
+      }
+
+      const prazoInicial = tabela.prazoInicial ?? tabela.prazo;
+      const prazoFinal = tabela.prazoFinal ?? tabela.prazo;
+
+      const conteudo = await chamarApi("POST", {
+        acao: "criar_tabela",
+        tabela: {
+          banco: tabela.banco,
+          orgaoConvenio: clt ? "CLT" : tabela.orgaoConvenio,
+          orgaoConvenioIds: clt
+            ? []
+            : tabela.orgaosConvenios
+                .map((item) => item.id)
+                .filter((id) => id && id !== "__CLT__"),
+          nome: nomeDuplicado,
+          codigo: tabela.codigo,
+          percentual: tabela.percentual,
+          percentualComissaoBanco: tabela.percentualComissaoBanco,
+          prazoInicial,
+          prazoFinal,
+        },
+      });
+
+      setMensagem(
+        conteudo.mensagem
+          ? `Tabela duplicada com sucesso como “${nomeDuplicado}”.`
+          : `Tabela duplicada com sucesso como “${nomeDuplicado}”.`,
+      );
+
+      await carregar();
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível duplicar a tabela.",
+      );
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+
   async function adicionarStatus(event: FormEvent) {
     event.preventDefault();
     const nome = novoStatus.nome.trim().toUpperCase();
@@ -2157,50 +2244,42 @@ export default function SettingsManager() {
     });
   }, [tabelas, buscaTabela]);
 
-  const tabelasAgrupadas = useMemo(() => {
-    const isClt = (tabela: Tabela) => {
-      const orgaoUnico = String(tabela.orgaoConvenio || "").trim().toUpperCase();
-      const ids = tabela.orgaosConvenios.map((item) => String(item.id || "").toUpperCase());
-      const nomes = tabela.orgaosConvenios.map((item) => String(item.nome || "").trim().toUpperCase());
-      return orgaoUnico === "CLT" || ids.includes("__CLT__") || nomes.includes("CLT");
-    };
-
-    const estrutura = {
-      clt: new Map<string, Tabela[]>(),
-      compra: new Map<string, Tabela[]>(),
-    };
-
-    tabelasFiltradas.forEach((tabela) => {
-      const tipo = isClt(tabela) ? "clt" : "compra";
-      const banco = String(tabela.banco || "Sem banco").trim() || "Sem banco";
-      const mapa = estrutura[tipo];
-      mapa.set(banco, [...(mapa.get(banco) || []), tabela]);
-    });
-
-    const ordenarGrupos = (mapa: Map<string, Tabela[]>) =>
-      Array.from(mapa.entries())
-        .sort((a, b) => a[0].localeCompare(b[0], "pt-BR"))
-        .map(([banco, itens]) => ({
-          banco,
-          itens: [...itens].sort((a, b) => {
-            const nome = String(a.nome || "").localeCompare(String(b.nome || ""), "pt-BR");
-            if (nome !== 0) return nome;
-            return String(a.codigo || "").localeCompare(String(b.codigo || ""), "pt-BR");
-          }),
-        }));
-
-    const clt = ordenarGrupos(estrutura.clt);
-    const compra = ordenarGrupos(estrutura.compra);
+  const resumoTiposTabela = useMemo(() => {
+    const compra = tabelasFiltradas.filter((tabela) => !tabelaEhClt(tabela));
+    const clt = tabelasFiltradas.filter((tabela) => tabelaEhClt(tabela));
 
     return {
-      clt,
-      compra,
-      totalClt: clt.reduce((soma, grupo) => soma + grupo.itens.length, 0),
-      totalCompra: compra.reduce((soma, grupo) => soma + grupo.itens.length, 0),
-      totalBancosClt: clt.length,
-      totalBancosCompra: compra.length,
+      total: tabelasFiltradas.length,
+      compra: compra.length,
+      clt: clt.length,
     };
   }, [tabelasFiltradas]);
+
+  const tabelasVisiveis = useMemo(() => {
+    const filtradas = tabelasFiltradas.filter((tabela) => {
+      if (filtroTipoTabela === "CLT") return tabelaEhClt(tabela);
+      if (filtroTipoTabela === "COMPRA") return !tabelaEhClt(tabela);
+      return true;
+    });
+
+    return [...filtradas].sort((a, b) => {
+      const banco = String(a.banco || "").localeCompare(
+        String(b.banco || ""),
+        "pt-BR",
+      );
+      if (banco !== 0) return banco;
+
+      const nome = String(a.nome || "").localeCompare(
+        String(b.nome || ""),
+        "pt-BR",
+      );
+      if (nome !== 0) return nome;
+
+      return (a.prazoInicial ?? a.prazo ?? 0) -
+        (b.prazoInicial ?? b.prazo ?? 0);
+    });
+  }, [tabelasFiltradas, filtroTipoTabela]);
+
 
   const resumo = useMemo(
     () => ({
@@ -2227,86 +2306,82 @@ export default function SettingsManager() {
 
   function renderTabelaLinha(tabela: Tabela) {
     const editando = editandoTabelaId === tabela.id;
-    const orgaosTags = tabela.orgaosConvenios.length ? (
-      tabela.orgaosConvenios.map((orgao) => <span key={orgao.id}>{orgao.nome}</span>)
-    ) : (
-      <span>{tabela.orgaoConvenio || "—"}</span>
-    );
+    const clt = tabelaEhClt(tabela);
+    const orgaosNomes = tabela.orgaosConvenios.length
+      ? tabela.orgaosConvenios.map((orgao) => orgao.nome).join(", ")
+      : tabela.orgaoConvenio || (clt ? "CLT" : "—");
 
-    return (
-      <article key={tabela.id} className="settings-tabela-card">
-        {editando ? (
-          <>
-            <div className="settings-tabela-card-head">
-              <div>
-                <span>EDITANDO TABELA</span>
-                <h4>{edicaoTabela.nome || "Tabela sem nome"}</h4>
-                <p>Atualize os campos abaixo sem perder a organização da tela.</p>
-              </div>
-              <strong className={tabela.ativo ? "status-active" : "status-inactive"}>
-                {tabela.ativo ? "Ativa" : "Inativa"}
-              </strong>
+    if (editando) {
+      return (
+        <div key={tabela.id} className="settings-tabela-compact-edit">
+          <div className="settings-tabela-card-head">
+            <div>
+              <span>EDITANDO TABELA</span>
+              <h4>{edicaoTabela.nome || "Tabela sem nome"}</h4>
+              <p>Atualize os campos e salve para manter a tabela organizada.</p>
             </div>
+            <strong className={tabela.ativo ? "status-active" : "status-inactive"}>
+              {tabela.ativo ? "Ativa" : "Inativa"}
+            </strong>
+          </div>
 
-            <div className="settings-tabela-edit-grid">
-              <label>
-                Nome da tabela
-                <input
-                  value={edicaoTabela.nome}
-                  onChange={(e) =>
-                    setEdicaoTabela({
-                      ...edicaoTabela,
-                      nome: e.target.value,
-                    })
-                  }
-                  disabled={processando}
-                />
-              </label>
+          <div className="settings-tabela-edit-grid">
+            <label>
+              Nome da tabela
+              <input
+                value={edicaoTabela.nome}
+                onChange={(e) =>
+                  setEdicaoTabela({ ...edicaoTabela, nome: e.target.value })
+                }
+                disabled={processando}
+              />
+            </label>
 
-              <label>
-                Banco
-                <select
-                  value={edicaoTabela.banco}
-                  onChange={(e) =>
-                    setEdicaoTabela({
-                      ...edicaoTabela,
-                      banco: e.target.value,
-                    })
-                  }
-                  disabled={processando}
-                >
-                  {bancos
-                    .filter((banco) => banco.ativo)
-                    .map((banco) => (
-                      <option key={banco.id} value={banco.nome}>
-                        {banco.nome}
-                      </option>
-                    ))}
-                </select>
-              </label>
+            <label>
+              Banco
+              <select
+                value={edicaoTabela.banco}
+                onChange={(e) =>
+                  setEdicaoTabela({ ...edicaoTabela, banco: e.target.value })
+                }
+                disabled={processando}
+              >
+                {bancos
+                  .filter((banco) => banco.ativo)
+                  .map((banco) => (
+                    <option key={banco.id} value={banco.nome}>
+                      {banco.nome}
+                    </option>
+                  ))}
+              </select>
+            </label>
 
-              <div className="settings-multi-field settings-multi-edit settings-tabela-edit-field-wide">
-                <span>Produto / Órgãos / Convênios</span>
-                <button
-                  type="button"
-                  className="settings-multi-trigger compact"
-                  onClick={() => setAbrirOrgaosEdicao((atual) => !atual)}
-                  disabled={processando}
-                >
-                  <span className={orgaosEdicaoTabela.length ? "has-value" : ""}>
-                    {orgaosEdicaoTabela.length === 0
-                      ? "Selecionar"
-                      : orgaosEdicaoTabela.length === 1
-                        ? orgaosConveniosTabela.find((item) => item.id === orgaosEdicaoTabela[0])?.nome
-                        : `${orgaosEdicaoTabela.length} selecionados`}
-                  </span>
-                  <b>{abrirOrgaosEdicao ? "▲" : "▼"}</b>
-                </button>
+            <div className="settings-multi-field settings-multi-edit settings-tabela-edit-field-wide">
+              <span>Produto / Órgãos / Convênios</span>
+              <button
+                type="button"
+                className="settings-multi-trigger compact"
+                onClick={() => setAbrirOrgaosEdicao((atual) => !atual)}
+                disabled={processando}
+              >
+                <span className={orgaosEdicaoTabela.length ? "has-value" : ""}>
+                  {orgaosEdicaoTabela.length === 0
+                    ? "Selecionar"
+                    : orgaosEdicaoTabela.length === 1
+                      ? orgaosConveniosTabela.find(
+                          (item) => item.id === orgaosEdicaoTabela[0],
+                        )?.nome
+                      : `${orgaosEdicaoTabela.length} selecionados`}
+                </span>
+                <b>{abrirOrgaosEdicao ? "▲" : "▼"}</b>
+              </button>
 
-                {abrirOrgaosEdicao && (
-                  <div className="settings-multi-dropdown edit-dropdown">
-                    <div className="settings-multi-list">
-                      {orgaosConveniosTabela.filter((item) => item.ativo).map((item) => {
+              {abrirOrgaosEdicao && (
+                <div className="settings-multi-dropdown edit-dropdown">
+                  <div className="settings-multi-list">
+                    {orgaosConveniosTabela
+                      .filter((item) => item.ativo)
+                      .map((item) => {
                         const marcado = orgaosEdicaoTabela.includes(item.id);
 
                         return (
@@ -2317,223 +2392,431 @@ export default function SettingsManager() {
                             onClick={() => {
                               if (item.id === "__CLT__") {
                                 setOrgaosEdicaoTabela(["__CLT__"]);
-                                setEdicaoTabela({ ...edicaoTabela, orgaoConvenio: "CLT" });
+                                setEdicaoTabela({
+                                  ...edicaoTabela,
+                                  orgaoConvenio: "CLT",
+                                });
                                 setAbrirOrgaosEdicao(false);
                                 return;
                               }
 
                               alternarOrgaoSelecionado(
                                 item.id,
-                                orgaosEdicaoTabela.filter((id) => id !== "__CLT__"),
+                                orgaosEdicaoTabela.filter(
+                                  (id) => id !== "__CLT__",
+                                ),
                                 setOrgaosEdicaoTabela,
                               );
                             }}
                           >
-                            <span className="multi-check">{marcado ? "✓" : ""}</span>
+                            <span className="multi-check">
+                              {marcado ? "✓" : ""}
+                            </span>
                             <span>{item.nome}</span>
                           </button>
                         );
                       })}
-                    </div>
                   </div>
-                )}
-              </div>
-
-              <label>
-                Código
-                <input
-                  value={edicaoTabela.codigo}
-                  onChange={(e) =>
-                    setEdicaoTabela({
-                      ...edicaoTabela,
-                      codigo: e.target.value,
-                    })
-                  }
-                  inputMode="numeric"
-                  disabled={processando}
-                />
-              </label>
-
-              <label>
-                Prazo
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)",
-                    gap: 8,
-                    alignItems: "center",
-                  }}
-                >
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={edicaoTabela.prazoInicial}
-                    onChange={(e) =>
-                      setEdicaoTabela({
-                        ...edicaoTabela,
-                        prazoInicial: e.target.value,
-                      })
-                    }
-                    placeholder="Inicial"
-                    aria-label="Prazo inicial"
-                    disabled={processando}
-                  />
-                  <span style={{ color: "#66758d", fontWeight: 900 }}>a</span>
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={edicaoTabela.prazoFinal}
-                    onChange={(e) =>
-                      setEdicaoTabela({
-                        ...edicaoTabela,
-                        prazoFinal: e.target.value,
-                      })
-                    }
-                    placeholder="Final"
-                    aria-label="Prazo final"
-                    disabled={processando}
-                  />
                 </div>
-              </label>
+              )}
+            </div>
 
-              <label>
-                % para produção
+            <label>
+              Código
+              <input
+                value={edicaoTabela.codigo}
+                onChange={(e) =>
+                  setEdicaoTabela({ ...edicaoTabela, codigo: e.target.value })
+                }
+                disabled={processando}
+              />
+            </label>
+
+            <label>
+              Prazo
+              <div className="settings-prazo-duplo">
                 <input
-                  value={edicaoTabela.percentual}
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={edicaoTabela.prazoInicial}
                   onChange={(e) =>
                     setEdicaoTabela({
                       ...edicaoTabela,
-                      percentual: e.target.value,
+                      prazoInicial: e.target.value,
                     })
                   }
-                  inputMode="decimal"
+                  placeholder="Inicial"
                   disabled={processando}
                 />
-              </label>
-
-              <label>
-                % comissão banco
+                <span>a</span>
                 <input
-                  value={edicaoTabela.percentualComissaoBanco}
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={edicaoTabela.prazoFinal}
                   onChange={(e) =>
                     setEdicaoTabela({
                       ...edicaoTabela,
-                      percentualComissaoBanco: e.target.value,
+                      prazoFinal: e.target.value,
                     })
                   }
-                  inputMode="decimal"
-                  placeholder="Ex.: 28,5"
+                  placeholder="Final"
                   disabled={processando}
                 />
-              </label>
-            </div>
+              </div>
+            </label>
 
-            <div className="settings-tabela-actions">
-              <button
-                type="button"
-                className="save-edit"
-                onClick={() => void salvarEdicaoTabela()}
+            <label>
+              % para produção
+              <input
+                value={edicaoTabela.percentual}
+                onChange={(e) =>
+                  setEdicaoTabela({
+                    ...edicaoTabela,
+                    percentual: e.target.value,
+                  })
+                }
+                inputMode="decimal"
                 disabled={processando}
-              >
-                Salvar
-              </button>
+              />
+            </label>
 
-              <button
-                type="button"
-                onClick={cancelarEdicaoTabela}
+            <label>
+              % comissão banco
+              <input
+                value={edicaoTabela.percentualComissaoBanco}
+                onChange={(e) =>
+                  setEdicaoTabela({
+                    ...edicaoTabela,
+                    percentualComissaoBanco: e.target.value,
+                  })
+                }
+                inputMode="decimal"
+                placeholder="Ex.: 28,5"
                 disabled={processando}
-              >
-                Cancelar
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="settings-tabela-card-head">
-              <div>
-                <span>{tabela.orgaosConvenios.some((orgao) => String(orgao.nome).toUpperCase() === "CLT") || String(tabela.orgaoConvenio || "").toUpperCase() === "CLT" ? "TABELA CLT" : "TABELA DE COMPRA"}</span>
-                <h4>{tabela.nome}</h4>
-                <p>
-                  {tabela.banco} • Código {tabela.codigo || "—"}
-                </p>
-              </div>
-              <strong className={tabela.ativo ? "status-active" : "status-inactive"}>
-                {tabela.ativo ? "Ativa" : "Inativa"}
-              </strong>
-            </div>
+              />
+            </label>
+          </div>
 
-            <div className="settings-tabela-info-grid">
-              <div className="settings-tabela-info-item settings-tabela-info-item-wide">
-                <small>Produto / Convênio</small>
-                <div className="settings-orgao-tags">{orgaosTags}</div>
-              </div>
+          <div className="settings-tabela-actions">
+            <button
+              type="button"
+              className="save-edit"
+              onClick={() => void salvarEdicaoTabela()}
+              disabled={processando}
+            >
+              Salvar
+            </button>
+            <button
+              type="button"
+              onClick={cancelarEdicaoTabela}
+              disabled={processando}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      );
+    }
 
-              <div className="settings-tabela-info-item">
-                <small>Banco</small>
-                <strong>{tabela.banco}</strong>
-              </div>
+    return (
+      <div key={tabela.id} className="settings-tabela-compact-row">
+        <div className="settings-tabela-compact-cell is-name" data-label="Tabela">
+          <strong>{tabela.nome || "—"}</strong>
+          <small>{clt ? "CLT" : "COMPRA DE DÍVIDA"}</small>
+        </div>
 
-              <div className="settings-tabela-info-item">
-                <small>Código</small>
-                <strong>{tabela.codigo || "—"}</strong>
-              </div>
+        <div className="settings-tabela-compact-cell" data-label="Banco">
+          <strong>{tabela.banco || "—"}</strong>
+        </div>
 
-              <div className="settings-tabela-info-item">
-                <small>Prazo</small>
-                <strong>{rotuloPrazoTabela(tabela.prazoInicial, tabela.prazoFinal, tabela.prazo)}</strong>
-              </div>
+        <div className="settings-tabela-compact-cell is-convenio" data-label="Produto / Convênio">
+          <strong>{orgaosNomes}</strong>
+        </div>
 
-              <div className="settings-tabela-info-item">
-                <small>% Produção</small>
-                <strong>{String(tabela.percentual).replace(".", ",")}%</strong>
-              </div>
+        <div className="settings-tabela-compact-cell" data-label="Código">
+          <strong>{tabela.codigo || "—"}</strong>
+        </div>
 
-              <div className="settings-tabela-info-item">
-                <small>% Comissão banco</small>
-                <strong>
-                  {tabela.percentualComissaoBanco === null
-                    ? "Não informado"
-                    : `${String(tabela.percentualComissaoBanco).replace(".", ",")}%`}
-                </strong>
-              </div>
-            </div>
+        <div className="settings-tabela-compact-cell" data-label="Prazo">
+          <strong>
+            {rotuloPrazoTabela(
+              tabela.prazoInicial,
+              tabela.prazoFinal,
+              tabela.prazo,
+            )}
+          </strong>
+        </div>
 
-            <div className="settings-tabela-actions">
-              <button
-                type="button"
-                onClick={() => iniciarEdicaoTabela(tabela)}
-                disabled={processando}
-              >
-                Editar
-              </button>
+        <div className="settings-tabela-compact-cell" data-label="% Produção">
+          <strong>{String(tabela.percentual).replace(".", ",")}%</strong>
+        </div>
 
-              <button
-                type="button"
-                onClick={() => void alternarTabela(tabela.id)}
-                disabled={processando}
-              >
-                {tabela.ativo ? "Desativar" : "Ativar"}
-              </button>
+        <div className="settings-tabela-compact-cell" data-label="% Comissão banco">
+          <strong>
+            {tabela.percentualComissaoBanco === null
+              ? "—"
+              : `${String(tabela.percentualComissaoBanco).replace(".", ",")}%`}
+          </strong>
+        </div>
 
-              <button
-                type="button"
-                className="delete"
-                onClick={() => void excluirTabela(tabela.id)}
-                disabled={processando}
-              >
-                Excluir
-              </button>
-            </div>
-          </>
-        )}
-      </article>
+        <div className="settings-tabela-compact-cell is-status" data-label="Status">
+          <span className={tabela.ativo ? "status-active" : "status-inactive"}>
+            {tabela.ativo ? "Ativa" : "Inativa"}
+          </span>
+        </div>
+
+        <div className="settings-tabela-compact-actions" data-label="Ações">
+          <button
+            type="button"
+            onClick={() => iniciarEdicaoTabela(tabela)}
+            disabled={processando}
+          >
+            Editar
+          </button>
+          <button
+            type="button"
+            className="duplicate"
+            onClick={() => void duplicarTabela(tabela)}
+            disabled={processando}
+          >
+            Duplicar
+          </button>
+          <button
+            type="button"
+            onClick={() => void alternarTabela(tabela.id)}
+            disabled={processando}
+          >
+            {tabela.ativo ? "Desativar" : "Ativar"}
+          </button>
+          <button
+            type="button"
+            className="delete"
+            onClick={() => void excluirTabela(tabela.id)}
+            disabled={processando}
+          >
+            Excluir
+          </button>
+        </div>
+      </div>
     );
   }
 
+
   return (
     <div className="settings-page">
+      <style>{`
+        .settings-table-filter-bar {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin: 10px 0 12px;
+        }
+        .settings-table-filter-button {
+          display: flex;
+          min-width: 132px;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          min-height: 38px;
+          padding: 0 13px;
+          border: 1px solid #dbe3ef;
+          border-radius: 10px;
+          background: #fff;
+          color: #24405f;
+          cursor: pointer;
+          font-size: 10px;
+          font-weight: 900;
+          transition: .16s ease;
+        }
+        .settings-table-filter-button:hover {
+          border-color: #a9c0fb;
+          background: #f7f9ff;
+        }
+        .settings-table-filter-button.active {
+          border-color: #2463eb;
+          background: linear-gradient(135deg,#1f5fe8,#2d70f3);
+          color: #fff;
+          box-shadow: 0 7px 16px rgba(36,99,235,.16);
+        }
+        .settings-table-filter-button b {
+          display: grid;
+          min-width: 23px;
+          height: 23px;
+          place-items: center;
+          padding: 0 6px;
+          border-radius: 999px;
+          background: rgba(36,99,235,.09);
+          color: #245cf2;
+          font-size: 9px;
+        }
+        .settings-table-filter-button.active b {
+          background: rgba(255,255,255,.18);
+          color: #fff;
+        }
+        .settings-tabela-compact-wrap {
+          width: 100%;
+          overflow-x: auto;
+          border: 1px solid #e1e7f0;
+          border-radius: 12px;
+          background: #fff;
+        }
+        .settings-tabela-compact-head,
+        .settings-tabela-compact-row {
+          display: grid;
+          grid-template-columns:
+            minmax(150px,1.35fr)
+            minmax(72px,.62fr)
+            minmax(135px,1.15fr)
+            minmax(70px,.62fr)
+            minmax(82px,.72fr)
+            minmax(82px,.72fr)
+            minmax(95px,.82fr)
+            minmax(70px,.6fr)
+            minmax(245px,1.65fr);
+          align-items: center;
+          min-width: 1040px;
+        }
+        .settings-tabela-compact-head {
+          min-height: 36px;
+          padding: 0 10px;
+          border-bottom: 1px solid #e7ecf3;
+          background: #f5f7fb;
+          color: #6c7890;
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: .035em;
+          text-transform: uppercase;
+        }
+        .settings-tabela-compact-head > span {
+          padding: 0 7px;
+        }
+        .settings-tabela-compact-row {
+          min-height: 54px;
+          padding: 5px 10px;
+          border-bottom: 1px solid #edf1f6;
+          background: #fff;
+          transition: .14s ease;
+        }
+        .settings-tabela-compact-row:last-child {
+          border-bottom: 0;
+        }
+        .settings-tabela-compact-row:hover {
+          background: #fbfcff;
+        }
+        .settings-tabela-compact-cell {
+          min-width: 0;
+          padding: 4px 7px;
+        }
+        .settings-tabela-compact-cell strong {
+          display: block;
+          overflow: hidden;
+          color: #183258;
+          font-size: 10px;
+          font-weight: 850;
+          line-height: 1.25;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .settings-tabela-compact-cell.is-name strong {
+          color: #0f2b55;
+          font-size: 10.5px;
+        }
+        .settings-tabela-compact-cell small {
+          display: block;
+          margin-top: 3px;
+          color: #77849a;
+          font-size: 7.5px;
+          font-weight: 850;
+        }
+        .settings-tabela-compact-cell.is-convenio strong {
+          white-space: normal;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+        }
+        .settings-tabela-compact-cell.is-status {
+          display: flex;
+          justify-content: flex-start;
+        }
+        .settings-tabela-compact-actions {
+          display: flex;
+          flex-wrap: nowrap;
+          justify-content: flex-end;
+          gap: 4px;
+          min-width: 0;
+          padding-left: 7px;
+        }
+        .settings-tabela-compact-actions button {
+          min-height: 28px;
+          padding: 0 7px;
+          border: 1px solid #dbe3ef;
+          border-radius: 7px;
+          background: #fff;
+          color: #3153b9;
+          cursor: pointer;
+          font-size: 7.5px;
+          font-weight: 900;
+          white-space: nowrap;
+        }
+        .settings-tabela-compact-actions button:hover {
+          background: #eef3ff;
+        }
+        .settings-tabela-compact-actions button.duplicate {
+          border-color: #cbdcff;
+          background: #f1f6ff;
+          color: #155eef;
+        }
+        .settings-tabela-compact-actions button.delete {
+          border-color: #f2d2d0;
+          background: #fff3f2;
+          color: #b3423e;
+        }
+        .settings-tabela-compact-edit {
+          min-width: 1040px;
+          padding: 14px;
+          border-bottom: 1px solid #dfe6f1;
+          background: #f9fbff;
+        }
+        .settings-tabela-compact-edit .settings-tabela-edit-grid {
+          display: grid;
+          grid-template-columns: repeat(4,minmax(0,1fr));
+          gap: 10px;
+        }
+        .settings-tabela-compact-edit label,
+        .settings-tabela-compact-edit .settings-multi-field > span {
+          color: #4b5872;
+          font-size: 9px;
+          font-weight: 900;
+        }
+        .settings-tabela-compact-edit input,
+        .settings-tabela-compact-edit select {
+          width: 100%;
+          min-height: 36px;
+          padding: 0 9px;
+          border: 1px solid #dbe3ef;
+          border-radius: 8px;
+          background: #fff;
+          color: #1d315a;
+        }
+        .settings-prazo-duplo {
+          display: grid;
+          grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);
+          gap: 6px;
+          align-items: center;
+        }
+        .settings-prazo-duplo > span {
+          color: #66758d;
+          font-weight: 900;
+        }
+        .settings-tabela-compact-edit .settings-tabela-actions {
+          margin-top: 12px;
+        }
+        @media(max-width:760px) {
+          .settings-table-filter-button { min-width: 0; flex: 1 1 120px; }
+        }
+      `}</style>
       <section className="settings-v3-intro">
         <div className="settings-v3-intro-icon">⚙</div>
         <div className="settings-v3-intro-copy">
@@ -3512,77 +3795,69 @@ export default function SettingsManager() {
               </small>
             </div>
 
-            <div className="settings-table-summary">
-              <article className="settings-table-summary-card is-compra">
-                <span>COMPRA</span>
-                <strong>{tabelasAgrupadas.totalCompra}</strong>
-                <small>{tabelasAgrupadas.totalBancosCompra} banco(s) com tabelas de compra</small>
-              </article>
+            <div className="settings-table-filter-bar">
+              <button
+                type="button"
+                className={`settings-table-filter-button ${
+                  filtroTipoTabela === "TODAS" ? "active" : ""
+                }`}
+                onClick={() => setFiltroTipoTabela("TODAS")}
+              >
+                <span>TODAS</span>
+                <b>{resumoTiposTabela.total}</b>
+              </button>
 
-              <article className="settings-table-summary-card is-clt">
+              <button
+                type="button"
+                className={`settings-table-filter-button ${
+                  filtroTipoTabela === "COMPRA" ? "active" : ""
+                }`}
+                onClick={() => setFiltroTipoTabela("COMPRA")}
+              >
+                <span>COMPRA DE DÍVIDA</span>
+                <b>{resumoTiposTabela.compra}</b>
+              </button>
+
+              <button
+                type="button"
+                className={`settings-table-filter-button ${
+                  filtroTipoTabela === "CLT" ? "active" : ""
+                }`}
+                onClick={() => setFiltroTipoTabela("CLT")}
+              >
                 <span>CLT</span>
-                <strong>{tabelasAgrupadas.totalClt}</strong>
-                <small>{tabelasAgrupadas.totalBancosClt} banco(s) com tabelas CLT</small>
-              </article>
+                <b>{resumoTiposTabela.clt}</b>
+              </button>
             </div>
 
-            <div className="settings-table-categories">
-              {[
-                {
-                  chave: "compra",
-                  titulo: "Tabelas de compra",
-                  descricao: "Separadas por banco para facilitar a gestão de compra de dívida e cartão.",
-                  grupos: tabelasAgrupadas.compra,
-                  vazio: buscaTabela
-                    ? `Nenhuma tabela de compra encontrada para “${buscaTabela}”.`
-                    : "Nenhuma tabela de compra cadastrada.",
-                },
-                {
-                  chave: "clt",
-                  titulo: "Tabelas de CLT",
-                  descricao: "Separadas por banco para deixar as regras CLT mais organizadas e fáceis de localizar.",
-                  grupos: tabelasAgrupadas.clt,
-                  vazio: buscaTabela
-                    ? `Nenhuma tabela CLT encontrada para “${buscaTabela}”.`
-                    : "Nenhuma tabela CLT cadastrada.",
-                },
-              ].map((bloco) => (
-                <section key={bloco.chave} className="settings-table-category-card">
-                  <div className="settings-table-category-header">
-                    <div>
-                      <span>{bloco.chave === "compra" ? "COMPRA" : "CLT"}</span>
-                      <h3>{bloco.titulo}</h3>
-                      <p>{bloco.descricao}</p>
-                    </div>
-                    <b>
-                      {bloco.grupos.reduce((total, grupo) => total + grupo.itens.length, 0)}
-                    </b>
+            <div className="settings-tabela-compact-wrap">
+              <div className="settings-tabela-compact-head">
+                <span>Nome da tabela</span>
+                <span>Banco</span>
+                <span>Produto / Convênio</span>
+                <span>Código</span>
+                <span>Prazo</span>
+                <span>% Produção</span>
+                <span>% Comissão</span>
+                <span>Status</span>
+                <span>Ações</span>
+              </div>
+
+              <div className="settings-tabela-compact-body">
+                {tabelasVisiveis.length === 0 ? (
+                  <div className="settings-table-empty">
+                    {buscaTabela
+                      ? `Nenhuma tabela encontrada para “${buscaTabela}”.`
+                      : filtroTipoTabela === "CLT"
+                        ? "Nenhuma tabela CLT cadastrada."
+                        : filtroTipoTabela === "COMPRA"
+                          ? "Nenhuma tabela de Compra de Dívida cadastrada."
+                          : "Nenhuma tabela cadastrada."}
                   </div>
-
-                  {bloco.grupos.length === 0 ? (
-                    <div className="settings-table-empty">{bloco.vazio}</div>
-                  ) : (
-                    <div className="settings-bank-groups">
-                      {bloco.grupos.map((grupo) => (
-                        <section key={`${bloco.chave}-${grupo.banco}`} className="settings-bank-group-card">
-                          <div className="settings-bank-group-header">
-                            <div>
-                              <span>{bloco.chave === "compra" ? "BANCO DE COMPRA" : "BANCO CLT"}</span>
-                              <h4>{grupo.banco}</h4>
-                              <p>{grupo.itens.length} tabela(s) encontrada(s) neste banco.</p>
-                            </div>
-                            <b>{grupo.itens.length}</b>
-                          </div>
-
-                          <div className="settings-tabela-cards-list">
-                            {grupo.itens.map((tabela) => renderTabelaLinha(tabela))}
-                          </div>
-                        </section>
-                      ))}
-                    </div>
-                  )}
-                </section>
-              ))}
+                ) : (
+                  tabelasVisiveis.map((tabela) => renderTabelaLinha(tabela))
+                )}
+              </div>
             </div>
           </section>
           </section>

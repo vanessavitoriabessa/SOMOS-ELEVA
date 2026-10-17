@@ -32,6 +32,8 @@ type Cliente = {
   bairro: string;
   cidade: string;
   uf: string;
+  senhaPortal: string;
+  senhaContracheque: string;
 };
 
 type Proposta = {
@@ -197,6 +199,34 @@ function normalizarPerfil(valor: string) {
     .toLowerCase();
 }
 
+
+function credenciaisLocaisCliente(id: unknown, cpf: unknown) {
+  if (typeof window === "undefined") {
+    return { senhaPortal: "", senhaContracheque: "" };
+  }
+
+  try {
+    const bruto = JSON.parse(
+      localStorage.getItem("somos-eleva-clientes") || "[]",
+    );
+    const lista = Array.isArray(bruto) ? bruto : [];
+    const cpfNumeros = apenasNumeros(String(cpf || ""));
+    const encontrado = lista.find((item: any) => {
+      if (id && String(item?.id || "") === String(id)) return true;
+      return Boolean(
+        cpfNumeros &&
+          apenasNumeros(String(item?.cpf || "")) === cpfNumeros,
+      );
+    });
+
+    return {
+      senhaPortal: String(encontrado?.senhaPortal || ""),
+      senhaContracheque: String(encontrado?.senhaContracheque || ""),
+    };
+  } catch {
+    return { senhaPortal: "", senhaContracheque: "" };
+  }
+}
 
 function numeroFlex(valor: string) {
   const texto = normalizarPerfil(valor)
@@ -642,7 +672,10 @@ const [arquivos, setArquivos] = useState({
             nomeMae: String(cliente.nomeMae || ""),
             nomePai: String(cliente.nomePai || ""),
             dataNascimento: String(
-              cliente.nascimento || cliente.dataNascimento || "",
+              cliente.nascimento ||
+              cliente.dataNascimento ||
+              cliente.data_nascimento ||
+              "",
             ),
             cep: String(cliente.cep || ""),
             endereco: String(
@@ -655,6 +688,16 @@ const [arquivos, setArquivos] = useState({
             bairro: String(cliente.bairro || ""),
             cidade: String(cliente.cidade || ""),
             uf: String(cliente.estado || cliente.uf || ""),
+            senhaPortal: String(
+              cliente.senhaPortal ||
+                credenciaisLocaisCliente(cliente.id, cliente.cpf).senhaPortal ||
+                "",
+            ),
+            senhaContracheque: String(
+              cliente.senhaContracheque ||
+                credenciaisLocaisCliente(cliente.id, cliente.cpf).senhaContracheque ||
+                "",
+            ),
           }))
         : [];
 
@@ -1113,6 +1156,7 @@ async function buscarClientePorCpf() {
       dataNascimento: String(
         encontradoNaApi.nascimento ||
           encontradoNaApi.dataNascimento ||
+          encontradoNaApi.data_nascimento ||
           "",
       ),
       cep: String(encontradoNaApi.cep || ""),
@@ -1130,6 +1174,18 @@ async function buscarClientePorCpf() {
       bairro: String(encontradoNaApi.bairro || ""),
       cidade: String(encontradoNaApi.cidade || ""),
       uf: String(encontradoNaApi.estado || encontradoNaApi.uf || ""),
+      senhaPortal: String(
+        encontradoNaApi.senhaPortal ||
+          credenciaisLocaisCliente(encontradoNaApi.id, encontradoNaApi.cpf)
+            .senhaPortal ||
+          "",
+      ),
+      senhaContracheque: String(
+        encontradoNaApi.senhaContracheque ||
+          credenciaisLocaisCliente(encontradoNaApi.id, encontradoNaApi.cpf)
+            .senhaContracheque ||
+          "",
+      ),
     };
 
     setClientes((atuais) => {
@@ -1167,6 +1223,9 @@ function preencherClienteNoFormulario(cliente: Cliente) {
     bairroCliente: cliente.bairro,
     cidadeCliente: cliente.cidade,
     ufCliente: cliente.uf,
+    senhaConsignacao: atual.senhaConsignacao || cliente.senhaPortal || "",
+    senhaContracheque:
+      atual.senhaContracheque || cliente.senhaContracheque || "",
   }));
 
   setMensagem("Cliente encontrado. Os dados foram preenchidos.");
@@ -1249,8 +1308,10 @@ function preencherClienteNoFormulario(cliente: Cliente) {
       dataDigitacao: proposta.dataCadastro || hojeIso(),
       dataPagamento: proposta.dataPagamento || "",
       observacao: proposta.observacao || "",
-      senhaContracheque: proposta.senhaContracheque || "",
-      senhaConsignacao: proposta.senhaConsignacao || "",
+      senhaContracheque:
+        proposta.senhaContracheque || cliente?.senhaContracheque || "",
+      senhaConsignacao:
+        proposta.senhaConsignacao || cliente?.senhaPortal || "",
     });
 
     setBuscaCliente(formatarCpf(cliente?.cpf || proposta.cpf || ""));
@@ -1336,7 +1397,7 @@ function preencherClienteNoFormulario(cliente: Cliente) {
       return;
     }
 
-    if (!form.senhaConsignacao.trim()) {
+    if (!editando && !form.senhaConsignacao.trim()) {
       setMensagem("A senha da consignação é obrigatória.");
       setEtapaModal(3);
       return;
@@ -1437,54 +1498,59 @@ function preencherClienteNoFormulario(cliente: Cliente) {
         }
       }
 
+      let clienteId = form.clienteId;
+
       const dadosCliente = {
+        ...(clienteId ? { id: clienteId } : {}),
         nome: form.nomeCliente.trim(),
         cpf: apenasNumeros(form.cpfCliente),
         rg: form.rgCliente.trim(),
         telefone: form.telefoneCliente.trim(),
-        telefone2: form.telefone2Cliente.trim(),
         email: form.emailCliente.trim(),
-        nome_mae: form.nomeMaeCliente.trim(),
-        nome_pai: form.nomePaiCliente.trim(),
-        data_nascimento: form.dataNascimentoCliente || null,
+        nomeMae: form.nomeMaeCliente.trim(),
+        nomePai: form.nomePaiCliente.trim(),
+        nascimento: form.dataNascimentoCliente || "",
         cep: form.cepCliente.trim(),
-        endereco: form.enderecoCliente.trim(),
-        numero: form.numeroCliente.trim(),
+        logradouro: form.enderecoCliente.trim(),
+        numeroEndereco: form.numeroCliente.trim(),
         complemento: form.complementoCliente.trim(),
         bairro: form.bairroCliente.trim(),
         cidade: form.cidadeCliente.trim(),
-        uf: form.ufCliente.trim(),
+        estado: form.ufCliente.trim(),
+        produto: "Compra de Dívida",
+        consultora: form.vendedora,
+        senhaPortal: form.senhaConsignacao.trim(),
+        senhaContracheque: form.senhaContracheque.trim(),
       };
 
-      let clienteId = form.clienteId;
+      const respostaCliente = await fetch("/api/clientes", {
+        method: clienteId ? "PATCH" : "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ cliente: dadosCliente }),
+      });
 
-      if (clienteId) {
-        const { error: erroAtualizarCliente } = await supabase
-          .from("clientes")
-          .update(dadosCliente)
-          .eq("id", clienteId);
+      const conteudoCliente = (await respostaCliente.json()) as {
+        cliente?: { id?: string };
+        erro?: string;
+      };
 
-        if (erroAtualizarCliente) {
-          throw new Error(
-            `Não foi possível atualizar o cliente: ${erroAtualizarCliente.message}`,
-          );
+      if (!respostaCliente.ok) {
+        throw new Error(
+          conteudoCliente.erro ||
+            (clienteId
+              ? "Não foi possível atualizar o cliente."
+              : "Não foi possível cadastrar o cliente."),
+        );
+      }
+
+      if (!clienteId) {
+        clienteId = String(conteudoCliente.cliente?.id || "");
+        if (!clienteId) {
+          throw new Error("O cliente foi salvo sem identificação.");
         }
-      } else {
-        const { data: clienteCriado, error: erroCriarCliente } = await supabase
-          .from("clientes")
-          .insert(dadosCliente)
-          .select("id")
-          .single();
-
-        if (erroCriarCliente || !clienteCriado?.id) {
-          throw new Error(
-            `Não foi possível cadastrar o cliente: ${
-              erroCriarCliente?.message || "cliente sem identificação"
-            }`,
-          );
-        }
-
-        clienteId = String(clienteCriado.id);
         clienteCriadoNestaTentativa = clienteId;
       }
 
@@ -1571,10 +1637,14 @@ function preencherClienteNoFormulario(cliente: Cliente) {
 
           if (clienteCriadoNestaTentativa) {
             try {
-              await supabase
-                .from("clientes")
-                .delete()
-                .eq("id", clienteCriadoNestaTentativa);
+              await fetch("/api/clientes", {
+                method: "DELETE",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ id: clienteCriadoNestaTentativa }),
+              });
               clienteCriadoNestaTentativa = "";
             } catch (erroClienteRollback) {
               console.error(
@@ -1628,10 +1698,15 @@ function preencherClienteNoFormulario(cliente: Cliente) {
       // chegou ao estado finalizado, desfaz o cliente novo também.
       if (!propostaCriadaNestaTentativa && clienteCriadoNestaTentativa) {
         try {
-          await supabase
-            .from("clientes")
-            .delete()
-            .eq("id", clienteCriadoNestaTentativa);
+          const tokenRollback = await obterToken();
+          await fetch("/api/clientes", {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${tokenRollback}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ id: clienteCriadoNestaTentativa }),
+          });
         } catch (erroClienteRollback) {
           console.error(
             "Não foi possível limpar cliente de proposta incompleta:",
@@ -1705,11 +1780,8 @@ function preencherClienteNoFormulario(cliente: Cliente) {
   async function confirmarCancelamento() {
     if (!editando) return;
 
-    if (!motivoCancelamento.trim()) {
-      setMensagem("Informe o motivo do cancelamento.");
-      return;
-    }
-
+    // Motivo do cancelamento é opcional.
+    // Alterar o status para CANCELADA já é suficiente para salvar a proposta.
     setCancelando(true);
     setMensagem("");
 
@@ -1855,7 +1927,7 @@ function preencherClienteNoFormulario(cliente: Cliente) {
       if (!orgaoConvenio) { setMensagem("Selecione o órgão / convênio."); return; }
       if (!tabelaSelecionada) { setMensagem("Selecione a tabela."); return; }
       if (valorContrato <= 0) { setMensagem("Informe o valor do contrato."); return; }
-      if (!form.senhaConsignacao.trim()) { setMensagem("Informe a senha da consignação para continuar."); return; }
+      if (!editando && !form.senhaConsignacao.trim()) { setMensagem("Informe a senha da consignação para continuar."); return; }
     }
     setEtapaModal((atual) => Math.min(5, atual + 1));
   }
@@ -3403,7 +3475,7 @@ function preencherClienteNoFormulario(cliente: Cliente) {
               </p>
 
               <label className="observacao-modal">
-                Motivo do cancelamento
+                Motivo do cancelamento (opcional)
                 <textarea
                   rows={5}
                   value={motivoCancelamento}
@@ -3433,7 +3505,7 @@ function preencherClienteNoFormulario(cliente: Cliente) {
               <button
                 type="button"
                 className="botao-principal"
-                disabled={cancelando || !motivoCancelamento.trim()}
+                disabled={cancelando}
                 onClick={confirmarCancelamento}
                 style={{ background: "#b42318" }}
               >

@@ -236,7 +236,7 @@ const itensOperacao: ItemMenu[] = [
 
     href: "/esteira",
 
-    label: "Gestão de Propostas",
+    label: "Compra de Dívida",
 
     icon: Workflow,
 

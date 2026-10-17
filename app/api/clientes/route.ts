@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { criptografarCredencial, descriptografarCredencial } from "@/lib/security/credenciais";
 
 export const dynamic = "force-dynamic";
 
@@ -31,9 +32,13 @@ type ClienteRecebido = {
   matricula?: string;
   cargo?: string;
   salario?: number;
+  senhaPortal?: string;
+  senhaContracheque?: string;
   nome?: string;
   cpf?: string;
   nascimento?: string;
+  dataNascimento?: string;
+  data_nascimento?: string;
   sexo?: string;
   estadoCivil?: string;
   nacionalidade?: string;
@@ -77,9 +82,12 @@ type LinhaCliente = {
   matricula: string;
   cargo: string;
   salario: number | string;
+  senha_portal_enc: string;
+  senha_contracheque_enc: string;
   nome: string;
   cpf: string;
   nascimento: string | null;
+  data_nascimento?: string | null;
   sexo: string;
   estado_civil: string;
   nacionalidade: string;
@@ -178,7 +186,20 @@ function perfilPodeAcessar(perfil: string) {
   ].includes(normalizarTexto(perfil));
 }
 
-function linhaParaCliente(linha: LinhaCliente) {
+function perfilPodeVerCredenciais(perfil: string) {
+  return [
+    "administradora",
+    "coordenadora",
+    "supervisora",
+    "operacional",
+    "consultora",
+  ].includes(normalizarTexto(perfil));
+}
+
+function linhaParaCliente(
+  linha: LinhaCliente,
+  incluirCredenciais = false,
+) {
   return {
     id: String(linha.id),
     convenioEstado: String(linha.convenio_estado || ""),
@@ -187,11 +208,15 @@ function linhaParaCliente(linha: LinhaCliente) {
     matricula: String(linha.matricula || ""),
     cargo: String(linha.cargo || ""),
     salario: numeroSeguro(linha.salario),
-    senhaPortal: "",
-    senhaContracheque: "",
+    senhaPortal: incluirCredenciais
+      ? descriptografarCredencial(linha.senha_portal_enc)
+      : "",
+    senhaContracheque: incluirCredenciais
+      ? descriptografarCredencial(linha.senha_contracheque_enc)
+      : "",
     nome: String(linha.nome || ""),
     cpf: apenasNumeros(linha.cpf),
-    nascimento: String(linha.nascimento || ""),
+    nascimento: String(linha.nascimento || linha.data_nascimento || ""),
     sexo: String(linha.sexo || ""),
     estadoCivil: String(linha.estado_civil || ""),
     nacionalidade: String(linha.nacionalidade || "Brasileira"),
@@ -224,6 +249,64 @@ function linhaParaCliente(linha: LinhaCliente) {
     criadoEm: String(linha.criado_em || ""),
     atualizadoEm: String(linha.atualizado_em || ""),
   };
+}
+
+function linhaParaClienteRecebido(linha: LinhaCliente): ClienteRecebido {
+  return {
+    id: linha.id,
+    convenioEstado: linha.convenio_estado,
+    convenioOrgao: linha.convenio_orgao,
+    produto: linha.produto,
+    matricula: linha.matricula,
+    cargo: linha.cargo,
+    salario: numeroSeguro(linha.salario),
+    senhaPortal: descriptografarCredencial(linha.senha_portal_enc),
+    senhaContracheque: descriptografarCredencial(linha.senha_contracheque_enc),
+    nome: linha.nome,
+    cpf: linha.cpf,
+    nascimento: String(linha.nascimento || linha.data_nascimento || ""),
+    sexo: linha.sexo,
+    estadoCivil: linha.estado_civil,
+    nacionalidade: linha.nacionalidade,
+    naturalidade: linha.naturalidade,
+    rg: linha.rg,
+    orgaoEmissor: linha.orgao_emissor,
+    ufEmissor: linha.uf_emissor,
+    dataEmissaoRg: String(linha.data_emissao_rg || ""),
+    nomeMae: linha.nome_mae,
+    nomePai: linha.nome_pai,
+    telefone: linha.telefone,
+    email: linha.email,
+    cep: linha.cep,
+    logradouro: linha.logradouro,
+    numeroEndereco: linha.numero_endereco,
+    complemento: linha.complemento,
+    bairro: linha.bairro,
+    cidade: linha.cidade,
+    estado: linha.estado,
+    banco: linha.banco,
+    agencia: linha.agencia,
+    conta: linha.conta,
+    digitoConta: linha.digito_conta,
+    tipoConta: linha.tipo_conta,
+    titularConta: linha.titular_conta,
+    consultora: linha.consultora,
+    status: linha.status,
+    observacoes: linha.observacoes,
+    criadoEm: linha.criado_em,
+    atualizadoEm: linha.atualizado_em,
+  };
+}
+
+function aplicarSomenteCamposDefinidos<T extends Record<string, unknown>>(
+  base: T,
+  alteracoes: Record<string, unknown>,
+): T {
+  const definidos = Object.fromEntries(
+    Object.entries(alteracoes).filter(([, valor]) => valor !== undefined),
+  );
+
+  return { ...base, ...definidos } as T;
 }
 
 async function autenticar(request: NextRequest) {
@@ -354,6 +437,7 @@ async function montarLinha(
     consultoras?: Perfil[];
     importacao?: boolean;
     atribuirSemConsultora?: boolean;
+    existente?: LinhaCliente;
   },
 ): Promise<LinhaCliente> {
   const consultoras =
@@ -398,9 +482,23 @@ async function montarLinha(
     matricula: String(cliente.matricula || "").trim(),
     cargo: String(cliente.cargo || "").trim(),
     salario: numeroSeguro(cliente.salario),
+    senha_portal_enc:
+      String(cliente.senhaPortal || "").trim()
+        ? criptografarCredencial(cliente.senhaPortal)
+        : opcoes?.existente?.senha_portal_enc || "",
+    senha_contracheque_enc:
+      String(cliente.senhaContracheque || "").trim()
+        ? criptografarCredencial(cliente.senhaContracheque)
+        : opcoes?.existente?.senha_contracheque_enc || "",
     nome,
     cpf: apenasNumeros(cliente.cpf),
-    nascimento: dataSegura(cliente.nascimento),
+    nascimento:
+      dataSegura(
+        cliente.nascimento || cliente.dataNascimento || cliente.data_nascimento,
+      ) ||
+      opcoes?.existente?.nascimento ||
+      opcoes?.existente?.data_nascimento ||
+      null,
     sexo: String(cliente.sexo || "").trim(),
     estado_civil: String(cliente.estadoCivil || "").trim(),
     nacionalidade: String(cliente.nacionalidade || "Brasileira").trim(),
@@ -473,7 +571,9 @@ export async function GET(request: NextRequest) {
         nome: perfil.nome,
         perfil: perfil.perfil,
       },
-      clientes: permitidos.map(linhaParaCliente),
+      clientes: permitidos.map((linha) =>
+        linhaParaCliente(linha, perfilPodeVerCredenciais(perfil.perfil)),
+      ),
     });
   } catch (erro) {
     return respostaErro(
@@ -571,6 +671,10 @@ export async function POST(request: NextRequest) {
             linha.id = existente.id;
             linha.criado_por = existente.criado_por || perfil.id;
             linha.criado_em = existente.criado_em;
+            linha.senha_portal_enc =
+              linha.senha_portal_enc || existente.senha_portal_enc || "";
+            linha.senha_contracheque_enc =
+              linha.senha_contracheque_enc || existente.senha_contracheque_enc || "";
           }
 
           const chave = cpf || linha.id;
@@ -685,7 +789,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         mensagem: "Cliente cadastrado com sucesso.",
-        cliente: linhaParaCliente(data as LinhaCliente),
+        cliente: linhaParaCliente(
+          data as LinhaCliente,
+          perfilPodeVerCredenciais(perfil.perfil),
+        ),
       },
       {
         status: 201,
@@ -739,8 +846,38 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const linha = await montarLinha(supabase, perfil, cliente);
     const atualTipado = atual as LinhaCliente;
+
+    const alteracoesCliente = {
+      ...(cliente as Record<string, unknown>),
+    };
+
+    // Se a tela estiver editando outro campo e enviar nascimento vazio,
+    // preserva a data que já está gravada. Isso também recupera clientes
+    // antigos que ainda possuam `data_nascimento`.
+    const nascimentoJaSalvo =
+      atualTipado.nascimento || atualTipado.data_nascimento || null;
+
+    const nascimentoRecebido = dataSegura(
+      alteracoesCliente.nascimento ||
+        alteracoesCliente.dataNascimento ||
+        alteracoesCliente.data_nascimento,
+    );
+
+    if (!nascimentoRecebido && nascimentoJaSalvo) {
+      delete alteracoesCliente.nascimento;
+      delete alteracoesCliente.dataNascimento;
+      delete alteracoesCliente.data_nascimento;
+    }
+
+    const clienteCompleto = aplicarSomenteCamposDefinidos(
+      linhaParaClienteRecebido(atualTipado) as Record<string, unknown>,
+      alteracoesCliente,
+    ) as ClienteRecebido;
+
+    const linha = await montarLinha(supabase, perfil, clienteCompleto, {
+      existente: atualTipado,
+    });
 
     linha.criado_por = atualTipado.criado_por || perfil.id;
     linha.criado_em = atualTipado.criado_em;
@@ -784,7 +921,10 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({
       mensagem: "Cliente atualizado com sucesso.",
-      cliente: linhaParaCliente(data as LinhaCliente),
+      cliente: linhaParaCliente(
+        data as LinhaCliente,
+        perfilPodeVerCredenciais(perfil.perfil),
+      ),
     });
   } catch (erro) {
     return respostaErro(

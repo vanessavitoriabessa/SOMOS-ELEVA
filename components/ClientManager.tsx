@@ -576,8 +576,9 @@ export default function ClientManager() {
 
       return {
         ...cliente,
-        senhaPortal: local?.senhaPortal || "",
-        senhaContracheque: local?.senhaContracheque || "",
+        senhaPortal: cliente.senhaPortal || local?.senhaPortal || "",
+        senhaContracheque:
+          cliente.senhaContracheque || local?.senhaContracheque || "",
         documentos: Array.isArray(local?.documentos)
           ? local.documentos
           : [],
@@ -978,8 +979,6 @@ export default function ClientManager() {
         {
           cliente: {
             ...cliente,
-            senhaPortal: undefined,
-            senhaContracheque: undefined,
             documentos: undefined,
           },
         }
@@ -1532,11 +1531,9 @@ export default function ClientManager() {
             </div>
 
             <div className="client-security-warning">
-              As senhas e os documentos continuam
-              protegidos apenas neste navegador. Os
-              demais dados do cliente são salvos no
-              Supabase e respeitam o acesso de cada
-              consultora.
+              As senhas são armazenadas de forma criptografada pelo servidor.
+              Os documentos continuam protegidos no fluxo próprio do sistema,
+              e o acesso aos dados respeita o perfil de cada colaboradora.
             </div>
           </section>
 
