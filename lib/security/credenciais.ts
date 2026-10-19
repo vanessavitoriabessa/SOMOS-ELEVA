@@ -4,9 +4,10 @@ const PREFIXO = "eleva:v1";
 
 function chaveCredenciais() {
   const segredo =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SERVICE_KEY ||
-    "";
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_SERVICE_KEY ||
+  process.env.SUPABASE_SECRET_KEY ||
+  "";
 
   if (!segredo) {
     throw new Error(
