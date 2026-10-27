@@ -882,11 +882,17 @@ export async function PATCH(request: NextRequest) {
     linha.criado_por = atualTipado.criado_por || perfil.id;
     linha.criado_em = atualTipado.criado_em;
 
-    if (linha.cpf) {
+    const cpfAtual = apenasNumeros(atualTipado.cpf);
+    const cpfNovo = apenasNumeros(linha.cpf);
+
+    // Na edição, só verifica duplicidade quando o CPF realmente foi alterado.
+    // Assim, cadastros antigos que já possuem CPF duplicado não bloqueiam
+    // alterações de vendedora, status, datas ou outros dados da proposta.
+    if (cpfNovo && cpfNovo !== cpfAtual) {
       const { data: duplicado, error: erroDuplicado } = await supabase
         .from("clientes")
         .select("id")
-        .eq("cpf", linha.cpf)
+        .eq("cpf", cpfNovo)
         .neq("id", id)
         .limit(1);
 
