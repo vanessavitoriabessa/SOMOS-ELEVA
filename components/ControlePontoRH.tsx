@@ -46,6 +46,15 @@ const mes=()=>hoje().slice(0,7);
 
 const mins=(v:string|null|undefined)=>{if(!v||!String(v).includes(":"))return 0;const[h,m]=String(v).split(":").map(Number);return h*60+m};
 
+// No DIX, 00:00 nos campos de intervalo significa "sem marcação".
+// Quando existem apenas entrada + saída, consideramos trabalho direto, sem almoço.
+const horaMarcada=(v:string|null|undefined)=>{
+ const h=String(v||"").trim().slice(0,5);
+ return /^\d{2}:\d{2}$/.test(h)&&h!=="00:00";
+};
+const trabalhoDireto=(p:Ponto)=>horaMarcada(p.entrada)&&horaMarcada(p.saida)&&!horaMarcada(p.saida_almoco)&&!horaMarcada(p.retorno_almoco);
+const intervaloCompleto=(p:Ponto)=>horaMarcada(p.entrada)&&horaMarcada(p.saida_almoco)&&horaMarcada(p.retorno_almoco)&&horaMarcada(p.saida);
+
 const hm=(v:number)=>{const s=v<0?"-":"";v=Math.abs(Math.round(v));return `${s}${Math.floor(v/60)}h${String(v%60).padStart(2,"0")}`};
 
 const fimSemana=(d:string)=>[0,6].includes(new Date(`${d}T12:00:00`).getDay());
@@ -237,44 +246,43 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
  const jornadaDo=(p:Ponto|null)=>jornadas.find(j=>j.id===p?.jornada_id)||jornadas.find(j=>j.id===vinculos.find(v=>v.colaboradora_id===pessoa)?.jornada_id)||jornadas[0]||cfg;
 
  const trabReposicao=(p:Ponto)=>{
-  if(p.periodo_reposicao==="manha")return Math.max(0,mins(p.saida_almoco)-mins(p.entrada));
-  if(p.periodo_reposicao==="tarde")return Math.max(0,mins(p.saida)-mins(p.retorno_almoco));
-  const manha=p.entrada&&p.saida_almoco?Math.max(0,mins(p.saida_almoco)-mins(p.entrada)):0;
-  const tarde=p.retorno_almoco&&p.saida?Math.max(0,mins(p.saida)-mins(p.retorno_almoco)):0;
-  if(manha||tarde)return manha+tarde;
-  return p.entrada&&p.saida?Math.max(0,mins(p.saida)-mins(p.entrada)):0;
+  if(p.periodo_reposicao==="manha")return horaMarcada(p.entrada)&&horaMarcada(p.saida_almoco)?Math.max(0,mins(p.saida_almoco)-mins(p.entrada)):0;
+  if(p.periodo_reposicao==="tarde")return horaMarcada(p.retorno_almoco)&&horaMarcada(p.saida)?Math.max(0,mins(p.saida)-mins(p.retorno_almoco)):0;
+  if(intervaloCompleto(p))return Math.max(0,mins(p.saida_almoco)-mins(p.entrada))+Math.max(0,mins(p.saida)-mins(p.retorno_almoco));
+  if(trabalhoDireto(p))return Math.max(0,mins(p.saida)-mins(p.entrada));
+  return 0;
  };
 
  const trabFaltaParcial=(p:Ponto)=>{
-  if(p.periodo_falta==="manha")return p.retorno_almoco&&p.saida?Math.max(0,mins(p.saida)-mins(p.retorno_almoco)):0;
-  if(p.periodo_falta==="tarde")return p.entrada&&p.saida_almoco?Math.max(0,mins(p.saida_almoco)-mins(p.entrada)):0;
+  if(p.periodo_falta==="manha")return horaMarcada(p.retorno_almoco)&&horaMarcada(p.saida)?Math.max(0,mins(p.saida)-mins(p.retorno_almoco)):0;
+  if(p.periodo_falta==="tarde")return horaMarcada(p.entrada)&&horaMarcada(p.saida_almoco)?Math.max(0,mins(p.saida_almoco)-mins(p.entrada)):0;
   return 0;
  };
 
  const marcacaoCompleta=(p:Ponto)=>{
   if(tipoSemDebito(p)||faltaIntegral(p))return true;
   if(ehReposicao(p)){
-   if(p.periodo_reposicao==="manha")return Boolean(p.entrada&&p.saida_almoco);
-   if(p.periodo_reposicao==="tarde")return Boolean(p.retorno_almoco&&p.saida);
-   return Boolean((p.entrada&&p.saida_almoco&&p.retorno_almoco&&p.saida)||(p.entrada&&p.saida));
+   if(p.periodo_reposicao==="manha")return horaMarcada(p.entrada)&&horaMarcada(p.saida_almoco);
+   if(p.periodo_reposicao==="tarde")return horaMarcada(p.retorno_almoco)&&horaMarcada(p.saida);
+   return intervaloCompleto(p)||trabalhoDireto(p);
   }
   if(faltaParcial(p)){
-   return p.periodo_falta==="manha"?Boolean(p.retorno_almoco&&p.saida):Boolean(p.entrada&&p.saida_almoco);
+   return p.periodo_falta==="manha"?(horaMarcada(p.retorno_almoco)&&horaMarcada(p.saida)):(horaMarcada(p.entrada)&&horaMarcada(p.saida_almoco));
   }
-  if(fimSemana(p.data)){
-   return Boolean((p.entrada&&p.saida_almoco&&p.retorno_almoco&&p.saida)||(p.entrada&&p.saida));
-  }
-  return Boolean(p.entrada&&p.saida_almoco&&p.retorno_almoco&&p.saida);
+  // Dia normal ou fim de semana: aceita 4 batidas (com almoço) ou 2 batidas (trabalho direto).
+  return intervaloCompleto(p)||trabalhoDireto(p);
  };
 
  const trab=(p:Ponto)=>{
   if(tipoSemDebito(p)||faltaIntegral(p))return 0;
   if(ehReposicao(p))return trabReposicao(p);
   if(faltaParcial(p))return trabFaltaParcial(p);
-  const manha=p.entrada&&p.saida_almoco?Math.max(0,mins(p.saida_almoco)-mins(p.entrada)):0;
-  const tarde=p.retorno_almoco&&p.saida?Math.max(0,mins(p.saida)-mins(p.retorno_almoco)):0;
-  if(manha||tarde)return manha+tarde;
-  if(fimSemana(p.data)&&p.entrada&&p.saida)return Math.max(0,mins(p.saida)-mins(p.entrada));
+  if(intervaloCompleto(p)){
+   const manha=Math.max(0,mins(p.saida_almoco)-mins(p.entrada));
+   const tarde=Math.max(0,mins(p.saida)-mins(p.retorno_almoco));
+   return manha+tarde;
+  }
+  if(trabalhoDireto(p))return Math.max(0,mins(p.saida)-mins(p.entrada));
   return 0;
  };
 
@@ -295,6 +303,7 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
   const fimDeSemana=fimSemana(data);
   if(!p){return fimDeSemana||data===hojeRef?0:-480;}
   if(tipoSemDebito(p))return 0;
+  if(!marcacaoCompleta(p))return 0;
   const trabalhado=trab(p);
   if(fimDeSemana)return trabalhado;
   if(faltaParcial(p)&&p.apresentou_atestado)return 0;
@@ -795,7 +804,7 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
   const label=tipoCustom||(incompleta?"Marcação incompleta":tipo==="reposicao"?"Reposição":tipo==="feriado"?"Feriado":tipo==="folga"?"Folga":tipo==="atestado"||tipo==="atestado_parcial"?"Atestado":tipo==="justificado"||tipo==="justificado_parcial"?"Justificado":tipo==="falta"?(ponto.apresentou_atestado?"Falta justificada":ponto.periodo_falta==="manha"?"Falta manhã":ponto.periodo_falta==="tarde"?"Falta tarde":"Falta"):weekend?"Crédito fim de semana":saldoDia>0?"Crédito":saldoDia<0?"Débito":"Carga cumprida");
   const classe=incompleta?"pendente":justificado?"atestado":tipo==="falta"&&!ponto.apresentou_atestado?"falta":saldoDia>0?"extra":saldoDia<0?"devendo":weekend?"folga":"normal";
   const obs=incompleta?`${ponto.observacao?`${ponto.observacao} · `:""}Complete as marcações para calcular o saldo`:(["atestado_parcial","justificado_parcial"].includes(tipo)||(tipo==="falta"&&ponto.apresentou_atestado))?`${ponto.observacao?`${ponto.observacao} · `:""}${hm(horasJustificadasDia(ponto))} justificadas`:ponto.observacao||"—";
-  const mostrar=(v:string|null)=>v?String(v).slice(0,5):"—";
+  const mostrar=(v:string|null)=>horaMarcada(v)?String(v).slice(0,5):"—";
   return <tr key={data}><td>{br(data)}</td><td>{dia}</td><td>{mostrar(ponto.entrada)}</td><td>{mostrar(ponto.saida_almoco)}</td><td>{mostrar(ponto.retorno_almoco)}</td><td>{mostrar(ponto.saida)}</td><td>{marcacaoCompleta(ponto)||trabalhado?hm(trabalhado):"—"}</td><td>{hm(previsto)}</td><td className={incompleta?"":saldoDia>0?"pos":saldoDia<0?"neg":""}>{`${saldoDia>0?"+":""}${hm(saldoDia)}`}</td><td><span className={`bp-status ${classe}`}>{label}</span></td><td>{obs}</td><td><button onClick={()=>editar(ponto)}>Editar</button></td></tr>;
  })}</tbody></table></div>}
 
