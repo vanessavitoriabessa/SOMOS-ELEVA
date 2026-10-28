@@ -1,5 +1,7 @@
 "use client";
 
+// ELEVA | BANCO DE HORAS ACUMULATIVO | 28/10/2026
+
 import {FormEvent,useEffect,useMemo,useRef,useState} from "react";
 
 import {createClient} from "@/lib/supabase/client";
@@ -8,9 +10,9 @@ import "./bate-ponto.css";
 
 
 
-type Colab={id:string;nome:string;status:string};
+type Colab={id:string;nome:string;status:string;dataAdmissao?:string};
 
-type Ponto={id:string;colaboradora_id:string;jornada_id?:string|null;data:string;entrada:string;saida_almoco:string;retorno_almoco:string;saida:string;falta:boolean;tipo_dia?:string|null;observacao:string;periodo_falta?:string|null;apresentou_atestado?:boolean|null;periodo_reposicao?:string|null;data_falta_referencia?:string|null};
+type Ponto={id:string;colaboradora_id:string;jornada_id?:string|null;data:string;entrada:string|null;saida_almoco:string|null;retorno_almoco:string|null;saida:string|null;falta:boolean;tipo_dia?:string|null;observacao:string;periodo_falta?:string|null;apresentou_atestado?:boolean|null;periodo_reposicao?:string|null;data_falta_referencia?:string|null};
 
 type LinhaImportacaoDigix={
  id:string;
@@ -22,7 +24,7 @@ type LinhaImportacaoDigix={
  retorno_almoco:string;
  saida:string;
  jornada_id?:string|null;
- status:"ok"|"erro";
+ status:"ok"|"aviso"|"erro";
  mensagem:string;
  jaExiste:boolean;
  observacao:string;
@@ -35,9 +37,14 @@ type LinhaImportacaoDigix={
 
 
 
-const hoje=()=>new Date().toISOString().slice(0,10), mes=()=>hoje().slice(0,7);
+const hoje=()=>{
+ const partes=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+ const valor=(tipo:string)=>partes.find(p=>p.type===tipo)?.value||"";
+ return `${valor("year")}-${valor("month")}-${valor("day")}`;
+};
+const mes=()=>hoje().slice(0,7);
 
-const mins=(v:string)=>{if(!v||!v.includes(":"))return 0;const[h,m]=v.split(":").map(Number);return h*60+m};
+const mins=(v:string|null|undefined)=>{if(!v||!String(v).includes(":"))return 0;const[h,m]=String(v).split(":").map(Number);return h*60+m};
 
 const hm=(v:number)=>{const s=v<0?"-":"";v=Math.abs(Math.round(v));return `${s}${Math.floor(v/60)}h${String(v%60).padStart(2,"0")}`};
 
@@ -46,10 +53,6 @@ const fimSemana=(d:string)=>[0,6].includes(new Date(`${d}T12:00:00`).getDay());
 const sabado=(d:string)=>new Date(`${d}T12:00:00`).getDay()===6;
 
 const br=(d:string)=>d?d.split("-").reverse().join("/"):"—";
-
-const numBR=(v:string)=>Number(String(v||"0").replace(/\./g,"").replace(",","."))||0;
-
-const moeda=(v:number)=>Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 
 const nomesDias=["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 
@@ -181,8 +184,6 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
 
  const[modalJornadas,setModalJornadas]=useState(false);
 
- const[valorHora,setValorHora]=useState("7,71"),[adicionalSabado,setAdicionalSabado]=useState("50");
-
  const[modalFechamento,setModalFechamento]=useState(false);
 
  const[fechamentos,setFechamentos]=useState<any[]>([]),[tiposDia,setTiposDia]=useState<{id:string;nome:string}[]>([]),[novoTipoDia,setNovoTipoDia]=useState("");
@@ -215,114 +216,173 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
 
  useEffect(()=>{void carregar()},[]);
 
- const TOLERANCIA_EXTRA_MIN=10;
-
  const faltaParcial=(p:Ponto)=>p.tipo_dia==="falta"&&["manha","tarde"].includes(String(p.periodo_falta||""));
 
  const faltaIntegral=(p:Ponto)=>p.tipo_dia==="falta"&&!faltaParcial(p);
 
  const ehReposicao=(p:Ponto)=>p.tipo_dia==="reposicao";
 
- const trabReposicao=(p:Ponto)=>{if(p.periodo_reposicao==="manha")return Math.max(0,mins(p.saida_almoco)-mins(p.entrada));if(p.periodo_reposicao==="tarde")return Math.max(0,mins(p.saida)-mins(p.retorno_almoco));return Math.max(0,mins(p.saida_almoco)-mins(p.entrada))+Math.max(0,mins(p.saida)-mins(p.retorno_almoco));};
+ const tipoSemDebito=(p:Ponto|null)=>{
+  const tipo=String(p?.tipo_dia||"");
+  return ["feriado","folga","atestado","justificado","atestado_parcial","justificado_parcial"].includes(tipo)||tipo.startsWith("custom:")||Boolean(p&&faltaIntegral(p)&&p.apresentou_atestado);
+ };
 
- const trabFaltaParcial=(p:Ponto)=>{if(p.periodo_falta==="manha")return Math.max(0,mins(p.saida)-mins(p.retorno_almoco));if(p.periodo_falta==="tarde")return Math.max(0,mins(p.saida_almoco)-mins(p.entrada));return 0;};
+ const jornadaDo=(p:Ponto|null)=>jornadas.find(j=>j.id===p?.jornada_id)||jornadas.find(j=>j.id===vinculos.find(v=>v.colaboradora_id===pessoa)?.jornada_id)||jornadas[0]||cfg;
 
- const trab=(p:Ponto)=>faltaIntegral(p)||["feriado","folga","atestado","justificado"].includes(p.tipo_dia||"")||String(p.tipo_dia||"").startsWith("custom:")?0:ehReposicao(p)?trabReposicao(p):faltaParcial(p)?trabFaltaParcial(p):Math.max(0,mins(p.saida_almoco)-mins(p.entrada))+Math.max(0,mins(p.saida)-mins(p.retorno_almoco));
+ const trabReposicao=(p:Ponto)=>{
+  if(p.periodo_reposicao==="manha")return Math.max(0,mins(p.saida_almoco)-mins(p.entrada));
+  if(p.periodo_reposicao==="tarde")return Math.max(0,mins(p.saida)-mins(p.retorno_almoco));
+  const manha=p.entrada&&p.saida_almoco?Math.max(0,mins(p.saida_almoco)-mins(p.entrada)):0;
+  const tarde=p.retorno_almoco&&p.saida?Math.max(0,mins(p.saida)-mins(p.retorno_almoco)):0;
+  if(manha||tarde)return manha+tarde;
+  return p.entrada&&p.saida?Math.max(0,mins(p.saida)-mins(p.entrada)):0;
+ };
 
- const jornadaDo=(p:Ponto)=>jornadas.find(j=>j.id===p.jornada_id)||jornadas[0]||cfg;
+ const trabFaltaParcial=(p:Ponto)=>{
+  if(p.periodo_falta==="manha")return p.retorno_almoco&&p.saida?Math.max(0,mins(p.saida)-mins(p.retorno_almoco)):0;
+  if(p.periodo_falta==="tarde")return p.entrada&&p.saida_almoco?Math.max(0,mins(p.saida_almoco)-mins(p.entrada)):0;
+  return 0;
+ };
 
- const extraDia=(p:Ponto)=>{
- const j=jornadaDo(p);
- const tipo=String(p.tipo_dia||"");
- if(faltaIntegral(p)||faltaParcial(p)||ehReposicao(p)||["feriado","folga","atestado","justificado","atestado_parcial","justificado_parcial"].includes(tipo)||tipo.startsWith("custom:"))return 0;
- if(fimSemana(p.data))return trab(p);
+ const marcacaoCompleta=(p:Ponto)=>{
+  if(tipoSemDebito(p)||faltaIntegral(p))return true;
+  if(ehReposicao(p)){
+   if(p.periodo_reposicao==="manha")return Boolean(p.entrada&&p.saida_almoco);
+   if(p.periodo_reposicao==="tarde")return Boolean(p.retorno_almoco&&p.saida);
+   return Boolean((p.entrada&&p.saida_almoco&&p.retorno_almoco&&p.saida)||(p.entrada&&p.saida));
+  }
+  if(faltaParcial(p)){
+   return p.periodo_falta==="manha"?Boolean(p.retorno_almoco&&p.saida):Boolean(p.entrada&&p.saida_almoco);
+  }
+  if(fimSemana(p.data)){
+   return Boolean((p.entrada&&p.saida_almoco&&p.retorno_almoco&&p.saida)||(p.entrada&&p.saida));
+  }
+  return Boolean(p.entrada&&p.saida_almoco&&p.retorno_almoco&&p.saida);
+ };
 
- /*
-   Regra correta:
-   o Digix só traz as batidas.
-   O sistema soma o tempo trabalhado real do dia e compara com a carga de 8h.
-   Entrar antes, sair depois ou fazer almoço menor já aparece no total trabalhado.
-   Só vira crédito bruto do mês quando passar mais de 10 minutos da carga diária.
- */
- const excedenteTotal=Math.max(0,trab(p)-(j.carga||480));
- return excedenteTotal>TOLERANCIA_EXTRA_MIN?excedenteTotal:0;
-};
+ const trab=(p:Ponto)=>{
+  if(tipoSemDebito(p)||faltaIntegral(p))return 0;
+  if(ehReposicao(p))return trabReposicao(p);
+  if(faltaParcial(p))return trabFaltaParcial(p);
+  const manha=p.entrada&&p.saida_almoco?Math.max(0,mins(p.saida_almoco)-mins(p.entrada)):0;
+  const tarde=p.retorno_almoco&&p.saida?Math.max(0,mins(p.saida)-mins(p.retorno_almoco)):0;
+  if(manha||tarde)return manha+tarde;
+  if(fimSemana(p.data)&&p.entrada&&p.saida)return Math.max(0,mins(p.saida)-mins(p.entrada));
+  return 0;
+ };
 
- const devidaDia=(p:Ponto)=>{const j=jornadaDo(p);if(ehReposicao(p)||["feriado","folga","atestado","justificado","atestado_parcial","justificado_parcial"].includes(p.tipo_dia||"")||String(p.tipo_dia||"").startsWith("custom:"))return 0;const carga=j.carga||480;if(faltaIntegral(p))return p.apresentou_atestado?0:carga;if(fimSemana(p.data))return 0;const faltaMin=Math.max(0,carga-trab(p));if(faltaParcial(p)&&p.apresentou_atestado)return 0;const tolerancia=Math.max(j.tolEntrada,j.tolSaida);return faltaMin<=tolerancia?0:faltaMin};
+ const pessoaAtual=colaboradoras.find(c=>c.id===pessoa)||null;
+ const pontosPessoa=pessoa?pontos.filter(p=>p.colaboradora_id===pessoa):[];
+ const primeiroPontoPessoa=pontosPessoa.map(p=>p.data).filter(Boolean).sort()[0]||"";
+ const admissaoPessoa=String(pessoaAtual?.dataAdmissao||"").slice(0,10);
+ const inicioBancoPessoa=primeiroPontoPessoa&&admissaoPessoa
+  ?(primeiroPontoPessoa>admissaoPessoa?primeiroPontoPessoa:admissaoPessoa)
+  :primeiroPontoPessoa;
+ const hojeRef=hoje();
+ const inicioCompetencia=`${mesRef}-01`;
 
- const creditoCompensacaoDia=(_p:Ponto)=>0;
+ const dataDentroBanco=(data:string)=>Boolean(inicioBancoPessoa&&data>=inicioBancoPessoa&&data<=hojeRef);
 
- const saldo=(p:Ponto)=>extraDia(p)-devidaDia(p);
+ const saldoDiaAtivo=(data:string,p:Ponto|null)=>{
+  if(!dataDentroBanco(data))return 0;
+  const fimDeSemana=fimSemana(data);
+  if(!p){return fimDeSemana||data===hojeRef?0:-480;}
+  if(tipoSemDebito(p))return 0;
+  const trabalhado=trab(p);
+  if(fimDeSemana)return trabalhado;
+  if(faltaParcial(p)&&p.apresentou_atestado)return 0;
+  const carga=jornadaDo(p).carga||480;
+  return trabalhado-carga;
+ };
 
- const horasJustificadasDia=(p:Ponto)=>{const j=jornadaDo(p);const tipo=p.tipo_dia||"";if(["atestado_parcial","justificado_parcial"].includes(tipo)||(faltaParcial(p)&&p.apresentou_atestado))return Math.max(0,(j.carga||480)-trab(p));if(faltaIntegral(p)&&p.apresentou_atestado)return j.carga||480;return 0;};
+ const previstoDiaAtivo=(data:string,p:Ponto|null)=>{
+  if(!dataDentroBanco(data)||fimSemana(data))return 0;
+  if(!p&&data===hojeRef)return 0;
+  if(p&&tipoSemDebito(p))return 0;
+  return p?jornadaDo(p).carga||480:jornadaDo(null).carga||480;
+ };
 
- const lista=pontos.filter(p=>(!mesRef||p.data.slice(0,7)===mesRef)&&(!pessoa||p.colaboradora_id===pessoa));
+ const horasJustificadasDia=(p:Ponto)=>{
+  const carga=jornadaDo(p).carga||480;
+  const tipo=p.tipo_dia||"";
+  if(["atestado_parcial","justificado_parcial"].includes(tipo)||(faltaParcial(p)&&p.apresentou_atestado))return Math.max(0,carga-trab(p));
+  if(faltaIntegral(p)&&p.apresentou_atestado)return carga;
+  return 0;
+ };
 
  const calendario=useMemo(()=>diasDoMes(mesRef),[mesRef]);
+ const mapaPontosPessoa=useMemo(()=>new Map(pontosPessoa.map(p=>[p.data,p])),[pontosPessoa]);
+ const calendarioPessoa=pessoa?calendario.map(d=>({ ...d, ponto: mapaPontosPessoa.get(d.data)||null })):[];
 
- const calendarioPessoa=pessoa?calendario.map(d=>({ ...d, ponto: pontos.find(p=>p.colaboradora_id===pessoa&&p.data===d.data)||null })):[];
+ const resumoMes=calendarioPessoa.reduce((r,{data,ponto})=>{
+  if(!dataDentroBanco(data))return r;
+  const previsto=previstoDiaAtivo(data,ponto);
+  const trabalhado=ponto?trab(ponto):0;
+  const incompleta=Boolean(ponto&&!marcacaoCompleta(ponto)&&!tipoSemDebito(ponto)&&data<=hojeRef);
+  const saldoDia=saldoDiaAtivo(data,ponto);
+  r.previstas+=previsto;
+  r.trabalhadas+=trabalhado;
+  if(saldoDia>0)r.creditos+=saldoDia;
+  if(saldoDia<0)r.debitos+=Math.abs(saldoDia);
+  if((!ponto&&!fimSemana(data))||(ponto&&faltaIntegral(ponto)&&!ponto.apresentou_atestado))r.faltas+=1;
+  if(sabado(data)&&trabalhado>0)r.sabados+=1;
+  if(incompleta)r.pendencias+=1;
+  return r;
+ },{previstas:0,trabalhadas:0,creditos:0,debitos:0,faltas:0,sabados:0,pendencias:0});
 
- const resumoBruto=lista.reduce((r,p)=>{if(faltaIntegral(p)&&!p.apresentou_atestado)r.faltas++;if(sabado(p.data)&&trab(p)>0&&!ehReposicao(p))r.sabados++;r.extras+=extraDia(p);r.devidas+=devidaDia(p);r.reposicao+=ehReposicao(p)?trab(p):0;return r},{extras:0,devidas:0,reposicao:0,faltas:0,sabados:0});
+ const saldoMesMin=resumoMes.creditos-resumoMes.debitos;
 
- const listaAnteriorPessoa=pessoa?pontos.filter(p=>p.colaboradora_id===pessoa&&p.data.slice(0,7)<mesRef):[];
+ const saldoAnteriorMin=(()=>{
+  if(!pessoa||!inicioBancoPessoa||!inicioCompetencia||inicioBancoPessoa>=inicioCompetencia)return 0;
+  const inicio=new Date(`${inicioBancoPessoa}T12:00:00`);
+  const fim=new Date(`${inicioCompetencia}T12:00:00`);
+  let total=0;
+  for(let d=new Date(inicio);d<fim;d.setDate(d.getDate()+1)){
+   const data=d.toISOString().slice(0,10);
+   if(data>hojeRef)break;
+   total+=saldoDiaAtivo(data,mapaPontosPessoa.get(data)||null);
+  }
+  return total;
+ })();
 
- const saldoAnteriorMin=listaAnteriorPessoa.reduce((t,p)=>t+extraDia(p)+(ehReposicao(p)?trab(p):0)-devidaDia(p),0);
-
- const saldoAnteriorDevedor=Math.max(0,-saldoAnteriorMin);
-
- const saldoAnteriorCredito=Math.max(0,saldoAnteriorMin);
-
- const creditoBrutoMes=resumoBruto.reposicao+resumoBruto.extras;
-
- const compensadoSaldoAnterior=Math.min(saldoAnteriorDevedor,creditoBrutoMes);
-
- const creditoDepoisSaldoAnterior=Math.max(0,creditoBrutoMes-compensadoSaldoAnterior);
-
- const saldoAnteriorRestante=Math.max(0,saldoAnteriorDevedor-compensadoSaldoAnterior);
-
- const compensadoMesAtual=Math.min(creditoDepoisSaldoAnterior,resumoBruto.devidas);
-
- const devidasMesAtualRestante=Math.max(0,resumoBruto.devidas-compensadoMesAtual);
-
- const extrasRestantes=Math.max(0,creditoDepoisSaldoAnterior-resumoBruto.devidas);
-
- const resumo={...resumoBruto,extras:extrasRestantes,devidas:saldoAnteriorRestante+devidasMesAtualRestante,creditos:0,creditosDisponiveis:0,compensado:compensadoSaldoAnterior+compensadoMesAtual};
-
- const saldoLiquidoMin=resumo.extras-resumo.devidas;
-
- const saldoLiquidoAbs=Math.abs(saldoLiquidoMin);
-
- const horasTrabalhadas=lista.reduce((t,p)=>t+trab(p),0);
-
- const horasPrevistas=lista.filter(p=>!fimSemana(p.data)&&!["feriado","folga","atestado","justificado"].includes(p.tipo_dia||"")&&!String(p.tipo_dia||"").startsWith("custom:")).reduce((t,p)=>{const j=jornadaDo(p);return t+(j.carga||480)},0);
-
- const extrasSabado=lista.filter(p=>sabado(p.data)).reduce((t,p)=>t+extraDia(p),0);
-
- const extrasSabadoLiquidas=Math.min(extrasSabado,resumo.extras); const extrasDiasUteis=Math.max(0,resumo.extras-extrasSabadoLiquidas);
-
- const vh=numBR(valorHora), percSab=numBR(adicionalSabado);
-
- const valorExtraUtil=(extrasDiasUteis/60)*vh*1.5;
-
- const valorExtraSabado=(extrasSabadoLiquidas/60)*vh*(1+percSab/100);
-
- const valorExtrasTotal=valorExtraUtil+valorExtraSabado;
-
- const valorHorasDevedoras=(resumo.devidas/60)*vh;
-
- const saldoFinanceiro=valorExtrasTotal-valorHorasDevedoras;
-
+ const saldoFinalMin=saldoAnteriorMin+saldoMesMin;
+ const saldoFinalAbs=Math.abs(saldoFinalMin);
  const fechamentoAtual=pessoa?fechamentos.find((x:any)=>x.colaboradora_id===pessoa&&x.competencia===mesRef):null;
+ const pendenciasFechamento=calendarioPessoa.filter(({data,ponto})=>ponto&&!marcacaoCompleta(ponto)&&!tipoSemDebito(ponto)&&data<=hojeRef);
 
+ async function fecharCompetencia(){
+  if(!pessoa){setMsg("Selecione uma colaboradora para fechar a competência.");return}
+  if(pendenciasFechamento.length){setMsg(`Existem ${pendenciasFechamento.length} dia(s) com marcações incompletas. Corrija esses horários antes de fechar a competência.`);return}
+  const payload={
+   colaboradora_id:pessoa,
+   competencia:mesRef,
+   horas_previstas_min:resumoMes.previstas,
+   horas_trabalhadas_min:resumoMes.trabalhadas,
+   horas_extras_min:resumoMes.creditos,
+   horas_devedoras_min:resumoMes.debitos,
+   faltas:resumoMes.faltas,
+   valor_hora:0,
+   valor_extras:0,
+   valor_devedoras:0,
+   saldo_financeiro:0,
+   saldo_anterior_min:saldoAnteriorMin,
+   credito_banco_min:resumoMes.creditos,
+   debito_banco_min:resumoMes.debitos,
+   saldo_mes_min:saldoMesMin,
+   saldo_final_min:saldoFinalMin,
+   pendencias_marcacao:resumoMes.pendencias,
+   status:"FECHADO",
+   fechado_em:new Date().toISOString()
+  };
+  const q=await sb.from("rh_fechamento_ponto").upsert(payload,{onConflict:"colaboradora_id,competencia"});
+  if(q.error)setMsg(q.error.message);else{setMsg("Competência fechada com sucesso. O saldo final será carregado automaticamente para o mês seguinte.");await carregar();setModalFechamento(false)}
+ }
 
-
- async function fecharCompetencia(){if(!pessoa){setMsg("Selecione uma colaboradora para fechar a competência.");return}const payload={colaboradora_id:pessoa,competencia:mesRef,horas_previstas_min:horasPrevistas,horas_trabalhadas_min:horasTrabalhadas,horas_extras_min:resumo.extras,horas_devedoras_min:resumo.devidas,faltas:resumo.faltas,valor_hora:vh,valor_extras:valorExtrasTotal,valor_devedoras:valorHorasDevedoras,saldo_financeiro:saldoFinanceiro,status:"FECHADO",fechado_em:new Date().toISOString()};const q=await sb.from("rh_fechamento_ponto").upsert(payload,{onConflict:"colaboradora_id,competencia"});if(q.error)setMsg(q.error.message);else{setMsg("Competência fechada com sucesso.");await carregar();setModalFechamento(false)}}
-
- async function reabrirCompetencia(){if(!fechamentoAtual)return;const q=await sb.from("rh_fechamento_ponto").update({status:"ABERTO",fechado_em:null}).eq("id",fechamentoAtual.id);if(q.error)setMsg(q.error.message);else{setMsg("Competência reaberta.");await carregar()}}
+ async function reabrirCompetencia(){if(!fechamentoAtual)return;const q=await sb.from("rh_fechamento_ponto").update({status:"ABERTO",fechado_em:null}).eq("id",fechamentoAtual.id);if(q.error)setMsg(q.error.message);else{setMsg("Competência reaberta. O banco de horas será recalculado pelos pontos salvos.");await carregar()}}
 
  function novo(dataAlvo?:string){setNovoTipoDia("");const cid=pessoa||colaboradoras.find(c=>c.status!=="Desligada")?.id||"";const jid=vinculos.find(v=>v.colaboradora_id===cid)?.jornada_id||jornadaId||jornadas[0]?.id||"";const j=jornadas.find(x=>x.id===jid)||jornadas[0]||cfg;setEdit(null);setF({colaboradora_id:cid,jornada_id:jid,data:dataAlvo||hoje(),entrada:j.entrada,saida_almoco:j.saidaAlmoco,retorno_almoco:j.retornoAlmoco,saida:j.saida,falta:false,tipo_dia:"normal",observacao:"",periodo_falta:"dia_inteiro",apresentou_atestado:false,periodo_reposicao:"tarde",data_falta_referencia:""});setModal(true)}
 
- function editar(p:Ponto){setNovoTipoDia("");setEdit(p.id);setF({colaboradora_id:p.colaboradora_id,jornada_id:p.jornada_id||"",data:p.data,entrada:String(p.entrada||cfg.entrada).slice(0,5),saida_almoco:String(p.saida_almoco||cfg.saidaAlmoco).slice(0,5),retorno_almoco:String(p.retorno_almoco||cfg.retornoAlmoco).slice(0,5),saida:String(p.saida||cfg.saida).slice(0,5),falta:p.falta,tipo_dia:p.tipo_dia||(p.falta?"falta":"normal"),observacao:p.observacao,periodo_falta:p.periodo_falta||"dia_inteiro",apresentou_atestado:!!p.apresentou_atestado,periodo_reposicao:p.periodo_reposicao||"tarde",data_falta_referencia:p.data_falta_referencia||""});setModal(true)}
+ function editar(p:Ponto){setNovoTipoDia("");setEdit(p.id);setF({colaboradora_id:p.colaboradora_id,jornada_id:p.jornada_id||"",data:p.data,entrada:String(p.entrada||"").slice(0,5),saida_almoco:String(p.saida_almoco||"").slice(0,5),retorno_almoco:String(p.retorno_almoco||"").slice(0,5),saida:String(p.saida||"").slice(0,5),falta:p.falta,tipo_dia:p.tipo_dia||(p.falta?"falta":"normal"),observacao:p.observacao,periodo_falta:p.periodo_falta||"dia_inteiro",apresentou_atestado:!!p.apresentou_atestado,periodo_reposicao:p.periodo_reposicao||"tarde",data_falta_referencia:p.data_falta_referencia||""});setModal(true)}
 
  async function criarTipoDia(){
 
@@ -381,22 +441,22 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
 
      const ano=(matchData[3]?.length===4?matchData[3]:mesRef.slice(0,4));
      const data=`${ano}-${String(Number(matchData[2])).padStart(2,"0")}-${String(Number(matchData[1])).padStart(2,"0")}`;
-
      const trechoDepoisData=linha.slice((matchData.index||0)+matchData[0].length);
      const temFolgaOuDsr=/\b(folga|dsr)\b/i.test(trechoDepoisData);
      const temFeriado=/\bferiado\b/i.test(trechoDepoisData);
      const temFalta=/\bfalta\s*:/i.test(trechoDepoisData);
-     const temAtraso=/\batraso\s*:/i.test(trechoDepoisData);
+     const weekend=fimSemana(data);
 
-     /*
-       O PDF do Digix também mostra totais como "Trab 03:03" e "Carga Horária 08:00".
-       Esses horários NÃO são marcações de ponto.
-       Por isso, usamos somente as marcações reais e transformamos faltas em registros
-       de falta do RH, para o saldo não virar crédito indevido para a colaboradora.
-     */
+     // O DIX traz também "Trab", "Carga Horária" e "HE". Esses totais NÃO entram no cálculo.
+     // Extraímos somente as batidas reais e o Somos Eleva calcula o banco de horas novamente.
      const trechoAntesOcorrencia=trechoDepoisData.split(/\b(?:HE\s*Diurno|HE\s*Noturno|Atraso|Falta|Folga|DSR|Feriado|Débito|Credito|Crédito)\b/i)[0]||"";
      const horasBrutas=(trechoAntesOcorrencia.match(/\b\d{1,2}:\d{2}\b/g)||[]).map(horaDigix).filter(Boolean);
-     const horasMarcacoes=(temFalta||temFolgaOuDsr||temFeriado)&&horasBrutas.length>4?horasBrutas.slice(0,-2):horasBrutas;
+     let horasMarcacoes=[...horasBrutas];
+     if(horasBrutas.length>=6)horasMarcacoes=horasBrutas.slice(0,4);
+     else if(weekend&&horasBrutas.length===5)horasMarcacoes=horasBrutas.slice(0,4);
+     else if(temFalta&&horasBrutas.length===5)horasMarcacoes=horasBrutas.slice(0,3);
+     else if(weekend&&horasBrutas.length===3)horasMarcacoes=horasBrutas.slice(0,2);
+     else if(horasBrutas.length>4)horasMarcacoes=horasBrutas.slice(0,4);
 
      let entrada=horasMarcacoes[0]||"";
      let saidaAlmoco=horasMarcacoes[1]||"";
@@ -406,59 +466,50 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
      let falta=false;
      let periodoFalta:string|null=null;
      let apresentouAtestado=false;
-     let status:"ok"|"erro"="ok";
+     let status:"ok"|"aviso"|"erro"="ok";
      const mensagens:string[]=[];
      let apagarExistente=true;
 
      if(data.slice(0,7)!==mesRef){mensagens.push("Fora do mês selecionado");status="erro";apagarExistente=false;}
 
-     if(temFolgaOuDsr){
-      mensagens.push("Folga/DSR — registro antigo será removido e o dia ficará sem lançamento");
-      status="erro";
-      entrada="";saidaAlmoco="";retorno="";saida="";
-     }else if(temFeriado){
+     if(temFeriado&&!horasMarcacoes.length){
       tipoDia="feriado";
       entrada="";saidaAlmoco="";retorno="";saida="";
-      mensagens.push("Feriado importado");
-     }else if(temFalta){
+      mensagens.push("Feriado reconhecido — sem débito no banco");
+     }else if(weekend&&horasMarcacoes.length>=2){
+      // Sábado/domingo: não há carga prevista. Tudo o que for efetivamente trabalhado vira crédito.
+      if(horasMarcacoes.length===2){entrada=horasMarcacoes[0];saidaAlmoco="";retorno="";saida=horasMarcacoes[1];}
+      else {entrada=horasMarcacoes[0];saidaAlmoco=horasMarcacoes[1];retorno=horasMarcacoes[2];saida=horasMarcacoes[3]||"";}
+      mensagens.push("Fim de semana trabalhado — horas entram no banco");
+     }else if(temFolgaOuDsr&&!horasMarcacoes.length){
+      mensagens.push("Folga/DSR — sem lançamento e sem débito");
+      status="erro";
+      entrada="";saidaAlmoco="";retorno="";saida="";
+     }else if(temFalta&&horasMarcacoes.length<=1){
       tipoDia="falta";
       falta=true;
-      if(horasMarcacoes.length>=2){
-       if(mins(horasMarcacoes[0])>=12*60){
-        periodoFalta="manha";
-        entrada="";
-        saidaAlmoco="";
-        retorno=horasMarcacoes[0]||"";
-        saida=horasMarcacoes[1]||"";
-        mensagens.push("Falta manhã importada");
-       }else{
-        periodoFalta="tarde";
-        entrada=horasMarcacoes[0]||"";
-        saidaAlmoco=horasMarcacoes[1]||"";
-        retorno="";
-        saida="";
-        mensagens.push("Falta tarde importada");
-       }
+      periodoFalta="dia_inteiro";
+      entrada="";saidaAlmoco="";retorno="";saida="";
+      mensagens.push("Falta do dia inteiro — débito de 8h");
+     }else if(temFalta&&horasMarcacoes.length===2){
+      tipoDia="falta";
+      falta=true;
+      if(mins(horasMarcacoes[0])>=12*60){
+       periodoFalta="manha";entrada="";saidaAlmoco="";retorno=horasMarcacoes[0];saida=horasMarcacoes[1];
+       mensagens.push("Trabalho somente à tarde — restante do dia será débito");
       }else{
-       periodoFalta="dia_inteiro";
-       entrada="";
-       saidaAlmoco="";
-       retorno="";
-       saida="";
-       mensagens.push("Falta dia inteiro importada");
+       periodoFalta="tarde";entrada=horasMarcacoes[0];saidaAlmoco=horasMarcacoes[1];retorno="";saida="";
+       mensagens.push("Trabalho somente pela manhã — restante do dia será débito");
       }
-     }else if(!entrada||!saidaAlmoco||!retorno||!saida){
-      mensagens.push("Horários incompletos — conferir manualmente");
-      status="erro";
-      apagarExistente=false;
-     }else if(temAtraso&&horasMarcacoes.length<4){
-      mensagens.push("Dia com atraso incompleto — conferir manualmente");
-      status="erro";
-      apagarExistente=false;
+     }else if(!weekend&&(!entrada||!saidaAlmoco||!retorno||!saida)){
+      status="aviso";
+      mensagens.push("Marcações incompletas — horários foram salvos para correção manual; o saldo do dia fica pendente até completar");
+     }else if(weekend&&!(entrada&&saida)){
+      status="aviso";
+      mensagens.push("Marcações incompletas no fim de semana — conferir manualmente");
      }
 
      const existe=pontos.find(p=>p.colaboradora_id===colaboradoraSelecionada.id&&p.data===data);
-
      resultado.push({
       id:`pdf-digix-${idx}`,
       colaboradora_id:colaboradoraSelecionada.id,
@@ -550,7 +601,9 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
    if(!colab)erros.push("Colaboradora não localizada");
    if(!data)erros.push("Data não localizada");
    if(data&&mesRef&&data.slice(0,7)!==mesRef)erros.push("Fora do mês selecionado");
-   if(!entrada||!saidaAlmoco||!retorno||!saida)erros.push("Horários incompletos");
+   const avisos:string[]=[];
+   if(data&&fimSemana(data)){if(!(entrada&&saida))avisos.push("Horários incompletos no fim de semana");}
+   else if(!entrada||!saidaAlmoco||!retorno||!saida)avisos.push("Marcações incompletas — conferir manualmente");
    return{
     id:`digix-${idx}`,
     colaboradora_id:colab?.id||"",
@@ -561,8 +614,8 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
     retorno_almoco:retorno,
     saida,
     jornada_id:jornadaPadrao,
-    status:(erros.length?"erro":"ok") as "ok"|"erro",
-    mensagem:erros.join(" · ")||(existe?"Já existe ponto neste dia; será substituído":"Pronto para importar"),
+    status:(erros.length?"erro":avisos.length?"aviso":"ok") as "ok"|"aviso"|"erro",
+    mensagem:[...erros,...avisos].join(" · ")||(existe?"Já existe ponto neste dia; será substituído":"Pronto para importar"),
     jaExiste:Boolean(existe),
     observacao:`Importado do Digix${arquivo.name?` · ${arquivo.name}`:""}`,
     tipo_dia:"normal",
@@ -585,6 +638,7 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
   try{
    let salvas=0;
    let ignoradas=0;
+   let avisos=0;
    const colaboradoraImportacao=linhasDoMes[0].colaboradora_id;
    const [anoRef,mesNumeroRef]=mesRef.split("-").map(Number);
    const inicioMes=`${mesRef}-01`;
@@ -616,10 +670,11 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
    if(limparFechamento.error)throw limparFechamento.error;
 
    for(const linha of linhasDoMes){
-    if(linha.status!=="ok"){
+    if(linha.status==="erro"){
       ignoradas++;
       continue;
     }
+    if(linha.status==="aviso")avisos++;
 
     const tipoDia=linha.tipo_dia||"normal";
     const ehSemHorario=["feriado","folga","atestado","justificado"].includes(tipoDia)||String(tipoDia).startsWith("custom:")||(tipoDia==="falta"&&linha.periodo_falta==="dia_inteiro");
@@ -648,7 +703,7 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
 
    setModalImportacao(false);
    setLinhasImportacao([]);
-   setMsg(`${salvas} ponto(s) importado(s) do Digix com sucesso. ${ignoradas} linha(s) ficaram sem lançamento para conferência manual. Importamos somente as marcações; horas extras e devedoras foram recalculadas pelo sistema.`);
+   setMsg(`${salvas} dia(s) importado(s) do DIX. ${avisos} dia(s) ficaram com marcação incompleta para correção. ${ignoradas} linha(s) foram ignoradas. O banco de horas foi recalculado somente pelas marcações e pela carga de 8h.`);
    await carregar();
   }catch(erro){
    setMsg(erro instanceof Error?erro.message:"Não foi possível importar o arquivo do Digix.");
@@ -673,7 +728,7 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
 
 
 
- return <div className="bp">{msg&&<div className="bp-msg">{msg}</div>}<input ref={arquivoDigixRef} type="file" style={{display:"none"}} onChange={lerArquivoDigix}/>
+ return <div className="bp">{msg&&<div className="bp-msg">{msg}</div>}<input ref={arquivoDigixRef} type="file" accept=".pdf,.csv,.txt,.xlsx,.xls" style={{display:"none"}} onChange={lerArquivoDigix}/>
 
  <section className="bp-card bp-jornada-compacta"><div className="bp-jornadas-resumo"><div><b>JORNADAS / TURNOS</b><h2>{jornadas.length} horário(s) cadastrado(s)</h2><p>{vinculos.length} colaboradora(s) vinculada(s) aos turnos.</p></div><div className="bp-jornadas-resumo-acoes"><button type="button" className="sec" onClick={()=>setModalJornadas(true)}>Ver jornadas cadastradas</button><button type="button" onClick={novaJornada}>+ Nova jornada</button></div></div></section>
 
@@ -683,73 +738,74 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
 
  {abaPonto==="espelho"&&<>
 
- <div className="bp-resumo-faixa">
-
-  <div><span>Crédito bruto do mês</span><strong>{hm(creditoBrutoMes)}</strong></div>
-
-  <div><span>Abatido nas horas devidas</span><strong>{hm(resumo.compensado)}</strong></div>
-
-  <div><span>Extra real após abatimento</span><strong>{hm(resumo.extras)}</strong></div>
-
-  <div><span>Horas devedoras</span><strong>{hm(resumo.devidas)}</strong></div>
-
-  <div><span>Saldo anterior</span><strong>{hm(saldoAnteriorDevedor)}</strong></div>
-
-  <div><span>Restante anterior</span><strong>{hm(saldoAnteriorRestante)}</strong></div>
-
-  <div><span>Faltas</span><strong>{resumo.faltas}</strong></div>
-
-  <div><span>Sábados</span><strong>{resumo.sabados}</strong></div>
-
+ <div className="bp-banco-resumo">
+  <article><span>Horas previstas</span><strong>{hm(resumoMes.previstas)}</strong></article>
+  <article><span>Horas trabalhadas</span><strong>{hm(resumoMes.trabalhadas)}</strong></article>
+  <article className="credito"><span>Créditos do mês</span><strong>+{hm(resumoMes.creditos)}</strong></article>
+  <article className="debito"><span>Débitos do mês</span><strong>-{hm(resumoMes.debitos)}</strong></article>
+  <article className={saldoAnteriorMin<0?"debito":saldoAnteriorMin>0?"credito":""}><span>Saldo anterior</span><strong>{saldoAnteriorMin>0?"+":""}{hm(saldoAnteriorMin)}</strong></article>
+  <article className={saldoFinalMin<0?"debito destaque":saldoFinalMin>0?"credito destaque":"destaque"}><span>Banco de horas atual</span><strong>{saldoFinalMin>0?"+":""}{hm(saldoFinalMin)}</strong></article>
  </div>
 
  <section className="bp-fechamento-faixa bp-fechamento-individual">
-
-  <div className="bp-fechamento-faixa-info"><b>FECHAMENTO INDIVIDUAL</b><span>{pessoa?(colaboradoras.find(c=>c.id===pessoa)?.nome||"Colaboradora"):"Selecione uma colaboradora"} · {mesRef.split("-").reverse().join("/")}</span></div>
-
-  {pessoa&&<><div className={`bp-resultado-mini ${saldoLiquidoMin<0?"deve":saldoLiquidoMin>0?"recebe":"zerado"}`}><span>SALDO FINAL</span><strong>{saldoLiquidoMin<0?"COLABORADORA DEVE À EMPRESA":saldoLiquidoMin>0?"EMPRESA DEVE À COLABORADORA":"SEM SALDO DE HORAS"} · {hm(saldoLiquidoAbs)}</strong><small>Após abater saldo anterior e horas devedoras</small></div><button type="button" onClick={()=>setModalFechamento(true)}>{fechamentoAtual?.status==="FECHADO"?"Ver fechamento":"Fechar competência"}</button></>}
-
+  <div className="bp-fechamento-faixa-info"><b>BANCO DE HORAS · FECHAMENTO INDIVIDUAL</b><span>{pessoa?(pessoaAtual?.nome||"Colaboradora"):"Selecione uma colaboradora"} · {mesRef.split("-").reverse().join("/")}</span></div>
+  {pessoa&&<><div className={`bp-resultado-mini ${saldoFinalMin<0?"deve":saldoFinalMin>0?"recebe":"zerado"}`}><span>SALDO ACUMULADO</span><strong>{saldoFinalMin<0?"COLABORADORA ESTÁ DEVENDO":saldoFinalMin>0?"COLABORADORA TEM CRÉDITO":"BANCO DE HORAS ZERADO"} · {hm(saldoFinalAbs)}</strong><small>{resumoMes.pendencias?`${resumoMes.pendencias} marcação(ões) pendente(s) de correção`:"Saldo transportado automaticamente entre competências"}</small></div><button type="button" onClick={()=>setModalFechamento(true)}>{fechamentoAtual?.status==="FECHADO"?"Ver fechamento":"Fechar competência"}</button></>}
  </section>
 
- <section className="bp-card bp-espelho-grande"><div className="bp-importador-digix"><div><b>IMPORTAR ESPELHO DIGIX</b><span>Selecione o mês, a colaboradora e anexe o arquivo para preencher o espelho automaticamente.</span></div><label>Mês referência<input type="month" value={mesRef} onChange={e=>setMesRef(e.target.value)}/></label><label>Colaboradora<select value={pessoa} onChange={e=>setPessoa(e.target.value)}><option value="">Selecione uma colaboradora</option>{colaboradoras.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select></label><button type="button" onClick={()=>arquivoDigixRef.current?.click()} disabled={!pessoa}>ANEXAR PONTO DIX</button></div>
+ <section className="bp-card bp-espelho-grande"><div className="bp-importador-digix"><div><b>IMPORTAR ESPELHO DIX</b><span>O sistema importa somente as batidas. Segunda a sexta: 8h previstas. Sábado: tudo o que for trabalhado entra como crédito no banco.</span></div><label>Mês referência<input type="month" value={mesRef} onChange={e=>setMesRef(e.target.value)}/></label><label>Colaboradora<select value={pessoa} onChange={e=>setPessoa(e.target.value)}><option value="">Selecione uma colaboradora</option>{colaboradoras.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select></label><button type="button" onClick={()=>arquivoDigixRef.current?.click()} disabled={!pessoa}>ANEXAR PONTO DIX</button></div>
 
- {pessoa?<div className="bp-calendario-info"><div><b>ESPELHO MENSAL COMPLETO</b><span>{calendario.length} dias exibidos · dias sem lançamento ficam visíveis para conferência.</span></div><div className="bp-legenda"><span><i className="normal"></i>Normal</span><span><i className="devendo"></i>Devendo</span><span><i className="extra"></i>Extra</span><span><i className="fim"></i>Fim de semana</span><span><i className="feriado"></i>Feriado</span></div></div>:<div className="bp-calendario-aviso">Selecione uma colaboradora para visualizar todos os dias da competência.</div>}
+ {pessoa?<div className="bp-calendario-info"><div><b>ESPELHO MENSAL · BANCO DE HORAS</b><span>Saldo do dia = horas trabalhadas − 8h nos dias úteis. Fim de semana não possui carga prevista.</span></div><div className="bp-legenda"><span><i className="normal"></i>Zerado</span><span><i className="extra"></i>Crédito</span><span><i className="devendo"></i>Débito</span><span><i className="fim"></i>Fim de semana</span><span><i className="feriado"></i>Justificado</span></div></div>:<div className="bp-calendario-aviso">Selecione uma colaboradora para visualizar o banco de horas.</div>}
 
- {pessoa&&<div className="bp-table bp-table-espelho"><table><thead><tr className="bp-head-grupo"><th rowSpan={2}>Data</th><th rowSpan={2}>Dia</th><th colSpan={4} className="bp-horarios-grupo">Horários</th><th rowSpan={2}>Trabalhado</th><th rowSpan={2}>Extra</th><th rowSpan={2}>Devedoras</th><th rowSpan={2}>Situação</th><th rowSpan={2}>Observação</th><th rowSpan={2}>Ação</th></tr><tr className="bp-head-sub"><th>Entrada</th><th>Almoço</th><th>Retorno</th><th>Saída</th></tr></thead><tbody>{calendarioPessoa.map(({data,dia,ponto})=>{const weekend=fimSemana(data);if(!ponto)return <tr key={data} className={weekend?"bp-dia-fimsemana":"bp-dia-pendente"}><td>{br(data)}</td><td>{dia}</td><td colSpan={6}>—</td><td>—</td><td><span className={`bp-status ${weekend?"folga":"pendente"}`}>{weekend?"Fim de semana":"Sem lançamento"}</span></td><td>—</td><td><button onClick={()=>novo(data)}>Registrar</button></td></tr>;const s=saldo(ponto),tipo=ponto.tipo_dia||(ponto.falta?"falta":"normal"),semHorario=["feriado","folga","atestado","justificado"].includes(tipo)||(tipo==="falta"&&!["manha","tarde"].includes(String(ponto.periodo_falta||"")))||tipo.startsWith("custom:");const tipoCustom=tipo.startsWith("custom:")?tiposDia.find(t=>`custom:${t.id}`===tipo)?.nome:"";const label=tipoCustom||(tipo==="reposicao"?"Reposição":tipo==="feriado"?"Feriado":tipo==="folga"?"Folga":tipo==="atestado"?"Atestado":tipo==="atestado_parcial"?"Atestado parcial":tipo==="justificado"?"Justificado":tipo==="justificado_parcial"?"Justificado parcial":tipo==="falta"?(ponto.apresentou_atestado?(ponto.periodo_falta==="dia_inteiro"?"Atestado":ponto.periodo_falta==="manha"?"Manhã justificada":"Tarde justificada"):(ponto.periodo_falta==="manha"?"Falta manhã":ponto.periodo_falta==="tarde"?"Falta tarde":"Falta")):weekend?"Hora extra":s<0?"Devendo":"Normal");return <tr key={data}><td>{br(data)}</td><td>{dia}</td><td>{semHorario||(tipo==="falta"&&ponto.periodo_falta==="manha")||(tipo==="reposicao"&&ponto.periodo_reposicao==="tarde")?"—":String(ponto.entrada).slice(0,5)}</td><td>{semHorario||(tipo==="falta"&&ponto.periodo_falta==="manha")||(tipo==="reposicao"&&ponto.periodo_reposicao==="tarde")?"—":String(ponto.saida_almoco).slice(0,5)}</td><td>{semHorario||(tipo==="falta"&&ponto.periodo_falta==="tarde")||(tipo==="reposicao"&&ponto.periodo_reposicao==="manha")?"—":String(ponto.retorno_almoco).slice(0,5)}</td><td>{semHorario||(tipo==="falta"&&ponto.periodo_falta==="tarde")||(tipo==="reposicao"&&ponto.periodo_reposicao==="manha")?"—":String(ponto.saida).slice(0,5)}</td><td>{semHorario?"—":hm(trab(ponto))}</td><td className="pos">{semHorario?"—":hm(extraDia(ponto))}</td><td className="neg">{["feriado","folga","atestado","justificado","atestado_parcial","justificado_parcial"].includes(tipo)||tipo.startsWith("custom:")?"0h00":hm(devidaDia(ponto))}</td><td><span className={`bp-status ${tipo==="reposicao"?"reposicao":tipo.startsWith("custom:")?"justificado":tipo==="feriado"?"feriado":tipo==="folga"?"folga":tipo==="atestado"||tipo==="atestado_parcial"?"atestado":tipo==="justificado"||tipo==="justificado_parcial"?"justificado":tipo==="falta"?"falta":weekend?"extra":s<0?"devendo":"normal"}`}>{label}</span></td><td>{(["atestado_parcial","justificado_parcial"].includes(tipo)||(tipo==="falta"&&ponto.apresentou_atestado))?`${ponto.observacao?`${ponto.observacao} · `:""}${hm(horasJustificadasDia(ponto))} justificadas`:tipo==="reposicao"?`${ponto.observacao?`${ponto.observacao} · `:""}${ponto.data_falta_referencia?`Reposição da falta de ${br(ponto.data_falta_referencia)}`:"Reposição de horas"}`:ponto.observacao||"—"}</td><td><button onClick={()=>editar(ponto)}>Editar</button></td></tr>})}</tbody></table></div>}
+ {pessoa&&<div className="bp-table bp-table-espelho bp-table-banco-horas"><table><thead><tr className="bp-head-grupo"><th rowSpan={2}>Data</th><th rowSpan={2}>Dia</th><th colSpan={4} className="bp-horarios-grupo">Marcações DIX</th><th rowSpan={2}>Trabalhado</th><th rowSpan={2}>Previsto</th><th rowSpan={2}>Saldo do dia</th><th rowSpan={2}>Situação</th><th rowSpan={2}>Observação</th><th rowSpan={2}>Ação</th></tr><tr className="bp-head-sub"><th>Entrada</th><th>Saída almoço</th><th>Volta almoço</th><th>Saída</th></tr></thead><tbody>{calendarioPessoa.map(({data,dia,ponto})=>{
+  const weekend=fimSemana(data);
+  const dentro=dataDentroBanco(data);
+  const hojeMesmo=data===hojeRef;
+  const futuro=data>hojeRef;
+  const previsto=previstoDiaAtivo(data,ponto);
+  const trabalhado=ponto?trab(ponto):0;
+  const incompleta=Boolean(ponto&&!marcacaoCompleta(ponto)&&!tipoSemDebito(ponto));
+  const saldoDia=!dentro?0:saldoDiaAtivo(data,ponto);
+  if(!ponto){
+   const semBanco=!inicioBancoPessoa||data<inicioBancoPessoa;
+   const label=futuro?"Aguardando dia":semBanco?"Fora do período":weekend?"Fim de semana":hojeMesmo?"Dia em andamento":"Falta / sem marcação";
+   const classe=futuro||semBanco?"pendente":weekend?"folga":hojeMesmo?"pendente":"falta";
+   return <tr key={data} className={weekend?"bp-dia-fimsemana":"bp-dia-pendente"}><td>{br(data)}</td><td>{dia}</td><td colSpan={4}>—</td><td>{dentro&&!weekend&&!hojeMesmo?"0h00":"—"}</td><td>{dentro&&!weekend&&!hojeMesmo?hm(jornadaDo(null).carga||480):"0h00"}</td><td className={dentro&&!weekend&&!hojeMesmo?"neg":""}>{dentro&&!weekend&&!hojeMesmo?`-${hm(jornadaDo(null).carga||480)}`:"0h00"}</td><td><span className={`bp-status ${classe}`}>{label}</span></td><td>{dentro&&!weekend&&!hojeMesmo?"Sem marcações no DIX — débito da carga diária":"—"}</td><td><button onClick={()=>novo(data)}>Registrar</button></td></tr>;
+  }
+  const tipo=ponto.tipo_dia||(ponto.falta?"falta":"normal");
+  const tipoCustom=tipo.startsWith("custom:")?tiposDia.find(t=>`custom:${t.id}`===tipo)?.nome:"";
+  const justificado=tipoSemDebito(ponto);
+  const label=tipoCustom||(incompleta?"Marcação incompleta":tipo==="reposicao"?"Reposição":tipo==="feriado"?"Feriado":tipo==="folga"?"Folga":tipo==="atestado"||tipo==="atestado_parcial"?"Atestado":tipo==="justificado"||tipo==="justificado_parcial"?"Justificado":tipo==="falta"?(ponto.apresentou_atestado?"Falta justificada":ponto.periodo_falta==="manha"?"Falta manhã":ponto.periodo_falta==="tarde"?"Falta tarde":"Falta"):weekend?"Crédito fim de semana":saldoDia>0?"Crédito":saldoDia<0?"Débito":"Carga cumprida");
+  const classe=incompleta?"pendente":justificado?"atestado":tipo==="falta"&&!ponto.apresentou_atestado?"falta":saldoDia>0?"extra":saldoDia<0?"devendo":weekend?"folga":"normal";
+  const obs=incompleta?`${ponto.observacao?`${ponto.observacao} · `:""}Complete as marcações para calcular o saldo`:(["atestado_parcial","justificado_parcial"].includes(tipo)||(tipo==="falta"&&ponto.apresentou_atestado))?`${ponto.observacao?`${ponto.observacao} · `:""}${hm(horasJustificadasDia(ponto))} justificadas`:ponto.observacao||"—";
+  const mostrar=(v:string|null)=>v?String(v).slice(0,5):"—";
+  return <tr key={data}><td>{br(data)}</td><td>{dia}</td><td>{mostrar(ponto.entrada)}</td><td>{mostrar(ponto.saida_almoco)}</td><td>{mostrar(ponto.retorno_almoco)}</td><td>{mostrar(ponto.saida)}</td><td>{marcacaoCompleta(ponto)||trabalhado?hm(trabalhado):"—"}</td><td>{hm(previsto)}</td><td className={incompleta?"":saldoDia>0?"pos":saldoDia<0?"neg":""}>{`${saldoDia>0?"+":""}${hm(saldoDia)}`}</td><td><span className={`bp-status ${classe}`}>{label}</span></td><td>{obs}</td><td><button onClick={()=>editar(ponto)}>Editar</button></td></tr>;
+ })}</tbody></table></div>}
 
  </section>
 
  </>}
 
- {modalImportacao&&<div className="bp-bg"><div className="bp-modal bp-modal-importacao"><header><div><b className="bp-modal-eyebrow">IMPORTAÇÃO DIGIX</b><h2>Conferir arquivo de ponto</h2><small>{nomeArquivoDigix||"Arquivo selecionado"} · {linhasImportacao.filter(l=>l.status==="ok").length} linha(s) válida(s)</small></div><button type="button" onClick={()=>setModalImportacao(false)}>×</button></header><div className="bp-importacao-body"><div className="bp-importacao-aviso"><b>Antes de confirmar</b><span>Confira se colaboradora, data e horários foram reconhecidos corretamente. Linhas com erro não serão salvas; folgas e DSR removem registros antigos do dia.</span></div><div className="bp-importacao-table"><table><thead><tr><th>Status</th><th>Colaboradora</th><th>Data</th><th>Entrada</th><th>Almoço</th><th>Retorno</th><th>Saída</th><th>Mensagem</th></tr></thead><tbody>{linhasImportacao.map(l=><tr key={l.id} className={l.status==="ok"?"ok":"erro"}><td>{l.status==="ok"?"✓":"!"}</td><td>{l.colaboradora_nome}</td><td>{br(l.data)}</td><td>{l.entrada||"—"}</td><td>{l.saida_almoco||"—"}</td><td>{l.retorno_almoco||"—"}</td><td>{l.saida||"—"}</td><td>{l.mensagem}</td></tr>)}</tbody></table></div></div><footer><button type="button" onClick={()=>setModalImportacao(false)} disabled={importandoDigix}>Cancelar</button><button type="button" onClick={()=>void confirmarImportacaoDigix()} disabled={importandoDigix||!linhasImportacao.some(l=>l.status==="ok")}>{importandoDigix?"Importando...":"Confirmar importação"}</button></footer></div></div>}
+ {modalImportacao&&<div className="bp-bg"><div className="bp-modal bp-modal-importacao"><header><div><b className="bp-modal-eyebrow">IMPORTAÇÃO DIGIX</b><h2>Conferir arquivo de ponto</h2><small>{nomeArquivoDigix||"Arquivo selecionado"} · {linhasImportacao.filter(l=>l.status!=="erro").length} linha(s) importável(is)</small></div><button type="button" onClick={()=>setModalImportacao(false)}>×</button></header><div className="bp-importacao-body"><div className="bp-importacao-aviso"><b>Antes de confirmar</b><span>Confira se colaboradora, data e horários foram reconhecidos corretamente. Linhas em amarelo serão salvas com marcações incompletas para correção manual. Linhas em vermelho não serão salvas. Não usamos os cálculos de HE do DIX.</span></div><div className="bp-importacao-table"><table><thead><tr><th>Status</th><th>Colaboradora</th><th>Data</th><th>Entrada</th><th>Almoço</th><th>Retorno</th><th>Saída</th><th>Mensagem</th></tr></thead><tbody>{linhasImportacao.map(l=><tr key={l.id} className={l.status}><td>{l.status==="ok"?"✓":l.status==="aviso"?"⚠":"!"}</td><td>{l.colaboradora_nome}</td><td>{br(l.data)}</td><td>{l.entrada||"—"}</td><td>{l.saida_almoco||"—"}</td><td>{l.retorno_almoco||"—"}</td><td>{l.saida||"—"}</td><td>{l.mensagem}</td></tr>)}</tbody></table></div></div><footer><button type="button" onClick={()=>setModalImportacao(false)} disabled={importandoDigix}>Cancelar</button><button type="button" onClick={()=>void confirmarImportacaoDigix()} disabled={importandoDigix||!linhasImportacao.some(l=>l.status!=="erro")}>{importandoDigix?"Importando...":"Confirmar importação"}</button></footer></div></div>}
 
  {modalFechamento&&pessoa&&<div className="bp-bg"><div className="bp-modal bp-modal-fechamento">
-
-  <header><div><b className="bp-modal-eyebrow">FECHAMENTO INDIVIDUAL</b><h2>{colaboradoras.find(c=>c.id===pessoa)?.nome}</h2><small>Competência {mesRef.split("-").reverse().join("/")} {fechamentoAtual?.status==="FECHADO"?"· FECHADA":""}</small></div><button type="button" onClick={()=>setModalFechamento(false)}>×</button></header>
-
+  <header><div><b className="bp-modal-eyebrow">BANCO DE HORAS · FECHAMENTO</b><h2>{pessoaAtual?.nome}</h2><small>Competência {mesRef.split("-").reverse().join("/")} {fechamentoAtual?.status==="FECHADO"?"· FECHADA":""}</small></div><button type="button" onClick={()=>setModalFechamento(false)}>×</button></header>
   <div className="bp-fechamento-modal-body">
-
-   <div className="bp-modal-metricas"><article><span>Horas previstas</span><strong>{hm(horasPrevistas)}</strong></article><article><span>Horas trabalhadas</span><strong>{hm(horasTrabalhadas)}</strong></article><article><span>Crédito bruto do mês</span><strong>{hm(creditoBrutoMes)}</strong><small>Antes de abater dívidas</small></article><article><span>Abatido nas horas devidas</span><strong>{hm(resumo.compensado)}</strong><small>Usadas para quitar saldo anterior/devedor</small></article><article><span>Extra real após abatimento</span><strong>{hm(resumo.extras)}</strong><small>{moeda(valorExtrasTotal)}</small></article><article><span>Horas de reposição</span><strong>{hm(resumoBruto.reposicao)}</strong><small>Horas trabalhadas especificamente para repor faltas</small></article><article><span>Saldo anterior</span><strong>{hm(saldoAnteriorDevedor)}</strong><small>Débito acumulado de competências anteriores</small></article><article><span>Abatido do saldo anterior</span><strong>{hm(compensadoSaldoAnterior)}</strong><small>Horas do mês usadas para compensar débitos antigos</small></article><article><span>Horas devedoras</span><strong>{hm(resumo.devidas)}</strong><small>Saldo restante devido à empresa</small></article><article><span>Faltas</span><strong>{resumo.faltas}</strong></article><article><span>Valor da hora</span><strong>{moeda(vh)}</strong></article></div>
-
-   <div className="bp-origem-extras"><div className="bp-origem-extras-head"><b>DE ONDE VEIO O CRÉDITO BRUTO</b><span>{hm(creditoBrutoMes)} bruto · {hm(resumo.extras)} extra real</span></div>{lista.filter(p=>extraDia(p)>0).length?lista.filter(p=>extraDia(p)>0).map(p=>{const j=jornadaDo(p);return <div className="bp-extra-dia" key={p.id}><span><b>{br(p.data)}</b> · {j.nome}</span><span>Trabalhado {hm(trab(p))}</span><strong>+ {hm(extraDia(p))}</strong></div>}):<div className="bp-extra-vazio">Nenhum dia gerou hora extra nesta competência.</div>}</div>
-
-   <div className={`bp-resultado-final ${saldoLiquidoMin<0?"deve":saldoLiquidoMin>0?"recebe":"zerado"}`}><div><span>RESULTADO DO FECHAMENTO</span><strong>{saldoLiquidoMin<0?"COLABORADORA DEVE À EMPRESA":saldoLiquidoMin>0?"EMPRESA DEVE À COLABORADORA":"SEM SALDO DE HORAS"}</strong><small>Saldo final após compensação automática das horas do mês.</small></div><b>{hm(saldoLiquidoAbs)}</b></div>
-
-   <p className="bp-aviso-fechamento">O saldo do mês compensa horas extras e horas devedoras. O detalhamento acima preserva os dois valores separadamente para conferência.</p>
-
+   {pendenciasFechamento.length>0&&<div className="bp-pendencia-fechamento"><b>ATENÇÃO</b><span>Existem {pendenciasFechamento.length} dia(s) anterior(es) com marcações incompletas. Corrija os horários antes do fechamento.</span></div>}
+   <div className="bp-modal-metricas bp-modal-banco"><article><span>Horas previstas</span><strong>{hm(resumoMes.previstas)}</strong></article><article><span>Horas trabalhadas</span><strong>{hm(resumoMes.trabalhadas)}</strong></article><article><span>Créditos do mês</span><strong className="pos">+{hm(resumoMes.creditos)}</strong><small>Horas acima da carga + sábados trabalhados</small></article><article><span>Débitos do mês</span><strong className="neg">-{hm(resumoMes.debitos)}</strong><small>Horas abaixo da carga e faltas</small></article><article><span>Saldo anterior</span><strong>{saldoAnteriorMin>0?"+":""}{hm(saldoAnteriorMin)}</strong><small>Saldo acumulado até o mês anterior</small></article><article><span>Saldo do mês</span><strong>{saldoMesMin>0?"+":""}{hm(saldoMesMin)}</strong><small>Créditos menos débitos desta competência</small></article><article><span>Faltas</span><strong>{resumoMes.faltas}</strong></article><article><span>Sábados trabalhados</span><strong>{resumoMes.sabados}</strong></article><article><span>Pendências de marcação</span><strong>{resumoMes.pendencias}</strong></article></div>
+   <div className="bp-origem-extras"><div className="bp-origem-extras-head"><b>CRÉDITOS GERADOS NESTA COMPETÊNCIA</b><span>+{hm(resumoMes.creditos)}</span></div>{calendarioPessoa.filter(({data,ponto})=>ponto&&marcacaoCompleta(ponto)&&saldoDiaAtivo(data,ponto)>0).length?calendarioPessoa.filter(({data,ponto})=>ponto&&marcacaoCompleta(ponto)&&saldoDiaAtivo(data,ponto)>0).map(({data,ponto})=><div className="bp-extra-dia" key={data}><span><b>{br(data)}</b> · {sabado(data)?"Sábado trabalhado":"Acima da carga diária"}</span><span>Trabalhado {hm(trab(ponto!))}</span><strong>+ {hm(saldoDiaAtivo(data,ponto!))}</strong></div>):<div className="bp-extra-vazio">Nenhum crédito gerado nesta competência.</div>}</div>
+   <div className={`bp-resultado-final ${saldoFinalMin<0?"deve":saldoFinalMin>0?"recebe":"zerado"}`}><div><span>BANCO DE HORAS APÓS O FECHAMENTO</span><strong>{saldoFinalMin<0?"SALDO DEVEDOR":saldoFinalMin>0?"SALDO CREDOR":"SALDO ZERADO"}</strong><small>Este valor será usado automaticamente como saldo anterior da próxima competência.</small></div><b>{saldoFinalMin>0?"+":""}{hm(saldoFinalMin)}</b></div>
+   <p className="bp-aviso-fechamento">O fechamento não transforma o saldo em dinheiro. O banco permanece em horas e continua acumulado entre os meses.</p>
   </div>
-
-  <footer>{fechamentoAtual?.status==="FECHADO"?<><button type="button" onClick={()=>setModalFechamento(false)}>Fechar</button><button type="button" onClick={()=>void reabrirCompetencia()}>Reabrir competência</button></>:<><button type="button" onClick={()=>setModalFechamento(false)}>Cancelar</button><button type="button" onClick={()=>void fecharCompetencia()}>Confirmar fechamento</button></>}</footer>
-
+  <footer>{fechamentoAtual?.status==="FECHADO"?<><button type="button" onClick={()=>setModalFechamento(false)}>Fechar</button><button type="button" onClick={()=>void reabrirCompetencia()}>Reabrir competência</button></>:<><button type="button" onClick={()=>setModalFechamento(false)}>Cancelar</button><button type="button" onClick={()=>void fecharCompetencia()} disabled={pendenciasFechamento.length>0}>Confirmar fechamento</button></>}</footer>
  </div></div>}
 
  {modalJornadas&&<div className="bp-bg"><div className="bp-modal bp-modal-jornadas"><header><div><h2>Jornadas cadastradas</h2><small>Escolha um horário para gerenciar equipe, editar ou excluir.</small></div><button type="button" onClick={()=>setModalJornadas(false)}>×</button></header><div className="bp-jornadas-modal-lista">{jornadas.length?jornadas.map(j=><article key={j.id}><div><strong>{j.nome}</strong><span>{j.entrada} às {j.saida} · almoço {j.saidaAlmoco}–{j.retornoAlmoco}</span><small>Tolerância: {j.tolEntrada} min entrada / {j.tolSaida} min saída · {vinculos.filter(v=>v.jornada_id===j.id).length} colaboradora(s)</small></div><div className="acoes"><button type="button" onClick={()=>{setModalJornadas(false);gerenciarEquipe(j)}}>Gerenciar equipe</button><button type="button" onClick={()=>{setModalJornadas(false);editarJornada(j)}}>Editar</button><button type="button" className="del" onClick={()=>void excluirJornada(j.id)}>Excluir</button></div></article>):<p className="bp-vazio">Nenhuma jornada cadastrada.</p>}</div><footer><button type="button" onClick={()=>setModalJornadas(false)}>Fechar</button><button type="button" onClick={()=>{setModalJornadas(false);novaJornada()}}>+ Nova jornada</button></footer></div></div>}
 
  {modalEquipe&&jornadaEquipe&&<div className="bp-bg"><div className="bp-modal"><header><div><h2>Equipe da jornada</h2><small>{jornadaEquipe.nome} · {jornadaEquipe.entrada}–{jornadaEquipe.saida}</small></div><button type="button" onClick={()=>setModalEquipe(false)}>×</button></header><div className="bp-equipe-lista">{colaboradoras.filter(c=>c.status!=="Desligada").map(c=>{const outro=vinculos.find(v=>v.colaboradora_id===c.id&&v.jornada_id!==jornadaEquipe.id);return <label key={c.id} className={outro?"ocupado":""}><input type="checkbox" checked={selecionados.includes(c.id)} onChange={e=>setSelecionados(a=>e.target.checked?[...a,c.id]:a.filter(id=>id!==c.id))}/><span><b>{c.nome}</b>{outro&&<small>Atualmente em: {jornadas.find(j=>j.id===outro.jornada_id)?.nome||"outra jornada"} — ao salvar será transferida.</small>}</span></label>})}</div><footer><button type="button" onClick={()=>setModalEquipe(false)}>Cancelar</button><button type="button" onClick={()=>void salvarEquipe()}>Salvar equipe</button></footer></div></div>}
 
- {modalJornada&&<div className="bp-bg"><div className="bp-modal"><header><h2>Configurar jornada</h2><button type="button" onClick={()=>setModalJornada(false)}>×</button></header><div className="bp-form"><label className="wide">Nome da jornada<input value={cfg.nome} onChange={e=>setCfg({...cfg,nome:e.target.value})} placeholder="Ex.: Jornada 08:00"/></label>{[["Entrada","entrada"],["Saída almoço","saidaAlmoco"],["Retorno almoço","retornoAlmoco"],["Saída","saida"]].map(([rotulo,chave])=><label key={chave}>{rotulo}<input type="time" value={(cfg as any)[chave]} onChange={e=>setCfg({...cfg,[chave]:e.target.value})}/></label>)}<label>Tolerância entrada (min)<input type="number" min="0" value={cfg.tolEntrada} onChange={e=>setCfg({...cfg,tolEntrada:Number(e.target.value||0)})}/></label><label>Tolerância saída (min)<input type="number" min="0" value={cfg.tolSaida} onChange={e=>setCfg({...cfg,tolSaida:Number(e.target.value||0)})}/></label></div><footer><button type="button" onClick={()=>setModalJornada(false)}>Cancelar</button><button type="button" onClick={()=>void salvarJornada()}>Salvar jornada</button></footer></div></div>}
+ {modalJornada&&<div className="bp-bg"><div className="bp-modal"><header><h2>Configurar jornada</h2><button type="button" onClick={()=>setModalJornada(false)}>×</button></header><div className="bp-form"><label className="wide">Nome da jornada<input value={cfg.nome} onChange={e=>setCfg({...cfg,nome:e.target.value})} placeholder="Ex.: Jornada 08:00"/></label>{[["Entrada","entrada"],["Saída almoço","saidaAlmoco"],["Retorno almoço","retornoAlmoco"],["Saída","saida"]].map(([rotulo,chave])=><label key={chave}>{rotulo}<input type="time" value={(cfg as any)[chave]} onChange={e=>setCfg({...cfg,[chave]:e.target.value})}/></label>)}<label>Tolerância visual entrada (min)<input type="number" min="0" value={cfg.tolEntrada} onChange={e=>setCfg({...cfg,tolEntrada:Number(e.target.value||0)})}/></label><label>Tolerância visual saída (min)<input type="number" min="0" value={cfg.tolSaida} onChange={e=>setCfg({...cfg,tolSaida:Number(e.target.value||0)})}/></label></div><footer><button type="button" onClick={()=>setModalJornada(false)}>Cancelar</button><button type="button" onClick={()=>void salvarJornada()}>Salvar jornada</button></footer></div></div>}
 
- {modal&&<div className="bp-bg"><form className="bp-modal" onSubmit={salvar}><header><h2>{edit?"Editar":"Novo"} ponto</h2><button type="button" onClick={()=>setModal(false)}>×</button></header><div className="bp-form"><label>Colaboradora<select required value={f.colaboradora_id} onChange={e=>{const cid=e.target.value,jid=vinculos.find(v=>v.colaboradora_id===cid)?.jornada_id||"",j=jornadas.find(x=>x.id===jid);setF({...f,colaboradora_id:cid,jornada_id:jid,...(j?{entrada:j.entrada,saida_almoco:j.saidaAlmoco,retorno_almoco:j.retornoAlmoco,saida:j.saida}:{})})}}><option value="">Selecione</option>{colaboradoras.filter(c=>c.status!=="Desligada").map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select></label><label>Jornada / turno<select required value={f.jornada_id} disabled><option value="">Selecione</option>{jornadas.map(j=><option key={j.id} value={j.id}>{j.nome} · {j.entrada}–{j.saida}</option>)}</select></label><label>Data<input type="date" required value={f.data} onChange={e=>setF({...f,data:e.target.value})}/></label><label>Tipo do dia<select value={f.tipo_dia} onChange={e=>{const v=e.target.value;setF({...f,tipo_dia:v,falta:v==="falta",...(v==="falta"?{periodo_falta:f.periodo_falta||"dia_inteiro",apresentou_atestado:f.apresentou_atestado||false}:{periodo_falta:"dia_inteiro",apresentou_atestado:false})});if(v!=="__novo__")setNovoTipoDia("")}}><option value="normal">Dia normal</option><option value="falta">Falta</option><option value="reposicao">Reposição de horas</option><option value="feriado">Feriado — sem expediente</option><option value="folga">Folga</option><option value="atestado">Atestado — dia inteiro</option><option value="justificado">Justificado — dia inteiro</option>{tiposDia.map(t=><option key={t.id} value={`custom:${t.id}`}>{t.nome}</option>)}<option value="__novo__">+ Criar novo tipo do dia</option></select>{f.tipo_dia==="__novo__"&&<div className="bp-novo-tipo-dia"><input autoFocus value={novoTipoDia} onChange={e=>setNovoTipoDia(e.target.value)} placeholder="Ex.: Treinamento"/><button type="button" onClick={()=>void criarTipoDia()}>Salvar tipo</button></div>}</label>{f.tipo_dia==="falta"&&<><label>Período da falta<select value={f.periodo_falta} onChange={e=>setF({...f,periodo_falta:e.target.value})}><option value="manha">Parte da manhã</option><option value="tarde">Parte da tarde</option><option value="dia_inteiro">Dia inteiro</option></select></label><label>Justificativa<select value={f.apresentou_atestado?"sim":"nao"} onChange={e=>setF({...f,apresentou_atestado:e.target.value==="sim"})}><option value="nao">Sem atestado</option><option value="sim">Com atestado</option></select></label></>}{f.tipo_dia==="reposicao"&&<><label>Período trabalhado<select value={f.periodo_reposicao} onChange={e=>setF({...f,periodo_reposicao:e.target.value})}><option value="manha">Somente manhã</option><option value="tarde">Somente tarde</option><option value="personalizado">Horário personalizado</option></select></label><label>Referente à falta de<input type="date" value={f.data_falta_referencia} onChange={e=>setF({...f,data_falta_referencia:e.target.value})}/></label><div className="bp-reposicao-info wide"><b>REPOSIÇÃO DE HORAS</b><span>Essas horas abatem o saldo devedor e não geram hora extra, inclusive aos sábados e domingos.</span></div>{f.periodo_reposicao==="manha"&&<><label>Entrada pela manhã<input type="time" value={f.entrada} onChange={e=>setF({...f,entrada:e.target.value})}/></label><label>Saída da manhã<input type="time" value={f.saida_almoco} onChange={e=>setF({...f,saida_almoco:e.target.value})}/></label></>}{f.periodo_reposicao==="tarde"&&<><label>Entrada à tarde<input type="time" value={f.retorno_almoco} onChange={e=>setF({...f,retorno_almoco:e.target.value})}/></label><label>Saída<input type="time" value={f.saida} onChange={e=>setF({...f,saida:e.target.value})}/></label></>}{f.periodo_reposicao==="personalizado"&&<>{[["Entrada","entrada"],["Saída almoço","saida_almoco"],["Retorno almoço","retorno_almoco"],["Saída","saida"]].map(([rotulo,chave])=><label key={chave}>{rotulo}<input type="time" value={(f as any)[chave]} onChange={e=>setF({...f,[chave]:e.target.value})}/></label>)}</>}</>}
+ {modal&&<div className="bp-bg"><form className="bp-modal" onSubmit={salvar}><header><h2>{edit?"Editar":"Novo"} ponto</h2><button type="button" onClick={()=>setModal(false)}>×</button></header><div className="bp-form"><label>Colaboradora<select required value={f.colaboradora_id} onChange={e=>{const cid=e.target.value,jid=vinculos.find(v=>v.colaboradora_id===cid)?.jornada_id||"",j=jornadas.find(x=>x.id===jid);setF({...f,colaboradora_id:cid,jornada_id:jid,...(j?{entrada:j.entrada,saida_almoco:j.saidaAlmoco,retorno_almoco:j.retornoAlmoco,saida:j.saida}:{})})}}><option value="">Selecione</option>{colaboradoras.filter(c=>c.status!=="Desligada").map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select></label><label>Jornada / turno<select required value={f.jornada_id} disabled><option value="">Selecione</option>{jornadas.map(j=><option key={j.id} value={j.id}>{j.nome} · {j.entrada}–{j.saida}</option>)}</select></label><label>Data<input type="date" required value={f.data} onChange={e=>setF({...f,data:e.target.value})}/></label><label>Tipo do dia<select value={f.tipo_dia} onChange={e=>{const v=e.target.value;setF({...f,tipo_dia:v,falta:v==="falta",...(v==="falta"?{periodo_falta:f.periodo_falta||"dia_inteiro",apresentou_atestado:f.apresentou_atestado||false}:{periodo_falta:"dia_inteiro",apresentou_atestado:false})});if(v!=="__novo__")setNovoTipoDia("")}}><option value="normal">Dia normal</option><option value="falta">Falta</option><option value="reposicao">Reposição de horas</option><option value="feriado">Feriado — sem expediente</option><option value="folga">Folga</option><option value="atestado">Atestado — dia inteiro</option><option value="justificado">Justificado — dia inteiro</option>{tiposDia.map(t=><option key={t.id} value={`custom:${t.id}`}>{t.nome}</option>)}<option value="__novo__">+ Criar novo tipo do dia</option></select>{f.tipo_dia==="__novo__"&&<div className="bp-novo-tipo-dia"><input autoFocus value={novoTipoDia} onChange={e=>setNovoTipoDia(e.target.value)} placeholder="Ex.: Treinamento"/><button type="button" onClick={()=>void criarTipoDia()}>Salvar tipo</button></div>}</label>{f.tipo_dia==="falta"&&<><label>Período da falta<select value={f.periodo_falta} onChange={e=>setF({...f,periodo_falta:e.target.value})}><option value="manha">Parte da manhã</option><option value="tarde">Parte da tarde</option><option value="dia_inteiro">Dia inteiro</option></select></label><label>Justificativa<select value={f.apresentou_atestado?"sim":"nao"} onChange={e=>setF({...f,apresentou_atestado:e.target.value==="sim"})}><option value="nao">Sem atestado</option><option value="sim">Com atestado</option></select></label></>}{f.tipo_dia==="reposicao"&&<><label>Período trabalhado<select value={f.periodo_reposicao} onChange={e=>setF({...f,periodo_reposicao:e.target.value})}><option value="manha">Somente manhã</option><option value="tarde">Somente tarde</option><option value="personalizado">Horário personalizado</option></select></label><label>Referente à falta de<input type="date" value={f.data_falta_referencia} onChange={e=>setF({...f,data_falta_referencia:e.target.value})}/></label><div className="bp-reposicao-info wide"><b>REPOSIÇÃO DE HORAS</b><span>Essas horas entram como crédito no banco e compensam automaticamente qualquer saldo devedor, inclusive aos sábados.</span></div>{f.periodo_reposicao==="manha"&&<><label>Entrada pela manhã<input type="time" value={f.entrada} onChange={e=>setF({...f,entrada:e.target.value})}/></label><label>Saída da manhã<input type="time" value={f.saida_almoco} onChange={e=>setF({...f,saida_almoco:e.target.value})}/></label></>}{f.periodo_reposicao==="tarde"&&<><label>Entrada à tarde<input type="time" value={f.retorno_almoco} onChange={e=>setF({...f,retorno_almoco:e.target.value})}/></label><label>Saída<input type="time" value={f.saida} onChange={e=>setF({...f,saida:e.target.value})}/></label></>}{f.periodo_reposicao==="personalizado"&&<>{[["Entrada","entrada"],["Saída almoço","saida_almoco"],["Retorno almoço","retorno_almoco"],["Saída","saida"]].map(([rotulo,chave])=><label key={chave}>{rotulo}<input type="time" value={(f as any)[chave]} onChange={e=>setF({...f,[chave]:e.target.value})}/></label>)}</>}</>}
 
 {f.tipo_dia==="normal"&&<>{[["Entrada","entrada"],["Saída almoço","saida_almoco"],["Retorno almoço","retorno_almoco"],["Saída","saida"]].map(([rotulo,chave])=><label key={chave}>{rotulo}<input type="time" value={(f as any)[chave]} onChange={e=>setF({...f,[chave]:e.target.value})}/></label>)}</>}
 

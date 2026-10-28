@@ -2387,3 +2387,69 @@
     grid-template-columns:1fr;
   }
 }
+
+
+/* =========================================================
+   BATE-PONTO V22 — BANCO DE HORAS ACUMULATIVO
+   28/10/2026
+   ========================================================= */
+.bp-banco-resumo{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(0,1fr));
+  gap:10px;
+}
+.bp-banco-resumo article{
+  min-width:0;
+  padding:14px 15px;
+  border:1px solid #dfe7f2;
+  border-radius:13px;
+  background:#fff;
+  box-shadow:0 5px 16px rgba(20,46,80,.035);
+}
+.bp-banco-resumo span{display:block;color:#6b7b91;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+.bp-banco-resumo strong{display:block;margin-top:6px;color:#142e50;font-size:20px;font-weight:900;white-space:nowrap}
+.bp-banco-resumo article.credito{border-color:#ccebd9;background:#f4fbf7}
+.bp-banco-resumo article.credito strong{color:#078447}
+.bp-banco-resumo article.debito{border-color:#f2d8d8;background:#fff7f7}
+.bp-banco-resumo article.debito strong{color:#c93c3c}
+.bp-banco-resumo article.destaque{border-width:2px}
+
+.bp-table-banco-horas table{table-layout:fixed!important;min-width:1120px!important}
+.bp-table-banco-horas th:nth-child(1),.bp-table-banco-horas td:nth-child(1){width:7%!important}
+.bp-table-banco-horas th:nth-child(2),.bp-table-banco-horas td:nth-child(2){width:5%!important}
+.bp-table-banco-horas .bp-horarios-grupo{width:28%!important}
+.bp-table-banco-horas .bp-head-sub th{width:7%!important}
+.bp-table-banco-horas tbody td:nth-child(3),
+.bp-table-banco-horas tbody td:nth-child(4),
+.bp-table-banco-horas tbody td:nth-child(5),
+.bp-table-banco-horas tbody td:nth-child(6){width:7%!important}
+.bp-table-banco-horas th:nth-child(7),.bp-table-banco-horas td:nth-child(7){width:8%!important}
+.bp-table-banco-horas th:nth-child(8),.bp-table-banco-horas td:nth-child(8){width:8%!important}
+.bp-table-banco-horas th:nth-child(9),.bp-table-banco-horas td:nth-child(9){width:8%!important}
+.bp-table-banco-horas th:nth-child(10),.bp-table-banco-horas td:nth-child(10){width:11%!important}
+.bp-table-banco-horas th:nth-child(11),.bp-table-banco-horas td:nth-child(11){width:14%!important}
+.bp-table-banco-horas th:nth-child(12),.bp-table-banco-horas td:nth-child(12){width:7%!important}
+.bp-table-banco-horas tbody td:nth-child(8){color:#142e50!important}
+.bp-table-banco-horas tbody td:nth-child(9).pos{color:#078447!important;font-weight:900}
+.bp-table-banco-horas tbody td:nth-child(9).neg{color:#c93c3c!important;font-weight:900}
+.bp-table-banco-horas tbody td:nth-child(11){text-align:left!important;white-space:normal!important;overflow-wrap:anywhere!important;font-size:9px!important}
+.bp-table-banco-horas tbody td[colspan="4"]{text-align:center!important;color:#9aa6b6!important}
+
+.bp-status.pendente{background:#fff5d9!important;color:#a56700!important}
+.bp-status.falta{background:#fff0f0!important;color:#c93c3c!important}
+.bp-status.extra{background:#eaf9f0!important;color:#087d45!important}
+.bp-status.devendo{background:#fff4e2!important;color:#b96a00!important}
+
+.bp-modal-metricas.bp-modal-banco{grid-template-columns:repeat(3,minmax(0,1fr))}
+.bp-modal-banco .pos{color:#078447!important}
+.bp-modal-banco .neg{color:#c93c3c!important}
+.bp-pendencia-fechamento{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:12px;padding:12px 14px;border:1px solid #f0d18a;border-radius:11px;background:#fff8e8;color:#8b5a00}
+.bp-pendencia-fechamento b{font-size:10px;letter-spacing:.06em}
+.bp-pendencia-fechamento span{font-size:11px;font-weight:700}
+.bp-modal-fechamento footer button:disabled{opacity:.45;cursor:not-allowed}
+
+.bp-importacao-table tr.aviso{background:#fff9e9}
+.bp-importacao-table tr.aviso td:first-child,.bp-importacao-table tr.aviso td:last-child{color:#a56a00;font-weight:900}
+
+@media(max-width:1250px){.bp-banco-resumo{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:760px){.bp-banco-resumo{grid-template-columns:1fr 1fr}.bp-modal-metricas.bp-modal-banco{grid-template-columns:1fr 1fr}}

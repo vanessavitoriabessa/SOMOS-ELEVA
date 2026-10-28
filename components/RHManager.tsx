@@ -1690,7 +1690,7 @@ export default function RHManager() {
 
       {abaRH === "colaboradoras" && painelEquipeRH}
 
-      {abaRH === "ponto" && <ControlePontoRH colaboradoras={colaboradoras.map(({id,nome,status})=>({id,nome,status}))} />}
+      {abaRH === "ponto" && <ControlePontoRH colaboradoras={colaboradoras.map(({id,nome,status,dataAdmissao})=>({id,nome,status,dataAdmissao}))} />}
 
       {abaRH === "ocorrencias" && <OcorrenciasEmpresaRH />}
 
