@@ -2453,3 +2453,31 @@
 
 @media(max-width:1250px){.bp-banco-resumo{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:760px){.bp-banco-resumo{grid-template-columns:1fr 1fr}.bp-modal-metricas.bp-modal-banco{grid-template-columns:1fr 1fr}}
+
+
+/* =========================================================
+   BATE-PONTO — COLABORADORAS DESLIGADAS / RETIRAR DA LISTA
+   ========================================================= */
+.bp-importador-digix{
+  grid-template-columns:minmax(220px,1.4fr) 210px minmax(240px,1fr) auto auto;
+}
+.bp-importador-digix .bp-remover-colab{
+  background:#fff!important;
+  color:#b42318!important;
+  border:1px solid #f0b9b5!important;
+}
+.bp-importador-digix .bp-remover-colab:hover{
+  background:#fff3f2!important;
+}
+.bp-importador-digix .bp-remover-colab:disabled{
+  color:#9aa6b6!important;
+  border-color:#d9e1ec!important;
+  background:#f5f7fa!important;
+}
+@media(max-width:1250px){
+  .bp-importador-digix{grid-template-columns:1fr 1fr;}
+  .bp-importador-digix>div{grid-column:1/-1;}
+}
+@media(max-width:680px){
+  .bp-importador-digix{grid-template-columns:1fr;}
+}
