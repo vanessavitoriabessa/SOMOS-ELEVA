@@ -2481,3 +2481,306 @@
 @media(max-width:680px){
   .bp-importador-digix{grid-template-columns:1fr;}
 }
+
+/* =========================================================
+   BATE-PONTO — PAGAMENTO / QUITAÇÃO DO BANCO DE HORAS
+   ========================================================= */
+.bp-banco-resumo{
+  grid-template-columns:repeat(7,minmax(0,1fr));
+}
+.bp-banco-resumo article.pagamento{
+  border-color:#d9dcf8;
+  background:#f7f7ff;
+}
+.bp-banco-resumo article.pagamento strong{color:#5559b7}
+.bp-banco-resumo article.pagamento small{
+  display:block;
+  margin-top:4px;
+  color:#72779a;
+  font-size:9px;
+  font-weight:800;
+}
+.bp-fechamento-acoes{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.bp-fechamento-acoes>button{
+  min-height:38px;
+  padding:0 13px;
+  border-radius:9px;
+  font-size:10px;
+  font-weight:900;
+  white-space:nowrap;
+  cursor:pointer;
+}
+.bp-fechamento-acoes .bp-pagar-horas{
+  border:1px solid #9bd7b7!important;
+  background:#eaf9f0!important;
+  color:#087d45!important;
+}
+.bp-fechamento-acoes .bp-pagar-horas:hover{
+  background:#ddf5e7!important;
+}
+
+.bp-modal-pagamento{
+  width:min(860px,calc(100vw - 32px));
+  max-height:92vh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  box-shadow:0 28px 80px rgba(12,35,64,.28);
+}
+.bp-modal-pagamento>header{
+  flex:0 0 auto;
+  padding:20px 24px;
+  background:linear-gradient(180deg,#fff,#f8faff);
+}
+.bp-pagamento-body{
+  display:grid;
+  gap:14px;
+  padding:20px 24px;
+  overflow:auto;
+  background:#f7f9fd;
+}
+.bp-pagamento-saldo{
+  padding:16px 18px;
+  border:1px solid #ccebd9;
+  border-radius:13px;
+  background:#eefaf3;
+}
+.bp-pagamento-saldo span{
+  display:block;
+  color:#087d45;
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.08em;
+}
+.bp-pagamento-saldo strong{
+  display:block;
+  margin-top:4px;
+  color:#067640;
+  font-size:26px;
+  font-weight:900;
+}
+.bp-pagamento-saldo small{
+  display:block;
+  margin-top:4px;
+  color:#527064;
+  font-size:10px;
+  line-height:1.4;
+}
+.bp-pagamento-form{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+}
+.bp-pagamento-form label{
+  display:grid;
+  gap:6px;
+  padding:13px;
+  border:1px solid #e0e7f1;
+  border-radius:11px;
+  background:#fff;
+}
+.bp-pagamento-form label.wide{grid-column:1/-1}
+.bp-pagamento-form label>small{
+  color:#79869a;
+  font-size:9px;
+  font-weight:700;
+}
+.bp-pagamento-form textarea{min-height:70px;resize:vertical}
+.bp-pagamento-total{
+  display:grid;
+  align-content:center;
+  padding:13px 15px;
+  border:1px solid #d7e3fb;
+  border-radius:11px;
+  background:#eef4ff;
+}
+.bp-pagamento-total span{
+  color:#49648f;
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.06em;
+}
+.bp-pagamento-total strong{
+  margin-top:4px;
+  color:#155eef;
+  font-size:22px;
+  font-weight:900;
+}
+.bp-pagamento-total small{
+  margin-top:3px;
+  color:#64758d;
+  font-size:9px;
+}
+.bp-quitar-tudo{
+  justify-self:start;
+  min-height:35px;
+  padding:0 12px;
+  border:1px solid #bfd0f6;
+  border-radius:9px;
+  background:#fff;
+  color:#2454eb;
+  font-size:10px;
+  font-weight:900;
+  cursor:pointer;
+}
+.bp-pagamentos-historico{
+  overflow:hidden;
+  border:1px solid #e0e7f1;
+  border-radius:12px;
+  background:#fff;
+}
+.bp-pagamentos-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:11px 14px;
+  border-bottom:1px solid #edf1f6;
+  background:#f8fafd;
+}
+.bp-pagamentos-head b{
+  color:#2454eb;
+  font-size:9px;
+  letter-spacing:.07em;
+}
+.bp-pagamentos-head span{
+  color:#718198;
+  font-size:9px;
+  font-weight:800;
+}
+.bp-pagamento-item{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto auto;
+  align-items:center;
+  gap:14px;
+  padding:11px 14px;
+  border-bottom:1px solid #edf1f6;
+}
+.bp-pagamento-item:last-child{border-bottom:0}
+.bp-pagamento-item>div{display:grid;gap:2px;min-width:0}
+.bp-pagamento-item>div strong{color:#142e50;font-size:11px}
+.bp-pagamento-item>div span{color:#718198;font-size:9px;white-space:normal}
+.bp-pagamento-item>b{color:#087d45;font-size:12px;white-space:nowrap}
+.bp-pagamento-item>button{
+  min-height:30px;
+  padding:0 9px;
+  border:1px solid #f0b9b5;
+  border-radius:8px;
+  background:#fff;
+  color:#b42318;
+  font-size:9px;
+  font-weight:900;
+  cursor:pointer;
+}
+.bp-pagamento-vazio{
+  padding:18px;
+  color:#7b899b;
+  text-align:center;
+  font-size:10px;
+}
+
+@media(max-width:1450px){
+  .bp-banco-resumo{grid-template-columns:repeat(4,minmax(0,1fr));}
+}
+@media(max-width:900px){
+  .bp-banco-resumo{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .bp-fechamento-acoes{align-items:stretch;flex-direction:column;}
+  .bp-pagamento-form{grid-template-columns:1fr;}
+  .bp-pagamento-form label.wide{grid-column:auto;}
+}
+@media(max-width:620px){
+  .bp-banco-resumo{grid-template-columns:1fr;}
+  .bp-pagamento-item{grid-template-columns:1fr;}
+  .bp-pagamento-item>button{justify-self:start;}
+}
+
+/* =========================================================
+   ELEVA — AJUSTE FINAL DO FECHAMENTO DO BANCO DE HORAS
+   Mantém saldo + Pagar Horas + Fechar competência dentro do card.
+   ========================================================= */
+.bp-fechamento-faixa.bp-fechamento-individual{
+  width:min(100%, 980px)!important;
+  max-width:980px!important;
+  min-width:0!important;
+  grid-template-columns:minmax(230px,1fr) minmax(285px,auto) auto!important;
+  align-items:center!important;
+  gap:12px!important;
+  padding:11px 13px!important;
+  overflow:hidden!important;
+}
+
+.bp-fechamento-individual .bp-fechamento-faixa-info{
+  min-width:0!important;
+}
+
+.bp-fechamento-individual .bp-fechamento-faixa-info span{
+  white-space:normal!important;
+}
+
+.bp-fechamento-individual .bp-resultado-mini{
+  width:100%!important;
+  min-width:0!important;
+  max-width:100%!important;
+  text-align:left!important;
+  overflow:hidden!important;
+}
+
+.bp-fechamento-individual .bp-resultado-mini strong,
+.bp-fechamento-individual .bp-resultado-mini small{
+  white-space:normal!important;
+  overflow-wrap:anywhere!important;
+}
+
+.bp-fechamento-individual .bp-fechamento-acoes{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  flex-wrap:nowrap!important;
+  gap:8px!important;
+  min-width:max-content!important;
+}
+
+.bp-fechamento-individual .bp-fechamento-acoes>button{
+  min-width:112px!important;
+  min-height:38px!important;
+  padding:0 12px!important;
+  margin:0!important;
+  white-space:nowrap!important;
+}
+
+@media(max-width:1000px){
+  .bp-fechamento-faixa.bp-fechamento-individual{
+    width:100%!important;
+    max-width:none!important;
+    grid-template-columns:1fr 1fr!important;
+  }
+  .bp-fechamento-individual .bp-fechamento-faixa-info{
+    grid-column:1/-1;
+  }
+  .bp-fechamento-individual .bp-fechamento-acoes{
+    justify-content:flex-end!important;
+  }
+}
+
+@media(max-width:700px){
+  .bp-fechamento-faixa.bp-fechamento-individual{
+    grid-template-columns:1fr!important;
+  }
+  .bp-fechamento-individual .bp-fechamento-faixa-info,
+  .bp-fechamento-individual .bp-resultado-mini,
+  .bp-fechamento-individual .bp-fechamento-acoes{
+    grid-column:1!important;
+  }
+  .bp-fechamento-individual .bp-fechamento-acoes{
+    width:100%!important;
+    min-width:0!important;
+  }
+  .bp-fechamento-individual .bp-fechamento-acoes>button{
+    flex:1 1 0!important;
+    min-width:0!important;
+  }
+}

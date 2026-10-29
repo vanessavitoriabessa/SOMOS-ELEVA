@@ -35,6 +35,18 @@ type LinhaImportacaoDigix={
  apagarExistente?:boolean;
 };
 
+type PagamentoBancoHoras={
+ id:string;
+ colaboradora_id:string;
+ competencia:string;
+ data_pagamento:string;
+ horas_pagas_min:number;
+ valor_hora:number;
+ valor_total:number;
+ observacao:string;
+ criado_em?:string;
+};
+
 
 
 const hoje=()=>{
@@ -56,6 +68,26 @@ const trabalhoDireto=(p:Ponto)=>horaMarcada(p.entrada)&&horaMarcada(p.saida)&&!h
 const intervaloCompleto=(p:Ponto)=>horaMarcada(p.entrada)&&horaMarcada(p.saida_almoco)&&horaMarcada(p.retorno_almoco)&&horaMarcada(p.saida);
 
 const hm=(v:number)=>{const s=v<0?"-":"";v=Math.abs(Math.round(v));return `${s}${Math.floor(v/60)}h${String(v%60).padStart(2,"0")}`};
+
+const horasInput=(v:number)=>{v=Math.max(0,Math.round(v));return `${Math.floor(v/60)}:${String(v%60).padStart(2,"0")}`};
+const minutosInput=(valor:string)=>{
+ const texto=String(valor||"").trim().toLowerCase().replace(/\s+/g,"");
+ if(!texto)return 0;
+ let m=texto.match(/^(\d{1,4}):(\d{1,2})$/);
+ if(m)return Number(m[1])*60+Math.min(59,Number(m[2]));
+ m=texto.match(/^(\d{1,4})h(?:(\d{1,2}))?$/);
+ if(m)return Number(m[1])*60+Math.min(59,Number(m[2]||0));
+ const decimal=Number(texto.replace(",","."));
+ return Number.isFinite(decimal)&&decimal>0?Math.round(decimal*60):0;
+};
+const numeroBR=(valor:string)=>{
+ const texto=String(valor||"").trim().replace(/[^\d,.-]/g,"");
+ if(!texto)return 0;
+ const normalizado=texto.includes(",")?texto.replace(/\./g,"").replace(",", "."):texto;
+ const n=Number(normalizado);
+ return Number.isFinite(n)?n:0;
+};
+const moeda=(valor:number)=>Number(valor||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 
 const fimSemana=(d:string)=>[0,6].includes(new Date(`${d}T12:00:00`).getDay());
 
@@ -203,6 +235,10 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
  const[linhasImportacao,setLinhasImportacao]=useState<LinhaImportacaoDigix[]>([]);
  const[nomeArquivoDigix,setNomeArquivoDigix]=useState("");
  const[importandoDigix,setImportandoDigix]=useState(false);
+ const[pagamentosBanco,setPagamentosBanco]=useState<PagamentoBancoHoras[]>([]);
+ const[modalPagamento,setModalPagamento]=useState(false);
+ const[pagandoBanco,setPagandoBanco]=useState(false);
+ const[pagamentoForm,setPagamentoForm]=useState({dataPagamento:hoje(),horas:"",valorHora:"",observacao:""});
  const[ocultasBatePonto,setOcultasBatePonto]=useState<string[]>([]);
  const colaboradorasVisiveis=useMemo(
   ()=>colaboradoras.filter(c=>c.status!=="Desligada"&&!ocultasBatePonto.includes(c.id)),
@@ -223,6 +259,19 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
   setVinculos((c.data||[]).map((x:any)=>({colaboradora_id:String(x.colaboradora_id),jornada_id:String(x.jornada_id)}))); setFechamentos(d.data||[]);
 
   setPontos((a.data||[]) as Ponto[]); setTiposDia((e.data||[]).map((x:any)=>({id:String(x.id),nome:String(x.nome)})));
+
+  const pagamentos=await sb.from("rh_banco_horas_pagamentos").select("*").order("data_pagamento",{ascending:false});
+  if(pagamentos.error){
+   if(String((pagamentos.error as any).code||"")!=="42P01")setMsg(pagamentos.error.message);
+   setPagamentosBanco([]);
+  }else{
+   setPagamentosBanco((pagamentos.data||[]).map((x:any)=>({
+    id:String(x.id),colaboradora_id:String(x.colaboradora_id),competencia:String(x.competencia||""),
+    data_pagamento:String(x.data_pagamento||""),horas_pagas_min:Number(x.horas_pagas_min||0),
+    valor_hora:Number(x.valor_hora||0),valor_total:Number(x.valor_total||0),
+    observacao:String(x.observacao||""),criado_em:String(x.criado_em||"")
+   })));
+  }
 
   const js=(b.data||[]).map((c:any)=>({id:String(c.id),nome:String(c.nome),entrada:String(c.entrada).slice(0,5),saidaAlmoco:String(c.saida_almoco).slice(0,5),retornoAlmoco:String(c.retorno_almoco).slice(0,5),saida:String(c.saida).slice(0,5),carga:Number(c.carga_diaria_min||480),tolEntrada:Number(c.tolerancia_entrada_min??5),tolSaida:Number(c.tolerancia_saida_min??5)}));
 
@@ -346,9 +395,13 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
   return r;
  },{previstas:0,trabalhadas:0,creditos:0,debitos:0,faltas:0,sabados:0,pendencias:0});
 
- const saldoMesMin=resumoMes.creditos-resumoMes.debitos;
+ const saldoMesBrutoMin=resumoMes.creditos-resumoMes.debitos;
+ const pagamentosPessoa=pessoa?pagamentosBanco.filter(p=>p.colaboradora_id===pessoa):[];
+ const horasPagasMes=pagamentosPessoa.filter(p=>p.competencia===mesRef).reduce((t,p)=>t+Number(p.horas_pagas_min||0),0);
+ const horasPagasAnteriores=pagamentosPessoa.filter(p=>p.competencia<mesRef).reduce((t,p)=>t+Number(p.horas_pagas_min||0),0);
+ const valorPagoMes=pagamentosPessoa.filter(p=>p.competencia===mesRef).reduce((t,p)=>t+Number(p.valor_total||0),0);
 
- const saldoAnteriorMin=(()=>{
+ const saldoAnteriorBrutoMin=(()=>{
   if(!pessoa||!inicioBancoPessoa||!inicioCompetencia||inicioBancoPessoa>=inicioCompetencia)return 0;
   const inicio=new Date(`${inicioBancoPessoa}T12:00:00`);
   const fim=new Date(`${inicioCompetencia}T12:00:00`);
@@ -361,6 +414,8 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
   return total;
  })();
 
+ const saldoAnteriorMin=saldoAnteriorBrutoMin-horasPagasAnteriores;
+ const saldoMesMin=saldoMesBrutoMin-horasPagasMes;
  const saldoFinalMin=saldoAnteriorMin+saldoMesMin;
  const saldoFinalAbs=Math.abs(saldoFinalMin);
  const fechamentoAtual=pessoa?fechamentos.find((x:any)=>x.colaboradora_id===pessoa&&x.competencia===mesRef):null;
@@ -730,6 +785,53 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
 
 
 
+ function abrirPagamentoBanco(){
+  if(!pessoa){setMsg("Selecione uma colaboradora.");return}
+  if(saldoFinalMin<=0){setMsg("Esta colaboradora não possui saldo credor para pagamento.");return}
+  const valorSalvo=typeof window!=="undefined"?localStorage.getItem("somos-eleva-valor-hora-banco")||"":"";
+  setPagamentoForm({dataPagamento:hoje(),horas:horasInput(saldoFinalMin),valorHora:valorSalvo,observacao:""});
+  setModalPagamento(true);
+ }
+
+ async function registrarPagamentoBanco(){
+  if(!pessoa||saldoFinalMin<=0)return;
+  const horasMin=minutosInput(pagamentoForm.horas);
+  const valorHora=numeroBR(pagamentoForm.valorHora);
+  if(horasMin<=0){setMsg("Informe quantas horas serão pagas.");return}
+  if(horasMin>saldoFinalMin){setMsg(`As horas pagas não podem ultrapassar o saldo disponível de ${hm(saldoFinalMin)}.`);return}
+  if(valorHora<=0){setMsg("Informe o valor da hora trabalhada.");return}
+  if(!pagamentoForm.dataPagamento){setMsg("Informe a data do pagamento.");return}
+  const valorTotal=(horasMin/60)*valorHora;
+  setPagandoBanco(true);
+  setMsg("");
+  const q=await sb.from("rh_banco_horas_pagamentos").insert({
+   colaboradora_id:pessoa,
+   competencia:mesRef,
+   data_pagamento:pagamentoForm.dataPagamento,
+   horas_pagas_min:horasMin,
+   valor_hora:valorHora,
+   valor_total:valorTotal,
+   observacao:pagamentoForm.observacao.trim()
+  });
+  setPagandoBanco(false);
+  if(q.error){setMsg(q.error.message);return}
+  if(typeof window!=="undefined")localStorage.setItem("somos-eleva-valor-hora-banco",pagamentoForm.valorHora);
+  const restante=saldoFinalMin-horasMin;
+  setModalPagamento(false);
+  setMsg(`Pagamento de ${hm(horasMin)} registrado para ${pessoaAtual?.nome||"a colaboradora"}. ${restante>0?`Saldo credor restante: ${hm(restante)}.`:"Banco de horas zerado após o pagamento."}`);
+  await carregar();
+ }
+
+ async function estornarPagamentoBanco(id:string){
+  const registro=pagamentosBanco.find(p=>p.id===id);
+  if(!registro)return;
+  if(!window.confirm(`Estornar o pagamento de ${hm(registro.horas_pagas_min)}?\n\nAs horas voltarão para o banco da colaboradora.`))return;
+  const q=await sb.from("rh_banco_horas_pagamentos").delete().eq("id",id);
+  if(q.error){setMsg(q.error.message);return}
+  setMsg("Pagamento estornado. As horas retornaram ao banco.");
+  await carregar();
+ }
+
  async function retirarColaboradoraDaLista(){
   const atual=colaboradoras.find(c=>c.id===pessoa);
   if(!atual){setMsg("Selecione uma colaboradora para retirar da lista.");return}
@@ -771,12 +873,13 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
   <article className="credito"><span>Créditos do mês</span><strong>+{hm(resumoMes.creditos)}</strong></article>
   <article className="debito"><span>Débitos do mês</span><strong>-{hm(resumoMes.debitos)}</strong></article>
   <article className={saldoAnteriorMin<0?"debito":saldoAnteriorMin>0?"credito":""}><span>Saldo anterior</span><strong>{saldoAnteriorMin>0?"+":""}{hm(saldoAnteriorMin)}</strong></article>
+  <article className="pagamento"><span>Horas pagas no mês</span><strong>-{hm(horasPagasMes)}</strong><small>{valorPagoMes>0?moeda(valorPagoMes):"Nenhum pagamento"}</small></article>
   <article className={saldoFinalMin<0?"debito destaque":saldoFinalMin>0?"credito destaque":"destaque"}><span>Banco de horas atual</span><strong>{saldoFinalMin>0?"+":""}{hm(saldoFinalMin)}</strong></article>
  </div>
 
  <section className="bp-fechamento-faixa bp-fechamento-individual">
   <div className="bp-fechamento-faixa-info"><b>BANCO DE HORAS · FECHAMENTO INDIVIDUAL</b><span>{pessoa?(pessoaAtual?.nome||"Colaboradora"):"Selecione uma colaboradora"} · {mesRef.split("-").reverse().join("/")}</span></div>
-  {pessoa&&<><div className={`bp-resultado-mini ${saldoFinalMin<0?"deve":saldoFinalMin>0?"recebe":"zerado"}`}><span>SALDO ACUMULADO</span><strong>{saldoFinalMin<0?"COLABORADORA ESTÁ DEVENDO":saldoFinalMin>0?"COLABORADORA TEM CRÉDITO":"BANCO DE HORAS ZERADO"} · {hm(saldoFinalAbs)}</strong><small>{resumoMes.pendencias?`${resumoMes.pendencias} marcação(ões) pendente(s) de correção`:"Saldo transportado automaticamente entre competências"}</small></div><button type="button" onClick={()=>setModalFechamento(true)}>{fechamentoAtual?.status==="FECHADO"?"Ver fechamento":"Fechar competência"}</button></>}
+  {pessoa&&<><div className={`bp-resultado-mini ${saldoFinalMin<0?"deve":saldoFinalMin>0?"recebe":"zerado"}`}><span>SALDO ACUMULADO</span><strong>{saldoFinalMin<0?"COLABORADORA ESTÁ DEVENDO":saldoFinalMin>0?"COLABORADORA TEM CRÉDITO":"BANCO DE HORAS ZERADO"} · {hm(saldoFinalAbs)}</strong><small>{resumoMes.pendencias?`${resumoMes.pendencias} marcação(ões) pendente(s) de correção`:"Saldo transportado automaticamente entre competências"}</small></div><div className="bp-fechamento-acoes">{saldoFinalMin>0&&<button type="button" className="bp-pagar-horas" onClick={abrirPagamentoBanco}>PAGAR HORAS</button>}<button type="button" onClick={()=>setModalFechamento(true)}>{fechamentoAtual?.status==="FECHADO"?"Ver fechamento":"Fechar competência"}</button></div></>}
  </section>
 
  <section className="bp-card bp-espelho-grande"><div className="bp-importador-digix"><div><b>IMPORTAR ESPELHO DIX</b><span>O sistema importa somente as batidas. Segunda a sexta: 8h previstas. Sábado: tudo o que for trabalhado entra como crédito no banco.</span></div><label>Mês referência<input type="month" value={mesRef} onChange={e=>setMesRef(e.target.value)}/></label><label>Colaboradora<select value={pessoa} onChange={e=>setPessoa(e.target.value)}><option value="">Selecione uma colaboradora</option>{colaboradorasVisiveis.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select></label><button type="button" className="bp-remover-colab" onClick={()=>void retirarColaboradoraDaLista()} disabled={!pessoa}>RETIRAR DA LISTA</button><button type="button" onClick={()=>arquivoDigixRef.current?.click()} disabled={!pessoa}>ANEXAR PONTO DIX</button></div>
@@ -812,13 +915,30 @@ export default function ControlePontoRH({colaboradoras}:{colaboradoras:Colab[]})
 
  </>}
 
+ {modalPagamento&&pessoa&&<div className="bp-bg"><div className="bp-modal bp-modal-pagamento">
+  <header><div><b className="bp-modal-eyebrow">PAGAMENTO DO BANCO DE HORAS</b><h2>{pessoaAtual?.nome}</h2><small>Competência {mesRef.split("-").reverse().join("/")} · saldo credor disponível {hm(Math.max(0,saldoFinalMin))}</small></div><button type="button" onClick={()=>setModalPagamento(false)} disabled={pagandoBanco}>×</button></header>
+  <div className="bp-pagamento-body">
+   <div className="bp-pagamento-saldo"><span>SALDO DISPONÍVEL PARA PAGAMENTO</span><strong>+{hm(Math.max(0,saldoFinalMin))}</strong><small>Ao registrar o pagamento, as horas pagas são retiradas do banco. Pagando todo o saldo, ele fica zerado.</small></div>
+   <div className="bp-pagamento-form">
+    <label>Data do pagamento<input type="date" value={pagamentoForm.dataPagamento} onChange={e=>setPagamentoForm({...pagamentoForm,dataPagamento:e.target.value})}/></label>
+    <label>Horas a pagar<input value={pagamentoForm.horas} onChange={e=>setPagamentoForm({...pagamentoForm,horas:e.target.value})} placeholder="Ex.: 6:24"/><small>Use HH:MM. Ex.: 6:24.</small></label>
+    <label>Valor da hora trabalhada<input inputMode="decimal" value={pagamentoForm.valorHora} onChange={e=>setPagamentoForm({...pagamentoForm,valorHora:e.target.value})} placeholder="Ex.: 12,50"/><small>Valor bruto por hora.</small></label>
+    <div className="bp-pagamento-total"><span>TOTAL DO PAGAMENTO</span><strong>{moeda((minutosInput(pagamentoForm.horas)/60)*numeroBR(pagamentoForm.valorHora))}</strong><small>{minutosInput(pagamentoForm.horas)>0?`${hm(minutosInput(pagamentoForm.horas))} × ${moeda(numeroBR(pagamentoForm.valorHora))}/hora`:"Informe horas e valor da hora"}</small></div>
+    <label className="wide">Observação<textarea value={pagamentoForm.observacao} onChange={e=>setPagamentoForm({...pagamentoForm,observacao:e.target.value})} placeholder="Ex.: Pago na folha de outubro/2026"/></label>
+   </div>
+   <button type="button" className="bp-quitar-tudo" onClick={()=>setPagamentoForm({...pagamentoForm,horas:horasInput(Math.max(0,saldoFinalMin))})}>Usar todo o saldo ({hm(Math.max(0,saldoFinalMin))})</button>
+   <div className="bp-pagamentos-historico"><div className="bp-pagamentos-head"><b>HISTÓRICO DE PAGAMENTOS</b><span>{pagamentosPessoa.length} registro(s)</span></div>{pagamentosPessoa.length?pagamentosPessoa.map(p=><div className="bp-pagamento-item" key={p.id}><div><strong>{br(String(p.data_pagamento).slice(0,10))} · {hm(p.horas_pagas_min)}</strong><span>{p.competencia.split("-").reverse().join("/")} · {moeda(p.valor_hora)}/hora{p.observacao?` · ${p.observacao}`:""}</span></div><b>{moeda(p.valor_total)}</b><button type="button" onClick={()=>void estornarPagamentoBanco(p.id)}>Estornar</button></div>):<div className="bp-pagamento-vazio">Nenhum pagamento de banco de horas registrado.</div>}</div>
+  </div>
+  <footer><button type="button" onClick={()=>setModalPagamento(false)} disabled={pagandoBanco}>Cancelar</button><button type="button" onClick={()=>void registrarPagamentoBanco()} disabled={pagandoBanco}>{pagandoBanco?"Registrando...":minutosInput(pagamentoForm.horas)===Math.max(0,saldoFinalMin)?"Registrar pagamento e zerar saldo":"Registrar pagamento e abater horas"}</button></footer>
+ </div></div>}
+
  {modalImportacao&&<div className="bp-bg"><div className="bp-modal bp-modal-importacao"><header><div><b className="bp-modal-eyebrow">IMPORTAÇÃO DIGIX</b><h2>Conferir arquivo de ponto</h2><small>{nomeArquivoDigix||"Arquivo selecionado"} · {linhasImportacao.filter(l=>l.status!=="erro").length} linha(s) importável(is)</small></div><button type="button" onClick={()=>setModalImportacao(false)}>×</button></header><div className="bp-importacao-body"><div className="bp-importacao-aviso"><b>Antes de confirmar</b><span>Confira se colaboradora, data e horários foram reconhecidos corretamente. Linhas em amarelo serão salvas com marcações incompletas para correção manual. Linhas em vermelho não serão salvas. Não usamos os cálculos de HE do DIX.</span></div><div className="bp-importacao-table"><table><thead><tr><th>Status</th><th>Colaboradora</th><th>Data</th><th>Entrada</th><th>Almoço</th><th>Retorno</th><th>Saída</th><th>Mensagem</th></tr></thead><tbody>{linhasImportacao.map(l=><tr key={l.id} className={l.status}><td>{l.status==="ok"?"✓":l.status==="aviso"?"⚠":"!"}</td><td>{l.colaboradora_nome}</td><td>{br(l.data)}</td><td>{l.entrada||"—"}</td><td>{l.saida_almoco||"—"}</td><td>{l.retorno_almoco||"—"}</td><td>{l.saida||"—"}</td><td>{l.mensagem}</td></tr>)}</tbody></table></div></div><footer><button type="button" onClick={()=>setModalImportacao(false)} disabled={importandoDigix}>Cancelar</button><button type="button" onClick={()=>void confirmarImportacaoDigix()} disabled={importandoDigix||!linhasImportacao.some(l=>l.status!=="erro")}>{importandoDigix?"Importando...":"Confirmar importação"}</button></footer></div></div>}
 
  {modalFechamento&&pessoa&&<div className="bp-bg"><div className="bp-modal bp-modal-fechamento">
   <header><div><b className="bp-modal-eyebrow">BANCO DE HORAS · FECHAMENTO</b><h2>{pessoaAtual?.nome}</h2><small>Competência {mesRef.split("-").reverse().join("/")} {fechamentoAtual?.status==="FECHADO"?"· FECHADA":""}</small></div><button type="button" onClick={()=>setModalFechamento(false)}>×</button></header>
   <div className="bp-fechamento-modal-body">
    {pendenciasFechamento.length>0&&<div className="bp-pendencia-fechamento"><b>ATENÇÃO</b><span>Existem {pendenciasFechamento.length} dia(s) anterior(es) com marcações incompletas. Corrija os horários antes do fechamento.</span></div>}
-   <div className="bp-modal-metricas bp-modal-banco"><article><span>Horas previstas</span><strong>{hm(resumoMes.previstas)}</strong></article><article><span>Horas trabalhadas</span><strong>{hm(resumoMes.trabalhadas)}</strong></article><article><span>Créditos do mês</span><strong className="pos">+{hm(resumoMes.creditos)}</strong><small>Horas acima da carga + sábados trabalhados</small></article><article><span>Débitos do mês</span><strong className="neg">-{hm(resumoMes.debitos)}</strong><small>Horas abaixo da carga e faltas</small></article><article><span>Saldo anterior</span><strong>{saldoAnteriorMin>0?"+":""}{hm(saldoAnteriorMin)}</strong><small>Saldo acumulado até o mês anterior</small></article><article><span>Saldo do mês</span><strong>{saldoMesMin>0?"+":""}{hm(saldoMesMin)}</strong><small>Créditos menos débitos desta competência</small></article><article><span>Faltas</span><strong>{resumoMes.faltas}</strong></article><article><span>Sábados trabalhados</span><strong>{resumoMes.sabados}</strong></article><article><span>Pendências de marcação</span><strong>{resumoMes.pendencias}</strong></article></div>
+   <div className="bp-modal-metricas bp-modal-banco"><article><span>Horas previstas</span><strong>{hm(resumoMes.previstas)}</strong></article><article><span>Horas trabalhadas</span><strong>{hm(resumoMes.trabalhadas)}</strong></article><article><span>Créditos do mês</span><strong className="pos">+{hm(resumoMes.creditos)}</strong><small>Horas acima da carga + sábados trabalhados</small></article><article><span>Débitos do mês</span><strong className="neg">-{hm(resumoMes.debitos)}</strong><small>Horas abaixo da carga e faltas</small></article><article><span>Saldo anterior</span><strong>{saldoAnteriorMin>0?"+":""}{hm(saldoAnteriorMin)}</strong><small>Saldo acumulado até o mês anterior</small></article><article><span>Horas pagas no mês</span><strong>{horasPagasMes?`-${hm(horasPagasMes)}`:"0h00"}</strong><small>{valorPagoMes>0?moeda(valorPagoMes):"Nenhum pagamento registrado"}</small></article><article><span>Saldo do mês</span><strong>{saldoMesMin>0?"+":""}{hm(saldoMesMin)}</strong><small>Créditos − débitos − horas pagas</small></article><article><span>Faltas</span><strong>{resumoMes.faltas}</strong></article><article><span>Sábados trabalhados</span><strong>{resumoMes.sabados}</strong></article><article><span>Pendências de marcação</span><strong>{resumoMes.pendencias}</strong></article></div>
    <div className="bp-origem-extras"><div className="bp-origem-extras-head"><b>CRÉDITOS GERADOS NESTA COMPETÊNCIA</b><span>+{hm(resumoMes.creditos)}</span></div>{calendarioPessoa.filter(({data,ponto})=>ponto&&marcacaoCompleta(ponto)&&saldoDiaAtivo(data,ponto)>0).length?calendarioPessoa.filter(({data,ponto})=>ponto&&marcacaoCompleta(ponto)&&saldoDiaAtivo(data,ponto)>0).map(({data,ponto})=><div className="bp-extra-dia" key={data}><span><b>{br(data)}</b> · {sabado(data)?"Sábado trabalhado":"Acima da carga diária"}</span><span>Trabalhado {hm(trab(ponto!))}</span><strong>+ {hm(saldoDiaAtivo(data,ponto!))}</strong></div>):<div className="bp-extra-vazio">Nenhum crédito gerado nesta competência.</div>}</div>
    <div className={`bp-resultado-final ${saldoFinalMin<0?"deve":saldoFinalMin>0?"recebe":"zerado"}`}><div><span>BANCO DE HORAS APÓS O FECHAMENTO</span><strong>{saldoFinalMin<0?"SALDO DEVEDOR":saldoFinalMin>0?"SALDO CREDOR":"SALDO ZERADO"}</strong><small>Este valor será usado automaticamente como saldo anterior da próxima competência.</small></div><b>{saldoFinalMin>0?"+":""}{hm(saldoFinalMin)}</b></div>
    <p className="bp-aviso-fechamento">O fechamento não transforma o saldo em dinheiro. O banco permanece em horas e continua acumulado entre os meses.</p>
