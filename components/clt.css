@@ -680,3 +680,116 @@
     flex-direction: column;
   }
 }
+
+/* =========================================================
+   CLT — CARTEIRA DE CLIENTES COMPACTA
+   Lista visual inspirada na Gestão de Propostas.
+   ========================================================= */
+.clt-list-compacta{
+  display:block!important;
+  gap:0!important;
+  padding:0!important;
+  overflow:visible!important;
+}
+.clt-client-table-wrap{
+  width:100%;
+  overflow-x:auto;
+  border:1px solid #dfe6f1;
+  border-radius:12px;
+  background:#fff;
+}
+.clt-client-table{
+  width:100%;
+  min-width:1240px;
+  border-collapse:collapse;
+  table-layout:fixed;
+  color:#102d57;
+  font-size:10px;
+}
+.clt-client-table thead th{
+  padding:10px 9px;
+  border-bottom:1px solid #dfe6f1;
+  background:#f7f9fc;
+  color:#70809a;
+  font-size:8px;
+  font-weight:900;
+  letter-spacing:.035em;
+  text-align:left;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+.clt-client-table tbody td{
+  padding:10px 9px;
+  border-bottom:1px solid #e9eef5;
+  vertical-align:middle;
+  line-height:1.22;
+}
+.clt-client-table tbody tr:last-child td{border-bottom:0}
+.clt-client-table tbody tr:hover{background:#f9fbff}
+.clt-client-table th:nth-child(1){width:17%}
+.clt-client-table th:nth-child(2){width:10%}
+.clt-client-table th:nth-child(3){width:10%}
+.clt-client-table th:nth-child(4){width:10%}
+.clt-client-table th:nth-child(5){width:8%}
+.clt-client-table th:nth-child(6){width:17%}
+.clt-client-table th:nth-child(7){width:7%}
+.clt-client-table th:nth-child(8){width:8%}
+.clt-client-table th:nth-child(9){width:8%}
+.clt-client-table th:nth-child(10){width:10%}
+.clt-col-cliente strong,.clt-col-banco strong,.clt-table-main{
+  display:block;
+  color:#0b2c59;
+  font-size:10px;
+  font-weight:900;
+}
+.clt-col-cliente small,.clt-col-banco small{
+  display:block;
+  margin-top:3px;
+  color:#7c8ba2;
+  font-size:8px;
+  font-weight:600;
+  line-height:1.25;
+  white-space:normal;
+}
+.clt-table-money{
+  color:#0b2c59;
+  font-size:10px;
+  font-weight:900;
+  white-space:nowrap;
+}
+.clt-client-table .clt-sem-tabela{
+  color:#9a6c00;
+  font-weight:800;
+}
+.clt-client-table .clt-status{
+  min-height:24px;
+  padding:0 8px;
+  font-size:8px;
+}
+.clt-table-actions{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  white-space:nowrap;
+}
+.clt-table-actions button{
+  min-height:27px;
+  padding:0 9px;
+  border:1px solid #d7e3f7;
+  border-radius:7px;
+  background:#f2f6ff;
+  color:#155eef;
+  font-size:8px;
+  font-weight:900;
+  cursor:pointer;
+}
+.clt-table-actions button.delete{
+  border-color:#ffd0d0;
+  background:#fff2f2;
+  color:#d42d2d;
+}
+.clt-table-actions button:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:1200px){
+  .clt-client-table{min-width:1160px}
+  .clt-client-table thead th,.clt-client-table tbody td{padding-left:7px;padding-right:7px}
+}

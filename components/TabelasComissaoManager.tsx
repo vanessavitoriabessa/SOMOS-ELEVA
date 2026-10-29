@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-type TipoTabela = "clt" | "compra";
+type TipoTabela = "clt" | "compra" | "geral";
 
 type LinhaComissao = {
   id: string;
@@ -11,6 +11,7 @@ type LinhaComissao = {
   destaque?: string;
   faixa?: string;
   valorBase?: string;
+  criterio?: string;
 };
 
 type TabelaComissao = {
@@ -24,7 +25,7 @@ type GrupoComissao = {
   id: string;
   titulo: string;
   subtitulo: string;
-  tipoGrupo: "coordenacao" | "supervisao" | "vendedoras";
+  tipoGrupo: "coordenacao" | "supervisao" | "vendedoras" | "operacional" | "qualidade";
   tabelas: TabelaComissao[];
 };
 
@@ -146,6 +147,11 @@ const linhasClt = (dados: string[][]) =>
     linha({ metaParcelasPagas, valorPremiacao, destaque })
   );
 
+const linhasGerais = (dados: string[][]) =>
+  dados.map(([criterio, valorPremiacao, destaque]) =>
+    linha({ criterio, valorPremiacao, destaque })
+  );
+
 function modelosIniciais(): GrupoComissao[] {
   return [
     {
@@ -226,13 +232,43 @@ function modelosIniciais(): GrupoComissao[] {
         },
       ],
     },
+    {
+      id: "grupo-operacional",
+      titulo: "Comissão Operacional",
+      subtitulo: "Regras de comissão e premiação do setor operacional.",
+      tipoGrupo: "operacional",
+      tabelas: [
+        {
+          id: "comissao-operacional",
+          titulo: "Comissão OPERACIONAL",
+          tipo: "geral",
+          linhas: linhasGerais([["", "", ""]]),
+        },
+      ],
+    },
+    {
+      id: "grupo-qualidade",
+      titulo: "Comissão Qualidade",
+      subtitulo: "Regras de comissão e premiação do setor de qualidade.",
+      tipoGrupo: "qualidade",
+      tabelas: [
+        {
+          id: "comissao-qualidade",
+          titulo: "Comissão QUALIDADE",
+          tipo: "geral",
+          linhas: linhasGerais([["", "", ""]]),
+        },
+      ],
+    },
   ];
 }
 
 const criarLinhaVazia = (tipo: TipoTabela): LinhaComissao =>
   tipo === "clt"
     ? linha({ metaParcelasPagas: "", valorPremiacao: "", destaque: "" })
-    : linha({ faixa: "", valorBase: "", valorPremiacao: "" });
+    : tipo === "compra"
+      ? linha({ faixa: "", valorBase: "", valorPremiacao: "" })
+      : linha({ criterio: "", valorPremiacao: "", destaque: "" });
 
 
 type DestinoImportacao = {
@@ -312,12 +348,19 @@ function converterArquivoEmLinhas(conteudo: string, tipo: TipoTabela) {
                 item.valorPremiacao || item.premiacao || item.pontuacao || "",
               destaque: item.destaque || "",
             })
-          : linha({
-              faixa: item.faixa || "",
-              valorBase: item.valorBase || item.base || item.producao || "",
-              valorPremiacao:
-                item.valorPremiacao || item.premiacao || item.pontuacao || "",
-            })
+          : tipo === "compra"
+            ? linha({
+                faixa: item.faixa || "",
+                valorBase: item.valorBase || item.base || item.producao || "",
+                valorPremiacao:
+                  item.valorPremiacao || item.premiacao || item.pontuacao || "",
+              })
+            : linha({
+                criterio: item.criterio || item.meta || item.faixa || item.producao || "",
+                valorPremiacao:
+                  item.valorPremiacao || item.premiacao || item.valor || "",
+                destaque: item.destaque || item.observacao || "",
+              })
       );
     }
   } catch {
@@ -339,7 +382,9 @@ function converterArquivoEmLinhas(conteudo: string, tipo: TipoTabela) {
     primeira.some((item) => item.includes("meta")) ||
     primeira.some((item) => item.includes("premi")) ||
     primeira.some((item) => item.includes("base")) ||
-    primeira.some((item) => item.includes("destaque"));
+    primeira.some((item) => item.includes("destaque")) ||
+    primeira.some((item) => item.includes("criterio")) ||
+    primeira.some((item) => item.includes("critério"));
 
   const cabecalhos = temCabecalho ? tabela[0] : [];
   const dados = temCabecalho ? tabela.slice(1) : tabela;
@@ -354,7 +399,10 @@ function converterArquivoEmLinhas(conteudo: string, tipo: TipoTabela) {
   const iMeta = temCabecalho
     ? localizarColuna(cabecalhos, ["meta", "parcelas", "averbada"])
     : 0;
-  const iDestaque = temCabecalho ? localizarColuna(cabecalhos, ["destaque"]) : 2;
+  const iDestaque = temCabecalho ? localizarColuna(cabecalhos, ["destaque", "observacao", "observação"]) : 2;
+  const iCriterio = temCabecalho
+    ? localizarColuna(cabecalhos, ["criterio", "critério", "meta", "regra", "faixa"])
+    : 0;
 
   return dados
     .map((colunas) => {
@@ -366,26 +414,38 @@ function converterArquivoEmLinhas(conteudo: string, tipo: TipoTabela) {
         });
       }
 
+      if (tipo === "compra") {
+        return linha({
+          faixa: colunas[iFaixa >= 0 ? iFaixa : 0] || "",
+          valorBase: colunas[iBase >= 0 ? iBase : 1] || "",
+          valorPremiacao: colunas[iPremiacao >= 0 ? iPremiacao : 2] || "",
+        });
+      }
+
       return linha({
-        faixa: colunas[iFaixa >= 0 ? iFaixa : 0] || "",
-        valorBase: colunas[iBase >= 0 ? iBase : 1] || "",
-        valorPremiacao: colunas[iPremiacao >= 0 ? iPremiacao : 2] || "",
+        criterio: colunas[iCriterio >= 0 ? iCriterio : 0] || "",
+        valorPremiacao: colunas[iPremiacao >= 0 ? iPremiacao : 1] || "",
+        destaque: colunas[iDestaque >= 0 ? iDestaque : 2] || "",
       });
     })
     .filter((item) =>
       tipo === "clt"
         ? item.metaParcelasPagas || item.valorPremiacao || item.destaque
-        : item.faixa || item.valorBase || item.valorPremiacao
+        : tipo === "compra"
+          ? item.faixa || item.valorBase || item.valorPremiacao
+          : item.criterio || item.valorPremiacao || item.destaque
     );
 }
 
 export default function TabelasComissaoManager() {
   const [grupos, setGrupos] = useState<GrupoComissao[]>(modelosIniciais);
-  const [filtro, setFiltro] = useState<"todas" | "coordenacao" | "supervisao" | "vendedoras">("todas");
+  const [filtro, setFiltro] = useState<"todas" | "coordenacao" | "supervisao" | "vendedoras" | "operacional" | "qualidade">("todas");
   const [abaPorGrupo, setAbaPorGrupo] = useState<Record<string, string>>({
     "grupo-coordenacao": "coordenacao-compra-divida",
     "grupo-supervisao": "supervisao-compra-divida",
     "grupo-vendedoras": "comissao-3rn-clt",
+    "grupo-operacional": "comissao-operacional",
+    "grupo-qualidade": "comissao-qualidade",
   });
   const [editando, setEditando] = useState<{
     grupoId: string;
@@ -404,7 +464,10 @@ export default function TabelasComissaoManager() {
       if (salvo) {
         const parsed = JSON.parse(salvo);
         if (Array.isArray(parsed) && parsed.length) {
-          setGrupos(parsed);
+          const padrao = modelosIniciais();
+          const idsSalvos = new Set(parsed.map((grupo: GrupoComissao) => grupo.id));
+          const gruposNovos = padrao.filter((grupo) => !idsSalvos.has(grupo.id));
+          setGrupos([...parsed, ...gruposNovos]);
         }
       }
     } catch {
@@ -480,6 +543,46 @@ export default function TabelasComissaoManager() {
       )
     );
     setMensagem("Nova faixa adicionada.");
+  }
+
+
+  function incluirLinhaApos(grupoId: string, tabelaId: string, linhaId: string) {
+    const grupo = grupos.find((item) => item.id === grupoId);
+    const tabela = grupo?.tabelas.find((item) => item.id === tabelaId);
+
+    if (!tabela) return;
+
+    const novaLinha = criarLinhaVazia(tabela.tipo);
+
+    setGrupos((atuais) =>
+      atuais.map((grupoAtual) =>
+        grupoAtual.id !== grupoId
+          ? grupoAtual
+          : {
+              ...grupoAtual,
+              tabelas: grupoAtual.tabelas.map((tabelaAtual) => {
+                if (tabelaAtual.id !== tabelaId) return tabelaAtual;
+
+                const indice = tabelaAtual.linhas.findIndex(
+                  (item) => item.id === linhaId
+                );
+
+                if (indice < 0) return tabelaAtual;
+
+                const novasLinhas = [...tabelaAtual.linhas];
+                novasLinhas.splice(indice + 1, 0, novaLinha);
+
+                return {
+                  ...tabelaAtual,
+                  linhas: novasLinhas,
+                };
+              }),
+            }
+      )
+    );
+
+    setEditando({ grupoId, tabelaId, linhaId: novaLinha.id });
+    setMensagem("Nova faixa incluída logo abaixo da linha selecionada.");
   }
 
   function excluirLinha(grupoId: string, tabelaId: string, linhaId: string) {
@@ -646,12 +749,16 @@ export default function TabelasComissaoManager() {
     const cabecalho =
       tabela.tipo === "clt"
         ? "META PARCELAS PAGAS;VALOR PREMIAÇÃO;DESTAQUE\\n"
-        : "FAIXA;VALOR BASE;VALOR PREMIAÇÃO\\n";
+        : tabela.tipo === "compra"
+          ? "FAIXA;VALOR BASE;VALOR PREMIAÇÃO\\n"
+          : "META / CRITÉRIO;VALOR PREMIAÇÃO;DESTAQUE\\n";
 
     const exemplo =
       tabela.tipo === "clt"
         ? "20.000;R$ 150,00;Meta retenção\\n"
-        : "FAIXA 1;30 mil a R$ 39.999;400 Pontos\\n";
+        : tabela.tipo === "compra"
+          ? "FAIXA 1;30 mil a R$ 39.999;400 Pontos\\n"
+          : "Ex.: Meta mensal;R$ 300,00;Observação opcional\\n";
 
     const blob = new Blob([cabecalho + exemplo], {
       type: "text/csv;charset=utf-8",
@@ -673,7 +780,7 @@ export default function TabelasComissaoManager() {
     placeholder: string
   ) {
     const ativo = estaEditando(grupoId, tabela.id, linhaItem.id);
-    const primaria = campo === "faixa" || campo === "metaParcelasPagas";
+    const primaria = campo === "faixa" || campo === "metaParcelasPagas" || campo === "criterio";
     const destaque = campo === "valorPremiacao";
     const valor = String(linhaItem[campo] || "");
 
@@ -746,6 +853,18 @@ export default function TabelasComissaoManager() {
     border: "1px solid #0e9f5b",
     background: "#e8f8ee",
     color: "#08783b",
+  } as const;
+
+  const botaoIncluir = {
+    minHeight: 36,
+    border: "1px solid #9fc2ff",
+    borderRadius: 10,
+    background: "#eef5ff",
+    color: "#155eef",
+    padding: "0 13px",
+    fontSize: 12,
+    fontWeight: 950,
+    cursor: "pointer",
   } as const;
 
   const botaoExcluir = {
@@ -824,11 +943,19 @@ export default function TabelasComissaoManager() {
                     <th>Ordem</th>
                     <th>Ação</th>
                   </>
-                ) : (
+                ) : tabela.tipo === "compra" ? (
                   <>
                     <th>Faixa</th>
                     <th>Valor base</th>
                     <th>Valor premiação</th>
+                    <th>Ordem</th>
+                    <th>Ação</th>
+                  </>
+                ) : (
+                  <>
+                    <th>Meta / Critério</th>
+                    <th>Valor premiação</th>
+                    <th>Destaque</th>
                     <th>Ordem</th>
                     <th>Ação</th>
                   </>
@@ -845,11 +972,17 @@ export default function TabelasComissaoManager() {
                       <td>{renderCelula(grupo.id, tabela, linhaItem, "valorPremiacao", "Ex.: R$ 300,00")}</td>
                       <td>{renderCelula(grupo.id, tabela, linhaItem, "destaque", "Ex.: Meta forte")}</td>
                     </>
-                  ) : (
+                  ) : tabela.tipo === "compra" ? (
                     <>
                       <td>{renderCelula(grupo.id, tabela, linhaItem, "faixa", "Ex.: FAIXA 1")}</td>
                       <td>{renderCelula(grupo.id, tabela, linhaItem, "valorBase", "Ex.: 30 mil a R$ 39.999")}</td>
                       <td>{renderCelula(grupo.id, tabela, linhaItem, "valorPremiacao", "Ex.: 400 Pontos")}</td>
+                    </>
+                  ) : (
+                    <>
+                      <td>{renderCelula(grupo.id, tabela, linhaItem, "criterio", "Ex.: Meta mensal ou critério")}</td>
+                      <td>{renderCelula(grupo.id, tabela, linhaItem, "valorPremiacao", "Ex.: R$ 300,00")}</td>
+                      <td>{renderCelula(grupo.id, tabela, linhaItem, "destaque", "Ex.: Observação opcional")}</td>
                     </>
                   )}
 
@@ -926,6 +1059,17 @@ export default function TabelasComissaoManager() {
 
                   <td>
                     <div className="tc-row-actions">
+                      <button
+                        type="button"
+                        style={botaoIncluir}
+                        onClick={() =>
+                          incluirLinhaApos(grupo.id, tabela.id, linhaItem.id)
+                        }
+                        title="Incluir uma nova faixa logo abaixo desta linha"
+                      >
+                        INCLUIR
+                      </button>
+
                       <button
                         type="button"
                         style={
@@ -1216,7 +1360,7 @@ export default function TabelasComissaoManager() {
 
         .tc-row-actions {
           justify-content: flex-end;
-          min-width: 170px;
+          min-width: 270px;
         }
 
         .tc-message {
@@ -1298,6 +1442,20 @@ export default function TabelasComissaoManager() {
           onClick={() => setFiltro("vendedoras")}
         >
           Vendedoras
+        </button>
+        <button
+          type="button"
+          className={filtro === "operacional" ? "active" : ""}
+          onClick={() => setFiltro("operacional")}
+        >
+          Operacional
+        </button>
+        <button
+          type="button"
+          className={filtro === "qualidade" ? "active" : ""}
+          onClick={() => setFiltro("qualidade")}
+        >
+          Qualidade
         </button>
       </div>
 

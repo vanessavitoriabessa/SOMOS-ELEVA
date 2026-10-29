@@ -539,4 +539,151 @@
     width: 100% !important;
   }
 }
+.df-page{display:flex;flex-direction:column;gap:12px}.df-head{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:20px;border:1px solid #dce5f2;border-radius:15px;background:#fff}.df-head span{color:#155eef;font-size:9px;font-weight:900;letter-spacing:.1em}.df-head h2{margin:5px 0 0;color:#102d57;font-size:22px}.df-head p{margin:5px 0 0;color:#71809a;font-size:10px}.df-head button,.df-form button{min-height:38px;padding:0 14px;border:0;border-radius:9px;background:#155eef;color:#fff;font:inherit;font-size:10px;font-weight:900;cursor:pointer}.df-toolbar{display:flex;align-items:end;justify-content:space-between;gap:14px;padding:14px 16px;border:1px solid #dce5f2;border-radius:14px;background:#fff}.df-toolbar label,.df-form label{display:flex;flex-direction:column;gap:6px;color:#53627a;font-size:9px;font-weight:900;text-transform:uppercase}.df-toolbar input,.df-form input,.df-form select{min-height:38px;padding:0 11px;border:1px solid #d8e2ef;border-radius:9px;background:#fff;color:#183454;font:inherit;font-size:10px;font-weight:700}.df-kpis{display:flex;gap:24px}.df-kpis div{min-width:120px}.df-kpis span{display:block;color:#7c899d;font-size:8px;font-weight:800;text-transform:uppercase}.df-kpis strong{display:block;margin-top:4px;color:#102d57;font-size:17px}.df-form{display:grid;grid-template-columns:1.2fr 1fr 1fr .8fr .55fr .8fr auto;gap:10px;align-items:end;padding:16px;border:1px solid #bfd1ff;border-radius:14px;background:#f8faff}.df-message{padding:11px 13px;border:1px solid #c9d8ff;border-radius:10px;background:#f4f7ff;color:#3157b8;font-size:10px;font-weight:700}.df-list{overflow:hidden;border:1px solid #dce5f2;border-radius:14px;background:#fff}.df-list-head,.df-list article{display:grid;grid-template-columns:1.5fr .8fr .6fr .7fr .65fr 180px;align-items:center;gap:12px;padding:0 16px}.df-list-head{min-height:40px;background:#f7f9fc;color:#6b7890;font-size:8px;font-weight:900;text-transform:uppercase}.df-list article{min-height:62px;border-top:1px solid #edf1f6;color:#263d5d;font-size:10px}.df-list article strong,.df-list article small{display:block}.df-list article small{margin-top:3px;color:#8a96a8;font-size:8px}.df-status{display:inline-flex;width:max-content;padding:6px 9px;border-radius:999px;font-size:8px;font-weight:900}.df-status.pago{background:#e9f8ef;color:#0a8d48}.df-status.pendente{background:#fff4df;color:#b86a00}.df-actions{display:flex;justify-content:flex-end;gap:6px}.df-actions button{min-height:31px;padding:0 9px;border:1px solid #bcd0ff;border-radius:8px;background:#f7f9ff;color:#155eef;font:inherit;font-size:8px;font-weight:900;cursor:pointer}.df-actions button.secondary{border-color:#dce5f2;background:#fff;color:#68758a}.df-empty{padding:36px;text-align:center;color:#8a96a8;font-size:10px}@media(max-width:1100px){.df-form{grid-template-columns:1fr 1fr 1fr}.df-list{overflow-x:auto}.df-list-head,.df-list article{min-width:900px}}
+
+/* =========================================================
+   DESPESAS FIXAS — EXCLUSÃO POR COMPETÊNCIA
+   ========================================================= */
+
+.df-delete-overlay{
+  position:fixed;
+  inset:0;
+  z-index:9999;
+  display:grid;
+  place-items:center;
+  padding:24px;
+  background:rgba(11,31,62,.58);
+  backdrop-filter:blur(3px);
+}
+
+.df-delete-modal{
+  width:min(720px,calc(100vw - 32px));
+  overflow:hidden;
+  border:1px solid #dce5f2;
+  border-radius:20px;
+  background:#fff;
+  box-shadow:0 30px 90px rgba(12,35,64,.26);
+}
+
+.df-delete-modal>header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:18px;
+  padding:22px 24px 18px;
+  border-bottom:1px solid #e8eef6;
+  background:linear-gradient(180deg,#fff,#f9fbff);
+}
+
+.df-delete-modal>header span{
+  display:block;
+  color:#155eef;
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.12em;
+}
+
+.df-delete-modal>header h3{
+  margin:5px 0 4px;
+  color:#102d57;
+  font-size:22px;
+  line-height:1.15;
+}
+
+.df-delete-modal>header p{
+  margin:0;
+  color:#667892;
+  font-size:12px;
+}
+
+.df-delete-close{
+  width:36px;
+  height:36px;
+  flex:0 0 36px;
+  border:1px solid #d8e2ef;
+  border-radius:10px;
+  background:#fff;
+  color:#536782;
+  font-size:21px;
+  cursor:pointer;
+}
+
+.df-delete-options{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+  padding:20px 24px;
+}
+
+.df-delete-options>button{
+  min-height:128px;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  justify-content:flex-start;
+  gap:7px;
+  padding:18px;
+  border-radius:14px;
+  text-align:left;
+  cursor:pointer;
+}
+
+.df-delete-options>button strong{
+  font-size:14px;
+  font-weight:900;
+}
+
+.df-delete-options>button span{
+  color:#687991;
+  font-size:11px;
+  line-height:1.5;
+}
+
+.df-delete-month{
+  border:1px solid #bad0ff;
+  background:#f4f8ff;
+  color:#155eef;
+}
+
+.df-delete-month:hover{
+  background:#edf4ff;
+}
+
+.df-delete-forever{
+  border:1px solid #f0b7b4;
+  background:#fff4f3;
+  color:#c73530;
+}
+
+.df-delete-forever:hover{
+  background:#ffecea;
+}
+
+.df-delete-modal>footer{
+  display:flex;
+  justify-content:flex-end;
+  padding:14px 24px 20px;
+}
+
+.df-delete-cancel{
+  min-height:38px;
+  padding:0 15px;
+  border:1px solid #d7e1ee;
+  border-radius:9px;
+  background:#fff;
+  color:#52657e;
+  font-weight:800;
+  cursor:pointer;
+}
+
+.df-delete-modal button:disabled{
+  opacity:.55;
+  cursor:not-allowed;
+}
+
+@media(max-width:700px){
+  .df-delete-options{
+    grid-template-columns:1fr;
+  }
+}
 

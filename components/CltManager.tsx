@@ -2430,194 +2430,103 @@ banco: item.banco,
 
           ) : (
 
-            <div className="clt-list">
-
-              {registrosExibidos.map((item) => {
-
-                const pendente = idsPendentes.has(item.id);
-
-                return (
-
-                  <article key={item.id}>
-
-                    <div className="clt-item-top">
-
-                      <div>
-
-                        <strong>{item.nome}</strong>
-
-                        <span>
-
-                          {item.cpf ? formatarCpf(item.cpf) : "CPF não informado"}{" "}
-
-                          • Nascimento: {formatarData(item.dataNascimento)}
-
-                          {pendente ? " • Aguardando sincronização" : ""}
-
-                        </span>
-
-                      </div>
-
-                      <span
-
-                        className={`clt-status status-${item.status
-
-                          .toLowerCase()
-
-                          .replace(/\s/g, "-")
-
-                          .normalize("NFD")
-
-                          .replace(/[\u0300-\u036f]/g, "")}`}
-
-                      >
-
-                        {item.status}
-
-                      </span>
-
-                    </div>
-
-                    <div className="clt-values">
-
-                      <div>
-
-                        <small>Telefone</small>
-
-                        <b>
-
-                          {item.telefone
-
-                            ? formatarTelefone(item.telefone)
-
-                            : "Não informado"}
-
-                        </b>
-
-                      </div>
-
-                      <div>
-
-                        <small>Valor aprovado</small>
-
-                        <b>{moeda(item.valorAprovado)}</b>
-
-                      </div>
-
-                      <div>
-
-                        <small>Parcela</small>
-
-                        <b>{moeda(item.parcela)}</b>
-
-                      </div>
-
-                      <div>
-
-                        <small>Banco</small>
-
-                        <b>{item.banco || "Não informado"}</b>
-
-                      </div>
-                      <div className="clt-tabela-resumo">
-                        <small>Tabela bancária</small>
-                        {item.tabelaBancoId ? (
-                          <>
-                            <b>{item.tabela || "Tabela vinculada indisponível"}</b>
-                            <small>{[
-                              item.tabelaCodigo,
-                              rotuloPrazoTabelaClt({
-                                prazo: item.tabelaPrazo ?? null,
-                                prazoInicial: item.tabelaPrazoInicial ?? null,
-                                prazoFinal: item.tabelaPrazoFinal ?? null,
-                              }),
-                            ].filter(Boolean).join(" • ")}</small>
-                          </>
-                        ) : <b className="clt-sem-tabela">Sem tabela selecionada</b>}
-                      </div>
-
-                      <div>
-
-  <small>Prazo</small>
-
-  <b>
-
-    {item.prazo
-
-      ? `${item.prazo} meses`
-
-      : "Não informado"}
-
-  </b>
-
-</div>
-
-{item.status === "Pago" && (
-
-  <div>
-
-    <small>Data do pagamento</small>
-
-    <b>{formatarData(item.dataPagamento)}</b>
-
-  </div>
-
-)}
-
-                    </div>
-
-                    <footer>
-
-                      <span>
-
-                        {item.consultora || "Sem consultora"} • Atualizado em{" "}
-
-                        {item.atualizadoEm || "Não informado"}
-
-                      </span>
-
-                      <div>
-
-                        <button
-
-                          type="button"
-
-                          disabled={processando || pendente}
-
-                          onClick={() => editar(item)}
-
-                        >
-
-                          Editar
-
-                        </button>
-
-                        <button
-
-                          type="button"
-
-                          className="delete"
-
-                          disabled={processando || pendente}
-
-                          onClick={() => excluir(item.id)}
-
-                        >
-
-                          Excluir
-
-                        </button>
-
-                      </div>
-
-                    </footer>
-
-                  </article>
-
-                );
-
-              })}
-
+            <div className="clt-list clt-list-compacta">
+              <div className="clt-client-table-wrap">
+                <table className="clt-client-table">
+                  <thead>
+                    <tr>
+                      <th>Cliente</th>
+                      <th>Consultora</th>
+                      <th>Telefone</th>
+                      <th>Valor aprovado</th>
+                      <th>Parcela</th>
+                      <th>Banco / tabela</th>
+                      <th>Prazo</th>
+                      <th>Pagamento</th>
+                      <th>Status</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {registrosExibidos.map((item) => {
+                      const pendente = idsPendentes.has(item.id);
+                      const tabelaResumo = item.tabelaBancoId
+                        ? [
+                            item.tabela || "Tabela vinculada indisponível",
+                            item.tabelaCodigo ? `Cód. ${item.tabelaCodigo}` : "",
+                          ].filter(Boolean).join(" • ")
+                        : "Sem tabela selecionada";
+
+                      return (
+                        <tr key={item.id}>
+                          <td className="clt-col-cliente">
+                            <strong>{item.nome}</strong>
+                            <small>
+                              {item.cpf ? formatarCpf(item.cpf) : "CPF não informado"}
+                              {item.dataNascimento ? ` • Nasc. ${formatarData(item.dataNascimento)}` : ""}
+                              {pendente ? " • Aguardando sincronização" : ""}
+                            </small>
+                          </td>
+                          <td>
+                            <strong className="clt-table-main">{item.consultora || "—"}</strong>
+                          </td>
+                          <td>
+                            <span>{item.telefone ? formatarTelefone(item.telefone) : "—"}</span>
+                          </td>
+                          <td>
+                            <strong className="clt-table-money">{moeda(item.valorAprovado)}</strong>
+                          </td>
+                          <td>
+                            <strong className="clt-table-money">{moeda(item.parcela)}</strong>
+                          </td>
+                          <td className="clt-col-banco">
+                            <strong>{item.banco || "—"}</strong>
+                            <small className={!item.tabelaBancoId ? "clt-sem-tabela" : ""}>
+                              {tabelaResumo}
+                            </small>
+                          </td>
+                          <td>
+                            <span>{item.prazo ? `${item.prazo} meses` : "—"}</span>
+                          </td>
+                          <td>
+                            <span>{item.status === "Pago" ? formatarData(item.dataPagamento) : "—"}</span>
+                          </td>
+                          <td>
+                            <span
+                              className={`clt-status status-${item.status
+                                .toLowerCase()
+                                .replace(/\s/g, "-")
+                                .normalize("NFD")
+                                .replace(/[\u0300-\u036f]/g, "")}`}
+                            >
+                              {item.status}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="clt-table-actions">
+                              <button
+                                type="button"
+                                disabled={processando || pendente}
+                                onClick={() => editar(item)}
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                className="delete"
+                                disabled={processando || pendente}
+                                onClick={() => excluir(item.id)}
+                              >
+                                Excluir
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
           )}
@@ -2661,4 +2570,3 @@ banco: item.banco,
   );
 
 }
-// FIM DO ARQUIVO COMPLETO - CltManager.tsx - ELEVA
