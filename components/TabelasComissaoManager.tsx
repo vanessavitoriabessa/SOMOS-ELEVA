@@ -505,6 +505,62 @@ export default function TabelasComissaoManager() {
     );
   }
 
+  function moverLinha(
+    grupoId: string,
+    tabelaId: string,
+    linhaId: string,
+    novaPosicao: number
+  ) {
+    setGrupos((atuais) =>
+      atuais.map((grupo) => {
+        if (grupo.id !== grupoId) return grupo;
+
+        return {
+          ...grupo,
+          tabelas: grupo.tabelas.map((tabela) => {
+            if (tabela.id !== tabelaId) return tabela;
+
+            const atual = tabela.linhas.findIndex((item) => item.id === linhaId);
+            if (atual < 0) return tabela;
+
+            const destino = Math.max(
+              0,
+              Math.min(tabela.linhas.length - 1, Math.trunc(novaPosicao) - 1)
+            );
+
+            if (destino === atual) return tabela;
+
+            const linhasOrdenadas = [...tabela.linhas];
+            const [movida] = linhasOrdenadas.splice(atual, 1);
+            linhasOrdenadas.splice(destino, 0, movida);
+
+            return {
+              ...tabela,
+              linhas: linhasOrdenadas,
+            };
+          }),
+        };
+      })
+    );
+
+    setMensagem("Ordem das faixas atualizada.");
+  }
+
+  function moverLinhaRelativo(
+    grupoId: string,
+    tabelaId: string,
+    linhaId: string,
+    deslocamento: -1 | 1
+  ) {
+    const grupo = grupos.find((item) => item.id === grupoId);
+    const tabela = grupo?.tabelas.find((item) => item.id === tabelaId);
+    const indice = tabela?.linhas.findIndex((item) => item.id === linhaId) ?? -1;
+
+    if (!tabela || indice < 0) return;
+
+    moverLinha(grupoId, tabelaId, linhaId, indice + 1 + deslocamento);
+  }
+
   function alternarEdicao(grupoId: string, tabelaId: string, linhaId: string) {
     const ativo =
       editando?.grupoId === grupoId &&
@@ -660,6 +716,19 @@ export default function TabelasComissaoManager() {
     );
   }
 
+  const botaoMover = {
+    width: 32,
+    minWidth: 32,
+    height: 32,
+    border: "1px solid #c9d7ec",
+    borderRadius: 9,
+    background: "#ffffff",
+    color: "#155eef",
+    fontSize: 15,
+    fontWeight: 950,
+    cursor: "pointer",
+  } as const;
+
   const botaoEditar = {
     minHeight: 36,
     border: "1px solid #f0cb72",
@@ -752,6 +821,7 @@ export default function TabelasComissaoManager() {
                     <th>Meta parcelas pagas</th>
                     <th>Valor premiação</th>
                     <th>Destaque</th>
+                    <th>Ordem</th>
                     <th>Ação</th>
                   </>
                 ) : (
@@ -759,6 +829,7 @@ export default function TabelasComissaoManager() {
                     <th>Faixa</th>
                     <th>Valor base</th>
                     <th>Valor premiação</th>
+                    <th>Ordem</th>
                     <th>Ação</th>
                   </>
                 )}
@@ -781,6 +852,77 @@ export default function TabelasComissaoManager() {
                       <td>{renderCelula(grupo.id, tabela, linhaItem, "valorPremiacao", "Ex.: 400 Pontos")}</td>
                     </>
                   )}
+
+                  <td>
+                    <div className="tc-order-controls">
+                      <button
+                        type="button"
+                        style={{
+                          ...botaoMover,
+                          opacity: indice === 0 ? 0.4 : 1,
+                          cursor: indice === 0 ? "not-allowed" : "pointer",
+                        }}
+                        disabled={indice === 0}
+                        onClick={() =>
+                          moverLinhaRelativo(
+                            grupo.id,
+                            tabela.id,
+                            linhaItem.id,
+                            -1
+                          )
+                        }
+                        title="Subir uma linha"
+                        aria-label="Subir uma linha"
+                      >
+                        ↑
+                      </button>
+
+                      <select
+                        value={indice + 1}
+                        onChange={(evento) =>
+                          moverLinha(
+                            grupo.id,
+                            tabela.id,
+                            linhaItem.id,
+                            Number(evento.target.value)
+                          )
+                        }
+                        title="Mover para posição"
+                        aria-label="Mover para posição"
+                      >
+                        {tabela.linhas.map((_, posicao) => (
+                          <option key={posicao + 1} value={posicao + 1}>
+                            {posicao + 1}
+                          </option>
+                        ))}
+                      </select>
+
+                      <button
+                        type="button"
+                        style={{
+                          ...botaoMover,
+                          opacity: indice === tabela.linhas.length - 1 ? 0.4 : 1,
+                          cursor:
+                            indice === tabela.linhas.length - 1
+                              ? "not-allowed"
+                              : "pointer",
+                        }}
+                        disabled={indice === tabela.linhas.length - 1}
+                        onClick={() =>
+                          moverLinhaRelativo(
+                            grupo.id,
+                            tabela.id,
+                            linhaItem.id,
+                            1
+                          )
+                        }
+                        title="Descer uma linha"
+                        aria-label="Descer uma linha"
+                      >
+                        ↓
+                      </button>
+                    </div>
+                  </td>
 
                   <td>
                     <div className="tc-row-actions">
@@ -882,6 +1024,7 @@ export default function TabelasComissaoManager() {
         .tc-filter,
         .tc-tabs,
         .tc-row-actions,
+        .tc-order-controls,
         .tc-table-actions {
           display: flex;
           gap: 9px;
@@ -1042,6 +1185,33 @@ export default function TabelasComissaoManager() {
 
         tbody tr:hover td {
           background: #eef5ff;
+        }
+
+        .tc-order-controls {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 5px;
+          min-width: 126px;
+        }
+
+        .tc-order-controls select {
+          width: 48px;
+          height: 32px;
+          border: 1px solid #c9d7ec;
+          border-radius: 9px;
+          background: #ffffff;
+          color: #0d326a;
+          text-align: center;
+          font-size: 12px;
+          font-weight: 950;
+          cursor: pointer;
+          outline: none;
+        }
+
+        .tc-order-controls select:focus {
+          border-color: #155eef;
+          box-shadow: 0 0 0 3px rgba(21, 94, 239, 0.1);
         }
 
         .tc-row-actions {
