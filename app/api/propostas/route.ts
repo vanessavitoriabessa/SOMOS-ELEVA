@@ -1,3 +1,4 @@
+// ELEVA | PROPOSTAS | ÓRGÃO/CONVÊNIO PERSISTENTE | 29/10/2026
 import { NextRequest, NextResponse } from "next/server";
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
@@ -44,6 +45,7 @@ type PropostaRecebida = {
   vendedora?: string;
   consultora?: string;
   banco?: string;
+  orgaoConvenio?: string;
     bancoOrigemId?: string;
   bancoAtualId?: string;
   tabelaBancoId?: string;
@@ -76,6 +78,7 @@ type LinhaProposta = {
   consultora_id: string | null;
   vendedora: string;
   banco: string;
+  orgao_convenio: string | null;
     banco_origem_id: string | null;
   banco_atual_id: string | null;
   tabela_banco_id: string | null;
@@ -407,6 +410,7 @@ function linhaParaProposta(linha: LinhaProposta, incluirCredenciais = false) {
     telefone: apenasNumeros(linha.telefone),
     vendedora: String(linha.vendedora || ""),
     banco: String(linha.banco || ""),
+    orgaoConvenio: String(linha.orgao_convenio || ""),
 bancoOrigemId: String(linha.banco_origem_id || ""),
 bancoAtualId: String(linha.banco_atual_id || ""),
 tabelaBancoId: String(linha.tabela_banco_id || ""),
@@ -724,6 +728,8 @@ if (valorContrato <= 0) {
     consultora_id: consultora?.id || null,
     vendedora: consultora?.nome || nomeConsultora,
     banco: String(proposta.banco || "").trim(),
+orgao_convenio:
+  String(proposta.orgaoConvenio || opcoes?.existente?.orgao_convenio || "").trim() || null,
 banco_origem_id: String(proposta.bancoOrigemId || "").trim() || null,
 banco_atual_id: String(proposta.bancoAtualId || "").trim() || null,
 tabela_banco_id: tabelaBancoId,
@@ -786,6 +792,7 @@ export async function GET(request: NextRequest) {
         consultora_id,
         vendedora,
         banco,
+        orgao_convenio,
 banco_origem_id,
 banco_atual_id,
 tabela_banco_id,

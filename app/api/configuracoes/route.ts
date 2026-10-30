@@ -291,6 +291,51 @@ function numero(valor: unknown) {
 }
 
 
+function normalizarPerfil(valor: unknown) {
+  return String(valor ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function perfilPodeGerenciarOrgaos(valor: unknown) {
+  const perfil = normalizarPerfil(valor);
+
+  return (
+    perfil.includes("diretor") ||
+    perfil.includes("diretoria") ||
+    perfil.includes("coorden") ||
+    perfil.includes("administrador")
+  );
+}
+
+async function usuarioPodeGerenciarOrgaos(
+  supabase: ReturnType<typeof createAdminClient>,
+  usuarioId: string,
+) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("perfil")
+    .eq("id", usuarioId)
+    .maybeSingle();
+
+  if (error || !data) return false;
+
+  return perfilPodeGerenciarOrgaos(data.perfil);
+}
+
+function respostaSemPermissaoOrgaos() {
+  return NextResponse.json(
+    {
+      erro:
+        "Somente Diretoria e Coordenação podem cadastrar ou alterar órgãos / estados.",
+    },
+    { status: 403 },
+  );
+}
+
+
 
 export async function GET(
 
@@ -675,6 +720,15 @@ export async function POST(
 
 
     if (body.acao === "criar_orgao_convenio") {
+
+      if (
+        !(await usuarioPodeGerenciarOrgaos(
+          supabase,
+          String(auth.usuario.id),
+        ))
+      ) {
+        return respostaSemPermissaoOrgaos();
+      }
 
       const nome = String(body.orgaoConvenio?.nome || "")
 
@@ -1440,6 +1494,15 @@ export async function PATCH(
 
     if (body.acao === "editar_orgao_convenio") {
 
+      if (
+        !(await usuarioPodeGerenciarOrgaos(
+          supabase,
+          String(auth.usuario.id),
+        ))
+      ) {
+        return respostaSemPermissaoOrgaos();
+      }
+
       const id = String(body.orgaoConvenio?.id || "");
 
 
@@ -2157,6 +2220,15 @@ export async function DELETE(
 
 
     if (body.tipo === "orgao_convenio") {
+
+      if (
+        !(await usuarioPodeGerenciarOrgaos(
+          supabase,
+          String(auth.usuario.id),
+        ))
+      ) {
+        return respostaSemPermissaoOrgaos();
+      }
 
       const { error } = await supabase
 

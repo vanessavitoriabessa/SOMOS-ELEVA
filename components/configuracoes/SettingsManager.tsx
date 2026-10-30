@@ -285,6 +285,25 @@ function tabelaEhClt(tabela: Tabela) {
   );
 }
 
+function normalizarPerfilConfiguracoes(valor: unknown) {
+  return String(valor ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function perfilPodeGerenciarOrgaosConfiguracoes(valor: unknown) {
+  const perfil = normalizarPerfilConfiguracoes(valor);
+
+  return (
+    perfil.includes("diretor") ||
+    perfil.includes("diretoria") ||
+    perfil.includes("coorden") ||
+    perfil.includes("administrador")
+  );
+}
+
 export default function SettingsManager() {
   const supabase = useMemo(() => createClient(), []);
 
@@ -376,6 +395,7 @@ export default function SettingsManager() {
   const [editandoBancoId, setEditandoBancoId] = useState<string | null>(null);
   const [nomeBancoEdicao, setNomeBancoEdicao] = useState("");
   const [novoOrgaoConvenio, setNovoOrgaoConvenio] = useState("");
+  const [perfilAtualConfiguracoes, setPerfilAtualConfiguracoes] = useState("");
   const [buscaTabela, setBuscaTabela] = useState("");
   const [filtroTipoTabela, setFiltroTipoTabela] =
     useState<FiltroTipoTabela>("TODAS");
@@ -409,6 +429,46 @@ export default function SettingsManager() {
     inicio: hoje(),
     fim: hoje(),
   });
+
+  useEffect(() => {
+    let ativo = true;
+
+    async function carregarPerfilAtualConfiguracoes() {
+      try {
+        const { data: sessao } = await supabase.auth.getSession();
+        const usuarioId = sessao.session?.user.id;
+
+        if (!usuarioId) {
+          if (ativo) setPerfilAtualConfiguracoes("");
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("perfil")
+          .eq("id", usuarioId)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        if (ativo) {
+          setPerfilAtualConfiguracoes(String(data?.perfil || ""));
+        }
+      } catch {
+        if (ativo) setPerfilAtualConfiguracoes("");
+      }
+    }
+
+    void carregarPerfilAtualConfiguracoes();
+
+    return () => {
+      ativo = false;
+    };
+  }, [supabase]);
+
+  const podeGerenciarOrgaos = perfilPodeGerenciarOrgaosConfiguracoes(
+    perfilAtualConfiguracoes,
+  );
 
   function numeroPremiacao(valor: string | number | null | undefined) {
     if (typeof valor === "number") return Number.isFinite(valor) ? valor : 0;
@@ -1236,6 +1296,11 @@ export default function SettingsManager() {
   async function adicionarOrgaoConvenio(event: FormEvent) {
     event.preventDefault();
 
+    if (!podeGerenciarOrgaos) {
+      setMensagem("Somente Diretoria e Coordenação podem cadastrar órgãos / estados.");
+      return;
+    }
+
     const nome = novoOrgaoConvenio.trim().toUpperCase();
 
     if (!nome) {
@@ -1270,6 +1335,11 @@ export default function SettingsManager() {
   }
 
   async function alternarOrgaoConvenio(id: string) {
+    if (!podeGerenciarOrgaos) {
+      setMensagem("Somente Diretoria e Coordenação podem alterar órgãos / estados.");
+      return;
+    }
+
     const orgao = orgaosConveniosTabela.find((item) => item.id === id);
     if (!orgao) return;
 
@@ -1302,7 +1372,12 @@ export default function SettingsManager() {
   }
 
   async function excluirOrgaoConvenio(id: string) {
-    if (!window.confirm("Deseja excluir este órgão / convênio?")) return;
+    if (!podeGerenciarOrgaos) {
+      setMensagem("Somente Diretoria e Coordenação podem excluir órgãos / estados.");
+      return;
+    }
+
+    if (!window.confirm("Deseja excluir este órgão / estado / convênio?")) return;
 
     setProcessando(true);
     setMensagem("");
@@ -2928,7 +3003,7 @@ export default function SettingsManager() {
               <span className="settings-nav-icon">B</span><span><b>Bancos</b><em>{bancos.length} cadastrados</em></span>
             </button>
             <button className={aba === "orgaos" ? "active" : ""} onClick={() => setAba("orgaos")}>
-              <span className="settings-nav-icon">O</span><span><b>Órgãos e convênios</b><em>{orgaosConvenios.length} cadastrados</em></span>
+              <span className="settings-nav-icon">O</span><span><b>Órgãos / Estados</b><em>{orgaosConvenios.length} cadastrados</em></span>
             </button>
             <button className={aba === "tabelas" ? "active" : ""} onClick={() => setAba("tabelas")}>
               <span className="settings-nav-icon">%</span><span><b>Tabelas de produção</b><em>{tabelas.length} regras</em></span>
@@ -3006,7 +3081,7 @@ export default function SettingsManager() {
     <>
       <button className={aba==="bancos"?"active":""} onClick={()=>setAba("bancos")}>Bancos</button>
 
-      <button className={aba==="orgaos"?"active":""} onClick={()=>setAba("orgaos")}>Órgãos</button>
+      <button className={aba==="orgaos"?"active":""} onClick={()=>setAba("orgaos")}>Órgãos / Estados</button>
 
       <button className={aba==="tabelas"?"active":""} onClick={()=>setAba("tabelas")}>Tabelas</button>
 
@@ -3439,64 +3514,130 @@ export default function SettingsManager() {
 
       {aba === "orgaos" && (
         <section className="settings-grid settings-grid-orgaos">
-          <form className="settings-card" onSubmit={adicionarOrgaoConvenio}>
-            <div className="settings-heading">
-              <div>
-                <span>NOVO ÓRGÃO / CONVÊNIO</span>
-                <h2>Cadastrar convênio</h2>
-                <p>Governo, Prefeitura ou qualquer convênio utilizado nas tabelas.</p>
+          {podeGerenciarOrgaos ? (
+            <form className="settings-card" onSubmit={adicionarOrgaoConvenio}>
+              <div className="settings-heading">
+                <div>
+                  <span>NOVO ÓRGÃO / ESTADO / CONVÊNIO</span>
+                  <h2>Cadastrar órgão ou estado</h2>
+                  <p>
+                    Escreva o órgão, governo, prefeitura ou estado exatamente como
+                    deseja que apareça na Compra de Dívida.
+                  </p>
+                </div>
+                <b>+</b>
               </div>
-              <b>+</b>
-            </div>
 
-            <label className="settings-single-label">
-              Nome do órgão / convênio
-              <input
-                value={novoOrgaoConvenio}
-                onChange={(e) => setNovoOrgaoConvenio(e.target.value)}
-                placeholder="Ex.: GOVERNO DE GO"
-                disabled={processando}
-              />
-            </label>
+              <label className="settings-single-label">
+                Nome do órgão / estado
+                <input
+                  value={novoOrgaoConvenio}
+                  onChange={(e) => setNovoOrgaoConvenio(e.target.value)}
+                  placeholder="Ex.: GOVERNO PARANÁ-PR"
+                  disabled={processando}
+                />
+              </label>
 
-            <div className="settings-actions">
-              <button type="submit" disabled={processando}>
-                {processando ? "Salvando..." : "Adicionar órgão / convênio"}
-              </button>
-            </div>
-          </form>
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: "12px 14px",
+                  border: "1px solid #dbe7f8",
+                  borderRadius: 12,
+                  background: "#f7faff",
+                  color: "#4b6382",
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                }}
+              >
+                Depois de salvar aqui, o órgão passa a aparecer automaticamente
+                em <strong>Compra de Dívida → Órgão / Convênio</strong> e pode ser
+                vinculado às tabelas em <strong>Configurações → Tabelas</strong>.
+              </div>
+
+              <div className="settings-actions">
+                <button type="submit" disabled={processando}>
+                  {processando ? "Salvando..." : "+ Adicionar órgão / estado"}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <section className="settings-card">
+              <div className="settings-heading">
+                <div>
+                  <span>CADASTRO RESTRITO</span>
+                  <h2>Órgãos / Estados</h2>
+                  <p>
+                    Somente usuários da Diretoria e Coordenação podem cadastrar,
+                    ativar, desativar ou excluir órgãos / estados.
+                  </p>
+                </div>
+                <b>🔒</b>
+              </div>
+            </section>
+          )}
 
           <section className="settings-card">
             <div className="settings-list-heading">
               <div>
                 <span>CADASTRADOS</span>
-                <h2>Órgãos e convênios</h2>
-                <p>Lista central usada nas regras de produção.</p>
+                <h2>Órgãos, estados e convênios</h2>
+                <p>
+                  Lista central utilizada na Compra de Dívida e nas tabelas de
+                  produção.
+                </p>
               </div>
               <b>{orgaosConvenios.length}</b>
             </div>
 
             <div className="settings-list settings-v6-clean-list">
-              {orgaosConvenios.map((orgao) => (
-                <article key={orgao.id}>
-                  <div className="settings-icon">O</div>
-                  <div>
-                    <strong>{orgao.nome}</strong>
-                    <span>{orgao.ativo ? "Disponível para vincular às tabelas" : "Desativado"}</span>
-                  </div>
-                  <span className={orgao.ativo ? "status-active" : "status-inactive"}>
-                    {orgao.ativo ? "Ativo" : "Inativo"}
-                  </span>
-                  <div className="settings-row-actions">
-                    <button type="button" onClick={() => void alternarOrgaoConvenio(orgao.id)}>
-                      {orgao.ativo ? "Desativar" : "Ativar"}
-                    </button>
-                    <button type="button" className="delete" onClick={() => void excluirOrgaoConvenio(orgao.id)}>
-                      Excluir
-                    </button>
-                  </div>
-                </article>
-              ))}
+              {orgaosConvenios.length === 0 ? (
+                <div
+                  style={{
+                    padding: 18,
+                    border: "1px dashed #d5dfed",
+                    borderRadius: 12,
+                    color: "#65758b",
+                  }}
+                >
+                  Nenhum órgão / estado cadastrado.
+                </div>
+              ) : (
+                orgaosConvenios.map((orgao) => (
+                  <article key={orgao.id}>
+                    <div className="settings-icon">O</div>
+                    <div>
+                      <strong>{orgao.nome}</strong>
+                      <span>
+                        {orgao.ativo
+                          ? "Disponível na Compra de Dívida e para vincular às tabelas"
+                          : "Desativado"}
+                      </span>
+                    </div>
+                    <span className={orgao.ativo ? "status-active" : "status-inactive"}>
+                      {orgao.ativo ? "Ativo" : "Inativo"}
+                    </span>
+
+                    {podeGerenciarOrgaos && (
+                      <div className="settings-row-actions">
+                        <button
+                          type="button"
+                          onClick={() => void alternarOrgaoConvenio(orgao.id)}
+                        >
+                          {orgao.ativo ? "Desativar" : "Ativar"}
+                        </button>
+                        <button
+                          type="button"
+                          className="delete"
+                          onClick={() => void excluirOrgaoConvenio(orgao.id)}
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    )}
+                  </article>
+                ))
+              )}
             </div>
           </section>
         </section>

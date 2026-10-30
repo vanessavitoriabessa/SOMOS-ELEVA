@@ -1,9 +1,9 @@
 "use client";
+// ELEVA | FINANCEIRO | BUSCA RECEBIMENTOS CORRIGIDA | 29/10/2026
 
 import { createClient } from "@/lib/supabase/client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./baixas.css";
-import "./baixas-financeiro-compacto.css";
 
 type BaixaPagamento = {
   id: string;
@@ -327,24 +327,13 @@ export default function BaixasManager({
     return linhas.filter((item) => {
       const correspondeBusca =
         !termo ||
-        normalizar(item.numero_proposta).includes(
-          termo,
-        ) ||
-        normalizar(item.cliente).includes(
-          termo,
-        ) ||
-        somenteNumeros(item.cpf).includes(
-          numeros,
-        ) ||
-        normalizar(item.consultora).includes(
-          termo,
-        ) ||
-        normalizar(item.banco).includes(
-          termo,
-        ) ||
-        normalizar(item.tabela).includes(
-          termo,
-        );
+        normalizar(item.numero_proposta).includes(termo) ||
+        normalizar(item.cliente).includes(termo) ||
+        (numeros.length > 0 &&
+          somenteNumeros(item.cpf).includes(numeros)) ||
+        normalizar(item.consultora).includes(termo) ||
+        normalizar(item.banco).includes(termo) ||
+        normalizar(item.tabela).includes(termo);
 
       // Número exato da proposta ignora os demais filtros.
       const numeroPesquisado = somenteNumeros(busca);
@@ -948,12 +937,17 @@ export default function BaixasManager({
             <thead>
               <tr>
                 <th></th>
-                <th>EMISSÃO / CPF</th>
+                <th>EMISSÃO</th>
+                <th>CPF</th>
                 <th>CLIENTE</th>
                 <th>BANCO / TABELA</th>
                 <th>VL. LIBERADO</th>
-                <th>COMISSÃO</th>
-                <th>RECEBIMENTO</th>
+                <th>TX. COMISS.</th>
+                <th>COMISS. LÍQ.</th>
+                <th>RECEBIDO</th>
+                <th>SITUAÇÃO</th>
+                <th>ESTEIRA</th>
+                <th>DATA PAGAMENTO</th>
                 <th>AÇÃO</th>
               </tr>
             </thead>
@@ -962,7 +956,7 @@ export default function BaixasManager({
               {carregando ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={13}
                     className="baixas-live-vazio"
                   >
                     Carregando comissões...
@@ -971,7 +965,7 @@ export default function BaixasManager({
               ) : filtradas.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={13}
                     className="baixas-live-vazio"
                   >
                     Nenhuma comissão encontrada nos filtros.
@@ -1006,57 +1000,104 @@ export default function BaixasManager({
                         />
                       </td>
 
-                      <td className="baixa-emissao-cpf">
-                        <strong>{dataBR(item.data_emissao)}</strong>
-                        <small>{formatarCpf(item.cpf)}</small>
+                      <td>
+                        {dataBR(
+                          item.data_emissao,
+                        )}
                       </td>
 
-                      <td className="baixa-cliente">
-                        <strong>{item.cliente || "—"}</strong>
-                        <small>{item.consultora || "—"}</small>
+                      <td>
+                        {formatarCpf(
+                          item.cpf,
+                        )}
                       </td>
 
-                      <td className="baixa-banco">
-                        <strong>{item.banco || "—"}</strong>
-                        <small>{item.tabela || "—"}</small>
-                      </td>
-
-                      <td className="baixa-valor">
-                        <strong>{moeda(item.valor_operacao)}</strong>
-                      </td>
-
-                      <td className="baixa-comissao">
-                        <strong className="comissao-pill">
-                          {moeda(item.comissao_prevista)}
+                      <td>
+                        <strong>
+                          {item.cliente || "—"}
                         </strong>
                         <small>
-                          {item.taxaComissao.toFixed(2).replace(".", ",")}%
+                          {item.consultora || "—"}
                         </small>
                       </td>
 
-                      <td className="baixa-recebimento">
-                        <strong>{moeda(item.valor_recebido)}</strong>
+                      <td>
+                        <strong>
+                          {item.banco || "—"}
+                        </strong>
+                        <small>
+                          {item.tabela || "—"}
+                        </small>
+                      </td>
+
+                      <td>
+                        <strong>
+                          {moeda(
+                            item.valor_operacao,
+                          )}
+                        </strong>
+                      </td>
+
+                      <td>
+                        {item.taxaComissao
+                          .toFixed(2)
+                          .replace(".", ",")}
+                        %
+                      </td>
+
+                      <td>
+                        <strong className="comissao-pill">
+                          {moeda(
+                            item.comissao_prevista,
+                          )}
+                        </strong>
+                      </td>
+
+                      <td>
+                        {moeda(
+                          item.valor_recebido,
+                        )}
+                      </td>
+
+                      <td>
                         <span
                           className={`baixas-live-status ${classeSituacao(
                             item.situacaoExibicao,
                           )}`}
                         >
-                          {textoSituacao(item.situacaoExibicao)}
+                          {textoSituacao(
+                            item.situacaoExibicao,
+                          )}
                         </span>
                       </td>
 
-                      <td className="baixa-acao">
+                      <td>
+                        <span className="baixas-live-esteira">
+                          ● Proposta Paga
+                        </span>
+                      </td>
+
+                      <td>
+                        {dataBR(
+                          item.data_recebimento,
+                        )}
+                      </td>
+
+                      <td>
                         <button
                           type="button"
                           className="baixas-live-action"
                           onClick={(event) => {
                             event.stopPropagation();
-                            abrirRecebimento(item);
+                            abrirRecebimento(
+                              item,
+                            );
                           }}
                         >
-                          {item.situacaoExibicao === "A_RECEBER"
+                          {item.situacaoExibicao ===
+                          "A_RECEBER"
                             ? "Dar baixa"
-                            : "Editar"}
+                            : "Editar baixa"}
                         </button>
                       </td>
                     </tr>

@@ -1,9 +1,10 @@
 "use client";
-// ELEVA | FINANCEIRO — LAYOUT ORGANIZADO | 16/10/2026 | ARQUIVO COMPLETO
+// ELEVA | FINANCEIRO — RECEBIMENTOS COMPRA + CLT | 29/10/2026 | ARQUIVO COMPLETO
 
 import { useState } from "react";
 import AppShell from "@/components/AppShell";
 import BaixasManager from "@/components/BaixasManager";
+import RecebimentosCltManager from "@/components/financeiro/RecebimentosCltManager";
 import FinancialManager from "@/components/financeiro/FinancialManager";
 import FinanceiroResumo from "@/components/financeiro/FinanceiroResumo";
 import DespesasFixasManager from "@/components/financeiro/DespesasFixasManager";
@@ -15,7 +16,8 @@ import PremiacaoManagerV3 from "@/components/minha-premiacao/PremiacaoManagerV3"
 
 type Aba =
   | "visao-geral"
-  | "recebimentos"
+  | "recebimentos-compra"
+  | "recebimentos-clt"
   | "movimentacoes"
   | "despesas-fixas"
   | "folha"
@@ -32,7 +34,8 @@ export default function FinanceiroPage() {
 
   const abas: Array<{ id: Aba; label: string }> = [
     { id: "visao-geral", label: "Visão Geral" },
-    { id: "recebimentos", label: "Recebimentos" },
+    { id: "recebimentos-compra", label: "Recebimentos Compra de Dívida" },
+    { id: "recebimentos-clt", label: "Recebimentos CLT" },
     { id: "movimentacoes", label: "Movimentações" },
     { id: "despesas-fixas", label: "Despesas Fixas" },
     { id: "folha", label: "Folha" },
@@ -75,7 +78,7 @@ export default function FinanceiroPage() {
                 destino === "a-receber" ||
                 destino === "recebidos"
               ) {
-                setAba("recebimentos");
+                setAba("recebimentos-compra");
               } else if (destino === "movimentacoes") {
                 setAba("movimentacoes");
               } else if (destino === "folha") {
@@ -93,8 +96,12 @@ export default function FinanceiroPage() {
           </div>
         )}
 
-        {aba === "recebimentos" && (
+        {aba === "recebimentos-compra" && (
           <BaixasManager modoInicial="A_RECEBER" compacto />
+        )}
+
+        {aba === "recebimentos-clt" && (
+          <RecebimentosCltManager />
         )}
 
         {aba === "movimentacoes" && (
@@ -241,7 +248,7 @@ const ESTILOS_LAYOUT_FINANCEIRO = `
 }
 @container elevaFinanceiroMenu (min-width: 1240px) {
   .eleva-financeiro-layout-v1 .eleva-financeiro-navegacao-v1 > .financeiro-unico-tabs {
-    grid-template-columns: minmax(0,.83fr) minmax(0,.98fr) minmax(0,1.1fr) minmax(0,1fr) minmax(0,.7fr) minmax(0,1.03fr) minmax(0,1fr) minmax(0,1.26fr) minmax(0,1.23fr) minmax(0,1.15fr) minmax(0,1.15fr) minmax(0,.82fr) !important;
+    grid-template-columns: minmax(0,.72fr) minmax(0,1.28fr) minmax(0,.92fr) minmax(0,1fr) minmax(0,.92fr) minmax(0,.68fr) minmax(0,1.02fr) minmax(0,.98fr) minmax(0,1.18fr) minmax(0,1.16fr) minmax(0,1.05fr) minmax(0,1.05fr) minmax(0,.78fr) !important;
   }
   .eleva-financeiro-layout-v1 .eleva-financeiro-navegacao-v1 > .financeiro-unico-tabs > button {
     font-size: 10.5px !important;

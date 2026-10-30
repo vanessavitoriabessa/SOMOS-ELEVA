@@ -1,4 +1,8 @@
 "use client";
+// ELEVA | COMPRA DE DÍVIDA | FORMULÁRIO COMPACTO SEM DICAS | 29/10/2026
+// ELEVA | COMPRA DE DÍVIDA | NOVA PROPOSTA EM UMA ÚNICA TELA | 29/10/2026
+// ELEVA | COMPRA DE DÍVIDA | PESQUISA DE TABELA NA NOVA PROPOSTA | 29/10/2026
+// ELEVA | COMPRA DE DÍVIDA | PARANÁ BANCO + BANCOS DINÂMICOS | 29/10/2026
 
 import "./esteira.css";
 import { createClient } from "@/lib/supabase/client";
@@ -48,6 +52,7 @@ type Proposta = {
   telefone: string;
   vendedora: string;
   banco: string;
+  orgaoConvenio?: string;
   tabelaBancoId?: string;
   tabela: string;
   percentualTabela: number;
@@ -68,6 +73,7 @@ type TabelaConfigurada = {
   id: string;
   banco: string;
   orgaoConvenio: string;
+  orgaosConvenios: string[];
   nome: string;
   codigo: string;
   percentual: number;
@@ -425,6 +431,8 @@ export default function EsteiraPropostas() {
   const [bancosConfigurados, setBancosConfigurados] = useState<BancoConfigurado[]>([]);
   const [statusConfigurados, setStatusConfigurados] = useState<StatusConfigurado[]>([]);
   const [orgaoConvenio, setOrgaoConvenio] = useState("");
+  const [buscaTabela, setBuscaTabela] = useState("");
+  const [cadastrandoBanco, setCadastrandoBanco] = useState(false);
   const [perfilAtual, setPerfilAtual] = useState("");
   const [permissoesPerfil, setPermissoesPerfil] =
     useState<Record<string, boolean> | null>(null);
@@ -533,6 +541,11 @@ const [arquivos, setArquivos] = useState({
             id: String(item.id || ""),
             banco: String(item.banco || "").trim().toUpperCase(),
             orgaoConvenio: String(item.orgao_convenio || "").trim().toUpperCase(),
+            orgaosConvenios: Array.isArray(item.orgaos_convenios)
+              ? (item.orgaos_convenios as Array<Record<string, unknown>>)
+                  .map((orgao) => String(orgao.nome || "").trim().toUpperCase())
+                  .filter(Boolean)
+              : [],
             nome: String(item.nome || "").trim(),
             codigo: String(item.codigo || "").trim(),
             percentual: Number(item.percentual || 0),
@@ -906,7 +919,6 @@ const [arquivos, setArquivos] = useState({
       );
     }
 
-    // Fallback para instalações antigas onde a API ainda não devolve bancos.
     return Array.from(
       new Set(
         tabelasConfiguradas
@@ -916,48 +928,152 @@ const [arquivos, setArquivos] = useState({
     ).sort((a, b) => a.localeCompare(b, "pt-BR"));
   }, [bancosConfigurados, tabelasConfiguradas]);
 
-  const orgaosDisponiveis = useMemo(
+  function bancoEhParana(valor: string) {
+    const chave = normalizarPerfil(valor).replace(/[^a-z0-9]/g, "");
+    return chave === "paranabanco" || chave === "bancoparana";
+  }
+
+  function tabelaAtendeOrgao(tabela: TabelaConfigurada, orgao: string) {
+    if (orgao === "__SEM_ORGAO__") {
+      return !tabela.orgaoConvenio && !tabela.orgaosConvenios.length;
+    }
+
+    const alvo = normalizarPerfil(orgao);
+    if (!alvo) return false;
+
+    return [tabela.orgaoConvenio, ...tabela.orgaosConvenios]
+      .filter(Boolean)
+      .some((item) => normalizarPerfil(item) === alvo);
+  }
+
+  const orgaoParanaConfigurado = useMemo(
     () =>
-      orgaosConvenios
-        .filter(
-          (item) =>
-            item.ativo &&
-            tabelasConfiguradas.some(
-              (tabela) =>
-                tabela.ativo &&
-                tabela.banco === String(form.banco || "").trim().toUpperCase() &&
-                tabela.orgaoConvenio === item.nome,
-            ),
-        )
-        .map((item) => item.nome)
-        .sort((a, b) => a.localeCompare(b, "pt-BR")),
-    [orgaosConvenios, tabelasConfiguradas, form.banco],
+      orgaosConvenios.find((item) => {
+        if (!item.ativo) return false;
+        const chave = normalizarPerfil(item.nome).replace(/[^a-z0-9]/g, "");
+        return chave === "governoparanapr" || chave === "governodoparanapr";
+      })?.nome || "",
+    [orgaosConvenios],
   );
 
+  const orgaosDisponiveis = useMemo(() => {
+    // A lista de Órgão / Convênio deve refletir diretamente Configurações > Órgãos / Estados.
+    // Não escondemos órgãos só porque ainda não existe tabela vinculada ao banco selecionado.
+    // O filtro Banco + Órgão continua sendo aplicado somente na lista de Tabelas.
+    return Array.from(
+      new Set(
+        orgaosConvenios
+          .filter((item) => item.ativo && item.nome)
+          .map((item) => item.nome.trim())
+          .filter(Boolean),
+      ),
+    ).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [orgaosConvenios]);
+
   const tabelasFiltradas = useMemo(() => {
-    if (!orgaoConvenio) return [];
+    if (!orgaoConvenio || orgaoConvenio === "__HISTORICA__") return [];
+
+    const bancoAlvo = normalizarPerfil(form.banco);
 
     return tabelasConfiguradas
       .filter((tabela) => {
         if (!tabela.ativo) return false;
-        if (tabela.banco !== String(form.banco || "").trim().toUpperCase()) {
-          return false;
-        }
-
-        if (orgaoConvenio === "__SEM_ORGAO__") {
-          return !tabela.orgaoConvenio;
-        }
-
-        return tabela.orgaoConvenio === orgaoConvenio;
+        if (normalizarPerfil(tabela.banco) !== bancoAlvo) return false;
+        return tabelaAtendeOrgao(tabela, orgaoConvenio);
       })
       .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
   }, [tabelasConfiguradas, form.banco, orgaoConvenio]);
+
+  const tabelasPesquisadas = useMemo(() => {
+    const termo = String(buscaTabela || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+
+    if (!termo) return tabelasFiltradas;
+
+    return tabelasFiltradas.filter((tabela) => {
+      const alvo = `${tabela.nome || ""} ${tabela.codigo || ""}`
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+
+      return alvo.includes(termo);
+    });
+  }, [tabelasFiltradas, buscaTabela]);
+
+  async function selecionarBancoDaProposta(banco: string) {
+    setForm((atual) => ({ ...atual, banco, tabela: "" }));
+    setBuscaTabela("");
+    setOrgaoConvenio(bancoEhParana(banco) ? orgaoParanaConfigurado : "");
+    await carregarTabelasConfiguradas();
+  }
+
+  async function cadastrarBancoRapido() {
+    if (cadastrandoBanco) return;
+
+    const digitado = window.prompt("Nome do novo banco:", "");
+    const nome = String(digitado || "").trim();
+    if (!nome) return;
+
+    setCadastrandoBanco(true);
+    setMensagem("");
+
+    try {
+      const token = await obterToken();
+      const resposta = await fetch("/api/configuracoes", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ acao: "criar_banco", banco: { nome } }),
+        cache: "no-store",
+      });
+
+      const conteudo = (await resposta.json()) as {
+        banco?: { nome?: string };
+        mensagem?: string;
+        erro?: string;
+      };
+
+      if (!resposta.ok && resposta.status !== 409) {
+        throw new Error(conteudo.erro || "Não foi possível cadastrar o banco.");
+      }
+
+      await carregarTabelasConfiguradas();
+
+      const bancoSelecionado =
+        bancosDisponiveis.find(
+          (banco) => normalizarPerfil(banco) === normalizarPerfil(nome),
+        ) ||
+        String(conteudo.banco?.nome || nome).trim().toUpperCase();
+
+      setForm((atual) => ({ ...atual, banco: bancoSelecionado, tabela: "" }));
+      setBuscaTabela("");
+      setOrgaoConvenio(
+        bancoEhParana(bancoSelecionado) ? orgaoParanaConfigurado : "",
+      );
+      setMensagem(
+        resposta.status === 409
+          ? "Esse banco já estava cadastrado e foi selecionado."
+          : conteudo.mensagem || "Banco cadastrado com sucesso.",
+      );
+    } catch (erro) {
+      setMensagem(
+        erro instanceof Error ? erro.message : "Não foi possível cadastrar o banco.",
+      );
+    } finally {
+      setCadastrandoBanco(false);
+    }
+  }
 
   const tabelaSelecionada = useMemo(() => {
     const configurada = tabelasConfiguradas.find(
       (tabela) =>
         tabela.ativo &&
-        tabela.banco === String(form.banco || "").trim().toUpperCase() &&
+        normalizarPerfil(tabela.banco) === normalizarPerfil(form.banco) &&
         tabela.nome === form.tabela
     );
 
@@ -969,6 +1085,7 @@ const [arquivos, setArquivos] = useState({
         id: `historica-${editando.id}`,
         banco: editando.banco,
         orgaoConvenio: "",
+        orgaosConvenios: [],
         nome: editando.tabela,
         codigo: "",
         percentual: Number(editando.percentualTabela || 0),
@@ -1040,6 +1157,9 @@ const [arquivos, setArquivos] = useState({
 
   const podeVerComissaoEmpresa =
     permissoesPerfil?.ver_comissao_empresa ?? ehAdminPadrao;
+
+  const podeCadastrarBanco =
+    permissoesPerfil?.configuracoes ?? ehAdminPadrao;
 
   const podeEditarTodasPropostas = [
   "administradora",
@@ -1231,31 +1351,47 @@ function preencherClienteNoFormulario(cliente: Cliente) {
   setMensagem("Cliente encontrado. Os dados foram preenchidos.");
 }
 
+  function resetarCadastroInline() {
+    // Mantém o cadastro sempre pronto e sincronizado com Configurações.
+    void carregarTabelasConfiguradas();
+    setEditando(null);
+    setModalAberto(false);
+    setEtapaModal(1);
+    setClienteNovo(false);
+    setOrgaoConvenio("");
+    setBuscaTabela("");
+    setForm({
+      ...FORMULARIO_VAZIO,
+      status: nomesStatusAtivos[0] || "AG. BOLETO",
+      dataSolicitacao: hojeIso(),
+      dataDigitacao: hojeIso(),
+    });
+    setArquivos({
+      rgFrente: null,
+      rgVerso: null,
+      cnh: null,
+      contracheques: [],
+    });
+    setBuscaCliente("");
+    setMensagem("");
+  }
+
+  function fecharEdicaoEVoltarCadastro() {
+    setModalAberto(false);
+    setEditando(null);
+    resetarCadastroInline();
+  }
+
   function abrirNovaProposta() {
-  setEditando(null);
-  setEtapaModal(1);
-  setClienteNovo(false);
-  setOrgaoConvenio("");
-  setForm({
-    ...FORMULARIO_VAZIO,
-    status: nomesStatusAtivos[0] || "AG. BOLETO",
-    dataSolicitacao: hojeIso(),
-    dataDigitacao: hojeIso(),
-  });
-
-  setArquivos({
-    rgFrente: null,
-    rgVerso: null,
-    cnh: null,
-    contracheques: [],
-  });
-
-  setBuscaCliente("");
-  setMensagem("");
-  setModalAberto(true);
-}
+    resetarCadastroInline();
+    setEditando(null);
+    setEtapaModal(1);
+    setModalAberto(true);
+  }
 
   function abrirEdicaoProposta(proposta: Proposta) {
+    // Mantém a tela sincronizada com Configurações > Órgãos / Estados.
+    void carregarTabelasConfiguradas();
     if (!podeEditarProposta(proposta)) {
       setMensagem("Você só pode editar as propostas cadastradas por você.");
       return;
@@ -1273,8 +1409,11 @@ function preencherClienteNoFormulario(cliente: Cliente) {
 
     setOrgaoConvenio(
       tabelaAtual
-        ? tabelaAtual.orgaoConvenio || "__SEM_ORGAO__"
-        : "__HISTORICA__"
+        ? tabelaAtual.orgaoConvenio || tabelaAtual.orgaosConvenios[0] || "__SEM_ORGAO__"
+        : proposta.tabela
+          ? "__HISTORICA__"
+          : proposta.orgaoConvenio ||
+            (bancoEhParana(proposta.banco) ? orgaoParanaConfigurado : "")
     );
 
     setEditando(proposta);
@@ -1385,7 +1524,7 @@ function preencherClienteNoFormulario(cliente: Cliente) {
       return;
     }
 
-    if (!tabelaSelecionada) {
+    if (tabelasFiltradas.length > 0 && !tabelaSelecionada) {
       setMensagem("Selecione a tabela.");
       setEtapaModal(3);
       return;
@@ -1563,12 +1702,15 @@ function preencherClienteNoFormulario(cliente: Cliente) {
         telefone: form.telefoneCliente.trim(),
         vendedora: form.vendedora,
         banco: form.banco.trim(),
+        orgaoConvenio: orgaoConvenio.startsWith("__") ? "" : orgaoConvenio,
         tabelaBancoId:
-          tabelaSelecionada.id.startsWith("historica-")
-            ? editando?.tabelaBancoId || ""
-            : tabelaSelecionada.id,
-        tabela: tabelaSelecionada.nome,
-        percentualTabela: tabelaSelecionada.percentual,
+          tabelaSelecionada
+            ? tabelaSelecionada.id.startsWith("historica-")
+              ? editando?.tabelaBancoId || ""
+              : tabelaSelecionada.id
+            : "",
+        tabela: tabelaSelecionada?.nome || "",
+        percentualTabela: tabelaSelecionada?.percentual || 0,
         valorContrato,
         valorMeta,
         status: form.status,
@@ -1797,6 +1939,7 @@ function preencherClienteNoFormulario(cliente: Cliente) {
         telefone: form.telefoneCliente.trim(),
         vendedora: form.vendedora,
         banco: form.banco.trim(),
+        orgaoConvenio: orgaoConvenio.startsWith("__") ? editando.orgaoConvenio || "" : orgaoConvenio,
         tabelaBancoId:
           tabelaSelecionada && !tabelaSelecionada.id.startsWith("historica-")
             ? tabelaSelecionada.id
@@ -1925,7 +2068,7 @@ function preencherClienteNoFormulario(cliente: Cliente) {
       if (!form.vendedora) { setMensagem("Selecione a consultora."); return; }
       if (!form.banco.trim()) { setMensagem("Selecione o banco."); return; }
       if (!orgaoConvenio) { setMensagem("Selecione o órgão / convênio."); return; }
-      if (!tabelaSelecionada) { setMensagem("Selecione a tabela."); return; }
+      if (tabelasFiltradas.length > 0 && !tabelaSelecionada) { setMensagem("Selecione a tabela."); return; }
       if (valorContrato <= 0) { setMensagem("Informe o valor do contrato."); return; }
       if (!editando && !form.senhaConsignacao.trim()) { setMensagem("Informe a senha da consignação para continuar."); return; }
     }
@@ -1936,8 +2079,1198 @@ function preencherClienteNoFormulario(cliente: Cliente) {
     setEtapaModal((atual) => Math.max(1, atual - 1));
   }
 
+
+  function renderFormularioProposta() {
+    return (
+      <>
+            <header>
+              <div>
+                <span>{editando ? "ATUALIZAR PROPOSTA" : "NOVA PROPOSTA"}</span>
+                <h2>
+                  {editando
+                    ? `Editar ${form.nomeCliente || "proposta"}`
+                    : "Cadastrar contrato"}
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={fecharEdicaoEVoltarCadastro}
+                aria-label="Fechar cadastro de proposta"
+              >
+                ×
+              </button>
+            </header>
+
+            <form onSubmit={salvarProposta} className="proposta-wizard-form">
+              <div className="proposta-wizard-scroll">
+  <div className="modal-form-grid">
+{(
+    <div className="proposta-etapa-conteudo proposta-cliente-layout eleva-cliente-compacto">
+      <div className="proposta-cliente-principal">
+    {/* BUSCA DO CLIENTE PELO CPF */}
+    <div className="busca-cliente-topo">
+      {mensagem && (
+  <div
+    className={
+      form.clienteId
+        ? "cliente-encontrado-modal"
+        : "cliente-nao-encontrado-modal"
+    }
+  >
+    {mensagem}
+  </div>
+)}
+      <label className="cliente-pesquisa-modal">
+        CPF do cliente
+
+        <input
+  type="text"
+  inputMode="numeric"
+  value={buscaCliente}
+  onChange={(evento) => {
+    const cpfDigitado = apenasNumeros(
+      evento.target.value
+    ).slice(0, 11);
+
+    setBuscaCliente(formatarCpf(cpfDigitado));
+
+    setForm((atual) => ({
+      ...atual,
+      clienteId: "",
+      cpfCliente: cpfDigitado,
+    }));
+
+    setMensagem("");
+  }}
+  placeholder="Digite o CPF do cliente"
+  maxLength={14}
+/>
+      </label>
+
+      <button
+  type="button"
+  className="botao-buscar-cliente"
+  onClick={buscarClientePorCpf}
+>
+  Buscar cliente
+</button>
+
+      <div className="aviso-cliente-cadastrado">
+        <strong>ⓘ</strong>
+
+        <span>
+          Se o cliente já estiver cadastrado, os dados serão
+          preenchidos automaticamente.
+        </span>
+      </div>
+    </div>
+
+    <div className={`cliente-status-wizard ${form.clienteId?"found":clienteNovo?"new":"idle"}`}>
+      <div><strong>{form.clienteId?"✓ Cliente encontrado":clienteNovo?"+ Novo cliente":"Busque o cliente pelo CPF"}</strong><span>{form.clienteId?"Dados carregados automaticamente.":clienteNovo?"Preencha os dados abaixo. O cliente será criado junto com a proposta.":"Se não existir, você cadastra aqui sem sair da proposta."}</span></div>
+      {!form.clienteId && !clienteNovo && apenasNumeros(form.cpfCliente).length===11 && <button type="button" onClick={()=>setClienteNovo(true)}>Cadastrar cliente agora</button>}
+    </div>
+
+    {/* DADOS DO CLIENTE */}
+    <div className="secao-modal">
+      <div className="secao-modal-titulo">
+        <span>👤 DADOS DO CLIENTE</span>
+        <p>
+          Preencha ou confira as informações cadastrais.
+        </p>
+      </div>
+
+      <div className="modal-form-grid">
+        <label>
+          Nome completo <strong className="campo-obrigatorio">*</strong>
+          <input
+            value={form.nomeCliente}
+            required
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                nomeCliente: evento.target.value,
+              })
+            }
+            placeholder="Nome completo do cliente"
+          />
+        </label>
+
+        <label>
+          CPF <strong className="campo-obrigatorio">*</strong>
+          <input
+            value={formatarCpf(form.cpfCliente)}
+            readOnly
+            placeholder="CPF do cliente"
+          />
+        </label>
+
+        <label>
+          RG <strong className="campo-obrigatorio">*</strong>
+          <input
+            value={form.rgCliente}
+            required
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                rgCliente: evento.target.value,
+              })
+            }
+            placeholder="Número do RG"
+          />
+        </label>
+
+        <label>
+          Data de nascimento <strong className="campo-obrigatorio">*</strong>
+          <input
+            type="date"
+            value={form.dataNascimentoCliente}
+            required
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                dataNascimentoCliente:
+                  evento.target.value,
+              })
+            }
+          />
+        </label>
+
+        <label>
+          Nome da mãe <strong className="campo-obrigatorio">*</strong>
+          <input
+            value={form.nomeMaeCliente}
+            required
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                nomeMaeCliente: evento.target.value,
+              })
+            }
+            placeholder="Nome completo da mãe"
+          />
+        </label>
+
+        <label>
+          Nome do pai
+          <input
+            value={form.nomePaiCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                nomePaiCliente: evento.target.value,
+              })
+            }
+            placeholder="Nome completo do pai"
+          />
+        </label>
+
+        <label>
+          Telefone <strong className="campo-obrigatorio">*</strong>
+          <input
+            type="tel"
+            value={form.telefoneCliente}
+            required
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                telefoneCliente: evento.target.value,
+              })
+            }
+            placeholder="Telefone principal"
+          />
+        </label>
+
+        <label>
+          Telefone 2
+          <input
+            type="tel"
+            value={form.telefone2Cliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                telefone2Cliente:
+                  evento.target.value,
+              })
+            }
+            placeholder="Telefone alternativo"
+          />
+        </label>
+
+        <label className="campo-largura-total">
+          E-mail <strong className="campo-obrigatorio">*</strong>
+          <input
+            type="email"
+            value={form.emailCliente}
+            required
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                emailCliente: evento.target.value,
+              })
+            }
+            placeholder="E-mail do cliente"
+          />
+        </label>
+      </div>
+    </div>
+
+      </div>
+    </div>
+  )}
+{(
+  <div className="proposta-etapa-conteudo">
+    {/* ENDEREÇO */}
+    <div className="secao-modal">
+      <div className="secao-modal-titulo">
+        <span>📍 ENDEREÇO</span>
+        <p>
+          Informe o endereço completo do cliente.
+        </p>
+      </div>
+
+      <div className="modal-form-grid">
+        <label>
+          CEP
+          <input
+            value={form.cepCliente}
+            inputMode="numeric"
+            onChange={(evento) => {
+              const numeros = apenasNumeros(evento.target.value).slice(0, 8);
+              const formatado =
+                numeros.length > 5
+                  ? `${numeros.slice(0, 5)}-${numeros.slice(5)}`
+                  : numeros;
+
+              setForm((atual) => ({
+                ...atual,
+                cepCliente: formatado,
+              }));
+
+              setMensagemCep("");
+
+              if (numeros.length === 8) {
+                void buscarEnderecoPorCep(numeros);
+              }
+            }}
+            onBlur={() => {
+              const numeros = apenasNumeros(form.cepCliente);
+
+              if (numeros.length === 8 && !buscandoCep) {
+                void buscarEnderecoPorCep(numeros);
+              }
+            }}
+            placeholder="00000-000"
+            maxLength={9}
+          />
+          {mensagemCep && (
+            <small
+              className={`cep-feedback ${
+                mensagemCep.startsWith("✓") ? "sucesso" : ""
+              }`}
+            >
+              {buscandoCep ? "Buscando endereço..." : mensagemCep}
+            </small>
+          )}
+        </label>
+
+        <label>
+          Endereço
+          <input
+            value={form.enderecoCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                enderecoCliente:
+                  evento.target.value,
+              })
+            }
+            placeholder="Rua, avenida ou logradouro"
+          />
+        </label>
+
+        <label>
+          Número
+          <input
+            value={form.numeroCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                numeroCliente: evento.target.value,
+              })
+            }
+            placeholder="Número"
+          />
+        </label>
+
+        <label>
+          Complemento
+          <input
+            value={form.complementoCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                complementoCliente:
+                  evento.target.value,
+              })
+            }
+            placeholder="Casa, apartamento, bloco..."
+          />
+        </label>
+
+        <label>
+          Bairro
+          <input
+            value={form.bairroCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                bairroCliente: evento.target.value,
+              })
+            }
+            placeholder="Bairro"
+          />
+        </label>
+
+        <label>
+          Cidade
+          <input
+            value={form.cidadeCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                cidadeCliente: evento.target.value,
+              })
+            }
+            placeholder="Cidade"
+          />
+        </label>
+
+        <label>
+          UF
+          <input
+            value={form.ufCliente}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                ufCliente: evento.target.value
+                  .toUpperCase()
+                  .slice(0, 2),
+              })
+            }
+            placeholder="GO"
+            maxLength={2}
+          />
+        </label>
+      </div>
+    </div>
+
+
+</div>)}
+{(<div className="proposta-etapa-conteudo">
+    {/* DADOS DA PROPOSTA */}
+    <div className="secao-modal">
+      <div className="secao-modal-titulo">
+        <span>📄 DADOS DA PROPOSTA</span>
+        <p>Informe os dados da operação.</p>
+      </div>
+
+      <div className="modal-form-grid">
+        <label>
+          Número da proposta
+          <input
+            type="text"
+            value={form.numeroProposta}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                numeroProposta: evento.target.value,
+              })
+            }
+            placeholder="Ex.: NEO-25487"
+          />
+        </label>
+
+        <label>
+          Consultora
+          <select
+            value={form.vendedora}
+            disabled={
+              Boolean(editando) &&
+              !podeEditarTodasPropostas
+            }
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                vendedora: evento.target.value,
+              })
+            }
+          >
+            <option value="">Selecione a consultora</option>
+
+            {consultoras.map((consultora) => (
+              <option key={consultora} value={consultora}>
+                {consultora}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Banco
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: podeCadastrarBanco ? "minmax(0, 1fr) auto" : "1fr",
+              gap: 8,
+            }}
+          >
+            <select
+              value={form.banco}
+              onChange={(evento) => void selecionarBancoDaProposta(evento.target.value)}
+            >
+              <option value="">Selecione o banco</option>
+
+              {editando &&
+                form.banco &&
+                !bancosDisponiveis.includes(form.banco) && (
+                  <option value={form.banco}>
+                    {form.banco} (histórico)
+                  </option>
+                )}
+
+              {bancosDisponiveis.map((banco) => (
+                <option key={banco} value={banco}>
+                  {banco}
+                </option>
+              ))}
+            </select>
+
+            {podeCadastrarBanco && (
+              <button
+                type="button"
+                onClick={() => void cadastrarBancoRapido()}
+                disabled={cadastrandoBanco}
+                title="Cadastrar novo banco"
+                style={{
+                  minHeight: 42,
+                  padding: "0 12px",
+                  border: "1px solid #b9cdf5",
+                  borderRadius: 10,
+                  background: "#eef4ff",
+                  color: "#155eef",
+                  fontWeight: 900,
+                  cursor: cadastrandoBanco ? "wait" : "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {cadastrandoBanco ? "Salvando..." : "+ Banco"}
+              </button>
+            )}
+          </div>
+        </label>
+
+        <label>
+          Órgão / Convênio
+          <select
+            value={orgaoConvenio}
+            disabled={!form.banco}
+            onChange={(evento) => {
+              const valor = evento.target.value;
+
+              setOrgaoConvenio(valor);
+              setForm({
+                ...form,
+                tabela: "",
+              });
+              setBuscaTabela("");
+            }}
+          >
+            <option value="">
+              {form.banco
+                ? "Selecione o órgão / convênio"
+                : "Escolha primeiro o banco"}
+            </option>
+
+            {editando &&
+              orgaoConvenio === "__HISTORICA__" && (
+                <option value="__HISTORICA__">
+                  Tabela histórica
+                </option>
+              )}
+
+            {tabelasConfiguradas.some(
+              (tabela) =>
+                tabela.ativo &&
+                normalizarPerfil(tabela.banco) === normalizarPerfil(form.banco) &&
+                !tabela.orgaoConvenio &&
+                !tabela.orgaosConvenios.length
+            ) && (
+              <option value="__SEM_ORGAO__">
+                Sem órgão específico
+              </option>
+            )}
+
+            {orgaosDisponiveis.map((orgao) => (
+              <option key={orgao} value={orgao}>
+                {orgao}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Tabela
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) 44px",
+              gap: 8,
+              marginBottom: 8,
+            }}
+          >
+            <input
+              type="search"
+              value={buscaTabela}
+              disabled={!orgaoConvenio || tabelasFiltradas.length === 0}
+              onChange={(evento) => setBuscaTabela(evento.target.value)}
+              placeholder={
+                !orgaoConvenio
+                  ? "Escolha primeiro o órgão / convênio"
+                  : tabelasFiltradas.length === 0
+                    ? "Nenhuma tabela cadastrada para este banco"
+                    : "Pesquisar tabela por nome ou código"
+              }
+              autoComplete="off"
+              aria-label="Pesquisar tabela por nome ou código"
+            />
+            <button
+              type="button"
+              disabled={!orgaoConvenio || tabelasFiltradas.length === 0}
+              aria-label="Pesquisar tabela"
+              title="Pesquisar tabela"
+              onClick={() => {
+                if (!buscaTabela.trim()) {
+                  setMensagem(
+                    tabelasFiltradas.length
+                      ? `${tabelasFiltradas.length} tabela(s) disponível(is) para este banco e convênio.`
+                      : "Nenhuma tabela disponível para este banco e convênio.",
+                  );
+                } else {
+                  setMensagem(
+                    tabelasPesquisadas.length
+                      ? `${tabelasPesquisadas.length} tabela(s) encontrada(s).`
+                      : "Nenhuma tabela encontrada com esse nome ou código.",
+                  );
+                }
+              }}
+              style={{
+                border: "1px solid #b9cdf5",
+                borderRadius: 10,
+                background: "#eef4ff",
+                color: "#155eef",
+                display: "grid",
+                placeItems: "center",
+                cursor: orgaoConvenio && tabelasFiltradas.length > 0 ? "pointer" : "not-allowed",
+                minHeight: 42,
+              }}
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.5-3.5" />
+              </svg>
+            </button>
+          </div>
+
+          <select
+            value={form.tabela}
+            disabled={!orgaoConvenio || tabelasFiltradas.length === 0}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                tabela: evento.target.value,
+              })
+            }
+          >
+            <option value="">
+              {!orgaoConvenio
+                ? "Escolha primeiro o órgão / convênio"
+                : tabelasFiltradas.length === 0
+                  ? "Sem tabela cadastrada"
+                  : buscaTabela.trim()
+                    ? "Selecione uma tabela encontrada"
+                    : "Selecione a tabela"}
+            </option>
+
+            {editando &&
+              orgaoConvenio === "__HISTORICA__" &&
+              form.tabela && (
+                <option value={form.tabela}>
+                  {form.tabela} — {editando.percentualTabela}% (histórica)
+                </option>
+              )}
+
+            {form.tabela &&
+              orgaoConvenio !== "__HISTORICA__" &&
+              !tabelasPesquisadas.some((tabela) => tabela.nome === form.tabela) &&
+              tabelasFiltradas.some((tabela) => tabela.nome === form.tabela) && (
+                <option value={form.tabela}>
+                  {form.tabela} (selecionada)
+                </option>
+              )}
+
+            {tabelasPesquisadas.map((tabela) => (
+              <option
+                key={tabela.id}
+                value={tabela.nome}
+              >
+                {tabela.nome}
+                {tabela.codigo ? ` • ${tabela.codigo}` : ""}
+                {" — "}
+                {tabela.percentual}%
+              </option>
+            ))}
+          </select>
+
+          {orgaoConvenio && (
+            <small style={{ marginTop: 5, color: tabelasFiltradas.length ? "#64758d" : "#9a6a00", fontSize: 10 }}>
+              {tabelasFiltradas.length === 0
+                ? "Nenhuma tabela cadastrada para este banco/convênio. Você pode continuar sem tabela; quando ela for cadastrada em Configurações > Tabelas, aparecerá automaticamente ao selecionar o banco."
+                : buscaTabela.trim()
+                  ? `${tabelasPesquisadas.length} tabela(s) encontrada(s) por nome/código.`
+                  : `${tabelasFiltradas.length} tabela(s) disponível(is) para este banco e convênio.`}
+            </small>
+          )}
+        </label>
+
+        <label>
+          Valor do contrato
+          <input
+            value={form.valorContrato}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                valorContrato: evento.target.value,
+              })
+            }
+            placeholder="Ex.: 20.000,00"
+          />
+        </label>
+
+        <label>
+          Data da solicitação
+          <input
+            type="date"
+            value={form.dataSolicitacao}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                dataSolicitacao:
+                  evento.target.value,
+              })
+            }
+          />
+        </label>
+
+        <label>
+          Data da digitação
+          <input
+            type="date"
+            value={form.dataDigitacao}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                dataDigitacao:
+                  evento.target.value,
+              })
+            }
+          />
+        </label>
+
+        <label>
+          Status
+          <select
+            value={form.status}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                status: evento.target.value as StatusProposta,
+                dataPagamento:
+                  tipoDoStatus(evento.target.value) === "PAGO" &&
+                  podeAlterarDataPagamento &&
+                  !form.dataPagamento
+                    ? hojeIso()
+                    : form.dataPagamento,
+              })
+            }
+          >
+            {editando && form.status && !nomesStatusAtivos.includes(form.status) && (
+              <option value={form.status}>{form.status} (histórico)</option>
+            )}
+            {nomesStatusAtivos.map((status) => (
+              <option key={status} value={status}>{status}</option>
+            ))}
+          </select>
+        </label>
+
+        {editando && (
+          <label>
+            Data do pagamento
+            <input
+              type="date"
+              value={form.dataPagamento}
+              disabled={!podeAlterarDataPagamento}
+              onChange={(evento) =>
+                setForm({
+                  ...form,
+                  dataPagamento: evento.target.value,
+                })
+              }
+              title={
+                podeAlterarDataPagamento
+                  ? "Data em que a proposta foi paga"
+                  : "Somente operacional ou administradora pode alterar esta data"
+              }
+            />
+            {!podeAlterarDataPagamento && (
+              <small>
+                Somente operacional ou administradora pode alterar.
+              </small>
+            )}
+          </label>
+        )}
+
+        <label>
+          Senha do contracheque
+          <input
+            type="text"
+            value={form.senhaContracheque}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                senhaContracheque:
+                  evento.target.value,
+              })
+            }
+            placeholder="Digite a senha do contracheque"
+          />
+        </label>
+
+        <label>
+          Senha da consignação <strong className="campo-obrigatorio">*</strong>
+          <input
+            type="text"
+            required
+            value={form.senhaConsignacao}
+            onChange={(evento) =>
+              setForm({
+                ...form,
+                senhaConsignacao:
+                  evento.target.value,
+              })
+            }
+            placeholder="Digite a senha da consignação"
+          />
+        </label>
+
+        <div className="valor-meta-modal">
+          <span>Valor para a meta</span>
+          <strong>{moeda(valorMeta)}</strong>
+        </div>
+      </div>
+
+      <label className="observacao-modal">
+        Observações
+        <textarea
+          rows={4}
+          value={form.observacao}
+          onChange={(evento) =>
+            setForm({
+              ...form,
+              observacao: evento.target.value,
+            })
+          }
+          placeholder="Digite informações importantes sobre a proposta"
+        />
+      </label>
+    </div>
+  </div>)}
+      {(<div className="proposta-etapa-conteudo">
+<div className="secao-documentos">
+  <div className="secao-modal-titulo">
+    <span>📎 DOCUMENTOS</span>
+    <p>Anexe os documentos necessários para a proposta.</p>
+  </div>
+
+  <div className="documentos-grid">
+    <div className={`documento-upload ${arquivos.rgFrente ? "documento-anexado" : ""}`}>
+      {arquivos.rgFrente ? (
+        <>
+          <div className="documento-check">✓</div>
+          <span>RG FRENTE ANEXADO</span>
+          <strong className="documento-nome-arquivo">{arquivos.rgFrente?.name}</strong>
+
+          <div className="documento-acoes-anexo">
+            <label className="documento-trocar">
+              Trocar arquivo
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                onChange={(e) =>
+                  setArquivos((atuais) => ({
+                    ...atuais,
+                    rgFrente: e.target.files?.[0] ?? null,
+                  }))
+                }
+              />
+            </label>
+
+            <button
+              type="button"
+              className="documento-remover"
+              onClick={() =>
+                setArquivos((atuais) => ({
+                  ...atuais,
+                  rgFrente: null,
+                }))
+              }
+            >
+              Remover
+            </button>
+          </div>
+        </>
+      ) : (
+        <label className="documento-upload-vazio">
+          <span>RG FRENTE</span>
+          <strong>Selecionar arquivo</strong>
+          <small>Imagem ou PDF</small>
+          <input
+            type="file"
+            accept="image/*,.pdf"
+            onChange={(e) =>
+              setArquivos((atuais) => ({
+                ...atuais,
+                rgFrente: e.target.files?.[0] ?? null,
+              }))
+            }
+          />
+        </label>
+      )}
+    </div>
+
+    <div className={`documento-upload ${arquivos.rgVerso ? "documento-anexado" : ""}`}>
+      {arquivos.rgVerso ? (
+        <>
+          <div className="documento-check">✓</div>
+          <span>RG VERSO ANEXADO</span>
+          <strong className="documento-nome-arquivo">{arquivos.rgVerso?.name}</strong>
+
+          <div className="documento-acoes-anexo">
+            <label className="documento-trocar">
+              Trocar arquivo
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                onChange={(e) =>
+                  setArquivos((atuais) => ({
+                    ...atuais,
+                    rgVerso: e.target.files?.[0] ?? null,
+                  }))
+                }
+              />
+            </label>
+
+            <button
+              type="button"
+              className="documento-remover"
+              onClick={() =>
+                setArquivos((atuais) => ({
+                  ...atuais,
+                  rgVerso: null,
+                }))
+              }
+            >
+              Remover
+            </button>
+          </div>
+        </>
+      ) : (
+        <label className="documento-upload-vazio">
+          <span>RG VERSO</span>
+          <strong>Selecionar arquivo</strong>
+          <small>Imagem ou PDF</small>
+          <input
+            type="file"
+            accept="image/*,.pdf"
+            onChange={(e) =>
+              setArquivos((atuais) => ({
+                ...atuais,
+                rgVerso: e.target.files?.[0] ?? null,
+              }))
+            }
+          />
+        </label>
+      )}
+    </div>
+
+    <div className={`documento-upload ${arquivos.cnh ? "documento-anexado" : ""}`}>
+      {arquivos.cnh ? (
+        <>
+          <div className="documento-check">✓</div>
+          <span>CNH ANEXADO</span>
+          <strong className="documento-nome-arquivo">{arquivos.cnh?.name}</strong>
+
+          <div className="documento-acoes-anexo">
+            <label className="documento-trocar">
+              Trocar arquivo
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                onChange={(e) =>
+                  setArquivos((atuais) => ({
+                    ...atuais,
+                    cnh: e.target.files?.[0] ?? null,
+                  }))
+                }
+              />
+            </label>
+
+            <button
+              type="button"
+              className="documento-remover"
+              onClick={() =>
+                setArquivos((atuais) => ({
+                  ...atuais,
+                  cnh: null,
+                }))
+              }
+            >
+              Remover
+            </button>
+          </div>
+        </>
+      ) : (
+        <label className="documento-upload-vazio">
+          <span>CNH</span>
+          <strong>Selecionar arquivo</strong>
+          <small>Imagem ou PDF</small>
+          <input
+            type="file"
+            accept="image/*,.pdf"
+            onChange={(e) =>
+              setArquivos((atuais) => ({
+                ...atuais,
+                cnh: e.target.files?.[0] ?? null,
+              }))
+            }
+          />
+        </label>
+      )}
+    </div>
+
+    <div className={`documento-upload documento-upload-multiplo ${
+      arquivos.contracheques.length ? "documento-anexado-multiplo" : ""
+    }`}>
+      {arquivos.contracheques.length > 0 && (
+        <>
+          <div className="documento-check">✓</div>
+          <span>
+            {arquivos.contracheques.length}{" "}
+            {arquivos.contracheques.length === 1
+              ? "ARQUIVO ANEXADO"
+              : "ARQUIVOS ANEXADOS"}
+          </span>
+        </>
+      )}
+
+      <label className="documento-upload-seletor">
+        <input
+          type="file"
+          accept="image/*,.pdf"
+          multiple
+          onChange={(e) => {
+            const selecionados = Array.from(e.target.files || []);
+
+            if (selecionados.length) {
+              setArquivos((atuais) => ({
+                ...atuais,
+                contracheques: [
+                  ...atuais.contracheques,
+                  ...selecionados,
+                ],
+              }));
+            }
+
+            e.target.value = "";
+          }}
+        />
+
+        <strong>
+          {arquivos.contracheques.length
+            ? "+ Adicionar mais arquivos"
+            : "Selecionar arquivos"}
+        </strong>
+        <small>
+          {arquivos.contracheques.length
+            ? "Contracheque • várias imagens ou PDFs"
+            : "Contracheque • várias imagens ou PDFs"}
+        </small>
+      </label>
+
+      {arquivos.contracheques.length > 0 && (
+        <div className="contracheques-selecionados">
+          {arquivos.contracheques.map((arquivo, indice) => (
+            <div
+              className="contracheque-item"
+              key={`${arquivo.name}-${arquivo.lastModified}-${indice}`}
+            >
+              <span title={arquivo.name}>
+                {indice + 1}. {arquivo.name}
+              </span>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setArquivos((atuais) => ({
+                    ...atuais,
+                    contracheques: atuais.contracheques.filter(
+                      (_, itemIndice) => itemIndice !== indice
+                    ),
+                  }))
+                }
+                aria-label={`Remover ${arquivo.name}`}
+                title="Remover arquivo"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+</div>
+  </div>)}
+  </div>
+
+   {mensagem && (
+    <div className="esteira-mensagem">
+      {mensagem}
+    </div>
+  )}
+
+                </div>
+  <footer className="proposta-wizard-footer">
+    <button
+      type="button"
+      className="botao-secundario"
+      onClick={fecharEdicaoEVoltarCadastro}
+      disabled={salvando}
+    >
+      Cancelar
+    </button>
+    <div className="proposta-wizard-footer-right">
+      <button type="submit" className="botao-principal" disabled={salvando}>
+        {salvando ? "Salvando..." : editando ? "Salvar alterações" : "✓ Salvar proposta"}
+      </button>
+    </div>
+  </footer>
+</form>
+      </>
+    );
+  }
+
   return (
     <div className="esteira-profissional">
+
+      <style jsx global>{`
+        /* ELEVA | Compra de Dívida | Cadastro compacto */
+        .esteira-profissional .nova-proposta-modal.eleva-proposta-compacta{
+          width:min(1120px,92vw)!important;
+          max-width:1120px!important;
+          height:min(790px,90vh)!important;
+          max-height:90vh!important;
+          border-radius:18px!important;
+        }
+
+        .esteira-profissional .nova-proposta-modal.eleva-proposta-compacta > header{
+          padding:16px 22px!important;
+        }
+
+        .esteira-profissional .nova-proposta-modal.eleva-proposta-compacta .proposta-wizard-scroll{
+          padding:16px 22px 20px!important;
+        }
+
+        .esteira-profissional .nova-proposta-modal.eleva-proposta-compacta .proposta-cliente-layout.eleva-cliente-compacto{
+          display:block!important;
+          grid-template-columns:1fr!important;
+          width:100%!important;
+          max-width:none!important;
+        }
+
+        .esteira-profissional .nova-proposta-modal.eleva-proposta-compacta .proposta-cliente-principal{
+          width:100%!important;
+          max-width:none!important;
+        }
+
+        .esteira-profissional .nova-proposta-modal.eleva-proposta-compacta .proposta-cliente-principal .busca-cliente-topo{
+          grid-template-columns:minmax(0,1fr) 175px minmax(240px,.8fr)!important;
+          gap:10px!important;
+          margin-bottom:12px!important;
+        }
+
+        .esteira-profissional .nova-proposta-modal.eleva-proposta-compacta .cliente-status-wizard{
+          margin-bottom:12px!important;
+          padding-top:10px!important;
+          padding-bottom:10px!important;
+        }
+
+        .esteira-profissional .nova-proposta-modal.eleva-proposta-compacta .secao-modal{
+          padding:15px 16px!important;
+        }
+
+        .esteira-profissional .nova-proposta-modal.eleva-proposta-compacta .secao-modal-titulo{
+          margin-bottom:12px!important;
+        }
+
+        .esteira-profissional .nova-proposta-modal.eleva-proposta-compacta .proposta-etapa-conteudo > .secao-modal > .modal-form-grid,
+        .esteira-profissional .nova-proposta-modal.eleva-proposta-compacta .proposta-cliente-principal .secao-modal > .modal-form-grid{
+          gap:11px 14px!important;
+        }
+
+        .esteira-profissional .nova-proposta-modal.eleva-proposta-compacta input,
+        .esteira-profissional .nova-proposta-modal.eleva-proposta-compacta select{
+          min-height:40px!important;
+        }
+
+        .esteira-profissional .nova-proposta-modal.eleva-proposta-compacta .proposta-wizard-footer{
+          min-height:58px!important;
+          padding:10px 22px!important;
+        }
+
+        @media(max-width:900px){
+          .esteira-profissional .nova-proposta-modal.eleva-proposta-compacta{
+            width:96vw!important;
+            max-width:96vw!important;
+            height:94vh!important;
+            max-height:94vh!important;
+          }
+
+          .esteira-profissional .nova-proposta-modal.eleva-proposta-compacta .proposta-cliente-principal .busca-cliente-topo{
+            grid-template-columns:1fr!important;
+          }
+        }
+      `}</style>
       <section className="esteira-stats">
         <article>
           <span>TOTAL DE PROPOSTAS</span>
@@ -1990,7 +3323,7 @@ function preencherClienteNoFormulario(cliente: Cliente) {
 
       <section className="esteira-toolbar">
         <div className="esteira-toolbar-title">
-          <span>GESTÃO DE PROPOSTAS</span>
+          <span>COMPRA DE DÍVIDA</span>
           <h2>Acompanhamento das propostas</h2>
         </div>
 
@@ -2080,12 +3413,9 @@ function preencherClienteNoFormulario(cliente: Cliente) {
   >
     + Nova proposta
   </button>
+
 </div>
       </section>
-
-      {mensagem && !modalAberto && (
-        <div className="esteira-mensagem">{mensagem}</div>
-      )}
 
       <section className="esteira-tabela-card">
         {carregando ? (
@@ -2395,1047 +3725,13 @@ function preencherClienteNoFormulario(cliente: Cliente) {
       {modalAberto && (
         <div
           className="esteira-overlay"
-          onClick={() => {
-  setModalAberto(false);
-  setEditando(null);
-  setBuscaCliente("");
-  setMensagem("");
-  setForm(FORMULARIO_VAZIO);
-}}
+          onClick={fecharEdicaoEVoltarCadastro}
         >
           <div
-            className="nova-proposta-modal"
+            className="nova-proposta-modal eleva-proposta-compacta"
             onClick={(evento) => evento.stopPropagation()}
           >
-            <header>
-              <div>
-                <span>{editando ? "ATUALIZAR PROPOSTA" : "NOVA PROPOSTA"}</span>
-                <h2>
-                  {editando
-                    ? `Editar ${form.nomeCliente || "proposta"}`
-                    : "Cadastrar contrato"}
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setModalAberto(false);
-                  setEditando(null);
-                }}
-              >
-                ×
-              </button>
-            </header>
-
-            <div className="proposta-wizard">
-              {["Cliente","Endereço","Proposta","Documentos","Revisão"].map((titulo, indice) => (
-                <button type="button" key={titulo} className={`proposta-wizard-step ${etapaModal===indice+1?"active":etapaModal>indice+1?"done":""}`} onClick={()=>{ if(indice+1<=etapaModal || editando) setEtapaModal(indice+1); }}>
-                  <b>{etapaModal>indice+1?"✓":indice+1}</b><span>{titulo}</span>
-                </button>
-              ))}
-            </div>
-
-            <form onSubmit={salvarProposta} className="proposta-wizard-form">
-              <div className="proposta-wizard-scroll">
-  <div className="modal-form-grid">
-{etapaModal === 1 && (
-    <div className="proposta-etapa-conteudo proposta-cliente-layout">
-      <div className="proposta-cliente-principal">
-    {/* BUSCA DO CLIENTE PELO CPF */}
-    <div className="busca-cliente-topo">
-      {mensagem && (
-  <div
-    className={
-      form.clienteId
-        ? "cliente-encontrado-modal"
-        : "cliente-nao-encontrado-modal"
-    }
-  >
-    {mensagem}
-  </div>
-)}
-      <label className="cliente-pesquisa-modal">
-        CPF do cliente
-
-        <input
-  type="text"
-  inputMode="numeric"
-  value={buscaCliente}
-  onChange={(evento) => {
-    const cpfDigitado = apenasNumeros(
-      evento.target.value
-    ).slice(0, 11);
-
-    setBuscaCliente(formatarCpf(cpfDigitado));
-
-    setForm((atual) => ({
-      ...atual,
-      clienteId: "",
-      cpfCliente: cpfDigitado,
-    }));
-
-    setMensagem("");
-  }}
-  placeholder="Digite o CPF do cliente"
-  maxLength={14}
-/>
-      </label>
-
-      <button
-  type="button"
-  className="botao-buscar-cliente"
-  onClick={buscarClientePorCpf}
->
-  Buscar cliente
-</button>
-
-      <div className="aviso-cliente-cadastrado">
-        <strong>ⓘ</strong>
-
-        <span>
-          Se o cliente já estiver cadastrado, os dados serão
-          preenchidos automaticamente.
-        </span>
-      </div>
-    </div>
-
-    <div className={`cliente-status-wizard ${form.clienteId?"found":clienteNovo?"new":"idle"}`}>
-      <div><strong>{form.clienteId?"✓ Cliente encontrado":clienteNovo?"+ Novo cliente":"Busque o cliente pelo CPF"}</strong><span>{form.clienteId?"Dados carregados automaticamente.":clienteNovo?"Preencha os dados abaixo. O cliente será criado junto com a proposta.":"Se não existir, você cadastra aqui sem sair da proposta."}</span></div>
-      {!form.clienteId && !clienteNovo && apenasNumeros(form.cpfCliente).length===11 && <button type="button" onClick={()=>setClienteNovo(true)}>Cadastrar cliente agora</button>}
-    </div>
-
-    {/* DADOS DO CLIENTE */}
-    <div className="secao-modal">
-      <div className="secao-modal-titulo">
-        <span>👤 DADOS DO CLIENTE</span>
-        <p>
-          Preencha ou confira as informações cadastrais.
-        </p>
-      </div>
-
-      <div className="modal-form-grid">
-        <label>
-          Nome completo <strong className="campo-obrigatorio">*</strong>
-          <input
-            value={form.nomeCliente}
-            required
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                nomeCliente: evento.target.value,
-              })
-            }
-            placeholder="Nome completo do cliente"
-          />
-        </label>
-
-        <label>
-          CPF <strong className="campo-obrigatorio">*</strong>
-          <input
-            value={formatarCpf(form.cpfCliente)}
-            readOnly
-            placeholder="CPF do cliente"
-          />
-        </label>
-
-        <label>
-          RG <strong className="campo-obrigatorio">*</strong>
-          <input
-            value={form.rgCliente}
-            required
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                rgCliente: evento.target.value,
-              })
-            }
-            placeholder="Número do RG"
-          />
-        </label>
-
-        <label>
-          Data de nascimento <strong className="campo-obrigatorio">*</strong>
-          <input
-            type="date"
-            value={form.dataNascimentoCliente}
-            required
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                dataNascimentoCliente:
-                  evento.target.value,
-              })
-            }
-          />
-        </label>
-
-        <label>
-          Nome da mãe <strong className="campo-obrigatorio">*</strong>
-          <input
-            value={form.nomeMaeCliente}
-            required
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                nomeMaeCliente: evento.target.value,
-              })
-            }
-            placeholder="Nome completo da mãe"
-          />
-        </label>
-
-        <label>
-          Nome do pai
-          <input
-            value={form.nomePaiCliente}
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                nomePaiCliente: evento.target.value,
-              })
-            }
-            placeholder="Nome completo do pai"
-          />
-        </label>
-
-        <label>
-          Telefone <strong className="campo-obrigatorio">*</strong>
-          <input
-            type="tel"
-            value={form.telefoneCliente}
-            required
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                telefoneCliente: evento.target.value,
-              })
-            }
-            placeholder="Telefone principal"
-          />
-        </label>
-
-        <label>
-          Telefone 2
-          <input
-            type="tel"
-            value={form.telefone2Cliente}
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                telefone2Cliente:
-                  evento.target.value,
-              })
-            }
-            placeholder="Telefone alternativo"
-          />
-        </label>
-
-        <label className="campo-largura-total">
-          E-mail <strong className="campo-obrigatorio">*</strong>
-          <input
-            type="email"
-            value={form.emailCliente}
-            required
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                emailCliente: evento.target.value,
-              })
-            }
-            placeholder="E-mail do cliente"
-          />
-        </label>
-      </div>
-    </div>
-
-      </div>
-      <aside className="proposta-cliente-sidebar">
-        <div className="cliente-side-card cliente-side-identidade">
-          <div className="cliente-side-icon">👤</div>
-          <div>
-            <strong>{form.clienteId ? "Cliente identificado" : "Novo cliente"}</strong>
-            <span>{form.clienteId ? (form.nomeCliente || "Dados carregados") : "Informe o CPF para buscar ou cadastre um novo cliente."}</span>
-          </div>
-        </div>
-        <div className="cliente-side-card">
-          <h4>💡 Dicas</h4>
-          <ul>
-            <li>Utilize o CPF para buscar o cliente no sistema</li>
-            <li>Se não encontrar, preencha os dados nesta tela</li>
-            <li>Confira se as informações estão corretas</li>
-            <li>O cliente será salvo junto com a proposta</li>
-          </ul>
-        </div>
-        <div className="cliente-side-card cliente-side-seguranca">
-          <div className="cliente-side-icon">🔒</div>
-          <div><strong>Cadastro integrado</strong><span>Os dados ficam vinculados ao cliente e à proposta.</span></div>
-        </div>
-      </aside>
-    </div>
-  )}
-{etapaModal === 2 && (
-  <div className="proposta-etapa-conteudo">
-    {/* ENDEREÇO */}
-    <div className="secao-modal">
-      <div className="secao-modal-titulo">
-        <span>📍 ENDEREÇO</span>
-        <p>
-          Informe o endereço completo do cliente.
-        </p>
-      </div>
-
-      <div className="modal-form-grid">
-        <label>
-          CEP
-          <input
-            value={form.cepCliente}
-            inputMode="numeric"
-            onChange={(evento) => {
-              const numeros = apenasNumeros(evento.target.value).slice(0, 8);
-              const formatado =
-                numeros.length > 5
-                  ? `${numeros.slice(0, 5)}-${numeros.slice(5)}`
-                  : numeros;
-
-              setForm((atual) => ({
-                ...atual,
-                cepCliente: formatado,
-              }));
-
-              setMensagemCep("");
-
-              if (numeros.length === 8) {
-                void buscarEnderecoPorCep(numeros);
-              }
-            }}
-            onBlur={() => {
-              const numeros = apenasNumeros(form.cepCliente);
-
-              if (numeros.length === 8 && !buscandoCep) {
-                void buscarEnderecoPorCep(numeros);
-              }
-            }}
-            placeholder="00000-000"
-            maxLength={9}
-          />
-          {mensagemCep && (
-            <small
-              className={`cep-feedback ${
-                mensagemCep.startsWith("✓") ? "sucesso" : ""
-              }`}
-            >
-              {buscandoCep ? "Buscando endereço..." : mensagemCep}
-            </small>
-          )}
-        </label>
-
-        <label>
-          Endereço
-          <input
-            value={form.enderecoCliente}
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                enderecoCliente:
-                  evento.target.value,
-              })
-            }
-            placeholder="Rua, avenida ou logradouro"
-          />
-        </label>
-
-        <label>
-          Número
-          <input
-            value={form.numeroCliente}
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                numeroCliente: evento.target.value,
-              })
-            }
-            placeholder="Número"
-          />
-        </label>
-
-        <label>
-          Complemento
-          <input
-            value={form.complementoCliente}
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                complementoCliente:
-                  evento.target.value,
-              })
-            }
-            placeholder="Casa, apartamento, bloco..."
-          />
-        </label>
-
-        <label>
-          Bairro
-          <input
-            value={form.bairroCliente}
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                bairroCliente: evento.target.value,
-              })
-            }
-            placeholder="Bairro"
-          />
-        </label>
-
-        <label>
-          Cidade
-          <input
-            value={form.cidadeCliente}
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                cidadeCliente: evento.target.value,
-              })
-            }
-            placeholder="Cidade"
-          />
-        </label>
-
-        <label>
-          UF
-          <input
-            value={form.ufCliente}
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                ufCliente: evento.target.value
-                  .toUpperCase()
-                  .slice(0, 2),
-              })
-            }
-            placeholder="GO"
-            maxLength={2}
-          />
-        </label>
-      </div>
-    </div>
-
-
-</div>)}
-{etapaModal === 3 && (<div className="proposta-etapa-conteudo">
-    {/* DADOS DA PROPOSTA */}
-    <div className="secao-modal">
-      <div className="secao-modal-titulo">
-        <span>📄 DADOS DA PROPOSTA</span>
-        <p>Informe os dados da operação.</p>
-      </div>
-
-      <div className="modal-form-grid">
-        <label>
-          Número da proposta
-          <input
-            type="text"
-            value={form.numeroProposta}
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                numeroProposta: evento.target.value,
-              })
-            }
-            placeholder="Ex.: NEO-25487"
-          />
-        </label>
-
-        <label>
-          Consultora
-          <select
-            value={form.vendedora}
-            disabled={
-              Boolean(editando) &&
-              !podeEditarTodasPropostas
-            }
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                vendedora: evento.target.value,
-              })
-            }
-          >
-            <option value="">Selecione a consultora</option>
-
-            {consultoras.map((consultora) => (
-              <option key={consultora} value={consultora}>
-                {consultora}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          Banco
-          <select
-            value={form.banco}
-            onChange={(evento) => {
-              const banco = evento.target.value;
-
-              setForm({
-                ...form,
-                banco,
-                tabela: "",
-              });
-
-              setOrgaoConvenio("");
-            }}
-          >
-            <option value="">Selecione o banco</option>
-
-            {editando &&
-              form.banco &&
-              !bancosDisponiveis.includes(form.banco) && (
-                <option value={form.banco}>
-                  {form.banco} (histórico)
-                </option>
-              )}
-
-            {bancosDisponiveis.map((banco) => (
-              <option key={banco} value={banco}>
-                {banco}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          Órgão / Convênio
-          <select
-            value={orgaoConvenio}
-            disabled={!form.banco}
-            onChange={(evento) => {
-              const valor = evento.target.value;
-
-              setOrgaoConvenio(valor);
-              setForm({
-                ...form,
-                tabela: "",
-              });
-            }}
-          >
-            <option value="">
-              {form.banco
-                ? "Selecione o órgão / convênio"
-                : "Escolha primeiro o banco"}
-            </option>
-
-            {editando &&
-              orgaoConvenio === "__HISTORICA__" && (
-                <option value="__HISTORICA__">
-                  Tabela histórica
-                </option>
-              )}
-
-            {tabelasConfiguradas.some(
-              (tabela) =>
-                tabela.ativo &&
-                tabela.banco === String(form.banco || "").trim().toUpperCase() &&
-                !tabela.orgaoConvenio
-            ) && (
-              <option value="__SEM_ORGAO__">
-                Sem órgão específico
-              </option>
-            )}
-
-            {orgaosDisponiveis.map((orgao) => (
-              <option key={orgao} value={orgao}>
-                {orgao}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          Tabela
-          <select
-            value={form.tabela}
-            disabled={!orgaoConvenio}
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                tabela: evento.target.value,
-              })
-            }
-          >
-            <option value="">
-              {orgaoConvenio
-                ? "Selecione a tabela"
-                : "Escolha primeiro o órgão / convênio"}
-            </option>
-
-            {editando &&
-              orgaoConvenio === "__HISTORICA__" &&
-              form.tabela && (
-                <option value={form.tabela}>
-                  {form.tabela} — {editando.percentualTabela}% (histórica)
-                </option>
-              )}
-
-            {tabelasFiltradas.map((tabela) => (
-              <option
-                key={tabela.id}
-                value={tabela.nome}
-              >
-                {tabela.nome}
-                {tabela.codigo ? ` • ${tabela.codigo}` : ""}
-                {" — "}
-                {tabela.percentual}%
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          Valor do contrato
-          <input
-            value={form.valorContrato}
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                valorContrato: evento.target.value,
-              })
-            }
-            placeholder="Ex.: 20.000,00"
-          />
-        </label>
-
-        <label>
-          Data da solicitação
-          <input
-            type="date"
-            value={form.dataSolicitacao}
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                dataSolicitacao:
-                  evento.target.value,
-              })
-            }
-          />
-        </label>
-
-        <label>
-          Data da digitação
-          <input
-            type="date"
-            value={form.dataDigitacao}
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                dataDigitacao:
-                  evento.target.value,
-              })
-            }
-          />
-        </label>
-
-        <label>
-          Status
-          <select
-            value={form.status}
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                status: evento.target.value as StatusProposta,
-                dataPagamento:
-                  tipoDoStatus(evento.target.value) === "PAGO" &&
-                  podeAlterarDataPagamento &&
-                  !form.dataPagamento
-                    ? hojeIso()
-                    : form.dataPagamento,
-              })
-            }
-          >
-            {editando && form.status && !nomesStatusAtivos.includes(form.status) && (
-              <option value={form.status}>{form.status} (histórico)</option>
-            )}
-            {nomesStatusAtivos.map((status) => (
-              <option key={status} value={status}>{status}</option>
-            ))}
-          </select>
-        </label>
-
-        {editando && (
-          <label>
-            Data do pagamento
-            <input
-              type="date"
-              value={form.dataPagamento}
-              disabled={!podeAlterarDataPagamento}
-              onChange={(evento) =>
-                setForm({
-                  ...form,
-                  dataPagamento: evento.target.value,
-                })
-              }
-              title={
-                podeAlterarDataPagamento
-                  ? "Data em que a proposta foi paga"
-                  : "Somente operacional ou administradora pode alterar esta data"
-              }
-            />
-            {!podeAlterarDataPagamento && (
-              <small>
-                Somente operacional ou administradora pode alterar.
-              </small>
-            )}
-          </label>
-        )}
-
-        <label>
-          Senha do contracheque
-          <input
-            type="text"
-            value={form.senhaContracheque}
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                senhaContracheque:
-                  evento.target.value,
-              })
-            }
-            placeholder="Digite a senha do contracheque"
-          />
-        </label>
-
-        <label>
-          Senha da consignação <strong className="campo-obrigatorio">*</strong>
-          <input
-            type="text"
-            required
-            value={form.senhaConsignacao}
-            onChange={(evento) =>
-              setForm({
-                ...form,
-                senhaConsignacao:
-                  evento.target.value,
-              })
-            }
-            placeholder="Digite a senha da consignação"
-          />
-        </label>
-
-        <div className="valor-meta-modal">
-          <span>Valor para a meta</span>
-          <strong>{moeda(valorMeta)}</strong>
-        </div>
-      </div>
-
-      <label className="observacao-modal">
-        Observações
-        <textarea
-          rows={4}
-          value={form.observacao}
-          onChange={(evento) =>
-            setForm({
-              ...form,
-              observacao: evento.target.value,
-            })
-          }
-          placeholder="Digite informações importantes sobre a proposta"
-        />
-      </label>
-    </div>
-  </div>)}
-      {etapaModal === 4 && (<div className="proposta-etapa-conteudo">
-<div className="secao-documentos">
-  <div className="secao-modal-titulo">
-    <span>📎 DOCUMENTOS</span>
-    <p>Anexe os documentos necessários para a proposta.</p>
-  </div>
-
-  <div className="documentos-grid">
-    <div className={`documento-upload ${arquivos.rgFrente ? "documento-anexado" : ""}`}>
-      {arquivos.rgFrente ? (
-        <>
-          <div className="documento-check">✓</div>
-          <span>RG FRENTE ANEXADO</span>
-          <strong className="documento-nome-arquivo">{arquivos.rgFrente?.name}</strong>
-
-          <div className="documento-acoes-anexo">
-            <label className="documento-trocar">
-              Trocar arquivo
-              <input
-                type="file"
-                accept="image/*,.pdf"
-                onChange={(e) =>
-                  setArquivos((atuais) => ({
-                    ...atuais,
-                    rgFrente: e.target.files?.[0] ?? null,
-                  }))
-                }
-              />
-            </label>
-
-            <button
-              type="button"
-              className="documento-remover"
-              onClick={() =>
-                setArquivos((atuais) => ({
-                  ...atuais,
-                  rgFrente: null,
-                }))
-              }
-            >
-              Remover
-            </button>
-          </div>
-        </>
-      ) : (
-        <label className="documento-upload-vazio">
-          <span>RG FRENTE</span>
-          <strong>Selecionar arquivo</strong>
-          <small>Imagem ou PDF</small>
-          <input
-            type="file"
-            accept="image/*,.pdf"
-            onChange={(e) =>
-              setArquivos((atuais) => ({
-                ...atuais,
-                rgFrente: e.target.files?.[0] ?? null,
-              }))
-            }
-          />
-        </label>
-      )}
-    </div>
-
-    <div className={`documento-upload ${arquivos.rgVerso ? "documento-anexado" : ""}`}>
-      {arquivos.rgVerso ? (
-        <>
-          <div className="documento-check">✓</div>
-          <span>RG VERSO ANEXADO</span>
-          <strong className="documento-nome-arquivo">{arquivos.rgVerso?.name}</strong>
-
-          <div className="documento-acoes-anexo">
-            <label className="documento-trocar">
-              Trocar arquivo
-              <input
-                type="file"
-                accept="image/*,.pdf"
-                onChange={(e) =>
-                  setArquivos((atuais) => ({
-                    ...atuais,
-                    rgVerso: e.target.files?.[0] ?? null,
-                  }))
-                }
-              />
-            </label>
-
-            <button
-              type="button"
-              className="documento-remover"
-              onClick={() =>
-                setArquivos((atuais) => ({
-                  ...atuais,
-                  rgVerso: null,
-                }))
-              }
-            >
-              Remover
-            </button>
-          </div>
-        </>
-      ) : (
-        <label className="documento-upload-vazio">
-          <span>RG VERSO</span>
-          <strong>Selecionar arquivo</strong>
-          <small>Imagem ou PDF</small>
-          <input
-            type="file"
-            accept="image/*,.pdf"
-            onChange={(e) =>
-              setArquivos((atuais) => ({
-                ...atuais,
-                rgVerso: e.target.files?.[0] ?? null,
-              }))
-            }
-          />
-        </label>
-      )}
-    </div>
-
-    <div className={`documento-upload ${arquivos.cnh ? "documento-anexado" : ""}`}>
-      {arquivos.cnh ? (
-        <>
-          <div className="documento-check">✓</div>
-          <span>CNH ANEXADO</span>
-          <strong className="documento-nome-arquivo">{arquivos.cnh?.name}</strong>
-
-          <div className="documento-acoes-anexo">
-            <label className="documento-trocar">
-              Trocar arquivo
-              <input
-                type="file"
-                accept="image/*,.pdf"
-                onChange={(e) =>
-                  setArquivos((atuais) => ({
-                    ...atuais,
-                    cnh: e.target.files?.[0] ?? null,
-                  }))
-                }
-              />
-            </label>
-
-            <button
-              type="button"
-              className="documento-remover"
-              onClick={() =>
-                setArquivos((atuais) => ({
-                  ...atuais,
-                  cnh: null,
-                }))
-              }
-            >
-              Remover
-            </button>
-          </div>
-        </>
-      ) : (
-        <label className="documento-upload-vazio">
-          <span>CNH</span>
-          <strong>Selecionar arquivo</strong>
-          <small>Imagem ou PDF</small>
-          <input
-            type="file"
-            accept="image/*,.pdf"
-            onChange={(e) =>
-              setArquivos((atuais) => ({
-                ...atuais,
-                cnh: e.target.files?.[0] ?? null,
-              }))
-            }
-          />
-        </label>
-      )}
-    </div>
-
-    <div className={`documento-upload documento-upload-multiplo ${
-      arquivos.contracheques.length ? "documento-anexado-multiplo" : ""
-    }`}>
-      {arquivos.contracheques.length > 0 && (
-        <>
-          <div className="documento-check">✓</div>
-          <span>
-            {arquivos.contracheques.length}{" "}
-            {arquivos.contracheques.length === 1
-              ? "ARQUIVO ANEXADO"
-              : "ARQUIVOS ANEXADOS"}
-          </span>
-        </>
-      )}
-
-      <label className="documento-upload-seletor">
-        <input
-          type="file"
-          accept="image/*,.pdf"
-          multiple
-          onChange={(e) => {
-            const selecionados = Array.from(e.target.files || []);
-
-            if (selecionados.length) {
-              setArquivos((atuais) => ({
-                ...atuais,
-                contracheques: [
-                  ...atuais.contracheques,
-                  ...selecionados,
-                ],
-              }));
-            }
-
-            e.target.value = "";
-          }}
-        />
-
-        <strong>
-          {arquivos.contracheques.length
-            ? "+ Adicionar mais arquivos"
-            : "Selecionar arquivos"}
-        </strong>
-        <small>
-          {arquivos.contracheques.length
-            ? "Contracheque • várias imagens ou PDFs"
-            : "Contracheque • várias imagens ou PDFs"}
-        </small>
-      </label>
-
-      {arquivos.contracheques.length > 0 && (
-        <div className="contracheques-selecionados">
-          {arquivos.contracheques.map((arquivo, indice) => (
-            <div
-              className="contracheque-item"
-              key={`${arquivo.name}-${arquivo.lastModified}-${indice}`}
-            >
-              <span title={arquivo.name}>
-                {indice + 1}. {arquivo.name}
-              </span>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setArquivos((atuais) => ({
-                    ...atuais,
-                    contracheques: atuais.contracheques.filter(
-                      (_, itemIndice) => itemIndice !== indice
-                    ),
-                  }))
-                }
-                aria-label={`Remover ${arquivo.name}`}
-                title="Remover arquivo"
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  </div>
-</div>
-  </div>)}
-   {etapaModal === 5 && (
-     <div className="proposta-etapa-conteudo">
-       <div className="revisao-proposta">
-         <div className="revisao-cabecalho"><div><span>REVISÃO FINAL</span><h3>Confira antes de salvar</h3></div><b>✓ Tudo pronto</b></div>
-         <section><header><strong>👤 Cliente</strong><button type="button" onClick={() => setEtapaModal(1)}>Editar</button></header><p><b>{form.nomeCliente || "—"}</b> • {formatarCpf(form.cpfCliente)} • {form.telefoneCliente || "—"}</p></section>
-         <section><header><strong>📍 Endereço</strong><button type="button" onClick={() => setEtapaModal(2)}>Editar</button></header><p>{[form.enderecoCliente, form.numeroCliente, form.bairroCliente, form.cidadeCliente, form.ufCliente].filter(Boolean).join(" • ") || "—"}</p></section>
-         <section><header><strong>📄 Proposta</strong><button type="button" onClick={() => setEtapaModal(3)}>Editar</button></header>
-           <div className="revisao-grid"><div><span>Consultora</span><b>{form.vendedora || "—"}</b></div><div><span>Banco</span><b>{form.banco || "—"}</b></div><div><span>Tabela</span><b>{form.tabela || "—"}</b></div><div><span>Valor</span><b>{moeda(valorContrato)}</b></div><div><span>Valor para meta</span><b>{moeda(valorMeta)}</b></div><div><span>Status</span><b>{form.status}</b></div></div>
-         </section>
-         <section><header><strong>📎 Documentos</strong><button type="button" onClick={() => setEtapaModal(4)}>Editar</button></header><p>RG frente: {arquivos.rgFrente ? "✓" : "—"} • RG verso: {arquivos.rgVerso ? "✓" : "—"} • CNH: {arquivos.cnh ? "✓" : "—"} • Contracheques: {arquivos.contracheques.length}</p></section>
-       </div>
-     </div>
-   )}
-  </div>
-
-   {mensagem && (
-    <div className="esteira-mensagem">
-      {mensagem}
-    </div>
-  )}
-
-                </div>
-  <footer className="proposta-wizard-footer">
-    <button type="button" className="botao-secundario" onClick={() => setModalAberto(false)}>Cancelar</button>
-    <div className="proposta-wizard-footer-right">
-      <span>Etapa {etapaModal} de 5</span>
-      {etapaModal > 1 && <button type="button" className="botao-secundario" onClick={voltarEtapaModal}>← Voltar</button>}
-      {etapaModal < 5 ? (
-        <button type="button" className="botao-principal" onClick={avancarEtapaModal}>{etapaModal === 4 ? "Revisar →" : "Continuar →"}</button>
-      ) : (
-        <button type="submit" className="botao-principal" disabled={salvando}>{salvando ? "Salvando..." : editando ? "Salvar alterações" : "✓ Salvar proposta"}</button>
-      )}
-    </div>
-  </footer>
-</form>
+            {renderFormularioProposta()}
           </div>
         </div>
       )}

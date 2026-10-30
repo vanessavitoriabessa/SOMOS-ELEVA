@@ -1,5 +1,5 @@
 "use client";
-// ELEVA - ARQUIVO COMPLETO - REENVIO 2 - 15/10/2026
+// ELEVA | CLT | TABELAS LIVRES + CAMPOS COMPACTOS | 29/10/2026
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
@@ -476,6 +476,8 @@ export default function CltManager() {
   const [tabelasClt, setTabelasClt] = useState<TabelaCltOpcao[]>([]);
   const [carregandoTabelas, setCarregandoTabelas] = useState(true);
   const [erroTabelas, setErroTabelas] = useState("");
+  const [buscaTabela, setBuscaTabela] = useState("");
+  const [mostrarSugestoesTabela, setMostrarSugestoesTabela] = useState(false);
 
   const [perfilAtual, setPerfilAtual] = useState<PerfilAtual | null>(null);
 
@@ -973,15 +975,15 @@ export default function CltManager() {
 
       !termo ||
 
-      item.nome.toLowerCase().includes(termo) ||
+      normalizarTexto(item.nome).includes(normalizarTexto(termo)) ||
 
-      item.cpf.includes(numerico) ||
+      (Boolean(numerico) && item.cpf.includes(numerico)) ||
 
-      item.telefone.includes(numerico) ||
+      (Boolean(numerico) && item.telefone.includes(numerico)) ||
 
-      item.consultora.toLowerCase().includes(termo) ||
+      normalizarTexto(item.consultora).includes(normalizarTexto(termo)) ||
 
-      item.banco.toLowerCase().includes(termo);
+      normalizarTexto(item.banco).includes(normalizarTexto(termo));
 
     const dataPagamento = String(
 
@@ -1211,13 +1213,69 @@ export default function CltManager() {
 
   }
 
-  const tabelasDoBanco = useMemo(() => tabelasClt.filter((tabela) =>
-    bancosCltCorrespondem(tabela.banco, form.banco),
-  ), [tabelasClt, form.banco]);
+  // Regra de exibição das tabelas:
+  // - sem Banco + Prazo completos: mostra todas as tabelas CLT ativas;
+  // - com Banco + Prazo preenchidos: mostra somente as tabelas compatíveis.
+  const filtroTabelaPorContratoAtivo = Boolean(
+    form.banco.trim() && Number(form.prazo) > 0,
+  );
 
-  const tabelasDisponiveis = useMemo(() => tabelasDoBanco.filter((tabela) =>
-    prazoTabelaCompativel(tabela.prazoInicial, tabela.prazoFinal, form.prazo),
-  ), [tabelasDoBanco, form.prazo]);
+  const tabelasDisponiveis = useMemo(() => {
+    const base = filtroTabelaPorContratoAtivo
+      ? tabelasClt.filter(
+          (tabela) =>
+            bancosCltCorrespondem(tabela.banco, form.banco) &&
+            prazoTabelaCompativel(
+              tabela.prazoInicial,
+              tabela.prazoFinal,
+              form.prazo,
+            ),
+        )
+      : tabelasClt;
+
+    return [...base].sort((a, b) => {
+      const banco = String(a.banco || "").localeCompare(
+        String(b.banco || ""),
+        "pt-BR",
+      );
+      if (banco !== 0) return banco;
+      const nome = String(a.nome || "").localeCompare(
+        String(b.nome || ""),
+        "pt-BR",
+      );
+      if (nome !== 0) return nome;
+      return String(a.codigo || "").localeCompare(
+        String(b.codigo || ""),
+        "pt-BR",
+      );
+    });
+  }, [
+    tabelasClt,
+    filtroTabelaPorContratoAtivo,
+    form.banco,
+    form.prazo,
+  ]);
+
+  const tabelasDisponiveisFiltradas = useMemo(() => {
+    const termo = normalizarTexto(buscaTabela);
+    const termoCompacto = termo.replace(/[^a-z0-9]/g, "");
+
+    if (!termo) return tabelasDisponiveis;
+
+    return tabelasDisponiveis.filter((tabela) => {
+      const alvo = normalizarTexto(`${tabela.nome} ${tabela.codigo} ${tabela.banco}`);
+      const alvoCompacto = alvo.replace(/[^a-z0-9]/g, "");
+      return (
+        alvo.includes(termo) ||
+        Boolean(termoCompacto && alvoCompacto.includes(termoCompacto))
+      );
+    });
+  }, [tabelasDisponiveis, buscaTabela]);
+
+  const tabelaSelecionadaAtual = useMemo(() => {
+    if (!form.tabelaBancoId) return null;
+    return tabelasClt.find((tabela) => tabela.id === form.tabelaBancoId) || null;
+  }, [tabelasClt, form.tabelaBancoId]);
 
   const registroEditado = registros.find((item) => item.id === editandoId);
   const tabelaHistorica = Boolean(
@@ -1227,28 +1285,13 @@ export default function CltManager() {
   );
 
   function mudarBanco(banco: string) {
-    setForm((atual) => ({ ...atual, banco, tabelaBancoId: "" }));
+    // A pesquisa de tabelas é independente do banco; não apagamos uma tabela já escolhida.
+    setForm((atual) => ({ ...atual, banco }));
   }
 
   function mudarPrazo(prazo: string) {
-    setForm((atual) => {
-      const tabela = tabelasClt.find((item) => item.id === atual.tabelaBancoId);
-      const prazoInicialTabela = tabela
-        ? tabela.prazoInicial
-        : registroEditado?.tabelaPrazoInicial ?? registroEditado?.tabelaPrazo ?? null;
-      const prazoFinalTabela = tabela
-        ? tabela.prazoFinal
-        : registroEditado?.tabelaPrazoFinal ?? registroEditado?.tabelaPrazo ?? null;
-      return {
-        ...atual,
-        prazo,
-        tabelaBancoId:
-          !atual.tabelaBancoId ||
-          prazoTabelaCompativel(prazoInicialTabela, prazoFinalTabela, prazo)
-            ? atual.tabelaBancoId
-            : "",
-      };
-    });
+    // A pesquisa de tabelas é independente do prazo; não apagamos uma tabela já escolhida.
+    setForm((atual) => ({ ...atual, prazo }));
   }
 
   async function salvarSomenteTabela() {
@@ -1641,6 +1684,9 @@ banco: item.banco,
 
     setForm(formularioLimpo(perfilAtual));
 
+    setBuscaTabela("");
+    setMostrarSugestoesTabela(false);
+
     setMensagem("");
 
   }
@@ -1941,7 +1987,7 @@ banco: item.banco,
 
             </label>
 
-<label>
+<label style={{ width: "100%" }}>
 
   Prazo em meses
 
@@ -1962,12 +2008,13 @@ banco: item.banco,
     placeholder="Ex.: 12"
 
     inputMode="numeric"
+    style={{ minHeight: 42 }}
 
   />
 
 </label>
 
-            <label>
+            <label style={{ width: "100%" }}>
 
   Banco
 
@@ -1978,6 +2025,7 @@ banco: item.banco,
     disabled={processando}
 
     onChange={(event) => mudarBanco(event.target.value)}
+    style={{ minHeight: 42 }}
 
   >
 
@@ -2009,40 +2057,236 @@ banco: item.banco,
 
 </label>
 
-            <label className="clt-tabela-campo">
-              Tabela bancária da venda
-              <select
-                value={form.tabelaBancoId}
-                disabled={processando || carregandoTabelas || !form.banco || !Number(form.prazo)}
-                onChange={(event) => setForm({ ...form, tabelaBancoId: event.target.value })}
+            <div
+              className="clt-tabela-campo"
+              style={{ position: "relative", display: "grid", gap: 6 }}
+            >
+              <span
+                style={{
+                  color: "#39506e",
+                  fontSize: 11,
+                  fontWeight: 800,
+                }}
               >
-                <option value="">Sem tabela selecionada</option>
-                {tabelaHistorica && (
-                  <option value={form.tabelaBancoId}>
-                    {registroEditado?.tabela || "Tabela vinculada"}
-                    {registroEditado?.tabelaCodigo ? ` • Código ${registroEditado.tabelaCodigo}` : ""}
-                    {registroEditado?.tabelaBancoId
-                      ? ` • ${rotuloPrazoTabelaClt({
-                          prazo: registroEditado.tabelaPrazo ?? null,
-                          prazoInicial: registroEditado.tabelaPrazoInicial ?? null,
-                          prazoFinal: registroEditado.tabelaPrazoFinal ?? null,
-                        })}`
-                      : ""}
-                    {registroEditado?.tabelaAtiva === false ? " (histórico/inativa)" : " (vinculada)"}
-                  </option>
+                Tabela bancária da venda
+              </span>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 46px", gap: 8 }}>
+                <input
+                  type="search"
+                  value={buscaTabela}
+                  disabled={processando || carregandoTabelas}
+                  onFocus={() => setMostrarSugestoesTabela(true)}
+                  onChange={(event) => {
+                    setBuscaTabela(event.target.value);
+                    setMostrarSugestoesTabela(true);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      setMostrarSugestoesTabela(false);
+                    }
+                    if (event.key === "Enter" && tabelasDisponiveisFiltradas.length === 1) {
+                      event.preventDefault();
+                      const tabela = tabelasDisponiveisFiltradas[0];
+                      setForm((atual) => ({ ...atual, tabelaBancoId: tabela.id }));
+                      setBuscaTabela("");
+                      setMostrarSugestoesTabela(false);
+                    }
+                  }}
+                  placeholder="Digite o nome ou código da tabela"
+                  autoComplete="off"
+                  aria-label="Pesquisar tabela por nome ou código"
+                />
+
+                <button
+                  type="button"
+                  disabled={processando || carregandoTabelas}
+                  onClick={() => setMostrarSugestoesTabela((atual) => !atual)}
+                  aria-label="Pesquisar tabela"
+                  title="Pesquisar tabela"
+                  style={{
+                    minHeight: 42,
+                    border: "1px solid #b9cdf5",
+                    borderRadius: 10,
+                    background: mostrarSugestoesTabela ? "#155eef" : "#eef4ff",
+                    color: mostrarSugestoesTabela ? "#fff" : "#155eef",
+                    display: "grid",
+                    placeItems: "center",
+                    cursor: "pointer",
+                  }}
+                >
+                  <svg
+                    width="19"
+                    height="19"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="m20 20-3.5-3.5" />
+                  </svg>
+                </button>
+              </div>
+
+              {form.tabelaBancoId && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    padding: "8px 10px",
+                    border: "1px solid #cfe0ff",
+                    borderRadius: 9,
+                    background: "#f6f9ff",
+                    color: "#173b73",
+                    fontSize: 11,
+                    fontWeight: 800,
+                  }}
+                >
+                  <span>
+                    ✓ {tabelaSelecionadaAtual
+                      ? rotuloTabelaClt(tabelaSelecionadaAtual)
+                      : `${registroEditado?.tabela || "Tabela vinculada"}${
+                          registroEditado?.tabelaCodigo ? ` • Código ${registroEditado.tabelaCodigo}` : ""
+                        }`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setForm((atual) => ({ ...atual, tabelaBancoId: "" }))}
+                    style={{
+                      border: 0,
+                      background: "transparent",
+                      color: "#c43d3d",
+                      fontSize: 11,
+                      fontWeight: 900,
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Limpar
+                  </button>
+                </div>
+              )}
+
+              {mostrarSugestoesTabela &&
+                !processando &&
+                !carregandoTabelas && (
+                  <div
+                    role="listbox"
+                    aria-label="Tabelas encontradas"
+                    style={{
+                      position: "absolute",
+                      zIndex: 80,
+                      top: form.tabelaBancoId ? 118 : 72,
+                      left: 0,
+                      right: 0,
+                      maxHeight: 290,
+                      overflowY: "auto",
+                      border: "1px solid #cfdced",
+                      borderRadius: 12,
+                      background: "#fff",
+                      boxShadow: "0 14px 32px rgba(20, 48, 86, .16)",
+                      padding: 6,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        setForm((atual) => ({ ...atual, tabelaBancoId: "" }));
+                        setBuscaTabela("");
+                        setMostrarSugestoesTabela(false);
+                      }}
+                      style={{
+                        width: "100%",
+                        minHeight: 40,
+                        border: 0,
+                        borderRadius: 8,
+                        background: "#f7f9fc",
+                        color: "#607087",
+                        padding: "8px 10px",
+                        textAlign: "left",
+                        fontWeight: 800,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Sem tabela selecionada
+                    </button>
+
+                    {tabelasDisponiveisFiltradas.map((tabela) => (
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={form.tabelaBancoId === tabela.id}
+                        key={tabela.id}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          setForm((atual) => ({ ...atual, tabelaBancoId: tabela.id }));
+                          setBuscaTabela("");
+                          setMostrarSugestoesTabela(false);
+                        }}
+                        style={{
+                          width: "100%",
+                          minHeight: 46,
+                          marginTop: 4,
+                          border: form.tabelaBancoId === tabela.id
+                            ? "1px solid #9bbcff"
+                            : "1px solid transparent",
+                          borderRadius: 8,
+                          background: form.tabelaBancoId === tabela.id ? "#eef4ff" : "#fff",
+                          color: "#173250",
+                          padding: "8px 10px",
+                          textAlign: "left",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <strong style={{ display: "block", fontSize: 12 }}>
+                          {tabela.nome || "Tabela sem nome"}
+                        </strong>
+                        <span style={{ display: "block", marginTop: 2, fontSize: 10, color: "#6c7d94" }}>
+                          {tabela.banco ? `${tabela.banco} • ` : ""}
+                          {tabela.codigo ? `Código ${tabela.codigo} • ` : ""}
+                          {rotuloPrazoTabelaClt(tabela)}
+                        </span>
+                      </button>
+                    ))}
+
+                    {tabelasDisponiveisFiltradas.length === 0 && (
+                      <div
+                        style={{
+                          padding: "12px 10px",
+                          color: "#8a5b00",
+                          fontSize: 11,
+                          fontWeight: 800,
+                        }}
+                      >
+                        Nenhuma tabela encontrada com esse nome ou código.
+                      </div>
+                    )}
+                  </div>
                 )}
-                {tabelasDisponiveis.map((tabela) => (
-                  <option key={tabela.id} value={tabela.id}>{rotuloTabelaClt(tabela)}</option>
-                ))}
-              </select>
+
               <small className={erroTabelas ? "clt-tabela-aviso" : "clt-tabela-ajuda"} role={erroTabelas ? "alert" : undefined}>
                 {carregandoTabelas ? "Carregando tabelas cadastradas..." :
                  erroTabelas ? erroTabelas :
-                 !form.banco || !Number(form.prazo) ? "Informe o banco e o prazo para ver as tabelas disponíveis." :
-                 tabelasDisponiveis.length === 0 ? "Nenhuma tabela CLT ativa para este banco e prazo. O contrato pode permanecer sem tabela." :
-                 "Escolha a tabela conferida no banco. Nenhuma tabela será preenchida automaticamente."}
+                 tabelasDisponiveis.length === 0 && filtroTabelaPorContratoAtivo
+                   ? `Nenhuma tabela CLT ativa compatível com ${form.banco} e ${form.prazo} meses.` :
+                 tabelasDisponiveis.length === 0
+                   ? "Nenhuma tabela CLT ativa cadastrada." :
+                 buscaTabela && tabelasDisponiveisFiltradas.length === 0
+                   ? "Nenhuma tabela encontrada com esse nome ou código." :
+                 buscaTabela
+                   ? `${tabelasDisponiveisFiltradas.length} tabela(s) encontrada(s). Clique em uma opção.` :
+                 filtroTabelaPorContratoAtivo
+                   ? `${tabelasDisponiveis.length} tabela(s) compatível(is) com ${form.banco} e ${form.prazo} meses.` :
+                 `${tabelasDisponiveis.length} tabela(s) CLT ativa(s). Preencha Banco + Prazo para filtrar automaticamente, ou use a lupa para ver todas.`}
               </small>
-            </label>
+            </div>
 
             <label>
 
@@ -2570,3 +2814,4 @@ banco: item.banco,
   );
 
 }
+// FIM DO ARQUIVO COMPLETO - CltManager.tsx - ELEVA

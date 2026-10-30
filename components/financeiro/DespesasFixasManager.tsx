@@ -128,6 +128,24 @@ const numero = (v: string) =>
 
 
 
+function mensagemErroBanco(erro: unknown, fallback: string) {
+
+  if (erro instanceof Error && erro.message) return erro.message;
+
+  if (erro && typeof erro === "object" && "message" in erro) {
+
+    const mensagem = String((erro as { message?: unknown }).message || "").trim();
+
+    if (mensagem) return mensagem;
+
+  }
+
+  return fallback;
+
+}
+
+
+
 function iconeCategoria(categoria: string) {
 
   const chave = categoria.trim().toLowerCase();
@@ -733,11 +751,9 @@ export default function DespesasFixasManager() {
 
     try {
 
-      await removerPagamentoDaCompetencia(item);
-
-
-
-      const { error } = await supabase
+      // Primeiro grava a exceção mensal. Assim a despesa recorrente continua
+      // existindo nos demais meses e só esta competência é ocultada.
+      const { error: erroExclusao } = await supabase
 
         .from("despesas_recorrentes_exclusoes")
 
@@ -761,7 +777,32 @@ export default function DespesasFixasManager() {
 
 
 
-      if (error) throw error;
+      if (erroExclusao) throw erroExclusao;
+
+
+
+      try {
+
+        // Se a despesa já tiver sido paga neste mês, remove somente o pagamento
+        // e a movimentação financeira ligados a esta competência.
+        await removerPagamentoDaCompetencia(item);
+
+      } catch (erroPagamento) {
+
+        // Reverte a exceção caso a remoção do pagamento falhe, evitando estado parcial.
+        await supabase
+
+          .from("despesas_recorrentes_exclusoes")
+
+          .delete()
+
+          .eq("despesa_recorrente_id", item.id)
+
+          .eq("competencia", competencia);
+
+        throw erroPagamento;
+
+      }
 
 
 
@@ -789,11 +830,13 @@ export default function DespesasFixasManager() {
 
       setMensagem(
 
-        erro instanceof Error
+        `Não foi possível excluir a despesa somente desta competência: ${mensagemErroBanco(
 
-          ? erro.message
+          erro,
 
-          : "Não foi possível excluir a despesa somente desta competência.",
+          "verifique a configuração das exclusões mensais no Supabase.",
+
+        )}`,
 
       );
 
