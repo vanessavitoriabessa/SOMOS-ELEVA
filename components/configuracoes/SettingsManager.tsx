@@ -53,6 +53,63 @@ type PerfilConfigurado = {
   ordem: number;
 };
 
+type UsuarioAtivoPerfil = {
+  id: string;
+  nome: string;
+  perfil: string;
+  equipe: string;
+  ativo: boolean;
+};
+
+function normalizarPerfilAcesso(valor: unknown) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function usuarioPertenceAoPerfil(
+  perfilUsuario: string,
+  chave: PerfilConfigurado["chave"],
+) {
+  const perfil = normalizarPerfilAcesso(perfilUsuario);
+
+  if (chave === "Administradora") {
+    return (
+      perfil.includes("administrador") ||
+      perfil.includes("diretor") ||
+      perfil.includes("diretoria")
+    );
+  }
+
+  if (chave === "Coordenadora") {
+    return perfil.includes("coordenador");
+  }
+
+  if (chave === "Supervisora") {
+    return perfil.includes("supervisor");
+  }
+
+  if (chave === "Consultora") {
+    return perfil.includes("consultor") || perfil.includes("vendedor");
+  }
+
+  if (chave === "Operacional") {
+    return perfil.includes("operacional");
+  }
+
+  if (chave === "Financeiro") {
+    return (
+      perfil.includes("financeir") ||
+      perfil === "rh" ||
+      perfil.includes("recursos humanos")
+    );
+  }
+
+  return false;
+}
+
 type ChavePermissao =
   | "dashboard"
   | "clientes"
@@ -285,25 +342,6 @@ function tabelaEhClt(tabela: Tabela) {
   );
 }
 
-function normalizarPerfilConfiguracoes(valor: unknown) {
-  return String(valor ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-}
-
-function perfilPodeGerenciarOrgaosConfiguracoes(valor: unknown) {
-  const perfil = normalizarPerfilConfiguracoes(valor);
-
-  return (
-    perfil.includes("diretor") ||
-    perfil.includes("diretoria") ||
-    perfil.includes("coorden") ||
-    perfil.includes("administrador")
-  );
-}
-
 export default function SettingsManager() {
   const supabase = useMemo(() => createClient(), []);
 
@@ -338,9 +376,46 @@ export default function SettingsManager() {
     useState<EquipeConfigurada[]>([]);
   const [perfisConfigurados, setPerfisConfigurados] =
     useState<PerfilConfigurado[]>([]);
+  const [usuariosAtivosPerfis, setUsuariosAtivosPerfis] =
+    useState<UsuarioAtivoPerfil[]>([]);
   const [editandoPerfilChave, setEditandoPerfilChave] =
     useState<PerfilConfigurado["chave"] | null>(null);
   const [nomePerfilEdicao, setNomePerfilEdicao] = useState("");
+
+  const usuariosAtivosPorPerfil = useMemo(() => {
+    const mapa: Record<
+      PerfilConfigurado["chave"],
+      UsuarioAtivoPerfil[]
+    > = {
+      Administradora: [],
+      Coordenadora: [],
+      Supervisora: [],
+      Consultora: [],
+      Operacional: [],
+      Financeiro: [],
+    };
+
+    usuariosAtivosPerfis.forEach((usuario) => {
+      (
+        Object.keys(mapa) as PerfilConfigurado["chave"][]
+      ).some((chave) => {
+        if (!usuarioPertenceAoPerfil(usuario.perfil, chave)) {
+          return false;
+        }
+
+        mapa[chave].push(usuario);
+        return true;
+      });
+    });
+
+    Object.values(mapa).forEach((usuarios) => {
+      usuarios.sort((a, b) =>
+        a.nome.localeCompare(b.nome, "pt-BR"),
+      );
+    });
+
+    return mapa;
+  }, [usuariosAtivosPerfis]);
 
   const [perfilPermissaoSelecionado, setPerfilPermissaoSelecionado] =
     useState<PerfilConfigurado["chave"]>("Administradora");
@@ -395,7 +470,6 @@ export default function SettingsManager() {
   const [editandoBancoId, setEditandoBancoId] = useState<string | null>(null);
   const [nomeBancoEdicao, setNomeBancoEdicao] = useState("");
   const [novoOrgaoConvenio, setNovoOrgaoConvenio] = useState("");
-  const [perfilAtualConfiguracoes, setPerfilAtualConfiguracoes] = useState("");
   const [buscaTabela, setBuscaTabela] = useState("");
   const [filtroTipoTabela, setFiltroTipoTabela] =
     useState<FiltroTipoTabela>("TODAS");
@@ -429,46 +503,6 @@ export default function SettingsManager() {
     inicio: hoje(),
     fim: hoje(),
   });
-
-  useEffect(() => {
-    let ativo = true;
-
-    async function carregarPerfilAtualConfiguracoes() {
-      try {
-        const { data: sessao } = await supabase.auth.getSession();
-        const usuarioId = sessao.session?.user.id;
-
-        if (!usuarioId) {
-          if (ativo) setPerfilAtualConfiguracoes("");
-          return;
-        }
-
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("perfil")
-          .eq("id", usuarioId)
-          .maybeSingle();
-
-        if (error) throw error;
-
-        if (ativo) {
-          setPerfilAtualConfiguracoes(String(data?.perfil || ""));
-        }
-      } catch {
-        if (ativo) setPerfilAtualConfiguracoes("");
-      }
-    }
-
-    void carregarPerfilAtualConfiguracoes();
-
-    return () => {
-      ativo = false;
-    };
-  }, [supabase]);
-
-  const podeGerenciarOrgaos = perfilPodeGerenciarOrgaosConfiguracoes(
-    perfilAtualConfiguracoes,
-  );
 
   function numeroPremiacao(valor: string | number | null | undefined) {
     if (typeof valor === "number") return Number.isFinite(valor) ? valor : 0;
@@ -990,6 +1024,38 @@ export default function SettingsManager() {
         })),
       );
 
+      const {
+        data: usuariosPerfisData,
+        error: usuariosPerfisErro,
+      } = await supabase
+        .from("profiles")
+        .select("id, nome, perfil, equipe, ativo")
+        .order("nome", { ascending: true });
+
+      if (usuariosPerfisErro) {
+        console.warn(
+          "Não foi possível carregar os usuários ativos por perfil:",
+          usuariosPerfisErro,
+        );
+        setUsuariosAtivosPerfis([]);
+      } else {
+        setUsuariosAtivosPerfis(
+          (Array.isArray(usuariosPerfisData)
+            ? usuariosPerfisData
+            : []
+          )
+            .filter((item) => item.ativo !== false)
+            .map((item) => ({
+              id: String(item.id || ""),
+              nome: String(item.nome || "Usuário sem nome").trim(),
+              perfil: String(item.perfil || "").trim(),
+              equipe: String(item.equipe || "").trim(),
+              ativo: item.ativo !== false,
+            }))
+            .filter((item) => item.id && item.nome && item.perfil),
+        );
+      }
+
       const { data: permissoesData, error: permissoesErro } =
         await supabase
           .from("config_permissoes")
@@ -1296,11 +1362,6 @@ export default function SettingsManager() {
   async function adicionarOrgaoConvenio(event: FormEvent) {
     event.preventDefault();
 
-    if (!podeGerenciarOrgaos) {
-      setMensagem("Somente Diretoria e Coordenação podem cadastrar órgãos / estados.");
-      return;
-    }
-
     const nome = novoOrgaoConvenio.trim().toUpperCase();
 
     if (!nome) {
@@ -1335,11 +1396,6 @@ export default function SettingsManager() {
   }
 
   async function alternarOrgaoConvenio(id: string) {
-    if (!podeGerenciarOrgaos) {
-      setMensagem("Somente Diretoria e Coordenação podem alterar órgãos / estados.");
-      return;
-    }
-
     const orgao = orgaosConveniosTabela.find((item) => item.id === id);
     if (!orgao) return;
 
@@ -1372,12 +1428,7 @@ export default function SettingsManager() {
   }
 
   async function excluirOrgaoConvenio(id: string) {
-    if (!podeGerenciarOrgaos) {
-      setMensagem("Somente Diretoria e Coordenação podem excluir órgãos / estados.");
-      return;
-    }
-
-    if (!window.confirm("Deseja excluir este órgão / estado / convênio?")) return;
+    if (!window.confirm("Deseja excluir este órgão / convênio?")) return;
 
     setProcessando(true);
     setMensagem("");
@@ -2682,6 +2733,111 @@ export default function SettingsManager() {
   return (
     <div className="settings-page">
       <style>{`
+        .settings-page .settings-v6-profile-head,
+        .settings-page .settings-v6-profile-row {
+          grid-template-columns:
+            minmax(210px, 1.15fr)
+            minmax(150px, .82fr)
+            minmax(300px, 1.55fr)
+            86px
+            118px !important;
+          gap: 14px;
+        }
+
+        .settings-page .settings-v6-profile-users {
+          display: flex;
+          min-width: 0;
+          flex-direction: column;
+          gap: 7px;
+        }
+
+        .settings-page .settings-v6-profile-users-summary {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          color: #536783;
+          font-size: 10px;
+          font-weight: 700;
+        }
+
+        .settings-page .settings-v6-profile-users-summary strong {
+          display: grid;
+          min-width: 25px;
+          height: 25px;
+          place-items: center;
+          padding: 0 6px;
+          border-radius: 9px;
+          background: #eaf1ff;
+          color: #1f5fe8;
+          font-size: 11px;
+          font-weight: 900;
+        }
+
+        .settings-page .settings-v6-profile-user-list {
+          display: flex;
+          min-width: 0;
+          flex-wrap: wrap;
+          gap: 5px;
+        }
+
+        .settings-page .settings-v6-profile-user-chip {
+          display: inline-flex;
+          max-width: 100%;
+          align-items: center;
+          gap: 5px;
+          padding: 5px 8px;
+          border: 1px solid #dce5f2;
+          border-radius: 999px;
+          background: #f7f9fd;
+          color: #233f60;
+          font-size: 9px;
+          font-weight: 800;
+          line-height: 1.1;
+        }
+
+        .settings-page .settings-v6-profile-user-chip::before {
+          width: 6px;
+          height: 6px;
+          flex: 0 0 6px;
+          border-radius: 50%;
+          background: #18a66a;
+          content: "";
+        }
+
+        .settings-page .settings-v6-profile-user-empty {
+          color: #8a98ad;
+          font-size: 9px;
+          font-weight: 700;
+        }
+
+        @media (max-width: 1200px) {
+          .settings-page .settings-v6-profile-head,
+          .settings-page .settings-v6-profile-row {
+            grid-template-columns:
+              minmax(180px, 1fr)
+              minmax(130px, .75fr)
+              minmax(235px, 1.35fr)
+              78px
+              105px !important;
+            gap: 10px;
+          }
+        }
+
+        @media (max-width: 850px) {
+          .settings-page .settings-v6-profile-head {
+            display: none;
+          }
+
+          .settings-page .settings-v6-profile-row {
+            grid-template-columns: minmax(0, 1fr) auto !important;
+          }
+
+          .settings-page .settings-v6-profile-row .settings-v6-code,
+          .settings-page .settings-v6-profile-users {
+            grid-column: 1 / -1;
+          }
+        }
+
         .settings-table-filter-bar {
           display: flex;
           flex-wrap: wrap;
@@ -3003,7 +3159,7 @@ export default function SettingsManager() {
               <span className="settings-nav-icon">B</span><span><b>Bancos</b><em>{bancos.length} cadastrados</em></span>
             </button>
             <button className={aba === "orgaos" ? "active" : ""} onClick={() => setAba("orgaos")}>
-              <span className="settings-nav-icon">O</span><span><b>Órgãos / Estados</b><em>{orgaosConvenios.length} cadastrados</em></span>
+              <span className="settings-nav-icon">O</span><span><b>Órgãos e convênios</b><em>{orgaosConvenios.length} cadastrados</em></span>
             </button>
             <button className={aba === "tabelas" ? "active" : ""} onClick={() => setAba("tabelas")}>
               <span className="settings-nav-icon">%</span><span><b>Tabelas de produção</b><em>{tabelas.length} regras</em></span>
@@ -3081,7 +3237,7 @@ export default function SettingsManager() {
     <>
       <button className={aba==="bancos"?"active":""} onClick={()=>setAba("bancos")}>Bancos</button>
 
-      <button className={aba==="orgaos"?"active":""} onClick={()=>setAba("orgaos")}>Órgãos / Estados</button>
+      <button className={aba==="orgaos"?"active":""} onClick={()=>setAba("orgaos")}>Órgãos</button>
 
       <button className={aba==="tabelas"?"active":""} onClick={()=>setAba("tabelas")}>Tabelas</button>
 
@@ -3514,130 +3670,64 @@ export default function SettingsManager() {
 
       {aba === "orgaos" && (
         <section className="settings-grid settings-grid-orgaos">
-          {podeGerenciarOrgaos ? (
-            <form className="settings-card" onSubmit={adicionarOrgaoConvenio}>
-              <div className="settings-heading">
-                <div>
-                  <span>NOVO ÓRGÃO / ESTADO / CONVÊNIO</span>
-                  <h2>Cadastrar órgão ou estado</h2>
-                  <p>
-                    Escreva o órgão, governo, prefeitura ou estado exatamente como
-                    deseja que apareça na Compra de Dívida.
-                  </p>
-                </div>
-                <b>+</b>
+          <form className="settings-card" onSubmit={adicionarOrgaoConvenio}>
+            <div className="settings-heading">
+              <div>
+                <span>NOVO ÓRGÃO / CONVÊNIO</span>
+                <h2>Cadastrar convênio</h2>
+                <p>Governo, Prefeitura ou qualquer convênio utilizado nas tabelas.</p>
               </div>
+              <b>+</b>
+            </div>
 
-              <label className="settings-single-label">
-                Nome do órgão / estado
-                <input
-                  value={novoOrgaoConvenio}
-                  onChange={(e) => setNovoOrgaoConvenio(e.target.value)}
-                  placeholder="Ex.: GOVERNO PARANÁ-PR"
-                  disabled={processando}
-                />
-              </label>
+            <label className="settings-single-label">
+              Nome do órgão / convênio
+              <input
+                value={novoOrgaoConvenio}
+                onChange={(e) => setNovoOrgaoConvenio(e.target.value)}
+                placeholder="Ex.: GOVERNO DE GO"
+                disabled={processando}
+              />
+            </label>
 
-              <div
-                style={{
-                  marginTop: 10,
-                  padding: "12px 14px",
-                  border: "1px solid #dbe7f8",
-                  borderRadius: 12,
-                  background: "#f7faff",
-                  color: "#4b6382",
-                  fontSize: 12,
-                  lineHeight: 1.5,
-                }}
-              >
-                Depois de salvar aqui, o órgão passa a aparecer automaticamente
-                em <strong>Compra de Dívida → Órgão / Convênio</strong> e pode ser
-                vinculado às tabelas em <strong>Configurações → Tabelas</strong>.
-              </div>
-
-              <div className="settings-actions">
-                <button type="submit" disabled={processando}>
-                  {processando ? "Salvando..." : "+ Adicionar órgão / estado"}
-                </button>
-              </div>
-            </form>
-          ) : (
-            <section className="settings-card">
-              <div className="settings-heading">
-                <div>
-                  <span>CADASTRO RESTRITO</span>
-                  <h2>Órgãos / Estados</h2>
-                  <p>
-                    Somente usuários da Diretoria e Coordenação podem cadastrar,
-                    ativar, desativar ou excluir órgãos / estados.
-                  </p>
-                </div>
-                <b>🔒</b>
-              </div>
-            </section>
-          )}
+            <div className="settings-actions">
+              <button type="submit" disabled={processando}>
+                {processando ? "Salvando..." : "Adicionar órgão / convênio"}
+              </button>
+            </div>
+          </form>
 
           <section className="settings-card">
             <div className="settings-list-heading">
               <div>
                 <span>CADASTRADOS</span>
-                <h2>Órgãos, estados e convênios</h2>
-                <p>
-                  Lista central utilizada na Compra de Dívida e nas tabelas de
-                  produção.
-                </p>
+                <h2>Órgãos e convênios</h2>
+                <p>Lista central usada nas regras de produção.</p>
               </div>
               <b>{orgaosConvenios.length}</b>
             </div>
 
             <div className="settings-list settings-v6-clean-list">
-              {orgaosConvenios.length === 0 ? (
-                <div
-                  style={{
-                    padding: 18,
-                    border: "1px dashed #d5dfed",
-                    borderRadius: 12,
-                    color: "#65758b",
-                  }}
-                >
-                  Nenhum órgão / estado cadastrado.
-                </div>
-              ) : (
-                orgaosConvenios.map((orgao) => (
-                  <article key={orgao.id}>
-                    <div className="settings-icon">O</div>
-                    <div>
-                      <strong>{orgao.nome}</strong>
-                      <span>
-                        {orgao.ativo
-                          ? "Disponível na Compra de Dívida e para vincular às tabelas"
-                          : "Desativado"}
-                      </span>
-                    </div>
-                    <span className={orgao.ativo ? "status-active" : "status-inactive"}>
-                      {orgao.ativo ? "Ativo" : "Inativo"}
-                    </span>
-
-                    {podeGerenciarOrgaos && (
-                      <div className="settings-row-actions">
-                        <button
-                          type="button"
-                          onClick={() => void alternarOrgaoConvenio(orgao.id)}
-                        >
-                          {orgao.ativo ? "Desativar" : "Ativar"}
-                        </button>
-                        <button
-                          type="button"
-                          className="delete"
-                          onClick={() => void excluirOrgaoConvenio(orgao.id)}
-                        >
-                          Excluir
-                        </button>
-                      </div>
-                    )}
-                  </article>
-                ))
-              )}
+              {orgaosConvenios.map((orgao) => (
+                <article key={orgao.id}>
+                  <div className="settings-icon">O</div>
+                  <div>
+                    <strong>{orgao.nome}</strong>
+                    <span>{orgao.ativo ? "Disponível para vincular às tabelas" : "Desativado"}</span>
+                  </div>
+                  <span className={orgao.ativo ? "status-active" : "status-inactive"}>
+                    {orgao.ativo ? "Ativo" : "Inativo"}
+                  </span>
+                  <div className="settings-row-actions">
+                    <button type="button" onClick={() => void alternarOrgaoConvenio(orgao.id)}>
+                      {orgao.ativo ? "Desativar" : "Ativar"}
+                    </button>
+                    <button type="button" className="delete" onClick={() => void excluirOrgaoConvenio(orgao.id)}>
+                      Excluir
+                    </button>
+                  </div>
+                </article>
+              ))}
             </div>
           </section>
         </section>
@@ -4133,7 +4223,7 @@ export default function SettingsManager() {
             <div>
               <span>CARGOS E PERFIS DE ACESSO</span>
               <h2>Perfis do sistema</h2>
-              <p>Edite o nome exibido e veja claramente qual chave técnica controla as permissões.</p>
+              <p>Edite o nome exibido, confira a chave técnica e veja quem está ativo em cada cargo.</p>
             </div>
             <b>{perfisConfigurados.length}</b>
           </div>
@@ -4142,66 +4232,125 @@ export default function SettingsManager() {
             <div className="settings-v6-profile-head">
               <span>Nome exibido</span>
               <span>Código técnico</span>
+              <span>Usuários ativos</span>
               <span>Situação</span>
               <span>Ações</span>
             </div>
 
-            {perfisConfigurados.map((perfil) => (
-              <article key={perfil.chave} className="settings-v6-profile-row">
-                <div className="settings-v6-entity">
-                  <span className="settings-v6-entity-icon">P</span>
-                  <div>
-                    {editandoPerfilChave === perfil.chave ? (
-                      <input
-                        className="settings-v6-edit-input"
-                        value={nomePerfilEdicao}
-                        onChange={(e) => setNomePerfilEdicao(e.target.value)}
-                        disabled={processando}
-                      />
+            {perfisConfigurados.map((perfil) => {
+              const usuariosDoPerfil =
+                usuariosAtivosPorPerfil[perfil.chave] || [];
+              const perfilEhRh = perfil.chave === "Financeiro";
+
+              return (
+                <article
+                  key={perfil.chave}
+                  className="settings-v6-profile-row"
+                >
+                  <div className="settings-v6-entity">
+                    <span className="settings-v6-entity-icon">P</span>
+                    <div>
+                      {editandoPerfilChave === perfil.chave ? (
+                        <input
+                          className="settings-v6-edit-input"
+                          value={nomePerfilEdicao}
+                          onChange={(e) =>
+                            setNomePerfilEdicao(e.target.value)
+                          }
+                          disabled={processando}
+                        />
+                      ) : (
+                        <>
+                          <strong>{perfil.nomeExibicao}</strong>
+                          <small>Nome que aparece para a equipe</small>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="settings-v6-code">
+                    <code>{perfilEhRh ? "RH" : perfil.chave}</code>
+                    <small>
+                      {perfilEhRh
+                        ? "Chave interna: Financeiro"
+                        : "Identificador interno protegido"}
+                    </small>
+                  </div>
+
+                  <div className="settings-v6-profile-users">
+                    <div className="settings-v6-profile-users-summary">
+                      <strong>{usuariosDoPerfil.length}</strong>
+                      <span>
+                        {usuariosDoPerfil.length === 1
+                          ? "usuário ativo"
+                          : "usuários ativos"}
+                      </span>
+                    </div>
+
+                    {usuariosDoPerfil.length > 0 ? (
+                      <div className="settings-v6-profile-user-list">
+                        {usuariosDoPerfil.map((usuario) => (
+                          <span
+                            className="settings-v6-profile-user-chip"
+                            key={usuario.id}
+                            title={
+                              usuario.equipe
+                                ? `${usuario.nome} · ${usuario.equipe}`
+                                : usuario.nome
+                            }
+                          >
+                            {usuario.nome}
+                          </span>
+                        ))}
+                      </div>
                     ) : (
-                      <>
-                        <strong>{perfil.nomeExibicao}</strong>
-                        <small>Nome que aparece para a equipe</small>
-                      </>
+                      <small className="settings-v6-profile-user-empty">
+                        Nenhum usuário ativo neste cargo
+                      </small>
                     )}
                   </div>
-                </div>
 
-                <div className="settings-v6-code">
-                  <code>{perfil.chave}</code>
-                  <small>Identificador interno protegido</small>
-                </div>
+                  <span
+                    className={
+                      perfil.ativo
+                        ? "status-active"
+                        : "status-inactive"
+                    }
+                  >
+                    {perfil.ativo ? "Ativo" : "Inativo"}
+                  </span>
 
-                <span className={perfil.ativo ? "status-active" : "status-inactive"}>
-                  {perfil.ativo ? "Ativo" : "Inativo"}
-                </span>
-
-                <div className="settings-row-actions">
-                  {editandoPerfilChave === perfil.chave ? (
-                    <>
-                      <button type="button" className="save-edit" onClick={() => void salvarEdicaoPerfil()}>
-                        Salvar
+                  <div className="settings-row-actions">
+                    {editandoPerfilChave === perfil.chave ? (
+                      <>
+                        <button
+                          type="button"
+                          className="save-edit"
+                          onClick={() => void salvarEdicaoPerfil()}
+                        >
+                          Salvar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelarEdicaoPerfil}
+                        >
+                          Cancelar
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => iniciarEdicaoPerfil(perfil)}
+                      >
+                        Editar nome
                       </button>
-                      <button type="button" onClick={cancelarEdicaoPerfil}>Cancelar</button>
-                    </>
-                  ) : (
-                    <button type="button" onClick={() => iniciarEdicaoPerfil(perfil)}>
-                      Editar nome
-                    </button>
-                  )}
-                </div>
-              </article>
-            ))}
+                    )}
+                  </div>
+                </article>
+              );
+            })}
           </div>
 
-          <div className="settings-v6-profile-warning">
-            <strong>Sobre “RH / Financeiro”:</strong>
-            <span>
-              Hoje “RH” usa a chave técnica “Financeiro”. O nome exibido pode ser alterado aqui.
-              Para transformar a própria chave interna em RH sem quebrar acessos, precisamos migrar também usuários,
-              permissões e validações do restante do sistema — essa alteração será feita como uma etapa técnica separada.
-            </span>
-          </div>
         </section>
       )}
 

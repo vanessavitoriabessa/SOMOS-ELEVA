@@ -410,6 +410,7 @@ export default function PremiacaoManagerV3({ modo = "premiacao" }: PremiacaoMana
   // Não mostrar um resultado antigo como se tivesse sido consultado no novo mês.
   const sequenciaCarga = useRef(0);
   const cargaEmAndamento = useRef(false);
+  const sincronizacaoSaquesAutomaticos = useRef(false);
   const [referenciaLida, setReferenciaLida] = useState("");
   const [erroLeituraLucro, setErroLeituraLucro] = useState<string | null>(null);
 
@@ -629,7 +630,78 @@ export default function PremiacaoManagerV3({ modo = "premiacao" }: PremiacaoMana
       // dataCadastro e dataPagamento.
       setPropostas(propostasApi);
       setClt(Array.isArray(conteudoClt.registros) ? conteudoClt.registros : []);
-      setTabelasConfiguradas([]);
+
+      // Carrega as regras financeiras das tabelas para calcular:
+      // valor líquido CLT × % de comissão da empresa da tabela vinculada.
+      let tabelasFinanceiras: TabelaConfigurada[] = [];
+
+      const mapearTabelaFinanceira = (item: any): TabelaConfigurada => ({
+        id: String(item?.id || ""),
+        banco: String(item?.banco || "").trim(),
+        nome: String(item?.nome || "").trim(),
+        codigo: String(item?.codigo || "").trim(),
+        orgaoConvenio: String(
+          item?.orgao_convenio || item?.orgaoConvenio || "",
+        ).trim(),
+        percentual: Number(item?.percentual || 0),
+        percentualComissaoBanco: Number(
+          item?.percentual_comissao_banco ??
+            item?.percentualComissaoBanco ??
+            0,
+        ),
+        ativo: item?.ativo !== false,
+      });
+
+      try {
+        const respostaConfiguracoes = await fetch(
+          `/api/configuracoes?_=${Date.now()}`,
+          {
+            method: "GET",
+            headers: { Authorization: `Bearer ${token}` },
+            cache: "no-store",
+          },
+        );
+
+        const conteudoConfiguracoes =
+          await respostaConfiguracoes.json();
+
+        if (
+          respostaConfiguracoes.ok &&
+          Array.isArray(conteudoConfiguracoes?.tabelas)
+        ) {
+          tabelasFinanceiras =
+            conteudoConfiguracoes.tabelas
+              .map(mapearTabelaFinanceira)
+              .filter((tabela: TabelaConfigurada) => tabela.id);
+        } else {
+          throw new Error(
+            conteudoConfiguracoes?.erro ||
+              "A API de configurações não retornou as tabelas.",
+          );
+        }
+      } catch (erroConfiguracoes) {
+        // Fallback: consulta direta para não impedir o restante da premiação.
+        const { data: tabelasData, error: tabelasErro } =
+          await supabase
+            .from("config_tabelas")
+            .select(
+              "id, banco, nome, codigo, orgao_convenio, percentual, percentual_comissao_banco, ativo",
+            );
+
+        if (!tabelasErro && Array.isArray(tabelasData)) {
+          tabelasFinanceiras =
+            tabelasData
+              .map(mapearTabelaFinanceira)
+              .filter((tabela: TabelaConfigurada) => tabela.id);
+        } else {
+          console.warn(
+            "Não foi possível carregar as comissões das tabelas:",
+            tabelasErro || erroConfiguracoes,
+          );
+        }
+      }
+
+      setTabelasConfiguradas(tabelasFinanceiras);
 
       const [anoComp, mesComp] = competencia.split("-").map(Number);
       const limiteComp = new Date(anoComp, mesComp, 19, 23, 59, 59);
@@ -988,6 +1060,66 @@ export default function PremiacaoManagerV3({ modo = "premiacao" }: PremiacaoMana
     return Number(proposta.valorContrato || 0) * (percentual / 100);
   }
 
+  function tabelaDoRegistroClt(registro: RegistroClt) {
+    const idTabela = String(registro.tabelaBancoId || "").trim();
+
+    if (idTabela) {
+      const exata = tabelasConfiguradas.find(
+        (tabela) => String(tabela.id) === idTabela,
+      );
+
+      if (exata) return exata;
+    }
+
+    // Compatibilidade com registros antigos que não possuem o ID salvo.
+    const bancoRegistro = normalizar(registro.banco || "");
+    const nomeRegistro = normalizar(registro.tabela || "");
+    const codigoRegistro = normalizar(registro.tabelaCodigo || "");
+
+    if (!bancoRegistro || (!nomeRegistro && !codigoRegistro)) {
+      return null;
+    }
+
+    return (
+      tabelasConfiguradas.find((tabela) => {
+        if (normalizar(tabela.banco || "") !== bancoRegistro) {
+          return false;
+        }
+
+        const nomeTabela = normalizar(tabela.nome || "");
+        const codigoTabela = normalizar(tabela.codigo || "");
+
+        return Boolean(
+          (nomeRegistro &&
+            (nomeTabela === nomeRegistro ||
+              nomeTabela.startsWith(nomeRegistro) ||
+              nomeRegistro.startsWith(nomeTabela))) ||
+            (codigoRegistro && codigoTabela === codigoRegistro),
+        );
+      }) || null
+    );
+  }
+
+  function calculoFinanceiroClt(registro: RegistroClt) {
+    const liquidoEmpresa = Number(registro.valorAprovado || 0);
+    const tabela = tabelaDoRegistroClt(registro);
+    const percentualComissao = Number(
+      tabela?.percentualComissaoBanco || 0,
+    );
+
+    return {
+      liquidoEmpresa,
+      percentualComissao,
+      comissaoEmpresa:
+        liquidoEmpresa > 0 && percentualComissao > 0
+          ? liquidoEmpresa * (percentualComissao / 100)
+          : 0,
+      tabelaEncontrada: Boolean(
+        tabela && percentualComissao > 0,
+      ),
+    };
+  }
+
   const perfilSelecionado = String(
     usuarioSelecionado?.perfil || usuarioSelecionado?.cargo || "",
   );
@@ -1189,6 +1321,7 @@ export default function PremiacaoManagerV3({ modo = "premiacao" }: PremiacaoMana
           tabelaCodigo: registro.tabelaCodigo || "",
           tabelaPrazo: registro.tabelaPrazo ?? null,
           valorContrato: 0,
+          valorLiberadoClt: Number(registro.valorAprovado || 0),
           pesoTabela: 0,
           producaoValida: Number(registro.parcela || 0),
           comissaoEmpresa: 0,
@@ -1359,6 +1492,7 @@ export default function PremiacaoManagerV3({ modo = "premiacao" }: PremiacaoMana
           tabelaCodigo: registro.tabelaCodigo || "",
           tabelaPrazo: registro.tabelaPrazo ?? null,
           valorContrato: 0,
+          valorLiberadoClt: Number(registro.valorAprovado || 0),
           pesoTabela: 0,
           producaoValida: Number(registro.parcela || 0),
           comissaoEmpresa: 0,
@@ -1679,6 +1813,7 @@ export default function PremiacaoManagerV3({ modo = "premiacao" }: PremiacaoMana
           tabelaCodigo: r.tabelaCodigo || "",
           tabelaPrazo: r.tabelaPrazo ?? null,
           valorContrato: 0,
+          valorLiberadoClt: Number(r.valorAprovado || 0),
           pesoTabela: 0,
           producaoValida: Number(r.valorAprovado || 0),
           comissaoEmpresa: 0,
@@ -1789,6 +1924,7 @@ export default function PremiacaoManagerV3({ modo = "premiacao" }: PremiacaoMana
         tabelaCodigo: registro.tabelaCodigo || "",
         tabelaPrazo: registro.tabelaPrazo ?? null,
         valorContrato: 0,
+        valorLiberadoClt: Number(registro.valorAprovado || 0),
         pesoTabela: 0,
         producaoValida: Number(registro.parcela || 0),
         comissaoEmpresa: 0,
@@ -2004,6 +2140,53 @@ export default function PremiacaoManagerV3({ modo = "premiacao" }: PremiacaoMana
     planoSupervisao,
   ]);
 
+  const financeiroClt = useMemo(() => {
+    const registrosPagos = Array.isArray(resumo.registrosCltPagos)
+      ? resumo.registrosCltPagos
+      : [];
+
+    const calculos = registrosPagos.map(calculoFinanceiroClt);
+
+    const liquidoEmpresaPago = calculos.reduce(
+      (total, item) => total + item.liquidoEmpresa,
+      0,
+    );
+
+    const possuiRegistroSemComissao = calculos.some(
+      (item) =>
+        item.liquidoEmpresa > 0 &&
+        !item.tabelaEncontrada,
+    );
+
+    const comissaoEmpresaBruta =
+      possuiRegistroSemComissao
+        ? null
+        : calculos.reduce(
+            (total, item) =>
+              total + item.comissaoEmpresa,
+            0,
+          );
+
+    return {
+      referencia: competencia,
+      operador: String(
+        resumo.nome ||
+          (consultoraSelecionada === TODOS_CONSULTORES
+            ? "Todos os consultores"
+            : consultoraSelecionada || nomeLogado),
+      ),
+      liquidoEmpresaPago,
+      comissaoEmpresaBruta,
+    };
+  }, [
+    resumo.registrosCltPagos,
+    resumo.nome,
+    competencia,
+    consultoraSelecionada,
+    nomeLogado,
+    tabelasConfiguradas,
+  ]);
+
   const idSaldoAtual = ehGestor ? usuarioCarteiraId : usuarioSelecionadoId;
 
   const saldoPontos = useMemo(() => {
@@ -2088,6 +2271,302 @@ export default function PremiacaoManagerV3({ modo = "premiacao" }: PremiacaoMana
     if (erroCriacao) throw new Error(erroCriacao.message);
     return String(criada.id);
   }
+
+
+  async function sincronizarSaqueAutomatico({
+    competenciaId,
+    usuarioId,
+    usuarioNome,
+  }: {
+    competenciaId: string;
+    usuarioId: string;
+    usuarioNome: string;
+  }): Promise<boolean> {
+    if (!competenciaId || !usuarioId) return false;
+
+    const [resultadoExtrato, resultadoSaques] = await Promise.all([
+      supabase
+        .from("pontos_extrato")
+        .select("tipo, pontos")
+        .eq("usuario_id", usuarioId)
+        .eq("competencia_id", competenciaId),
+      supabase
+        .from("pontos_saques")
+        .select(
+          "id, status, pontos_solicitados, valor_reais, chave_pix, tipo_chave_pix, solicitado_em",
+        )
+        .eq("usuario_id", usuarioId)
+        .eq("competencia_id", competenciaId)
+        .order("solicitado_em", { ascending: false }),
+    ]);
+
+    if (resultadoExtrato.error) {
+      throw new Error(resultadoExtrato.error.message);
+    }
+
+    if (resultadoSaques.error) {
+      throw new Error(resultadoSaques.error.message);
+    }
+
+    const saldoDaCompetencia = (
+      Array.isArray(resultadoExtrato.data)
+        ? resultadoExtrato.data
+        : []
+    ).reduce((total, item) => {
+      const valor = Number(item.pontos || 0);
+
+      if (item.tipo === "DEBITO") {
+        return total - Math.abs(valor);
+      }
+
+      return total + valor;
+    }, 0);
+
+    const saquesDaCompetencia = Array.isArray(resultadoSaques.data)
+      ? resultadoSaques.data
+      : [];
+
+    const saquesPendentes = saquesDaCompetencia.filter(
+      (item) => item.status === "SOLICITADO",
+    );
+
+    const totalJaPendente = saquesPendentes.reduce(
+      (total, item) =>
+        total + Number(item.pontos_solicitados || 0),
+      0,
+    );
+
+    const valorAindaNaoSolicitado =
+      Math.floor(
+        Math.max(
+          saldoDaCompetencia - totalJaPendente,
+          0,
+        ) * 100,
+      ) / 100;
+
+    if (valorAindaNaoSolicitado <= 0) {
+      return false;
+    }
+
+    const usuarioPix =
+      usuarios.find(
+        (usuario) =>
+          String(usuario.id || "") === usuarioId ||
+          normalizar(String(usuario.nome || "")) ===
+            normalizar(usuarioNome),
+      ) ||
+      usuarios.find((usuario) =>
+        nomesCorrespondem(
+          String(usuario.nome || ""),
+          usuarioNome,
+        ),
+      );
+
+    const pixDoMapa =
+      pixPorColaboradora[normalizar(usuarioNome)] || {
+        chave: "",
+        tipo: "",
+      };
+
+    const chavePix = String(
+      usuarioPix?.chave_pix || pixDoMapa.chave || "",
+    ).trim();
+
+    const tipoPix = String(
+      usuarioPix?.tipo_chave_pix ||
+        pixDoMapa.tipo ||
+        "",
+    ).trim();
+
+    const pendenteAtual = saquesPendentes[0];
+
+    if (pendenteAtual?.id) {
+      const novoTotal =
+        Math.floor(
+          (
+            Number(
+              pendenteAtual.pontos_solicitados || 0,
+            ) + valorAindaNaoSolicitado
+          ) * 100,
+        ) / 100;
+
+      const { error } = await supabase
+        .from("pontos_saques")
+        .update({
+          usuario_nome: usuarioNome,
+          pontos_solicitados: novoTotal,
+          valor_reais: novoTotal,
+          chave_pix:
+            String(pendenteAtual.chave_pix || "").trim() ||
+            chavePix ||
+            null,
+          tipo_chave_pix:
+            String(
+              pendenteAtual.tipo_chave_pix || "",
+            ).trim() ||
+            tipoPix ||
+            null,
+        })
+        .eq("id", pendenteAtual.id);
+
+      if (error) throw new Error(error.message);
+      return true;
+    }
+
+    const { error } = await supabase
+      .from("pontos_saques")
+      .insert({
+        usuario_id: usuarioId,
+        usuario_nome: usuarioNome,
+        competencia_id: competenciaId,
+        pontos_solicitados: valorAindaNaoSolicitado,
+        valor_reais: valorAindaNaoSolicitado,
+        status: "SOLICITADO",
+        chave_pix: chavePix || null,
+        tipo_chave_pix: tipoPix || null,
+      });
+
+    if (error) throw new Error(error.message);
+    return true;
+  }
+
+  useEffect(() => {
+    if (
+      modo !== "premiacao" ||
+      carregando ||
+      processando ||
+      referenciaLida !== competencia ||
+      sincronizacaoSaquesAutomaticos.current
+    ) {
+      return;
+    }
+
+    const saldosPorUsuarioCompetencia = new Map<
+      string,
+      {
+        usuarioId: string;
+        usuarioNome: string;
+        competenciaId: string;
+        saldo: number;
+        pendente: number;
+      }
+    >();
+
+    extrato.forEach((item) => {
+      const usuarioId = String(item.usuario_id || "");
+      const competenciaId = String(
+        item.competencia_id || "",
+      );
+
+      if (!usuarioId || !competenciaId) return;
+
+      if (
+        !ehGestor &&
+        String(idSaldoAtual || "") !== usuarioId
+      ) {
+        return;
+      }
+
+      const chave = `${usuarioId}|${competenciaId}`;
+      const atual =
+        saldosPorUsuarioCompetencia.get(chave) || {
+          usuarioId,
+          usuarioNome: String(
+            item.usuario_nome || "Colaboradora",
+          ),
+          competenciaId,
+          saldo: 0,
+          pendente: 0,
+        };
+
+      const valor = Number(item.pontos || 0);
+
+      atual.saldo =
+        item.tipo === "DEBITO"
+          ? atual.saldo - Math.abs(valor)
+          : atual.saldo + valor;
+
+      if (item.usuario_nome) {
+        atual.usuarioNome = String(item.usuario_nome);
+      }
+
+      saldosPorUsuarioCompetencia.set(chave, atual);
+    });
+
+    saques.forEach((saque) => {
+      if (saque.status !== "SOLICITADO") return;
+
+      const usuarioId = String(saque.usuario_id || "");
+      const competenciaId = String(
+        saque.competencia_id || "",
+      );
+      const chave = `${usuarioId}|${competenciaId}`;
+      const atual =
+        saldosPorUsuarioCompetencia.get(chave);
+
+      if (!atual) return;
+
+      atual.pendente += Number(
+        saque.pontos_solicitados || 0,
+      );
+    });
+
+    const gruposComSaldoLivre = Array.from(
+      saldosPorUsuarioCompetencia.values(),
+    ).filter(
+      (item) =>
+        item.saldo - item.pendente > 0.009,
+    );
+
+    if (!gruposComSaldoLivre.length) return;
+
+    sincronizacaoSaquesAutomaticos.current = true;
+
+    void (async () => {
+      let alterou = false;
+
+      try {
+        for (const grupo of gruposComSaldoLivre) {
+          const mudou =
+            await sincronizarSaqueAutomatico({
+              competenciaId: grupo.competenciaId,
+              usuarioId: grupo.usuarioId,
+              usuarioNome: grupo.usuarioNome,
+            });
+
+          alterou = alterou || mudou;
+        }
+
+        if (alterou) {
+          await carregar();
+        }
+      } catch (erro) {
+        console.error(
+          "Erro ao criar saques automáticos:",
+          erro,
+        );
+
+        setMensagem(
+          erro instanceof Error
+            ? `Os pontos foram carregados, mas o saque automático precisa ser atualizado: ${erro.message}`
+            : "Não foi possível atualizar os saques automáticos.",
+        );
+      } finally {
+        sincronizacaoSaquesAutomaticos.current = false;
+      }
+    })();
+  }, [
+    modo,
+    carregando,
+    processando,
+    referenciaLida,
+    competencia,
+    extrato,
+    saques,
+    ehGestor,
+    idSaldoAtual,
+    carregar,
+  ]);
 
   async function liberarPlano({
     competenciaId,
@@ -2190,6 +2669,12 @@ export default function PremiacaoManagerV3({ modo = "premiacao" }: PremiacaoMana
       ) {
         throw new Error(erroExtrato.message);
       }
+
+      await sincronizarSaqueAutomatico({
+        competenciaId,
+        usuarioId,
+        usuarioNome: resumo.nome,
+      });
     }
   }
 
@@ -2249,7 +2734,7 @@ export default function PremiacaoManagerV3({ modo = "premiacao" }: PremiacaoMana
           cargoChave: "Supervisora",
         });
 
-        setMensagem("Premiação da supervisão conferida e liberada com sucesso.");
+        setMensagem("Premiação da supervisão liberada e saque criado automaticamente como pendente.");
         await carregar();
         return;
       }
@@ -2279,7 +2764,7 @@ export default function PremiacaoManagerV3({ modo = "premiacao" }: PremiacaoMana
           cargoChave: "Qualidade",
         });
 
-        setMensagem("Premiação do Vinicius conferida e liberada com sucesso.");
+        setMensagem("Premiação do Vinicius liberada e saque criado automaticamente como pendente.");
         await carregar();
         return;
       }
@@ -2302,7 +2787,7 @@ export default function PremiacaoManagerV3({ modo = "premiacao" }: PremiacaoMana
           },
           cargoChave: "Operacional",
         });
-        setMensagem("Premiação operacional conferida e liberada com sucesso.");
+        setMensagem("Premiação operacional liberada e saque criado automaticamente como pendente.");
         await carregar();
         return;
       }
@@ -2326,7 +2811,7 @@ export default function PremiacaoManagerV3({ modo = "premiacao" }: PremiacaoMana
           },
           cargoChave: "Coordenadora",
         });
-        setMensagem("Premiação da coordenação conferida e liberada com sucesso.");
+        setMensagem("Premiação da coordenação liberada e saque criado automaticamente como pendente.");
         await carregar();
         return;
       }
@@ -2361,7 +2846,7 @@ export default function PremiacaoManagerV3({ modo = "premiacao" }: PremiacaoMana
         },
       });
 
-      setMensagem("Premiação conferida e liberada com sucesso.");
+      setMensagem("Premiação liberada e saque criado automaticamente como pendente.");
       await carregar();
     } catch (erro) {
       setMensagem(
@@ -2460,35 +2945,40 @@ export default function PremiacaoManagerV3({ modo = "premiacao" }: PremiacaoMana
     }
   }
 
-  async function solicitarSaque(pontosSolicitados: number, chavePix: string) {
-    const usuarioSaqueId = ehGestor ? usuarioCarteiraId : usuarioSelecionadoId;
+  async function solicitarSaque(
+    _pontosSolicitados: number,
+    _chavePix: string,
+  ) {
+    const usuarioSaqueId = ehGestor
+      ? usuarioCarteiraId
+      : usuarioSelecionadoId;
+
     if (!usuarioSaqueId) {
-      throw new Error("Não encontrei sua carteira de pontos.");
+      throw new Error(
+        "Não encontrei a carteira de pontos.",
+      );
     }
 
-    const quantidade = Math.floor(Number(pontosSolicitados || 0) * 100) / 100;
-
-    if (quantidade <= 0 || quantidade > saldoDisponivelSaque) {
-      throw new Error("Informe uma quantidade válida dentro do saldo disponível.");
-    }
-
-    // Vincula o saque à referência selecionada. Isso permite que o Financeiro
-    // mostre o pagamento no mês correto, inclusive Sthefane e Vinicius.
     const competenciaId = await garantirCompetencia();
+    const usuarioSaqueNome = String(
+      ehGestor
+        ? usuarioCarteira?.nome || nomeLogado
+        : usuarioSelecionado?.nome || nomeLogado,
+    ).trim();
 
-    const { error } = await supabase.from("pontos_saques").insert({
-      usuario_id: usuarioSaqueId,
-      usuario_nome: nomeLogado,
-      competencia_id: competenciaId,
-      pontos_solicitados: quantidade,
-      valor_reais: quantidade,
-      status: "SOLICITADO",
-      chave_pix: chavePix.trim(),
+    const alterou = await sincronizarSaqueAutomatico({
+      competenciaId,
+      usuarioId: usuarioSaqueId,
+      usuarioNome:
+        usuarioSaqueNome || "Colaboradora",
     });
 
-    if (error) throw new Error(error.message);
+    setMensagem(
+      alterou
+        ? "Saque criado automaticamente como pendente."
+        : "Os pontos já estão registrados como saque pendente.",
+    );
 
-    setMensagem("Solicitação de saque enviada para a gestão.");
     await carregar();
   }
 
@@ -2624,6 +3114,7 @@ export default function PremiacaoManagerV3({ modo = "premiacao" }: PremiacaoMana
       )}
 
       <MinhaPremiacaoV2
+        financeiroClt={financeiroClt}
         nomeUsuario={nomeLogado}
         nomeExibido={resumo.nome || nomeLogado}
         carteiraNome={usuarioCarteira?.nome || nomeLogado}

@@ -341,6 +341,51 @@ function normalizarRH(valor: string) {
   return String(valor || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
 }
 
+const CARGOS_FILTRO_RH = [
+  "Consultor",
+  "RH",
+  "Diretoria",
+  "Coordenadora",
+  "Operacional",
+  "Supervisora",
+] as const;
+
+function cargoCorrespondeFiltro(cargo: string, filtro: string) {
+  if (!filtro || filtro === "Todos") return true;
+
+  const valor = normalizarRH(cargo);
+
+  if (filtro === "Consultor") {
+    return valor.includes("consultor");
+  }
+
+  if (filtro === "RH") {
+    return (
+      valor === "rh" ||
+      valor.includes("recursos humanos") ||
+      valor.includes("departamento pessoal")
+    );
+  }
+
+  if (filtro === "Diretoria") {
+    return valor.includes("diretor") || valor.includes("diretoria");
+  }
+
+  if (filtro === "Coordenadora") {
+    return valor.includes("coordenador") || valor.includes("coordenacao");
+  }
+
+  if (filtro === "Operacional") {
+    return valor.includes("operacional");
+  }
+
+  if (filtro === "Supervisora") {
+    return valor.includes("supervisor");
+  }
+
+  return valor === normalizarRH(filtro);
+}
+
 function dataAtualRH() {
   const partes = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
   const valor = (tipo: string) => partes.find((item) => item.type === tipo)?.value || "";
@@ -439,6 +484,9 @@ export default function RHManager() {
     useState("");
 
   const [filtroStatus, setFiltroStatus] =
+    useState("Todos");
+
+  const [filtroCargo, setFiltroCargo] =
     useState("Todos");
 
   const [mensagemColaboradora, setMensagemColaboradora] =
@@ -1532,9 +1580,10 @@ export default function RHManager() {
 
   const equipesRH = useMemo(() => Array.from(new Set(colaboradoras.map((item) => item.equipe.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR")), [colaboradoras]);
   const listaEquipeRH = useMemo(() => colaboradorasFiltradas
+    .filter((item) => cargoCorrespondeFiltro(item.cargo, filtroCargo))
     .filter((item) => !filtroEquipe || item.equipe === filtroEquipe)
     .filter((item) => !somentePendentes || (item.status !== "Desligada" && camposPendentesRH(item).length > 0))
-    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")), [colaboradorasFiltradas, filtroEquipe, somentePendentes]);
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")), [colaboradorasFiltradas, filtroCargo, filtroEquipe, somentePendentes]);
   // Colaboradoras: exibe todas em uma única lista, sem paginação.
   const pessoasPagina = listaEquipeRH;
 
@@ -1607,7 +1656,7 @@ export default function RHManager() {
   }
 
   function limparFiltrosEquipe() {
-    setBuscaColaboradora(""); setFiltroStatus("Todos"); setFiltroEquipe(""); setSomentePendentes(false);
+    setBuscaColaboradora(""); setFiltroStatus("Todos"); setFiltroCargo("Todos"); setFiltroEquipe(""); setSomentePendentes(false);
   }
 
   function selecionarAbaRH(aba: AbaRH) {
@@ -1627,9 +1676,10 @@ export default function RHManager() {
     <div className="hrm-team-filters">
       <label className="hrm-search"><IconeRH nome="busca" tamanho={18} /><input aria-label="Pesquisar colaboradoras" value={buscaColaboradora} onChange={(e) => setBuscaColaboradora(e.target.value)} placeholder="Nome, matrícula, cargo ou equipe" /></label>
       <select aria-label="Filtrar por status" value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}><option value="Todos">Todos os status</option>{["Ativa", "Férias", "Afastada", "Desligada"].map((status) => <option key={status}>{status}</option>)}</select>
+      <select aria-label="Filtrar por cargo" value={filtroCargo} onChange={(e) => setFiltroCargo(e.target.value)}><option value="Todos">Todos os cargos</option>{CARGOS_FILTRO_RH.map((cargo) => <option key={cargo} value={cargo}>{cargo}</option>)}</select>
       <select aria-label="Filtrar por equipe" value={filtroEquipe} onChange={(e) => setFiltroEquipe(e.target.value)}><option value="">Todas as equipes</option>{equipesRH.map((equipe) => <option key={equipe}>{equipe}</option>)}</select>
     </div>
-    {(buscaColaboradora || filtroStatus !== "Todos" || filtroEquipe || somentePendentes) && <div className="hrm-filter-state"><span>{somentePendentes ? "Exibindo fichas com dados a completar" : "Filtros aplicados à equipe"}</span><button type="button" className="hrm-link" onClick={limparFiltrosEquipe}>Limpar filtros</button></div>}
+    {(buscaColaboradora || filtroStatus !== "Todos" || filtroCargo !== "Todos" || filtroEquipe || somentePendentes) && <div className="hrm-filter-state"><span>{somentePendentes ? "Exibindo fichas com dados a completar" : "Filtros aplicados à equipe"}</span><button type="button" className="hrm-link" onClick={limparFiltrosEquipe}>Limpar filtros</button></div>}
     {carregandoRH ? <div className="hrm-empty" role="status">Carregando as fichas do RH…</div> : erroCarregamentoRH ? <div className="hrm-empty">Não foi possível consultar as fichas. Use “Tentar novamente” no aviso.</div> : !listaEquipeRH.length ? <div className="hrm-empty"><IconeRH nome="pessoas" tamanho={28}/><strong>Nenhuma colaboradora encontrada</strong><p>{colaboradoras.length ? "Altere a pesquisa ou limpe os filtros." : "Cadastre uma colaboradora para começar."}</p></div> : <>
       <div className="hrm-team-table"><div className="hrm-team-table-head"><span>COLABORADORA</span><span>CARGO / EQUIPE</span><span>SITUAÇÃO</span><span>FICHA</span></div>
         {pessoasPagina.map((item) => <article className="hrm-team-row" key={item.id}>
@@ -1644,6 +1694,37 @@ export default function RHManager() {
 
   return (
     <div className="rh-workspace">
+      <style jsx global>{`
+        @media (min-width: 1231px) {
+          .rh-workspace .hrm-team-filters {
+            grid-template-columns:
+              minmax(260px, 1.8fr)
+              repeat(3, minmax(130px, 1fr)) !important;
+          }
+        }
+
+        @media (max-width: 1230px) {
+          .rh-workspace .hrm-team-filters {
+            grid-template-columns:
+              repeat(2, minmax(0, 1fr)) !important;
+          }
+
+          .rh-workspace .hrm-team-filters > .hrm-search {
+            grid-column: 1 / -1 !important;
+          }
+        }
+
+        @media (max-width: 620px) {
+          .rh-workspace .hrm-team-filters {
+            grid-template-columns: 1fr !important;
+          }
+
+          .rh-workspace .hrm-team-filters > .hrm-search {
+            grid-column: auto !important;
+          }
+        }
+      `}</style>
+
       <section className="hrm-hero">
         <div><span className="hrm-eyebrow">ELEVA PROMOTORA DE CRÉDITO</span><h1>Gestão de pessoas</h1><p>Equipe, rotinas e informações para cuidar de quem faz a empresa acontecer.</p></div>
         <div className="hrm-hero-actions"><button type="button" className="hrm-button hrm-secondary" onClick={() => abrirRegistroRH()} disabled={!dadosProntosRH || !colaboradoras.length}><IconeRH nome="arquivo" tamanho={18}/>Registrar ocorrência</button><button type="button" className="hrm-button hrm-primary" onClick={abrirNovaColaboradora} disabled={!dadosProntosRH}><IconeRH nome="mais" tamanho={19}/>Nova colaboradora</button></div>
@@ -1690,7 +1771,7 @@ export default function RHManager() {
 
       {abaRH === "colaboradoras" && painelEquipeRH}
 
-      {abaRH === "ponto" && <ControlePontoRH colaboradoras={colaboradoras.map(({id,nome,status,dataAdmissao})=>({id,nome,status,dataAdmissao}))} />}
+      {abaRH === "ponto" && <ControlePontoRH colaboradoras={colaboradoras.map(({id,nome,status})=>({id,nome,status}))} />}
 
       {abaRH === "ocorrencias" && <OcorrenciasEmpresaRH />}
 

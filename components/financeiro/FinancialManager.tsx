@@ -14,7 +14,9 @@ import FiscalControls from "./FiscalControls";
 
 type Proposta = {
   id: string;
+  numeroProposta?: string;
   cliente: string;
+  cpf?: string;
   vendedora: string;
   banco: string;
   tabela: string;
@@ -29,7 +31,9 @@ type Proposta = {
 
 type RegistroCltFinanceiro = {
   id: string;
+  numeroProposta?: string;
   nome: string;
+  cpf?: string;
   valorAprovado: number;
   parcela: number;
   banco: string;
@@ -146,6 +150,28 @@ type SaquePremiacaoPago = {
   tipoChavePix: string;
   solicitadoEm: string;
   processadoEm: string;
+};
+
+type ItemPremiacaoDetalhe = {
+  id: string;
+  dataDigitacao: string;
+  dataPagamento: string;
+  cliente: string;
+  cpf: string;
+  numeroProposta: string;
+  produto: "Compra de Dívida" | "CLT";
+  vendedora: string;
+  valorExibido: number;
+  percentualVendedor: number;
+  valorBruto: number;
+  tabela: string;
+  comissaoEmpresa: number;
+  identificadores: string[];
+  avisoPremiacaoPaga?: {
+    dataPagamentoPremiacao: string;
+    competencia: string;
+    saqueId: string;
+  };
 };
 
 type RegistroRH = {
@@ -307,6 +333,49 @@ function normalizarNome(valor: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase();
+}
+
+function apenasNumerosFinanceiro(valor?: string | null) {
+  return String(valor || "").replace(/\D/g, "");
+}
+
+function normalizarNumeroPropostaFinanceiro(valor?: string | null) {
+  return normalizarNome(String(valor || "")).replace(/[^a-z0-9]/g, "");
+}
+
+function formatarCpfFinanceiro(valor?: string | null) {
+  const cpf = apenasNumerosFinanceiro(valor).slice(0, 11);
+  if (cpf.length !== 11) return String(valor || "").trim();
+
+  return cpf
+    .replace(/^(\d{3})(\d)/, "$1.$2")
+    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1-$2");
+}
+
+function identificadoresPremiacao(
+  numeroProposta: string,
+  cpf: string,
+  fallback: string,
+) {
+  const identificadores: string[] = [];
+  const propostaNormalizada =
+    normalizarNumeroPropostaFinanceiro(numeroProposta);
+  const cpfNormalizado = apenasNumerosFinanceiro(cpf);
+
+  if (propostaNormalizada) {
+    identificadores.push(`proposta:${propostaNormalizada}`);
+  }
+
+  if (cpfNormalizado.length === 11) {
+    identificadores.push(`cpf:${cpfNormalizado}`);
+  }
+
+  if (!identificadores.length) {
+    identificadores.push(`registro:${fallback}`);
+  }
+
+  return identificadores;
 }
 
 function formatarCompetencia(valor: string) {
@@ -2253,159 +2322,579 @@ const resumoRhDaFolha = useMemo(() => {
     return menor.length>=5 && maior.includes(menor);
   }
 
-  const propostasDoSaque = useMemo(() => {
-    if (!saqueDetalhe) return [] as Array<{
-      id:string; dataDigitacao:string; dataPagamento:string; cliente:string; produto:string;
-      vendedora:string; valorExibido:number; percentualVendedor:number; valorBruto:number;
-      tabela:string; comissaoEmpresa:number;
-    }>;
+  const calcularPropostasElegiveisSaque = useCallback(
+    (saque: SaquePremiacaoPago): ItemPremiacaoDetalhe[] => {
+      const competenciaPagamento =
+        competenciasPremiacao[String(saque.competenciaId || "")] ||
+        competenciaValida(String(saque.processadoEm || "").slice(0, 7)) ||
+        competenciaValida(competenciaPremiacoes);
 
-    const competenciaPagamento =
-      competenciasPremiacao[String(saqueDetalhe.competenciaId || "")] ||
-      competenciaValida(competenciaPremiacoes);
-    if (!competenciaPagamento) return [];
+      if (!competenciaPagamento) return [];
 
-    // Premiação paga no mês atual = produção digitada no mês anterior
-    // e paga até o dia 19 do mês da premiação.
-    const competenciaProducao = moverCompetenciaMes(competenciaPagamento, -1);
-    const inicioDigitacao = `${competenciaProducao}-01`;
-    const fimDigitacao = fimDoMesIso(competenciaProducao);
-    const limitePagamento = `${competenciaPagamento}-19`;
+      // Premiação paga no mês atual = produção digitada no mês anterior
+      // e paga até o dia 19 do mês da premiação.
+      const competenciaProducao = moverCompetenciaMes(
+        competenciaPagamento,
+        -1,
+      );
+      const inicioDigitacao = `${competenciaProducao}-01`;
+      const fimDigitacao = fimDoMesIso(competenciaProducao);
+      const limitePagamento = `${competenciaPagamento}-19`;
 
-    const nomeColaboradora = saqueDetalhe.usuarioNome || "";
-    const nomeNormalizado = normalizarNome(nomeColaboradora);
+      const nomeColaboradora = saque.usuarioNome || "";
+      const nomeNormalizado = normalizarNome(nomeColaboradora);
 
-    const ehVanessa = nomeNormalizado.includes("vanessa");
-    const ehRaissa = nomeNormalizado.includes("raissa");
-    const ehSthefane = nomeNormalizado.includes("sthefane");
-    const ehVinicius = nomeNormalizado.includes("vinicius");
+      const ehVanessa = nomeNormalizado.includes("vanessa");
+      const ehRaissa = nomeNormalizado.includes("raissa");
+      const ehSthefane = nomeNormalizado.includes("sthefane");
+      const ehVinicius = nomeNormalizado.includes("vinicius");
 
-    // Vanessa e Raissa: produção geral da empresa (Compra + CLT).
-    // Sthefane e Vinicius: todos os contratos elegíveis de Compra da empresa.
-    // Vendedoras/consultoras: somente as próprias propostas.
-    const compraGeral = ehVanessa || ehRaissa || ehSthefane || ehVinicius;
-    const cltGeral = ehVanessa || ehRaissa;
+      // Vanessa e Raissa: produção geral da empresa (Compra + CLT).
+      // Sthefane e Vinicius: todos os contratos elegíveis de Compra da empresa.
+      // Vendedoras/consultoras: somente as próprias propostas.
+      const compraGeral =
+        ehVanessa || ehRaissa || ehSthefane || ehVinicius;
+      const cltGeral = ehVanessa || ehRaissa;
 
-    const compras = propostas
-      .filter((p) => {
-        if (!compraGeral && !nomesCorrespondemFinanceiro(p.vendedora || "", nomeColaboradora)) return false;
-        if (normalizarNome(p.status || "") !== "pago") return false;
+      const compras: ItemPremiacaoDetalhe[] = propostas
+        .filter((proposta) => {
+          if (
+            !compraGeral &&
+            !nomesCorrespondemFinanceiro(
+              proposta.vendedora || "",
+              nomeColaboradora,
+            )
+          ) {
+            return false;
+          }
 
-        const digitacao = dataParaIsoFinanceiro(p.dataCadastro);
-        const pagamento = dataParaIsoFinanceiro(p.dataPagamento);
+          if (normalizarNome(proposta.status || "") !== "pago") {
+            return false;
+          }
 
-        return Boolean(digitacao) &&
-               digitacao >= inicioDigitacao &&
-               digitacao <= fimDigitacao &&
-               Boolean(pagamento) &&
-               pagamento <= limitePagamento;
-      })
-      .map((p) => ({
-        id:`compra-${p.id}`,
-        dataDigitacao:dataParaIsoFinanceiro(p.dataCadastro),
-        dataPagamento:dataParaIsoFinanceiro(p.dataPagamento),
-        cliente:p.cliente||"—",
-        produto:"Compra de Dívida",
-        vendedora:p.vendedora||"—",
-        valorExibido:Number(p.valorMeta ?? p.valorContrato ?? 0),
-        percentualVendedor:Number(p.percentualTabela||0),
-        valorBruto:Number(p.valorContrato||0),
-        tabela:p.tabela||"—",
-        comissaoEmpresa:Number(p.comissao||0),
-      }));
+          const digitacao = dataParaIsoFinanceiro(
+            proposta.dataCadastro,
+          );
+          const pagamento = dataParaIsoFinanceiro(
+            proposta.dataPagamento,
+          );
 
-    const clts = registrosClt
-      .filter((r) => {
-        if (!cltGeral && !nomesCorrespondemFinanceiro(r.consultora || "", nomeColaboradora)) return false;
-        if (normalizarNome(r.status || "") !== "pago") return false;
+          return (
+            Boolean(digitacao) &&
+            digitacao >= inicioDigitacao &&
+            digitacao <= fimDigitacao &&
+            Boolean(pagamento) &&
+            pagamento <= limitePagamento
+          );
+        })
+        .map((proposta) => {
+          const id = `compra-${proposta.id}`;
+          const numeroProposta = String(
+            proposta.numeroProposta || "",
+          ).trim();
+          const cpf = apenasNumerosFinanceiro(proposta.cpf);
 
-        const digitacao = dataParaIsoFinanceiro(r.criadoEm);
-        const pagamento = dataParaIsoFinanceiro(r.dataPagamento);
+          return {
+            id,
+            dataDigitacao: dataParaIsoFinanceiro(
+              proposta.dataCadastro,
+            ),
+            dataPagamento: dataParaIsoFinanceiro(
+              proposta.dataPagamento,
+            ),
+            cliente: proposta.cliente || "—",
+            cpf,
+            numeroProposta,
+            produto: "Compra de Dívida",
+            vendedora: proposta.vendedora || "—",
+            valorExibido: Number(
+              proposta.valorMeta ?? proposta.valorContrato ?? 0,
+            ),
+            percentualVendedor: Number(
+              proposta.percentualTabela || 0,
+            ),
+            valorBruto: Number(proposta.valorContrato || 0),
+            tabela: proposta.tabela || "—",
+            comissaoEmpresa: Number(proposta.comissao || 0),
+            identificadores: identificadoresPremiacao(
+              numeroProposta,
+              cpf,
+              id,
+            ),
+          };
+        });
 
-        return Boolean(digitacao) &&
-               digitacao >= inicioDigitacao &&
-               digitacao <= fimDigitacao &&
-               Boolean(pagamento) &&
-               pagamento <= limitePagamento;
-      })
-      .map((r) => ({
-        id:`clt-${r.id}`,
-        dataDigitacao:dataParaIsoFinanceiro(r.criadoEm),
-        dataPagamento:dataParaIsoFinanceiro(r.dataPagamento),
-        cliente:r.nome||"—",
-        produto:"CLT",
-        vendedora:r.consultora||"—",
-        valorExibido:Number(r.parcela||0),
-        percentualVendedor:100,
-        valorBruto:Number(r.valorAprovado||0),
-        tabela:r.banco||"—",
-        comissaoEmpresa:0,
-      }));
+      const clts: ItemPremiacaoDetalhe[] = registrosClt
+        .filter((registro) => {
+          if (
+            !cltGeral &&
+            !nomesCorrespondemFinanceiro(
+              registro.consultora || "",
+              nomeColaboradora,
+            )
+          ) {
+            return false;
+          }
 
-    // Sthefane e Vinicius recebem por contratos de Compra; não mistura CLT no detalhamento deles.
-    const resultado = (ehSthefane || ehVinicius) ? compras : [...compras,...clts];
+          if (normalizarNome(registro.status || "") !== "pago") {
+            return false;
+          }
 
-    return resultado.sort((a,b)=>a.dataDigitacao.localeCompare(b.dataDigitacao));
-  }, [saqueDetalhe, propostas, registrosClt, competenciaPremiacoes, competenciasPremiacao]);
+          const digitacao = dataParaIsoFinanceiro(
+            registro.criadoEm,
+          );
+          const pagamento = dataParaIsoFinanceiro(
+            registro.dataPagamento,
+          );
 
-  const colaboradoresPremiacoesPagas=useMemo(()=>Array.from(new Set(saquesPremiacaoPagos.map(s=>s.usuarioNome).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"pt-BR")),[saquesPremiacaoPagos]);
+          return (
+            Boolean(digitacao) &&
+            digitacao >= inicioDigitacao &&
+            digitacao <= fimDigitacao &&
+            Boolean(pagamento) &&
+            pagamento <= limitePagamento
+          );
+        })
+        .map((registro) => {
+          const id = `clt-${registro.id}`;
+          const numeroProposta = String(
+            registro.numeroProposta || "",
+          ).trim();
+          const cpf = apenasNumerosFinanceiro(registro.cpf);
 
-  const produtoSaque=(saque:SaquePremiacaoPago)=>{
-    const n=normalizarNome(saque.usuarioNome||"");
-    if(n.includes("sthefane")||n.includes("vinicius")) return "Compra de Dívida";
-    if(n.includes("vanessa")||n.includes("raissa")) return "Compra + CLT";
-    const temCompra=propostas.some(p=>nomesCorrespondemFinanceiro(p.vendedora||"",saque.usuarioNome||"")&&normalizarNome(p.status||"")==="pago");
-    const temClt=registrosClt.some(r=>nomesCorrespondemFinanceiro(r.consultora||"",saque.usuarioNome||"")&&normalizarNome(r.status||"")==="pago");
-    return temCompra&&temClt?"Compra + CLT":temClt?"CLT":"Compra de Dívida";
-  };
+          return {
+            id,
+            dataDigitacao: dataParaIsoFinanceiro(
+              registro.criadoEm,
+            ),
+            dataPagamento: dataParaIsoFinanceiro(
+              registro.dataPagamento,
+            ),
+            cliente: registro.nome || "—",
+            cpf,
+            numeroProposta,
+            produto: "CLT",
+            vendedora: registro.consultora || "—",
+            valorExibido: Number(registro.parcela || 0),
+            percentualVendedor: 100,
+            valorBruto: Number(registro.valorAprovado || 0),
+            tabela: registro.banco || "—",
+            comissaoEmpresa: 0,
+            identificadores: identificadoresPremiacao(
+              numeroProposta,
+              cpf,
+              id,
+            ),
+          };
+        });
 
-  const saquesPremiacaoPagosFiltrados=useMemo(()=>{
-    const mapa=new Map<string,SaquePremiacaoPago>();
-    const add=(s:SaquePremiacaoPago)=>{
-      const k=`${normalizarNome(s.usuarioNome||"")}|${String(s.processadoEm||"").slice(0,10)}|${Number(s.pontos||0)}`;
-      if(!mapa.has(k)) mapa.set(k,s);
+      // Sthefane e Vinicius recebem por contratos de Compra;
+      // não mistura CLT no detalhamento deles.
+      const resultado =
+        ehSthefane || ehVinicius ? compras : [...compras, ...clts];
+
+      return resultado.sort((a, b) =>
+        a.dataDigitacao.localeCompare(b.dataDigitacao),
+      );
+    },
+    [
+      propostas,
+      registrosClt,
+      competenciaPremiacoes,
+      competenciasPremiacao,
+    ],
+  );
+
+  const saquesPremiacaoPagosConsolidados = useMemo(() => {
+    const mapa = new Map<string, SaquePremiacaoPago>();
+
+    const adicionar = (saque: SaquePremiacaoPago) => {
+      const chave = saque.id
+        ? `id:${saque.id}`
+        : `${normalizarNome(saque.usuarioNome || "")}|${String(
+            saque.processadoEm || "",
+          ).slice(0, 10)}|${Number(saque.pontos || 0)}`;
+
+      if (!mapa.has(chave)) {
+        mapa.set(chave, saque);
+      }
     };
-    saquesPremiacaoPagos.forEach(s=>{
-      const comp=competenciasPremiacao[String(s.competenciaId||"")]||competenciaValida(String(s.processadoEm||"").slice(0,7));
-      if(comp===competenciaPremiacoes) add(s);
+
+    saquesPremiacaoPagos.forEach(adicionar);
+
+    extratoSaquesPagos.forEach((extrato) => {
+      const idSaque = String(extrato.origem || "").replace(
+        /^SAQUE_PAGO:/,
+        "",
+      );
+      const saqueOriginal = saquesPremiacaoPagos.find(
+        (item) => item.id === idSaque,
+      );
+      const dataProcessamento =
+        saqueOriginal?.processadoEm || extrato.criadoEm || "";
+
+      adicionar({
+        id:
+          saqueOriginal?.id ||
+          idSaque ||
+          `extrato-${extrato.id}`,
+        usuarioId:
+          saqueOriginal?.usuarioId || extrato.usuarioId,
+        usuarioNome:
+          saqueOriginal?.usuarioNome || extrato.usuarioNome,
+        competenciaId:
+          saqueOriginal?.competenciaId || extrato.competenciaId,
+        pontos: Number(
+          saqueOriginal?.pontos || extrato.pontos || 0,
+        ),
+        valor: Number(
+          saqueOriginal?.valor || extrato.pontos || 0,
+        ),
+        chavePix: saqueOriginal?.chavePix || "",
+        tipoChavePix:
+          saqueOriginal?.tipoChavePix || "PIX",
+        solicitadoEm:
+          saqueOriginal?.solicitadoEm || "",
+        processadoEm: dataProcessamento,
+      });
     });
-    extratoSaquesPagos.forEach(e=>{
-      const id=String(e.origem||"").replace(/^SAQUE_PAGO:/,"");
-      const s=saquesPremiacaoPagos.find(x=>x.id===id);
-      const dt=s?.processadoEm||e.criadoEm||"";
-      const comp=competenciasPremiacao[String(s?.competenciaId||e.competenciaId||"")]||competenciaValida(dt.slice(0,7));
-      if(comp!==competenciaPremiacoes) return;
-      add({id:s?.id||id||`extrato-${e.id}`,usuarioId:s?.usuarioId||e.usuarioId,usuarioNome:s?.usuarioNome||e.usuarioNome,competenciaId:s?.competenciaId||e.competenciaId,pontos:Number(s?.pontos||e.pontos||0),valor:Number(s?.valor||e.pontos||0),chavePix:s?.chavePix||"",tipoChavePix:s?.tipoChavePix||"PIX",solicitadoEm:s?.solicitadoEm||"",processadoEm:dt});
+
+    return [...mapa.values()].sort((a, b) =>
+      String(a.processadoEm || "").localeCompare(
+        String(b.processadoEm || ""),
+      ),
+    );
+  }, [saquesPremiacaoPagos, extratoSaquesPagos]);
+
+  const colaboradoresPremiacoesPagas = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          saquesPremiacaoPagosConsolidados
+            .map((saque) => saque.usuarioNome)
+            .filter(Boolean),
+        ),
+      ).sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [saquesPremiacaoPagosConsolidados],
+  );
+
+  const produtoSaque = useCallback(
+    (saque: SaquePremiacaoPago) => {
+      const nome = normalizarNome(saque.usuarioNome || "");
+
+      if (nome.includes("sthefane") || nome.includes("vinicius")) {
+        return "Compra de Dívida";
+      }
+
+      if (nome.includes("vanessa") || nome.includes("raissa")) {
+        return "Compra + CLT";
+      }
+
+      const temCompra = propostas.some(
+        (proposta) =>
+          nomesCorrespondemFinanceiro(
+            proposta.vendedora || "",
+            saque.usuarioNome || "",
+          ) &&
+          normalizarNome(proposta.status || "") === "pago",
+      );
+
+      const temClt = registrosClt.some(
+        (registro) =>
+          nomesCorrespondemFinanceiro(
+            registro.consultora || "",
+            saque.usuarioNome || "",
+          ) &&
+          normalizarNome(registro.status || "") === "pago",
+      );
+
+      return temCompra && temClt
+        ? "Compra + CLT"
+        : temClt
+          ? "CLT"
+          : "Compra de Dívida";
+    },
+    [propostas, registrosClt],
+  );
+
+  const saquesPremiacaoPagosFiltrados = useMemo(
+    () =>
+      saquesPremiacaoPagosConsolidados
+        .filter((saque) => {
+          const competenciaSaque =
+            competenciasPremiacao[
+              String(saque.competenciaId || "")
+            ] ||
+            competenciaValida(
+              String(saque.processadoEm || "").slice(0, 7),
+            );
+
+          if (competenciaSaque !== competenciaPremiacoes) {
+            return false;
+          }
+
+          const dataPagamento = String(
+            saque.processadoEm || "",
+          ).slice(0, 10);
+
+          if (
+            filtroPremiacaoDataInicial &&
+            (!dataPagamento ||
+              dataPagamento < filtroPremiacaoDataInicial)
+          ) {
+            return false;
+          }
+
+          if (
+            filtroPremiacaoDataFinal &&
+            (!dataPagamento ||
+              dataPagamento > filtroPremiacaoDataFinal)
+          ) {
+            return false;
+          }
+
+          if (
+            filtroPremiacaoColaborador !== "Todos" &&
+            normalizarNome(saque.usuarioNome || "") !==
+              normalizarNome(filtroPremiacaoColaborador)
+          ) {
+            return false;
+          }
+
+          const produto = produtoSaque(saque);
+
+          if (
+            filtroPremiacaoProduto === "Compra de Dívida" &&
+            !produto.includes("Compra")
+          ) {
+            return false;
+          }
+
+          if (
+            filtroPremiacaoProduto === "CLT" &&
+            !produto.includes("CLT")
+          ) {
+            return false;
+          }
+
+          return true;
+        })
+        .sort((a, b) =>
+          String(b.processadoEm || "").localeCompare(
+            String(a.processadoEm || ""),
+          ),
+        ),
+    [
+      saquesPremiacaoPagosConsolidados,
+      competenciaPremiacoes,
+      competenciasPremiacao,
+      filtroPremiacaoDataInicial,
+      filtroPremiacaoDataFinal,
+      filtroPremiacaoColaborador,
+      filtroPremiacaoProduto,
+      produtoSaque,
+    ],
+  );
+
+  const historicoDuplicidadesPremiacao = useMemo(() => {
+    type PrimeiraPremiacao = {
+      saqueId: string;
+      dataPagamentoPremiacao: string;
+      competencia: string;
+    };
+
+    const primeiraPorIdentificador =
+      new Map<string, PrimeiraPremiacao>();
+    const avisosPorLinha =
+      new Map<string, PrimeiraPremiacao>();
+    const quantidadePorSaque = new Map<string, number>();
+
+    const saquesOrdenados = [
+      ...saquesPremiacaoPagosConsolidados,
+    ].sort((a, b) => {
+      const porData = String(a.processadoEm || "").localeCompare(
+        String(b.processadoEm || ""),
+      );
+
+      if (porData !== 0) return porData;
+
+      return String(a.id || "").localeCompare(
+        String(b.id || ""),
+      );
     });
-    return [...mapa.values()].filter(s=>{
-      const d=String(s.processadoEm||"").slice(0,10);
-      if(filtroPremiacaoDataInicial&&(!d||d<filtroPremiacaoDataInicial)) return false;
-      if(filtroPremiacaoDataFinal&&(!d||d>filtroPremiacaoDataFinal)) return false;
-      if(filtroPremiacaoColaborador!=="Todos"&&normalizarNome(s.usuarioNome||"")!==normalizarNome(filtroPremiacaoColaborador)) return false;
-      const prod=produtoSaque(s);
-      if(filtroPremiacaoProduto==="Compra de Dívida"&&!prod.includes("Compra")) return false;
-      if(filtroPremiacaoProduto==="CLT"&&!prod.includes("CLT")) return false;
-      return true;
-    }).sort((a,b)=>String(b.processadoEm).localeCompare(String(a.processadoEm)));
-  },[saquesPremiacaoPagos,extratoSaquesPagos,competenciaPremiacoes,competenciasPremiacao,filtroPremiacaoDataInicial,filtroPremiacaoDataFinal,filtroPremiacaoColaborador,filtroPremiacaoProduto,propostas,registrosClt]);
+
+    saquesOrdenados.forEach((saque) => {
+      const colaborador = normalizarNome(
+        saque.usuarioNome || "",
+      );
+      const competencia =
+        competenciasPremiacao[
+          String(saque.competenciaId || "")
+        ] ||
+        competenciaValida(
+          String(saque.processadoEm || "").slice(0, 7),
+        );
+      const dataPagamentoPremiacao = dataParaIsoFinanceiro(
+        saque.processadoEm,
+      );
+      const itens = calcularPropostasElegiveisSaque(saque);
+
+      itens.forEach((item) => {
+        const chaves = item.identificadores.map(
+          (identificador) =>
+            `${colaborador}|${identificador}`,
+        );
+        const anterior = chaves
+          .map((chave) =>
+            primeiraPorIdentificador.get(chave),
+          )
+          .find(
+            (
+              registro,
+            ): registro is PrimeiraPremiacao =>
+              Boolean(registro),
+          );
+
+        const registroAtual: PrimeiraPremiacao = {
+          saqueId: saque.id,
+          dataPagamentoPremiacao,
+          competencia,
+        };
+        const primeiraPremiacao =
+          anterior || registroAtual;
+
+        if (anterior) {
+          avisosPorLinha.set(
+            `${saque.id}|${item.id}`,
+            anterior,
+          );
+          quantidadePorSaque.set(
+            saque.id,
+            (quantidadePorSaque.get(saque.id) || 0) + 1,
+          );
+        }
+
+        chaves.forEach((chave) => {
+          if (!primeiraPorIdentificador.has(chave)) {
+            primeiraPorIdentificador.set(
+              chave,
+              primeiraPremiacao,
+            );
+          }
+        });
+      });
+    });
+
+    return {
+      avisosPorLinha,
+      quantidadePorSaque,
+    };
+  }, [
+    saquesPremiacaoPagosConsolidados,
+    calcularPropostasElegiveisSaque,
+    competenciasPremiacao,
+  ]);
+
+  const propostasDoSaque = useMemo(() => {
+    if (!saqueDetalhe) return [] as ItemPremiacaoDetalhe[];
+
+    return calcularPropostasElegiveisSaque(saqueDetalhe).map(
+      (item) => ({
+        ...item,
+        avisoPremiacaoPaga:
+          historicoDuplicidadesPremiacao.avisosPorLinha.get(
+            `${saqueDetalhe.id}|${item.id}`,
+          ),
+      }),
+    );
+  }, [
+    saqueDetalhe,
+    calcularPropostasElegiveisSaque,
+    historicoDuplicidadesPremiacao,
+  ]);
 
   const totalPremiacoesPagas = useMemo(
     () =>
       saquesPremiacaoPagosFiltrados.reduce(
         (total, saque) => total + Number(saque.valor || 0),
-        0
+        0,
       ),
-    [saquesPremiacaoPagosFiltrados]
+    [saquesPremiacaoPagosFiltrados],
   );
 
   const totalPontosPremiacoesPagas = useMemo(
     () =>
       saquesPremiacaoPagosFiltrados.reduce(
         (total, saque) => total + Number(saque.pontos || 0),
-        0
+        0,
       ),
-    [saquesPremiacaoPagosFiltrados]
+    [saquesPremiacaoPagosFiltrados],
   );
+
+  const totaisValoresPremiacoesPagas = useMemo(() => {
+    const identificadoresSomados = new Set<string>();
+    let valorParcelaClt = 0;
+    let valorLiquidoCompraDivida = 0;
+
+    saquesPremiacaoPagosFiltrados.forEach((saque) => {
+      const colaborador = normalizarNome(
+        saque.usuarioNome || "",
+      );
+
+      calcularPropostasElegiveisSaque(saque).forEach(
+        (item) => {
+          if (
+            filtroPremiacaoProduto === "Compra de Dívida" &&
+            item.produto !== "Compra de Dívida"
+          ) {
+            return;
+          }
+
+          if (
+            filtroPremiacaoProduto === "CLT" &&
+            item.produto !== "CLT"
+          ) {
+            return;
+          }
+
+          const chaves = item.identificadores.map(
+            (identificador) =>
+              `${colaborador}|${identificador}`,
+          );
+          const jaSomado = chaves.some((chave) =>
+            identificadoresSomados.has(chave),
+          );
+
+          chaves.forEach((chave) =>
+            identificadoresSomados.add(chave),
+          );
+
+          // Uma mesma proposta/CPF da mesma colaboradora não infla
+          // os cards caso apareça em mais de uma premiação paga.
+          if (jaSomado) return;
+
+          if (item.produto === "CLT") {
+            valorParcelaClt += Number(
+              item.valorExibido || 0,
+            );
+          } else {
+            valorLiquidoCompraDivida += Number(
+              item.valorExibido || 0,
+            );
+          }
+        },
+      );
+    });
+
+    return {
+      valorParcelaClt,
+      valorLiquidoCompraDivida,
+    };
+  }, [
+    saquesPremiacaoPagosFiltrados,
+    calcularPropostasElegiveisSaque,
+    filtroPremiacaoProduto,
+  ]);
 
   return (
     <div className="finance-page finance-workspace">
@@ -3426,7 +3915,7 @@ const resumoRhDaFolha = useMemo(() => {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                gridTemplateColumns: "repeat(auto-fit, minmax(185px, 1fr))",
                 gap: 12,
                 marginBottom: 18,
               }}
@@ -3487,6 +3976,88 @@ const resumoRhDaFolha = useMemo(() => {
                   Convertidos em pagamento
                 </small>
               </article>
+
+              <article
+                style={{
+                  padding: 17,
+                  border: "1px solid #dfe7f2",
+                  borderRadius: 14,
+                  background: "#fff",
+                }}
+              >
+                <span
+                  style={{
+                    display: "block",
+                    color: "#71809a",
+                    fontSize: 11,
+                    fontWeight: 800,
+                  }}
+                >
+                  VALOR PARCELA CLT
+                </span>
+                <strong
+                  style={{
+                    display: "block",
+                    marginTop: 7,
+                    color: "#c65d00",
+                    fontSize: 24,
+                  }}
+                >
+                  {moeda(
+                    totaisValoresPremiacoesPagas.valorParcelaClt,
+                  )}
+                </strong>
+                <small
+                  style={{
+                    display: "block",
+                    marginTop: 5,
+                    color: "#8a96a9",
+                  }}
+                >
+                  Soma das parcelas CLT sem duplicar CPF já premiado
+                </small>
+              </article>
+
+              <article
+                style={{
+                  padding: 17,
+                  border: "1px solid #dfe7f2",
+                  borderRadius: 14,
+                  background: "#fff",
+                }}
+              >
+                <span
+                  style={{
+                    display: "block",
+                    color: "#71809a",
+                    fontSize: 11,
+                    fontWeight: 800,
+                  }}
+                >
+                  VALOR LÍQUIDO COMPRA DE DÍVIDA
+                </span>
+                <strong
+                  style={{
+                    display: "block",
+                    marginTop: 7,
+                    color: "#155eef",
+                    fontSize: 24,
+                  }}
+                >
+                  {moeda(
+                    totaisValoresPremiacoesPagas.valorLiquidoCompraDivida,
+                  )}
+                </strong>
+                <small
+                  style={{
+                    display: "block",
+                    marginTop: 5,
+                    color: "#8a96a9",
+                  }}
+                >
+                  Soma líquida sem duplicar proposta ou CPF já premiado
+                </small>
+              </article>
             </div>
 
             {!saquesPremiacaoPagosFiltrados.length ? (
@@ -3509,9 +4080,19 @@ const resumoRhDaFolha = useMemo(() => {
                       gap: 16,
                       alignItems: "center",
                       padding: "16px 18px",
-                      border: "1px solid #e2e9f3",
+                      border:
+                        (historicoDuplicidadesPremiacao.quantidadePorSaque.get(
+                          saque.id,
+                        ) || 0) > 0
+                          ? "1px solid #f2c66d"
+                          : "1px solid #e2e9f3",
                       borderRadius: 13,
-                      background: "#fff",
+                      background:
+                        (historicoDuplicidadesPremiacao.quantidadePorSaque.get(
+                          saque.id,
+                        ) || 0) > 0
+                          ? "#fffdf6"
+                          : "#fff",
                     }}
                   >
                     <div>
@@ -3534,6 +4115,28 @@ const resumoRhDaFolha = useMemo(() => {
                       >
                         {saque.usuarioNome}
                       </strong>
+
+                      {(historicoDuplicidadesPremiacao.quantidadePorSaque.get(
+                        saque.id,
+                      ) || 0) > 0 && (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            marginTop: 7,
+                            padding: "5px 8px",
+                            border: "1px solid #f2c66d",
+                            borderRadius: 999,
+                            background: "#fff3cd",
+                            color: "#9a5a00",
+                            fontSize: 9,
+                            fontWeight: 900,
+                            lineHeight: 1.2,
+                          }}
+                        >
+                          ⚠ JÁ FOI PAGA A PREMIAÇÃO DESSA CLIENTE
+                        </span>
+                      )}
                     </div>
 
                     <div>
@@ -3599,24 +4202,84 @@ const resumoRhDaFolha = useMemo(() => {
               <button type="button" onClick={()=>setSaqueDetalhe(null)} style={{border:0,background:"transparent",fontSize:28,cursor:"pointer"}}>×</button>
             </header>
             <div style={{overflow:"auto",maxHeight:"72vh",padding:18}}>
+              {(historicoDuplicidadesPremiacao.quantidadePorSaque.get(
+                saqueDetalhe.id,
+              ) || 0) > 0 && (
+                <div
+                  style={{
+                    marginBottom: 14,
+                    padding: "12px 14px",
+                    border: "1px solid #f2c66d",
+                    borderRadius: 11,
+                    background: "#fff8df",
+                    color: "#8a5200",
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  ⚠ ATENÇÃO: existe cliente nesta premiação que já apareceu
+                  em outra premiação paga da mesma colaboradora.
+                </div>
+              )}
+
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                 <thead><tr style={{background:"#f5f8fc",color:"#65758e",textAlign:"left"}}>
-                  {["Data digitação","Data pagamento cliente","Vendedora / Consultora","Cliente","Produto","Valor contrato","% Vendedor","Tabela","Comissão empresa"].map(h=>
+                  {["Data digitação","Data pagamento cliente","Vendedora / Consultora","Nº PROPOSTA","CPF","Cliente","Produto","Valor contrato","% Vendedor","Valor bruto","Tabela"].map(h=>
                     <th key={h} style={{padding:"12px 10px",borderBottom:"1px solid #dfe7f2",whiteSpace:"nowrap"}}>{h}</th>)}
                 </tr></thead>
                 <tbody>
-                  {!propostasDoSaque.length ? <tr><td colSpan={9} style={{padding:30,textAlign:"center",color:"#7a8aa1"}}>Nenhuma proposta elegível encontrada para esta premiação.</td></tr> :
-                    propostasDoSaque.map((p)=><tr key={p.id}>
-                      <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{dataISOparaBR(p.dataDigitacao)||"—"}</td>
-                      <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{dataISOparaBR(p.dataPagamento)||"—"}</td>
-                      <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{p.vendedora}</td>
-                      <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6",fontWeight:800}}>{p.cliente}</td>
-                      <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{p.produto}</td>
-                      <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6",fontWeight:800}}>{moeda(p.valorExibido)}</td>
-                      <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{p.percentualVendedor.toLocaleString("pt-BR",{maximumFractionDigits:2})}%</td>
-                      <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{moeda(p.valorBruto)}</td>
-                      <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{p.tabela}</td>
-                    </tr>)}
+                  {!propostasDoSaque.length ? <tr><td colSpan={11} style={{padding:30,textAlign:"center",color:"#7a8aa1"}}>Nenhuma proposta elegível encontrada para esta premiação.</td></tr> :
+                    propostasDoSaque.map((p) => (
+                      <tr
+                        key={p.id}
+                        style={{
+                          background: p.avisoPremiacaoPaga
+                            ? "#fffaf0"
+                            : "#fff",
+                        }}
+                      >
+                        <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{dataISOparaBR(p.dataDigitacao)||"—"}</td>
+                        <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{dataISOparaBR(p.dataPagamento)||"—"}</td>
+                        <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{p.vendedora}</td>
+                        <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6",fontWeight:900,color:"#155eef",whiteSpace:"nowrap"}}>{p.numeroProposta || "—"}</td>
+                        <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6",whiteSpace:"nowrap"}}>{p.cpf ? formatarCpfFinanceiro(p.cpf) : "—"}</td>
+                        <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6",fontWeight:800}}>
+                          <span style={{display:"block"}}>{p.cliente}</span>
+
+                          {p.avisoPremiacaoPaga && (
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                marginTop: 7,
+                                padding: "5px 7px",
+                                border: "1px solid #efb6ad",
+                                borderRadius: 7,
+                                background: "#fff0ed",
+                                color: "#b42318",
+                                fontSize: 9,
+                                fontWeight: 900,
+                                lineHeight: 1.25,
+                              }}
+                              title={
+                                p.avisoPremiacaoPaga.dataPagamentoPremiacao
+                                  ? `Premiação anterior paga em ${dataISOparaBR(
+                                      p.avisoPremiacaoPaga
+                                        .dataPagamentoPremiacao,
+                                    )}`
+                                  : "Premiação paga anteriormente"
+                              }
+                            >
+                              JÁ FOI PAGA A PREMIAÇÃO DESSA CLIENTE
+                            </span>
+                          )}
+                        </td>
+                        <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{p.produto}</td>
+                        <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6",fontWeight:800}}>{moeda(p.valorExibido)}</td>
+                        <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{p.percentualVendedor.toLocaleString("pt-BR",{maximumFractionDigits:2})}%</td>
+                        <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{moeda(p.valorBruto)}</td>
+                        <td style={{padding:"11px 10px",borderBottom:"1px solid #edf1f6"}}>{p.tabela}</td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>

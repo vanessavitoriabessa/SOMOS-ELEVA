@@ -55,6 +55,8 @@ type RegistroRecebido = {
 
   id?: string;
 
+  numeroProposta?: string;
+
   nome?: string;
 
   cpf?: string;
@@ -90,6 +92,8 @@ type RegistroRecebido = {
 type LinhaClt = {
 
   id: string;
+
+  numero_proposta: string | null;
 
   nome: string;
 
@@ -330,6 +334,8 @@ function linhaParaRegistro(linha: LinhaClt, tabela?: TabelaCltOpcao) {
   return {
 
     id: String(linha.id),
+
+    numeroProposta: String(linha.numero_proposta || ""),
 
     nome: String(linha.nome || ""),
 
@@ -693,6 +699,8 @@ async function carregarTodosRegistrosClt(
 
         id,
 
+        numero_proposta,
+
         nome,
 
         cpf,
@@ -835,6 +843,12 @@ async function montarLinha(
 
   const id = String(registro.id || crypto.randomUUID()).trim();
 
+  const numeroProposta = String(
+    registro.numeroProposta ??
+      opcoes?.existente?.numero_proposta ??
+      "",
+  ).trim();
+
   const nome = String(registro.nome || "").trim();
 
   const cpf = apenasNumeros(registro.cpf);
@@ -867,6 +881,10 @@ const dataPagamento = dataSegura(registro.dataPagamento);
   const tabelaBancoId = idTabelaRecebido(registroParaVinculo, opcoes?.existente);
   await validarVinculoTabelaClt(supabase, banco, prazo, tabelaBancoId, opcoes?.existente);
 
+  if (!numeroProposta && !opcoes?.importacao) {
+    throw new Error("Informe o Nº da proposta.");
+  }
+
   if (!nome) throw new Error("Informe o nome completo.");
 
   if (cpf.length !== 11) throw new Error("O CPF precisa ter 11 números.");
@@ -898,6 +916,8 @@ const agora = new Date().toISOString();
   return {
 
   id,
+
+  numero_proposta: numeroProposta || null,
 
   nome,
 

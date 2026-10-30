@@ -1,5 +1,5 @@
 "use client";
-// ELEVA | TITULOS MAIUSCULOS + VALOR ENQUADRADO | 16/10/2026 | ARQUIVO COMPLETO V4
+// ELEVA | ESTILO ORIGINAL - CARDS E METAS | 16/10/2026 | ARQUIVO COMPLETO V3
 
 import { useEffect, type FormEvent, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -33,7 +33,6 @@ import {
 
   WalletCards,
 
-  X,
 
 } from "lucide-react";
 
@@ -75,6 +74,9 @@ export type MovimentoPremiacao = {
   dataPagamento?: string;
 
   valorBruto?: number;
+
+  /** Somente exibição: valor aprovado/liberado do contrato CLT. */
+  valorLiberadoClt?: number;
 
   percentualVendedor?: number;
 
@@ -451,76 +453,6 @@ function BarraMetaPremiacao({ titulo, producao, meta, observacao, liberada = fal
 }
 
 
-/** Ajuste visual apenas: conserva todos os dígitos e não altera o valor financeiro. */
-function ValorAguardandoEnquadrado({ valor }: { valor: number }) {
-  const caixaRef = useRef<HTMLElement>(null);
-  const textoRef = useRef<HTMLSpanElement>(null);
-  const texto = moeda(valor);
-
-  useEffect(() => {
-    const caixa = caixaRef.current;
-    const conteudo = textoRef.current;
-    if (!caixa || !conteudo) return;
-
-    let ativo = true;
-    let quadro = 0;
-    let ultimaLargura = -1;
-
-    function ajustar() {
-      if (!ativo || !caixa || !conteudo) return;
-      const disponivel = Math.max(0, caixa.clientWidth - 2);
-      if (disponivel <= 0) return;
-
-      // Mede com a fonte normal e reduz somente quando o número não cabe.
-      const fonteBase = Number.parseFloat(window.getComputedStyle(caixa).fontSize) || 24;
-      conteudo.style.fontSize = `${fonteBase}px`;
-      let fonte = fonteBase;
-      for (let tentativa = 0; tentativa < 5; tentativa += 1) {
-        const larguraTexto = conteudo.getBoundingClientRect().width;
-        if (larguraTexto <= disponivel || larguraTexto <= 0) break;
-        fonte = Math.max(1, Math.floor(fonte * disponivel / larguraTexto * 100) / 100);
-        conteudo.style.fontSize = `${fonte}px`;
-      }
-    }
-
-    function agendar() {
-      if (!ativo) return;
-      window.cancelAnimationFrame(quadro);
-      quadro = window.requestAnimationFrame(ajustar);
-    }
-
-    const observador = typeof ResizeObserver !== "undefined"
-      ? new ResizeObserver((entradas) => {
-          const largura = entradas[0]?.contentRect.width ?? 0;
-          // Alterar a fonte pode mudar a altura; só a largura exige novo ajuste.
-          if (Math.abs(largura - ultimaLargura) > 0.25) {
-            ultimaLargura = largura;
-            agendar();
-          }
-        })
-      : null;
-    observador?.observe(caixa);
-    window.addEventListener("resize", agendar);
-    document.fonts?.addEventListener("loadingdone", agendar);
-    void document.fonts?.ready.then(agendar, () => undefined);
-    ajustar();
-
-    return () => {
-      ativo = false;
-      window.cancelAnimationFrame(quadro);
-      observador?.disconnect();
-      window.removeEventListener("resize", agendar);
-      document.fonts?.removeEventListener("loadingdone", agendar);
-    };
-  }, [texto]);
-
-  return (
-    <strong ref={caixaRef} className="eleva-classic-wait-value" title={texto}>
-      <span ref={textoRef}>{texto}</span>
-    </strong>
-  );
-}
-
 export default function MinhaPremiacaoV2(props: Props) {
   const [mostrarContratosSecundarios, setMostrarContratosSecundarios] = useState(false);
 
@@ -621,7 +553,7 @@ const [abaAdmin, setAbaAdmin] = useState<
   >("todos");
 
   const [secaoV7, setSecaoV7] = useState<
-    "visao" | "colaboradoras" | "conferencia"
+    "visao" | "colaboradoras"
   >("visao");
   const [colaboradoraEditando, setColaboradoraEditando] = useState<string | null>(null);
   const [pixEdicaoTipo, setPixEdicaoTipo] = useState("");
@@ -634,8 +566,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
   const [modalConferencia, setModalConferencia] = useState(false);
 
-  const [modalSaque, setModalSaque] = useState(false);
-
   const [pontosCompraLiberar, setPontosCompraLiberar] = useState(
 
     String(Number(pontosCompraPrevistos ?? 0) || 0),
@@ -647,10 +577,6 @@ const [abaAdmin, setAbaAdmin] = useState<
     String(Number(pontosCltPrevistos ?? 0) || 0),
 
   );
-
-  const [pontosSaque, setPontosSaque] = useState("");
-
-  const [chavePix, setChavePix] = useState("");
 
   const [erroModal, setErroModal] = useState("");
 
@@ -815,7 +741,15 @@ const [abaAdmin, setAbaAdmin] = useState<
   // Não soma premiação manual, não reaproveita outro mês e não recalcula o rateio.
   const custoConfirmado = !erroCustoPa && custoPaFinanceiro?.referencia === competencia
     ? custoPaFinanceiro : null;
-  const custoPa = custoConfirmado?.custoPa ?? null;
+
+  // Regra financeira:
+  // - ao filtrar uma pessoa: desconta 1 Custo por Operador;
+  // - ao filtrar Todos: desconta o Custo Total do mês.
+  const custoPa = custoConfirmado
+    ? todosSelecionados
+      ? Number(custoConfirmado.custoTotal || 0)
+      : Number(custoConfirmado.custoPa || 0)
+    : null;
   const moedaFinanceira = (valor: number | null | undefined) =>
     typeof valor === "number" && Number.isFinite(valor) ? moeda(valor) : "—";
   const referenciaCustoLabel = /^\d{4}-\d{2}$/.test(competencia)
@@ -824,7 +758,10 @@ const [abaAdmin, setAbaAdmin] = useState<
   // Os movimentos vêm da apuração existente de contratos pagos. Os filtros de
   // referência/status seguem no Manager e NÃO são modificados por esta tela.
   const comissaoEmpresaBruta = movimentosCompra.reduce((t,m)=>t+Number(m.comissaoEmpresa||0),0);
-  const comissaoEmpresaLiquida = custoPa === null ? null : Math.max(comissaoEmpresaBruta - custoPa, 0);
+  const comissaoEmpresaLiquida =
+    custoPa === null
+      ? null
+      : comissaoEmpresaBruta - custoPa;
   const financeiroCltConfirmado = props.financeiroClt?.referencia === competencia
     && chaveNomePix(props.financeiroClt.operador) === chaveNomePix(nomeExibido)
       ? props.financeiroClt : null;
@@ -836,10 +773,14 @@ const [abaAdmin, setAbaAdmin] = useState<
   const comissaoEmpresaClt = financeiroCltConfirmado
     ? valorFinanceiroValido(financeiroCltConfirmado.comissaoEmpresaBruta)
     : movimentosClt.length === 0 ? 0 : null;
-  // Mantém o piso zero já existente neste card de Minha Premiação.
-  // O relatório de Lucro por Operador (que pode mostrar prejuízo) não é alterado.
-  const comissaoLiquidaCard = custoPa === null || comissaoEmpresaClt === null
-    ? null : Math.max(comissaoEmpresaBruta + comissaoEmpresaClt - custoPa, 0);
+  // Resultado real: Comissão Compra + Comissão CLT − custo aplicável.
+  // Pode ficar negativo quando o custo superar a comissão.
+  const comissaoLiquidaCard =
+    custoPa === null || comissaoEmpresaClt === null
+      ? null
+      : comissaoEmpresaBruta +
+        comissaoEmpresaClt -
+        custoPa;
   const brutoSelecionado = Math.max(movimentos.reduce((t,m)=>t+Number(m.valorBruto ?? m.valorContrato ?? 0),0),0);
 
   const movimentosComFinanceiro = movimentosFiltrados.map((item) => {
@@ -934,67 +875,6 @@ const [abaAdmin, setAbaAdmin] = useState<
 
   }
 
-  async function enviarSaque(evento: FormEvent<HTMLFormElement>) {
-
-    evento.preventDefault();
-
-    setErroModal("");
-
-    const quantidade = Number(
-
-      String(pontosSaque).replace(/\./g, "").replace(",", "."),
-
-    );
-
-    if (!Number.isFinite(quantidade) || quantidade <= 0) {
-
-      setErroModal("Informe quantos pontos deseja sacar.");
-
-      return;
-
-    }
-
-    if (quantidade > saldoDisponivelSaque) {
-
-      setErroModal("A quantidade é maior que o saldo disponível.");
-
-      return;
-
-    }
-
-    if (chavePix.trim().length < 3) {
-
-      setErroModal("Informe uma chave PIX válida.");
-
-      return;
-
-    }
-
-    try {
-
-      await onSolicitarSaque(quantidade, chavePix.trim());
-
-      setModalSaque(false);
-
-      setPontosSaque("");
-
-      setChavePix("");
-
-    } catch (erro) {
-
-      setErroModal(
-
-        erro instanceof Error
-
-          ? erro.message
-
-          : "Não foi possível solicitar o saque.",
-
-      );
-
-    }
-
-  }
 
   if (podeGerenciar && visaoGestor === "gestao") {
 
@@ -1002,7 +882,7 @@ const [abaAdmin, setAbaAdmin] = useState<
 
       <div className="premio-v4-page eleva-premiacao-cards-v2">
 
-        <nav className="premio-v8-nav">
+        <nav className="premio-v8-nav premio-v8-nav--cinco">
           <button type="button" className={`premio-v8-nav-card blue ${secaoV7 === "visao" && abaAdmin === "conferencia" ? "active" : ""}`} onClick={() => { setAbaAdmin("conferencia"); setSecaoV7("visao"); }}>
             <i className="premio-v8-icon">⌂</i><span><strong>Visão Geral</strong><small>Resumo completo</small></span>
           </button>
@@ -1013,13 +893,10 @@ const [abaAdmin, setAbaAdmin] = useState<
             <i className="premio-v8-icon">🏆</i><span><strong>Pontos Liberados</strong><small>Consulte seus pontos</small></span>
           </button>
           <button type="button" className={`premio-v8-nav-card purple ${abaAdmin === "saques" ? "active-soft" : ""}`} onClick={() => setAbaAdmin("saques")}>
-            <i className="premio-v8-icon">▣</i><span><strong>Solicitar Saque</strong><small>Resgate seus pontos</small></span>
+            <i className="premio-v8-icon">▣</i><span><strong>Solicitar Saque</strong><small>Solicitações automáticas</small></span>
           </button>
           <button type="button" className={`premio-v8-nav-card rose ${secaoV7 === "colaboradoras" ? "active-soft" : ""}`} onClick={() => { setAbaAdmin("conferencia"); setSecaoV7("colaboradoras"); }}>
             <i className="premio-v8-icon">♟</i><span><strong>Colaboradoras</strong><small>Veja o time completo</small></span>
-          </button>
-          <button type="button" className={`premio-v8-nav-card cyan ${secaoV7 === "conferencia" ? "active-soft" : ""}`} onClick={() => { setAbaAdmin("conferencia"); setSecaoV7("conferencia"); }}>
-            <i className="premio-v8-icon">▦</i><span><strong>Conferência do Mês</strong><small>Analise e publique</small></span>
           </button>
         </nav>
 
@@ -1076,56 +953,83 @@ const [abaAdmin, setAbaAdmin] = useState<
             <div className="eleva-classic-scope">
               <section className="eleva-classic-summary" aria-label="Indicadores de CLT, Compra de Dívida e empresa">
                 <article className="eleva-classic-kpi tone-blue" data-card="clt-parcelas">
-                  <span>CLT - PARCELAS OPERADOR PAGAS</span>
+                  <span>CLT — parcelas operador pagas</span>
                   <strong>{moeda(cltParcelasPagas)}</strong>
                   <small>{faixaClt || "Abaixo da primeira faixa"}</small>
                 </article>
                 <article className="eleva-classic-kpi tone-green" data-card="clt-liquido">
-                  <span>CLT - LIQUIDO EMPRESA PAGO</span>
+                  <span>CLT — líquido empresa pago</span>
                   <strong>{moedaFinanceira(liquidoEmpresaClt)}</strong>
-                  <small>{liquidoEmpresaClt === null ? "Valor CLT não informado" : "Valor informado pela apuração CLT"}</small>
+                  <small>
+                    {liquidoEmpresaClt === null
+                      ? "Valor CLT não informado"
+                      : "Soma do valor aprovado/líquido dos contratos CLT pagos"}
+                  </small>
                 </article>
                 <article className="eleva-classic-kpi tone-gold" data-card="clt-comissao">
-                  <span>CLT - COMISSÃO EMPRESA BRUTO</span>
+                  <span>CLT — comissão empresa bruto</span>
                   <strong>{moedaFinanceira(comissaoEmpresaClt)}</strong>
-                  <small>{comissaoEmpresaClt === null ? "Comissão CLT não informada" : "Comissão da empresa, antes do custo"}</small>
+                  <small>
+                    {comissaoEmpresaClt === null
+                      ? "Confira a tabela e a % de comissão dos contratos CLT"
+                      : "Valor líquido CLT × % de comissão da tabela vinculada"}
+                  </small>
                 </article>
                 <article className="eleva-classic-kpi tone-green" data-card="compra-liquido">
-                  <span>COMPRA DE DIVIDA - LIQUIDO OPERADOR PAGO</span>
+                  <span>Compra de Dívida — líquido operador pago</span>
                   <strong>{moeda(compraLiquidaPaga)}</strong>
                   <small>{faixaCompra || "Abaixo da primeira faixa"}</small>
                 </article>
                 <article className="eleva-classic-kpi tone-lilac" data-card="compra-bruto">
-                  <span>COMPRA DE DIVIDA - BRUTO EMPRESA PAGO</span>
+                  <span>Compra de Dívida — bruto empresa pago</span>
                   <strong>{moeda(compraBrutaPaga)}</strong>
                   <small>{movimentosCompra.length} contrato(s) na apuração</small>
                 </article>
                 <article className="eleva-classic-kpi tone-gold" data-card="compra-comissao">
-                  <span>COMPRA DE DIVIDA - COMISSÃO EMPRESA BRUTO</span>
+                  <span>Compra de Dívida — comissão empresa bruto</span>
                   <strong>{moeda(comissaoEmpresaBruta)}</strong>
                   <small>Antes do Custo por Operador</small>
                 </article>
                 <article className="eleva-classic-kpi tone-blue" data-card="custo" aria-live="polite" aria-busy={carregandoCustoPa}>
-                  <span>CUSTO POR OPERADOR</span>
+                  <span>{todosSelecionados ? "Custo total do mês" : "Custo por operador"}</span>
                   <strong>{moedaFinanceira(custoPa)}</strong>
-                  <small title={erroCustoPa || (custoConfirmado ? `${moeda(custoConfirmado.custoTotal)} ÷ ${custoConfirmado.quantidadeOperadores} operador(es)` : undefined)}>
-                    {carregandoCustoPa ? "Atualizando Custo PA..." : custoConfirmado ? `Financeiro · Referência ${referenciaCustoLabel}` : "Custo indisponível nesta referência"}
+                  <small
+                    title={
+                      erroCustoPa ||
+                      (custoConfirmado
+                        ? todosSelecionados
+                          ? `Custo total do mês: ${moeda(custoConfirmado.custoTotal)}`
+                          : `${moeda(custoConfirmado.custoTotal)} ÷ ${custoConfirmado.quantidadeOperadores} operador(es)`
+                        : undefined)
+                    }
+                  >
+                    {carregandoCustoPa
+                      ? "Atualizando Custo PA..."
+                      : custoConfirmado
+                        ? todosSelecionados
+                          ? `Financeiro · Custo total · Referência ${referenciaCustoLabel}`
+                          : `Financeiro · Custo unitário · Referência ${referenciaCustoLabel}`
+                        : "Custo indisponível nesta referência"}
                   </small>
                 </article>
                 <article className="eleva-classic-kpi tone-pink" data-card="comissao-liquida">
-                  <span>COMISSÃO LIQUIDA EMPRESA</span>
+                  <span>Comissão líquida empresa</span>
                   <strong>{moedaFinanceira(comissaoLiquidaCard)}</strong>
                   <small title={comissaoEmpresaClt === null ? `Total ainda indisponível. Parcial de Compra pela regra atual: ${moedaFinanceira(comissaoEmpresaLiquida)}` : undefined}>
-                    {custoPa === null ? "Aguardando Custo PA da referência" : comissaoEmpresaClt === null ? "Aguardando comissão CLT" : "Comissão CLT + Compra − Custo PA"}
+                    {custoPa === null
+                      ? "Aguardando custo financeiro da referência"
+                      : comissaoEmpresaClt === null
+                        ? "Aguardando comissão CLT"
+                        : todosSelecionados
+                          ? "Comissão CLT + Compra − custo total do mês"
+                          : "Comissão CLT + Compra − custo por operador"}
                   </small>
                 </article>
               </section>
 
               <section className="eleva-classic-bottom" aria-label="Premiações acumuladas e metas do mês">
                 <article className="eleva-classic-panel eleva-classic-wait">
-                  <span>⌛ AGUARDANDO PAGAR</span>
-                  <ValorAguardandoEnquadrado valor={producaoEmFormacao} />
-                  <small>{contratosEmFormacao} proposta(s)</small>
+                  <span>⌛ Aguardando pagar</span><strong>{moeda(producaoEmFormacao)}</strong><small>{contratosEmFormacao} proposta(s)</small>
                 </article>
                 <article className="eleva-classic-panel eleva-classic-award area-clt" data-award="clt">
                   <header><h3>🏆 Premiação acumulada CLT</h3><button type="button" disabled={!podeEditarPremiacao} onClick={() => abrirEdicaoPremiacao("CLT")} aria-label="Editar premiação CLT"><span aria-hidden="true">✏️</span> Editar</button></header>
@@ -1659,50 +1563,477 @@ const [abaAdmin, setAbaAdmin] = useState<
 
                   </div>
 
-                  <div className="premio-v4-table-wrap">
+                  <style>{`
+                    .premio-contratos-compactos {
+                      width: 100%;
+                      min-width: 0;
+                    }
 
-                    <table className="premio-v4-table">
+                    .premio-contratos-cabecalho,
+                    .premio-contrato-card {
+                      display: grid;
+                      grid-template-columns:
+                        minmax(0, 1.35fr)
+                        minmax(0, 1.2fr)
+                        minmax(0, 0.95fr)
+                        minmax(0, 1fr)
+                        minmax(0, 0.82fr);
+                      width: 100%;
+                      min-width: 0;
+                    }
 
-                      <thead><tr>
-                          <th>Data digitação</th><th>Data pagamento cliente</th><th>Cliente</th><th>Produto</th><th>Banco</th>
-                          <th>Valor parcela / líquido</th><th>% vendedor(a)</th><th>Valor bruto</th><th>Tabela</th>
-                          <th>% comissão empresa</th><th>Valor comissão empresa</th><th>Lucro bruto empresa</th>
-                          <th>Custo PA</th><th>Lucro líquido empresa</th>
-                        </tr></thead>
-                        <tbody>
-                          {movimentosComFinanceiro.length===0 ? (
-                            <tr><td colSpan={14}><div className="premio-v4-empty">Nenhum contrato encontrado para o filtro selecionado.</div></td></tr>
-                          ) : movimentosComFinanceiro.map((item)=>(
-                            <tr key={item.id}>
-                              <td>{dataPt(item.dataDigitacao || item.data)}</td>
-                              <td>{dataPt(item.dataPagamento || item.data)}</td>
-                              <td><strong>{item.cliente}</strong></td>
-                              <td><span className="premio-v4-product">{item.produto}</span></td>
-                              <td>{item.banco || "Não informado"}</td>
-                              <td><b>{moeda(item.produto==="CLT" ? item.valorParcelaClt : item.producaoValida)}</b></td>
-                              <td>{item.produto==="CLT" ? "100%" : `${porcentagem(item.percentualVendedor ?? item.pesoTabela)}%`}</td>
-                              <td>{moeda(item.valorBruto ?? item.valorContrato ?? 0)}</td>
-                              <td>
-                                <span style={item.produto === "CLT" && !item.tabelaBancoId ? { color: "#9a6400", fontWeight: 700 } : undefined}>
+                    .premio-contratos-cabecalho {
+                      padding: 0 12px 9px;
+                      color: #6c7d96;
+                      font-size: 9px;
+                      font-weight: 900;
+                      letter-spacing: 0.45px;
+                      text-transform: uppercase;
+                    }
+
+                    .premio-contratos-cabecalho > div {
+                      min-width: 0;
+                      padding: 0 11px;
+                    }
+
+                    .premio-contratos-lista {
+                      display: flex;
+                      flex-direction: column;
+                      width: 100%;
+                      min-width: 0;
+                      gap: 9px;
+                    }
+
+                    .premio-contrato-card {
+                      overflow: hidden;
+                      border: 1px solid #dfe7f2;
+                      border-radius: 13px;
+                      background: #ffffff;
+                      box-shadow: 0 4px 14px rgba(17, 45, 78, 0.035);
+                      transition:
+                        border-color 0.18s ease,
+                        box-shadow 0.18s ease,
+                        transform 0.18s ease;
+                    }
+
+                    .premio-contrato-card:hover {
+                      border-color: #c8d7ed;
+                      box-shadow: 0 7px 22px rgba(17, 45, 78, 0.07);
+                      transform: translateY(-1px);
+                    }
+
+                    .premio-contrato-bloco {
+                      min-width: 0;
+                      padding: 12px 12px;
+                      border-right: 1px solid #e8edf4;
+                    }
+
+                    .premio-contrato-bloco:last-child {
+                      border-right: 0;
+                    }
+
+                    .premio-contrato-cliente {
+                      display: block;
+                      color: #102f52;
+                      font-size: 12px;
+                      font-weight: 900;
+                      line-height: 1.24;
+                      overflow-wrap: anywhere;
+                    }
+
+                    .premio-contrato-datas {
+                      display: grid;
+                      grid-template-columns: repeat(2, minmax(0, 1fr));
+                      gap: 7px;
+                      margin-top: 9px;
+                    }
+
+                    .premio-contrato-datas div,
+                    .premio-contrato-info,
+                    .premio-contrato-valor-item {
+                      min-width: 0;
+                    }
+
+                    .premio-contrato-label {
+                      display: block;
+                      margin-bottom: 2px;
+                      color: #7b8ba2;
+                      font-size: 8px;
+                      font-weight: 800;
+                      letter-spacing: 0.25px;
+                      text-transform: uppercase;
+                    }
+
+                    .premio-contrato-datas strong,
+                    .premio-contrato-info strong,
+                    .premio-contrato-valor-item strong {
+                      display: block;
+                      color: #17385d;
+                      font-size: 11px;
+                      line-height: 1.25;
+                      overflow-wrap: anywhere;
+                    }
+
+                    .premio-contrato-operacao-topo {
+                      display: flex;
+                      flex-wrap: wrap;
+                      align-items: center;
+                      gap: 7px;
+                      margin-bottom: 8px;
+                    }
+
+                    .premio-contrato-banco {
+                      color: #17385d;
+                      font-size: 11px;
+                      font-weight: 900;
+                    }
+
+                    .premio-contrato-tabela {
+                      color: #526985;
+                      font-size: 10px;
+                      font-weight: 700;
+                      line-height: 1.3;
+                      overflow-wrap: anywhere;
+                    }
+
+                    .premio-contrato-tabela.sem-tabela {
+                      color: #9a6400;
+                    }
+
+                    .premio-contrato-tabela-detalhe {
+                      display: block;
+                      margin-top: 4px;
+                      color: #7a8aa1;
+                      font-size: 9px;
+                      line-height: 1.3;
+                    }
+
+                    .premio-contrato-valores,
+                    .premio-contrato-comissoes,
+                    .premio-contrato-resultado {
+                      display: grid;
+                      gap: 8px;
+                    }
+
+                    .premio-contrato-valor-destaque {
+                      color: #155eef !important;
+                      font-size: 12px !important;
+                    }
+
+                    .premio-contrato-valor-bruto {
+                      color: #102f52 !important;
+                    }
+
+                    .premio-contrato-comissao-valor {
+                      color: #b76d00 !important;
+                    }
+
+                    .premio-contrato-lucro-bruto {
+                      color: #a45c00 !important;
+                    }
+
+                    .premio-contrato-lucro-liquido {
+                      color: #07804f !important;
+                      font-size: 12px !important;
+                    }
+
+                    .premio-contrato-vazio {
+                      padding: 28px;
+                      border: 1px solid #dfe7f2;
+                      border-radius: 13px;
+                      background: #ffffff;
+                      color: #71809a;
+                      text-align: center;
+                      font-size: 12px;
+                      font-weight: 700;
+                    }
+
+                    @media (max-width: 1280px) {
+                      .premio-contratos-cabecalho,
+                      .premio-contrato-card {
+                        grid-template-columns:
+                          minmax(0, 1.28fr)
+                          minmax(0, 1.12fr)
+                          minmax(0, 0.9fr)
+                          minmax(0, 0.95fr)
+                          minmax(0, 0.78fr);
+                      }
+
+                      .premio-contrato-bloco {
+                        padding: 11px 9px;
+                      }
+
+                      .premio-contrato-cliente {
+                        font-size: 11px;
+                      }
+
+                      .premio-contrato-datas strong,
+                      .premio-contrato-info strong,
+                      .premio-contrato-valor-item strong {
+                        font-size: 10px;
+                      }
+                    }
+
+                    @media (max-width: 980px) {
+                      .premio-contratos-cabecalho {
+                        display: none;
+                      }
+
+                      .premio-contrato-card {
+                        grid-template-columns: repeat(2, minmax(0, 1fr));
+                      }
+
+                      .premio-contrato-bloco {
+                        border-right: 1px solid #e8edf4;
+                        border-bottom: 1px solid #e8edf4;
+                      }
+
+                      .premio-contrato-bloco:nth-child(2n) {
+                        border-right: 0;
+                      }
+
+                      .premio-contrato-bloco:last-child {
+                        grid-column: 1 / -1;
+                        border-bottom: 0;
+                      }
+                    }
+
+                    @media (max-width: 620px) {
+                      .premio-contrato-card {
+                        grid-template-columns: 1fr;
+                      }
+
+                      .premio-contrato-bloco,
+                      .premio-contrato-bloco:nth-child(2n) {
+                        border-right: 0;
+                      }
+
+                      .premio-contrato-bloco:last-child {
+                        grid-column: auto;
+                      }
+                    }
+                  `}</style>
+
+                  <div className="premio-contratos-compactos">
+                    <div
+                      className="premio-contratos-cabecalho"
+                      aria-hidden="true"
+                    >
+                      <div>Cliente / Datas</div>
+                      <div>Operação / Tabela</div>
+                      <div>Valores</div>
+                      <div>Comissões</div>
+                      <div>Custo / Resultado</div>
+                    </div>
+
+                    {movimentosComFinanceiro.length === 0 ? (
+                      <div className="premio-contrato-vazio">
+                        Nenhum contrato encontrado para o filtro selecionado.
+                      </div>
+                    ) : (
+                      <div className="premio-contratos-lista">
+                        {movimentosComFinanceiro.map((item) => {
+                          const tabelaSemVinculo =
+                            item.produto === "CLT" &&
+                            !item.tabelaBancoId;
+
+                          const percentualVendedor =
+                            item.produto === "CLT"
+                              ? "100%"
+                              : `${porcentagem(
+                                  item.percentualVendedor ??
+                                    item.pesoTabela,
+                                )}%`;
+
+                          const percentualEmpresa =
+                            item.produto === "Compra de Dívida"
+                              ? `${porcentagem(
+                                  item.percentualComissaoEmpresa || 0,
+                                )}%`
+                              : "—";
+
+                          const valorComissaoEmpresa =
+                            item.produto === "Compra de Dívida"
+                              ? moeda(item.comissaoEmpresa)
+                              : "—";
+
+                          return (
+                            <article
+                              className="premio-contrato-card"
+                              key={item.id}
+                            >
+                              <div className="premio-contrato-bloco">
+                                <strong className="premio-contrato-cliente">
+                                  {item.cliente || "Cliente não informado"}
+                                </strong>
+
+                                <div className="premio-contrato-datas">
+                                  <div>
+                                    <span className="premio-contrato-label">
+                                      Digitação
+                                    </span>
+                                    <strong>
+                                      {dataPt(
+                                        item.dataDigitacao ||
+                                          item.data,
+                                      )}
+                                    </strong>
+                                  </div>
+
+                                  <div>
+                                    <span className="premio-contrato-label">
+                                      Pagamento
+                                    </span>
+                                    <strong>
+                                      {dataPt(
+                                        item.dataPagamento ||
+                                          item.data,
+                                      )}
+                                    </strong>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="premio-contrato-bloco">
+                                <div className="premio-contrato-operacao-topo">
+                                  <span className="premio-v4-product">
+                                    {item.produto}
+                                  </span>
+                                  <span className="premio-contrato-banco">
+                                    {item.banco || "Não informado"}
+                                  </span>
+                                </div>
+
+                                <div
+                                  className={`premio-contrato-tabela ${
+                                    tabelaSemVinculo ? "sem-tabela" : ""
+                                  }`}
+                                >
                                   {nomeTabelaContrato(item)}
-                                </span>
-                                {item.produto === "CLT" && item.tabelaBancoId && (
-                                  <small style={{ display: "block", marginTop: 3, color: "#617391" }}>
-                                    {[item.tabelaCodigo, item.tabelaPrazo ? `${item.tabelaPrazo} meses` : ""].filter(Boolean).join(" • ")}
-                                  </small>
-                                )}
-                              </td>
-                              <td className="internal-col">{item.produto==="Compra de Dívida" ? `${porcentagem(item.percentualComissaoEmpresa || 0)}%` : "—"}</td>
-                              <td className="internal-col">{item.produto==="Compra de Dívida" ? moeda(item.comissaoEmpresa) : "—"}</td>
-                              <td className="internal-col">{moeda(item.lucroBrutoEmpresa || 0)}</td>
-                              <td>{moedaFinanceira(item.custoPaRateado)}</td>
-                              <td><strong>{moedaFinanceira(item.lucroLiquidoEmpresa)}</strong></td>
-                            </tr>
-                          ))}
-                        </tbody>
+                                </div>
 
-                    </table>
+                                {item.produto === "CLT" &&
+                                  item.tabelaBancoId && (
+                                    <small className="premio-contrato-tabela-detalhe">
+                                      {[
+                                        item.tabelaCodigo,
+                                        item.tabelaPrazo
+                                          ? `${item.tabelaPrazo} meses`
+                                          : "",
+                                      ]
+                                        .filter(Boolean)
+                                        .join(" • ")}
+                                    </small>
+                                  )}
+                              </div>
 
+                              <div className="premio-contrato-bloco">
+                                <div className="premio-contrato-valores">
+                                  <div className="premio-contrato-valor-item">
+                                    <span className="premio-contrato-label">
+                                      {item.produto === "CLT"
+                                        ? "Valor da parcela"
+                                        : "Valor líquido"}
+                                    </span>
+                                    <strong className="premio-contrato-valor-destaque">
+                                      {moeda(
+                                        item.produto === "CLT"
+                                          ? item.valorParcelaClt
+                                          : item.producaoValida,
+                                      )}
+                                    </strong>
+                                  </div>
+
+                                  <div className="premio-contrato-valor-item">
+                                    <span className="premio-contrato-label">
+                                      Valor bruto
+                                    </span>
+                                    <strong className="premio-contrato-valor-bruto">
+                                      {moeda(
+                                        item.produto === "CLT"
+                                          ? Number(
+                                              item.valorLiberadoClt ||
+                                                0,
+                                            )
+                                          : Number(
+                                              item.valorBruto ??
+                                                item.valorContrato ??
+                                                0,
+                                            ),
+                                      )}
+                                    </strong>
+                                  </div>
+
+                                  <div className="premio-contrato-valor-item">
+                                    <span className="premio-contrato-label">
+                                      % vendedor(a)
+                                    </span>
+                                    <strong>{percentualVendedor}</strong>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="premio-contrato-bloco">
+                                <div className="premio-contrato-comissoes">
+                                  <div className="premio-contrato-valor-item">
+                                    <span className="premio-contrato-label">
+                                      % comissão empresa
+                                    </span>
+                                    <strong>{percentualEmpresa}</strong>
+                                  </div>
+
+                                  <div className="premio-contrato-valor-item">
+                                    <span className="premio-contrato-label">
+                                      Valor comissão
+                                    </span>
+                                    <strong className="premio-contrato-comissao-valor">
+                                      {valorComissaoEmpresa}
+                                    </strong>
+                                  </div>
+
+                                  <div className="premio-contrato-valor-item">
+                                    <span className="premio-contrato-label">
+                                      Lucro bruto empresa
+                                    </span>
+                                    <strong className="premio-contrato-lucro-bruto">
+                                      {moeda(
+                                        item.lucroBrutoEmpresa || 0,
+                                      )}
+                                    </strong>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="premio-contrato-bloco">
+                                <div className="premio-contrato-resultado">
+                                  <div className="premio-contrato-valor-item">
+                                    <span className="premio-contrato-label">
+                                      Custo PA
+                                    </span>
+                                    <strong>
+                                      {moedaFinanceira(
+                                        item.custoPaRateado,
+                                      )}
+                                    </strong>
+                                  </div>
+
+                                  <div className="premio-contrato-valor-item">
+                                    <span className="premio-contrato-label">
+                                      Lucro líquido empresa
+                                    </span>
+                                    <strong className="premio-contrato-lucro-liquido">
+                                      {moedaFinanceira(
+                                        item.lucroLiquidoEmpresa,
+                                      )}
+                                    </strong>
+                                  </div>
+                                </div>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                 </section>
@@ -1835,11 +2166,11 @@ const [abaAdmin, setAbaAdmin] = useState<
 
                 <span>CONTROLE DE SAQUES</span>
 
-                <h3>Solicitações das colaboradoras</h3>
+                <h3>Saques pendentes de pagamento</h3>
 
                 <p>
 
-                  Tudo que elas solicitarem aparece automaticamente aqui.
+                  Todo ponto liberado entra automaticamente aqui como solicitado.
 
                 </p>
 
@@ -1955,27 +2286,7 @@ const [abaAdmin, setAbaAdmin] = useState<
 
                       </button>
 
-                      <button
 
-                        type="button"
-
-                        className="reject"
-
-                        onClick={() =>
-
-                          void onProcessarSaque(saque.id, "RECUSADO")
-
-                        }
-
-                        disabled={processando}
-
-                      >
-
-                        <X size={15} />
-
-                        Recusar
-
-                      </button>
 
                     </div>
 
@@ -2134,6 +2445,11 @@ const [abaAdmin, setAbaAdmin] = useState<
         )}
         <style>{`
 /* ELEVA - Mesmo estilo da tela original. Somente apresentação. */
+@media (min-width:1101px) {
+  .premio-v8-nav.premio-v8-nav--cinco {
+    grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  }
+}
 .eleva-premiacao-cards-v2 { min-width:0; max-width:100%; box-sizing:border-box; }
 .eleva-classic-scope { width:100%; min-width:0; container:eleva-premiacao / inline-size; display:block; }
 .eleva-classic-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin:16px 0 14px; }
@@ -2144,17 +2460,14 @@ const [abaAdmin, setAbaAdmin] = useState<
 .eleva-classic-kpi.tone-lilac { background:#f5f2ff; }
 .eleva-classic-kpi.tone-gold { background:#fff9e9; }
 .eleva-classic-kpi.tone-pink { background:#fff2f6; }
-.eleva-classic-kpi>span { display:block; min-height:34px; margin:0; color:#617895; font-size:13px; line-height:1.3; font-weight:650; text-transform:uppercase; letter-spacing:0; overflow-wrap:normal; word-break:normal; }
+.eleva-classic-kpi>span { display:block; min-height:34px; margin:0; color:#617895; font-size:13px; line-height:1.3; font-weight:650; text-transform:none; letter-spacing:0; overflow-wrap:normal; word-break:normal; }
 .eleva-classic-kpi>strong { display:block; margin:8px 0 0; color:#12355e; font-family:inherit; font-size:29px; font-size:clamp(22px,10.7cqw,32px); font-weight:800; line-height:1.12; letter-spacing:-.6px; font-variant-numeric:tabular-nums; white-space:nowrap; word-break:normal; overflow-wrap:normal; }
 .eleva-classic-kpi>small { display:block; margin:10px 0 0; color:#8391a5; font-size:10.5px; line-height:1.4; font-weight:400; }
 .eleva-classic-bottom { display:grid; grid-template-columns:minmax(0,1fr) repeat(3,minmax(0,1.1fr)) minmax(0,2.45fr) minmax(0,1.2fr); grid-template-areas:"wait awardclt awardcompra awardtotal goals motive"; gap:12px; align-items:stretch; margin:0 0 14px; }
 .eleva-classic-panel { padding:17px 15px; background:#f5f9ff; }
-.eleva-classic-wait { grid-area:wait; display:flex; flex-direction:column; min-width:0; }
+.eleva-classic-wait { grid-area:wait; display:flex; flex-direction:column; }
 .eleva-classic-wait>span { color:#365b8b; font-size:12px; line-height:1.4; font-weight:750; }
-.eleva-classic-wait>strong { display:block; width:100%; min-width:0; max-width:100%; box-sizing:border-box; margin-top:13px; color:#153d70; font-size:24px; font-weight:800; letter-spacing:-.5px; line-height:1.15; white-space:nowrap; }
-/* Não usa corte, reticências ou arredondamento. O texto é medido e encaixado. */
-.eleva-classic-wait>.eleva-classic-wait-value { min-height:28px; padding:0; border:0; overflow:visible; text-overflow:clip; }
-.eleva-classic-wait>.eleva-classic-wait-value>span { display:inline-block; width:max-content; max-width:none; margin:0; padding:0; font-family:inherit; font-weight:inherit; line-height:inherit; color:inherit; letter-spacing:inherit; white-space:nowrap; word-break:normal; overflow-wrap:normal; vertical-align:top; }
+.eleva-classic-wait>strong { margin-top:13px; color:#153d70; font-size:24px; font-weight:800; letter-spacing:-.5px; line-height:1.15; white-space:nowrap; }
 .eleva-classic-panel small { display:block; font-size:10px; color:#8492a6; font-weight:400; line-height:1.5; }
 .eleva-classic-wait>small { margin-top:8px; }
 .eleva-classic-award { background:#f1f7ff; display:flex; flex-direction:column; }
@@ -2627,6 +2940,16 @@ const [abaAdmin, setAbaAdmin] = useState<
 
   );
 
+  const pontosPendentesPagamento = meusSaquesPendentes.reduce(
+
+    (total, saque) =>
+
+      total + Number(saque.pontos_solicitados || 0),
+
+    0,
+
+  );
+
   return (
 
     <div className="premio-v4-page colaborador">
@@ -2691,9 +3014,9 @@ const [abaAdmin, setAbaAdmin] = useState<
 
           <p>
 
-            Aqui aparecem somente os pontos que já foram conferidos e
+            Os pontos liberados entram automaticamente como saque pendente.
 
-            liberados pela gestão.
+            Você não precisa enviar nenhuma solicitação.
 
           </p>
 
@@ -2725,13 +3048,13 @@ const [abaAdmin, setAbaAdmin] = useState<
 
             <Coins size={23} />
 
-            <span>PONTOS DISPONÍVEIS</span>
+            <span>PONTOS ACUMULADOS</span>
 
           </div>
 
           <strong>{pontos(saldoPontos)}</strong>
 
-          <p>1 ponto = R$ 1,00</p>
+          <p>1 ponto = R$ 1,00 · baixa somente quando for pago</p>
 
           <footer>
 
@@ -2747,11 +3070,11 @@ const [abaAdmin, setAbaAdmin] = useState<
 
           <Landmark size={23} />
 
-          <span>Disponível para novo saque</span>
+          <span>Aguardando pagamento</span>
 
-          <strong>{pontos(saldoDisponivelSaque)} pts</strong>
+          <strong>{pontos(pontosPendentesPagamento)} pts</strong>
 
-          <small>{moeda(saldoDisponivelSaque)}</small>
+          <small>{moeda(pontosPendentesPagamento)}</small>
 
         </article>
 
@@ -2763,7 +3086,7 @@ const [abaAdmin, setAbaAdmin] = useState<
 
           <strong>{meusSaquesPendentes.length}</strong>
 
-          <small>Aguardando a gestão</small>
+          <small>Permanecerá pendente até ser marcado como pago</small>
 
         </article>
 
@@ -2771,59 +3094,111 @@ const [abaAdmin, setAbaAdmin] = useState<
 
       <section className="premio-v4-colab-actions">
 
-        <button
+        <div
 
-          type="button"
+          style={{
 
-          disabled={saldoDisponivelSaque <= 0}
+            display: "flex",
 
-          onClick={() => {
+            alignItems: "center",
 
-            setErroModal("");
+            gap: 14,
 
-            setPontosSaque(
+            width: "100%",
 
-              saldoDisponivelSaque > 0
+            padding: "17px 18px",
 
-                ? String(saldoDisponivelSaque)
+            border: "1px solid #cfe0ff",
 
-                : "",
+            borderRadius: 14,
 
-            );
+            background: "#f2f7ff",
 
-            const pixPessoal = pixDaColaboradora(carteiraNome || nomeUsuario);
-
-            setChavePix(pixPessoal.chave || "");
-
-            setModalSaque(true);
+            color: "#17345f",
 
           }}
 
         >
 
-          <span>
+          <span
+
+            style={{
+
+              display: "grid",
+
+              placeItems: "center",
+
+              width: 44,
+
+              height: 44,
+
+              flex: "0 0 44px",
+
+              borderRadius: 12,
+
+              background: "#1f61ee",
+
+              color: "#fff",
+
+            }}
+
+          >
 
             <WalletCards size={21} />
 
           </span>
 
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
 
-            <strong>Solicitar saque</strong>
+            <strong
 
-            <small>
+              style={{
 
-              Envie a solicitação para a gestão. O pagamento será baixado
+                display: "block",
 
-              pelo sistema.
+                fontSize: 14,
+
+                marginBottom: 4,
+
+              }}
+
+            >
+
+              {meusSaquesPendentes.length > 0
+
+                ? "Saque já solicitado automaticamente"
+
+                : "Saque automático ativado"}
+
+            </strong>
+
+            <small
+
+              style={{
+
+                display: "block",
+
+                fontSize: 11,
+
+                lineHeight: 1.45,
+
+                color: "#60738e",
+
+              }}
+
+            >
+
+              Quando os pontos forem liberados, eles entram automaticamente
+
+              como pendentes. Não é necessário clicar para solicitar.
 
             </small>
 
           </div>
 
-          <ChevronRight size={17} />
+          <CheckCircle2 size={20} color="#159465" />
 
-        </button>
+        </div>
 
       </section>
 
@@ -2892,140 +3267,6 @@ const [abaAdmin, setAbaAdmin] = useState<
         </div>
 
       </section>
-
-      {modalSaque && (
-
-        <div
-
-          className="premio-v4-modal-bg"
-
-          onClick={() => setModalSaque(false)}
-
-        >
-
-          <form
-
-            className="premio-v4-modal"
-
-            onSubmit={enviarSaque}
-
-            onClick={(e) => e.stopPropagation()}
-
-          >
-
-            <div className="premio-v4-modal-head">
-
-              <div>
-
-                <span>SOLICITAR SAQUE</span>
-
-                <h3>Resgatar pontos</h3>
-
-                <p>
-
-                  1 ponto vale R$ 1,00. A solicitação aparecerá
-
-                  automaticamente para a gestão.
-
-                </p>
-
-              </div>
-
-              <button type="button" onClick={() => setModalSaque(false)}>
-
-                ×
-
-              </button>
-
-            </div>
-
-            <div className="premio-v4-modal-balance">
-
-              <span>Saldo disponível</span>
-
-              <strong>{pontos(saldoDisponivelSaque)} pts</strong>
-
-              <b>{moeda(saldoDisponivelSaque)}</b>
-
-            </div>
-
-            <label className="premio-v4-modal-field">
-
-              Quantos pontos deseja sacar?
-
-              <input
-
-                value={pontosSaque}
-
-                onChange={(e) => setPontosSaque(e.target.value)}
-
-                placeholder="Ex.: 500"
-
-              />
-
-            </label>
-
-            <label className="premio-v4-modal-field">
-
-              Chave PIX
-
-              {pixDaColaboradora(carteiraNome || nomeUsuario).tipo && (
-
-                <small>
-
-                  {pixDaColaboradora(carteiraNome || nomeUsuario).tipo}
-
-                </small>
-
-              )}
-
-              <input
-
-                value={chavePix}
-
-                onChange={(e) => setChavePix(e.target.value)}
-
-                readOnly={Boolean(pixDaColaboradora(carteiraNome || nomeUsuario).chave)}
-
-                placeholder="CPF, celular, e-mail ou chave aleatória"
-
-              />
-
-              {pixDaColaboradora(carteiraNome || nomeUsuario).chave && (
-
-                <small>PIX cadastrado pela gestão.</small>
-
-              )}
-
-            </label>
-
-            {erroModal && (
-
-              <div className="premio-v4-modal-error">{erroModal}</div>
-
-            )}
-
-            <div className="premio-v4-modal-actions">
-
-              <button type="button" onClick={() => setModalSaque(false)}>
-
-                Cancelar
-
-              </button>
-
-              <button type="submit" className="primary">
-
-                Enviar solicitação
-
-              </button>
-
-            </div>
-
-          </form>
-
-        </div>
-
-      )}
 
       <style jsx global>{`
         /* V8.5 — classes REAIS das abas Pontos Liberados / Solicitar Saque */
@@ -3182,5 +3423,3 @@ const [abaAdmin, setAbaAdmin] = useState<
   );
 
 }
-
-// FIM DO ARQUIVO COMPLETO - MinhaPremiacaoV2.tsx - TITULOS E VALOR V4

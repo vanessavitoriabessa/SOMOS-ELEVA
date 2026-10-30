@@ -564,6 +564,11 @@ export default function DashboardClient() {
   ] = useState("Todos");
 
   const [
+    vendedoraSelecionada,
+    setVendedoraSelecionada,
+  ] = useState("Todos");
+
+  const [
     busca,
     setBusca,
   ] = useState("");
@@ -726,6 +731,7 @@ export default function DashboardClient() {
       ) {
         setTimes([]);
         setTimeSelecionado("Todos");
+        setVendedoraSelecionada(perfilResolvido.nome || "Todos");
         return;
       }
 
@@ -854,6 +860,70 @@ export default function DashboardClient() {
     );
   }
 
+  const vendedorasDisponiveis = useMemo(() => {
+    if (ehConsultora) {
+      const propria = String(perfilAtual?.nome || "").trim();
+      return propria ? [propria] : [];
+    }
+
+    const mapa = new Map<string, string>();
+
+    const adicionar = (nome?: string | null) => {
+      const exibicao = String(nome || "").trim();
+      const chave = normalizarTexto(exibicao);
+
+      if (
+        chave &&
+        exibicao &&
+        chave !== "sem consultora" &&
+        !mapa.has(chave)
+      ) {
+        mapa.set(chave, exibicao);
+      }
+    };
+
+    propostas.forEach((proposta) => {
+      adicionar(nomeResponsavelCompra(proposta));
+    });
+
+    registrosClt.forEach((registro) => {
+      adicionar(nomeResponsavelClt(registro));
+    });
+
+    times
+      .filter((time) => time.ativo !== false)
+      .forEach((time) => {
+        (time.membros || []).forEach((membro) => {
+          if (perfilEhConsultora(membro.perfil || "")) {
+            adicionar(membro.nome);
+          }
+        });
+      });
+
+    return Array.from(mapa.values()).sort((a, b) =>
+      a.localeCompare(b, "pt-BR"),
+    );
+  }, [
+    propostas,
+    registrosClt,
+    times,
+    ehConsultora,
+    perfilAtual?.nome,
+  ]);
+
+  function pertenceAVendedora(
+    nome?: string | null,
+  ) {
+    if (vendedoraSelecionada === "Todos") {
+      return true;
+    }
+
+    return (
+      normalizarTexto(nome) ===
+      normalizarTexto(vendedoraSelecionada)
+    );
+  }
+
   const cancelamentosPeriodo = useMemo(() => {
     const nomeUsuarioNormalizado =
       normalizarTexto(perfilAtual?.nome);
@@ -866,6 +936,10 @@ export default function DashboardClient() {
       const nome = nomeResponsavelCompra(proposta);
 
       if (!pertenceAoTime(nome)) {
+        return;
+      }
+
+      if (!pertenceAVendedora(nome)) {
         return;
       }
 
@@ -906,6 +980,10 @@ export default function DashboardClient() {
       const nome = nomeResponsavelClt(registro);
 
       if (!pertenceAoTime(nome)) {
+        return;
+      }
+
+      if (!pertenceAVendedora(nome)) {
         return;
       }
 
@@ -957,6 +1035,7 @@ export default function DashboardClient() {
     dataFinal,
     timeSelecionado,
     nomesPermitidosTime,
+    vendedoraSelecionada,
   ]);
 
   const resultado =
@@ -973,6 +1052,16 @@ export default function DashboardClient() {
           (proposta) => {
             if (
               !pertenceAoTime(
+                nomeResponsavelCompra(
+                  proposta,
+                ),
+              )
+            ) {
+              return false;
+            }
+
+            if (
+              !pertenceAVendedora(
                 nomeResponsavelCompra(
                   proposta,
                 ),
@@ -1065,6 +1154,16 @@ export default function DashboardClient() {
           (registro) => {
             if (
               !pertenceAoTime(
+                nomeResponsavelClt(
+                  registro,
+                ),
+              )
+            ) {
+              return false;
+            }
+
+            if (
+              !pertenceAVendedora(
                 nomeResponsavelClt(
                   registro,
                 ),
@@ -1365,6 +1464,7 @@ export default function DashboardClient() {
       produto,
       timeSelecionado,
       nomesPermitidosTime,
+      vendedoraSelecionada,
     ]);
 
   // Produção gerencial: Compra de Dívida líquida + parcelas CLT.
@@ -1450,6 +1550,14 @@ export default function DashboardClient() {
       }
 
       if (
+        !pertenceAVendedora(
+          nomeResponsavelCompra(proposta),
+        )
+      ) {
+        return false;
+      }
+
+      if (
         nomeNormalizado &&
         normalizarTexto(
           nomeResponsavelCompra(proposta),
@@ -1518,6 +1626,14 @@ export default function DashboardClient() {
           nomeResponsavelClt(
             registro,
           ),
+        )
+      ) {
+        return false;
+      }
+
+      if (
+        !pertenceAVendedora(
+          nomeResponsavelClt(registro),
         )
       ) {
         return false;
@@ -1597,6 +1713,7 @@ export default function DashboardClient() {
     produto,
     timeSelecionado,
     nomesPermitidosTime,
+    vendedoraSelecionada,
   ]);
 
   const resumoDetalhe = useMemo(() => {
@@ -1715,7 +1832,7 @@ export default function DashboardClient() {
     const user=normalizarTexto(perfilAtual?.nome);
     const dentro=(d:Date|null)=>estaNoPeriodo(d,"Personalizado",periodoAnterior.inicio,periodoAnterior.fim);
     const compra=produto==="CLT"?[]:propostas.filter(p=>{
-      const nome=nomeResponsavelCompra(p); if(!pertenceAoTime(nome)||(ehConsultora&&normalizarTexto(nome)!==user)) return false;
+      const nome=nomeResponsavelCompra(p); if(!pertenceAoTime(nome)||!pertenceAVendedora(nome)||(ehConsultora&&normalizarTexto(nome)!==user)) return false;
       if(status==="Pagas") return propostaCompraPaga(p.status)&&dentro(dataCompra(p));
       if(status==="Digitadas") return !propostaCompraCancelada(p.status)&&dentro(dataCompra(p));
       if(status==="Canceladas") return propostaCompraCancelada(p.status)&&dentro(converterData(p.dataCadastro||p.dataPagamento));
@@ -1723,7 +1840,7 @@ export default function DashboardClient() {
       return dentro(dataCompra(p));
     });
     const clt=produto==="Compra de Dívida"?[]:registrosClt.filter(r=>{
-      const nome=nomeResponsavelClt(r); if(!pertenceAoTime(nome)||(ehConsultora&&normalizarTexto(nome)!==user)) return false;
+      const nome=nomeResponsavelClt(r); if(!pertenceAoTime(nome)||!pertenceAVendedora(nome)||(ehConsultora&&normalizarTexto(nome)!==user)) return false;
       if(status==="Pagas") return propostaCltPaga(r.status)&&dentro(converterData(r.dataPagamento));
       if(status==="Digitadas") return !propostaCltCancelada(r.status)&&dentro(converterData(r.criadoEm));
       if(status==="Canceladas") return propostaCltCancelada(r.status)&&dentro(converterData(r.atualizadoEm||r.criadoEm||r.dataPagamento));
@@ -1733,7 +1850,7 @@ export default function DashboardClient() {
     const cb=compra.reduce((s,p)=>s+Number(p.valorContrato||0),0), cl=compra.reduce((s,p)=>s+valorFinalCompra(p),0);
     const la=clt.reduce((s,r)=>s+Number(r.valorAprovado||0),0), lp=clt.reduce((s,r)=>s+Number(r.parcela||0),0);
     return {contratos:compra.length+clt.length,compraBruto:cb,compraLiquido:cl,cltLiberado:la,cltParcelas:lp,producaoTotal:cl+lp};
-  }, [periodoAnterior,propostas,registrosClt,produto,status,perfilAtual,ehConsultora,timeSelecionado,nomesPermitidosTime]);
+  }, [periodoAnterior,propostas,registrosClt,produto,status,perfilAtual,ehConsultora,timeSelecionado,nomesPermitidosTime,vendedoraSelecionada]);
 
   function tendencia(atual:number, anterior:number) {
     if(!periodoAnterior) return {texto:"— sem comparação",direcao:"neutra"};
@@ -1784,6 +1901,39 @@ export default function DashboardClient() {
 
   return (
     <div className="eleva-dashboard">
+      <style jsx global>{`
+        @media (min-width: 1381px) {
+          .eleva-dashboard .eleva-filter-area {
+            grid-template-columns:
+              minmax(320px, 1.3fr)
+              repeat(6, minmax(130px, 0.62fr)) !important;
+          }
+        }
+
+        @media (max-width: 1380px) {
+          .eleva-dashboard .eleva-filter-area {
+            grid-template-columns:
+              repeat(3, minmax(0, 1fr)) !important;
+          }
+
+          .eleva-dashboard .eleva-filter-group {
+            grid-column: 1 / -1;
+          }
+        }
+
+        @media (max-width: 850px) {
+          .eleva-dashboard .eleva-filter-area {
+            grid-template-columns:
+              repeat(2, minmax(0, 1fr)) !important;
+          }
+        }
+
+        @media (max-width: 580px) {
+          .eleva-dashboard .eleva-filter-area {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
       <section className="eleva-dashboard-title">
         <div>
           <span>
@@ -2063,6 +2213,37 @@ export default function DashboardClient() {
 
           <label>
             <span>
+              Vendedoras
+            </span>
+
+            <select
+              value={vendedoraSelecionada}
+              disabled={ehConsultora}
+              onChange={(event) =>
+                setVendedoraSelecionada(
+                  event.target.value,
+                )
+              }
+            >
+              <option value="Todos">
+                Todos
+              </option>
+
+              {vendedorasDisponiveis.map(
+                (vendedora) => (
+                  <option
+                    key={vendedora}
+                    value={vendedora}
+                  >
+                    {vendedora}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+
+          <label>
+            <span>
               Status
             </span>
 
@@ -2112,7 +2293,7 @@ export default function DashboardClient() {
                 ? produto === "CLT" ? "Mostra CLT efetivamente pago dentro das datas escolhidas." : "Na Compra de Dívida, mostra propostas digitadas dentro das datas escolhidas que estejam com status Pago."
                 : status === "Digitadas"
                   ? "Mostra o que foi digitado/cadastrado dentro das datas escolhidas, excluindo propostas canceladas ou recusadas."
-                  : "Altere Produto, Time e Situação para refinar a leitura do Dashboard."}
+                  : "Altere Produto, Time, Vendedoras e Situação para refinar a leitura do Dashboard."}
             </small>
           </div>
         </div>
