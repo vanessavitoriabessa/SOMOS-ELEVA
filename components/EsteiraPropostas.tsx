@@ -3425,223 +3425,251 @@ function preencherClienteNoFormulario(cliente: Cliente) {
         ) : propostasFiltradas.length === 0 ? (
           <div className="esteira-vazio">
             <strong>Nenhuma proposta encontrada</strong>
-            <span>
-              Cadastre uma proposta ou altere os filtros.
-            </span>
+            <span>Cadastre uma proposta ou altere os filtros.</span>
           </div>
         ) : (
-          <div
-            className="esteira-tabela-wrapper"
-            style={{
-              transform: "rotateX(180deg)",
-              overflowX: "auto",
-            }}
-          >
-            <table
-              className="esteira-tabela"
-              style={{
-                transform: "rotateX(180deg)",
-              }}
-            >
-              <thead>
-                <tr>
-                  <th>Nº</th>
-                  <th>CONSULTORA</th>
-                  <th>CLIENTE</th>
-                  <th>PRODUTO</th>
-                  <th>BANCO / TABELA / CONVÊNIO</th>
-                  <th>CÓDIGO</th>
-                  <th>VALOR</th>
-                  <th>VALOR FINAL</th>
-                  <th>% PRODUÇÃO</th>
-                  {podeVerComissaoBanco && <th>% COMISSÃO BANCO</th>}
-                  {podeVerComissaoEmpresa && <th>COMISSÃO EMPRESA</th>}
-                  <th>DATA / DIGITAÇÃO</th>
-                  <th>DATA PAGAMENTO CLIENTE</th>
-                  <th>STATUS</th>
-                  <th>AÇÕES</th>
-                </tr>
-              </thead>
+          <>
+            <div className="propostas-grid-cabecalho" aria-hidden="true">
+              <div>PROPOSTA / CLIENTE</div>
+              <div>OPERAÇÃO</div>
+              <div>VALORES</div>
+              <div>COMISSÕES</div>
+              <div>DATAS / STATUS</div>
+            </div>
 
-              <tbody>
-                {propostasFiltradas.map((proposta, indice) => {
-                  const calculoComissao = calcularComissaoDaProposta(
-                    proposta,
-                    tabelasConfiguradas,
-                  );
+            <div className="propostas-grid-lista">
+              {propostasFiltradas.map((proposta, indice) => {
+                const calculoComissao = calcularComissaoDaProposta(
+                  proposta,
+                  tabelasConfiguradas,
+                );
 
-                  return (
-                  <tr key={proposta.id}>
-                    <td>
-                      <strong>
-                        {proposta.numeroProposta || numeroProposta(proposta.id, indice)}
-                      </strong>
-                    </td>
+                const numeroExibicao =
+                  proposta.numeroProposta || numeroProposta(proposta.id, indice);
 
-                    <td>{proposta.vendedora || "—"}</td>
+                const percentualProducao = Number(
+                  calculoComissao.tabela?.percentual ??
+                    proposta.percentualTabela ??
+                    0,
+                );
 
-                    <td>
-                      <strong>{proposta.cliente}</strong>
-                      <small>{formatarCpf(proposta.cpf)}</small>
-                    </td>
+                const convenio =
+                  calculoComissao.tabela?.orgaoConvenio ||
+                  proposta.orgaoConvenio ||
+                  "Convênio não informado";
 
-                    <td>Compra de Dívida</td>
+                return (
+                  <article className="proposta-card-grid" key={proposta.id}>
+                    <div className="proposta-card-coluna">
+                      <div className="proposta-numero"># {numeroExibicao}</div>
+                      <div className="proposta-cliente-nome">
+                        {proposta.cliente || "Cliente não informado"}
+                      </div>
+                      <div className="proposta-cliente-cpf">
+                        {formatarCpf(proposta.cpf)}
+                      </div>
+                      <div className="proposta-consultora">
+                        <span aria-hidden="true">♙</span>
+                        <span>{proposta.vendedora || "—"}</span>
+                      </div>
+                    </div>
 
-                    <td>
-                      <strong>{proposta.banco || "—"}</strong>
-                      <small style={{ fontWeight: 400 }}>
-                        {proposta.tabela || "Tabela não informada"}
-                      </small>
-                      <small style={{ fontWeight: 400 }}>
-                        {calculoComissao.tabela?.orgaoConvenio ||
-                          "Convênio não informado"}
-                      </small>
-                    </td>
+                    <div className="proposta-card-coluna">
+                      <div className="proposta-operacao-layout">
+                        <div className="proposta-operacao-tipo">
+                          <span aria-hidden="true">◉</span>{" "}
+                          Compra de Dívida
+                        </div>
 
-                    <td>
-                      {calculoComissao.tabela?.codigo || "—"}
-                    </td>
+                        <div className="proposta-operacao-meta">
+                          <div>
+                            Banco: <strong>{proposta.banco || "—"}</strong>
+                          </div>
+                          <div>
+                            Tabela:{" "}
+                            <strong>
+                              {proposta.tabela || "Tabela não informada"}
+                            </strong>
+                          </div>
+                          <div>Convênio: {convenio}</div>
+                          <div>
+                            Código:{" "}
+                            <strong>
+                              {calculoComissao.tabela?.codigo || "—"}
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
-                    <td>{moeda(proposta.valorContrato)}</td>
+                    <div className="proposta-card-coluna">
+                      <div className="proposta-valores-layout">
+                        <div>
+                          <span className="proposta-valor-label">
+                            Valor bruto
+                          </span>
+                          <strong className="proposta-valor">
+                            {moeda(proposta.valorContrato)}
+                          </strong>
 
-                    <td>
-                      <strong className="valor-final">
-                        {moeda(proposta.valorMeta)}
-                      </strong>
-                    </td>
+                          <span className="proposta-valor-label">
+                            Valor final
+                          </span>
+                          <strong className="proposta-valor proposta-valor-final">
+                            {moeda(proposta.valorMeta)}
+                          </strong>
+                        </div>
 
-                    <td>
-                      <strong>
-                        {`${String(
-                          Number(
-                            calculoComissao.tabela?.percentual ??
-                              proposta.percentualTabela ??
-                              0,
-                          ),
-                        ).replace(".", ",")}%`}
-                      </strong>
-                    </td>
+                        <div className="proposta-producao">
+                          <div
+                            className="proposta-producao-icone"
+                            aria-hidden="true"
+                          >
+                            ▥
+                          </div>
+                          <span>Produção</span>
+                          <strong>
+                            {`${String(percentualProducao).replace(".", ",")}%`}
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
 
-                    {podeVerComissaoBanco && (
-                      <td>
-                        <strong>
-                          {calculoComissao.percentual > 0
-                            ? `${String(calculoComissao.percentual).replace(".", ",")}%`
-                            : "—"}
-                        </strong>
-                      </td>
-                    )}
-
-                    {podeVerComissaoEmpresa && (
-                      <td>
-                        <strong
-                          style={{
-                            color:
-                              calculoComissao.valor > 0
-                                ? "#155eef"
-                                : "#b42318",
-                          }}
+                    <div className="proposta-card-coluna">
+                      <div className="proposta-comissoes-layout">
+                        <div
+                          className="proposta-comissao-icone"
+                          aria-hidden="true"
                         >
-                          {calculoComissao.valor > 0
-                            ? moeda(calculoComissao.valor)
-                            : "—"}
-                        </strong>
-                      </td>
-                    )}
+                          %
+                        </div>
 
-                    <td>
-                      <strong>
-                        {dataBR(proposta.dataCadastro)}
-                      </strong>
-                    </td>
+                        <div>
+                          {podeVerComissaoBanco && (
+                            <>
+                              <span>Banco</span>
+                              <strong>
+                                {calculoComissao.percentual > 0
+                                  ? `${String(
+                                      calculoComissao.percentual,
+                                    ).replace(".", ",")}%`
+                                  : "—"}
+                              </strong>
+                            </>
+                          )}
 
-                    <td>
-                      <strong>
-                        {dataBR(proposta.dataPagamento)}
-                      </strong>
-                    </td>
+                          {podeVerComissaoEmpresa && (
+                            <>
+                              <span>Empresa</span>
+                              <strong className="comissao-empresa">
+                                {calculoComissao.valor > 0
+                                  ? moeda(calculoComissao.valor)
+                                  : "—"}
+                              </strong>
+                            </>
+                          )}
 
-                    <td>
-                      <span
-                        className={`esteira-status status-${classeStatus(
-                          proposta.status
-                        )}`}
-                      >
-                        {proposta.status}
-                      </span>
-                    </td>
+                          {!podeVerComissaoBanco &&
+                            !podeVerComissaoEmpresa && (
+                              <strong>—</strong>
+                            )}
+                        </div>
+                      </div>
+                    </div>
 
-                    <td>
-                      <div className="esteira-acoes">
-                        <button
-                          type="button"
-                          title="Visualizar"
-                          onClick={() => setSelecionada(proposta)}
-                        >
-                          ◉
-                        </button>
+                    <div className="proposta-card-coluna">
+                      <div className="proposta-data-status-layout">
+                        <div className="proposta-datas">
+                          <span>Digitação</span>
+                          <strong>{dataBR(proposta.dataCadastro)}</strong>
 
-                        {podeEditarProposta(proposta) && (
+                          <span>Pagamento</span>
+                          <strong>{dataBR(proposta.dataPagamento)}</strong>
+                        </div>
+
+                        <div className="proposta-status-acoes">
+                          <span
+                            className={`proposta-status-pill status-${classeStatus(
+                              proposta.status,
+                            )}`}
+                            title={proposta.status}
+                          >
+                            {proposta.status}
+                          </span>
+
                           <button
                             type="button"
-                            title={
-                              podeEditarTodasPropostas
-                                ? "Editar proposta"
-                                : "Editar minha proposta"
-                            }
-                            onClick={() => abrirEdicaoProposta(proposta)}
+                            className="proposta-menu-acoes"
+                            title="Visualizar proposta"
+                            aria-label={`Visualizar proposta de ${proposta.cliente}`}
+                            onClick={() => setSelecionada(proposta)}
                           >
-                            ✎
+                            ⋮
                           </button>
-                        )}
+                        </div>
 
-                        {podeCancelarProposta &&
-                          proposta.status !== "CANCELADA" && (
+                        <div className="proposta-card-acoes">
+                          <button
+                            type="button"
+                            title="Visualizar"
+                            onClick={() => setSelecionada(proposta)}
+                          >
+                            ◉
+                          </button>
+
+                          {podeEditarProposta(proposta) && (
                             <button
                               type="button"
-                              title="Cancelar proposta"
-                              aria-label={`Cancelar proposta de ${proposta.cliente}`}
-                              onClick={() => {
-                                abrirEdicaoProposta(proposta);
-                                setMensagem("");
-                                setMotivoCancelamento(
-                                  proposta.motivoCancelamento || "",
-                                );
-                                setModalAberto(false);
-                                setModalCancelamentoAberto(true);
-                              }}
-                              style={{
-                                color: "#b42318",
-                                borderColor: "#f0b4ae",
-                                background: "#fff5f4",
-                              }}
+                              title={
+                                podeEditarTodasPropostas
+                                  ? "Editar proposta"
+                                  : "Editar minha proposta"
+                              }
+                              onClick={() => abrirEdicaoProposta(proposta)}
                             >
-                              ⊘
+                              ✎
                             </button>
                           )}
 
-                        <button
-  type="button"
-  title="Excluir proposta"
-  aria-label={`Excluir proposta de ${proposta.cliente}`}
-  disabled={salvando}
-  onClick={() => void excluirProposta(proposta)}
-  style={{
-    color: "#b42318",
-    borderColor: "#f0b4ae",
-    background: "#fff5f4",
-  }}
->
-  🗑
-</button>
+                          {podeCancelarProposta &&
+                            proposta.status !== "CANCELADA" && (
+                              <button
+                                type="button"
+                                className="acao-perigo"
+                                title="Cancelar proposta"
+                                aria-label={`Cancelar proposta de ${proposta.cliente}`}
+                                onClick={() => {
+                                  abrirEdicaoProposta(proposta);
+                                  setMensagem("");
+                                  setMotivoCancelamento(
+                                    proposta.motivoCancelamento || "",
+                                  );
+                                  setModalAberto(false);
+                                  setModalCancelamentoAberto(true);
+                                }}
+                              >
+                                ⊘
+                              </button>
+                            )}
+
+                          <button
+                            type="button"
+                            className="acao-perigo"
+                            title="Excluir proposta"
+                            aria-label={`Excluir proposta de ${proposta.cliente}`}
+                            disabled={salvando}
+                            onClick={() => void excluirProposta(proposta)}
+                          >
+                            🗑
+                          </button>
+                        </div>
                       </div>
-                    </td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </>
         )}
       </section>
 

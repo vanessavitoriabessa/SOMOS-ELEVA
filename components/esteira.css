@@ -1,1656 +1,4053 @@
 .esteira-profissional {
+
   width: 100%;
+
   min-width: 0;
+
   color: #12284b;
+
 }
+
+
 
 /* INDICADORES */
 
+
+
 .esteira-stats {
+
   display: grid;
+
   grid-template-columns: repeat(6, minmax(0, 1fr));
+
   gap: 14px;
+
   margin-bottom: 18px;
+
 }
+
+
 
 .esteira-stats article {
+
   display: flex;
+
   min-height: 100px;
+
   flex-direction: column;
+
   justify-content: center;
+
   padding: 18px;
+
   border: 1px solid #dfe6f1;
+
   border-radius: 16px;
+
   background: #ffffff;
+
   box-shadow: 0 8px 24px rgba(16, 47, 78, 0.04);
+
 }
 
+
+
 .esteira-stats article span {
+
   margin-bottom: 9px;
+
   color: #667085;
+
+  font-size: 11px;
+
+  font-weight: 600;
+
+}
+
+
+
+.esteira-stats article strong {
+
+  color: #102f4e;
+
+  font-size: 23px;
+
+  line-height: 1;
+
+}
+
+
+
+.esteira-stats article.destaque {
+
+  border-color: #b9ccff;
+
+  background: #f7f9ff;
+
+}
+
+
+
+.esteira-stats article.destaque strong {
+
+  color: #2457f5;
+
+}
+
+
+
+/* CABEÇALHO E FILTROS */
+
+
+
+.esteira-toolbar {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 22px;
+
+  margin-bottom: 18px;
+
+  padding: 20px;
+
+  border: 1px solid #dfe6f1;
+
+  border-radius: 16px;
+
+  background: #ffffff;
+
+}
+
+
+
+.esteira-toolbar-title {
+
+  flex-shrink: 0;
+
+}
+
+
+
+.esteira-toolbar-title span {
+
+  display: block;
+
+  margin-bottom: 6px;
+
+  color: #2457f5;
+
+  font-size: 10px;
+
+  font-weight: 800;
+
+  letter-spacing: 1.3px;
+
+}
+
+
+
+.esteira-toolbar-title h2 {
+
+  margin: 0;
+
+  color: #102f4e;
+
+  font-size: 21px;
+
+}
+
+
+
+.esteira-filtros {
+
+  display: flex;
+
+  flex: 1;
+
+  align-items: center;
+
+  justify-content: flex-end;
+
+  gap: 8px;
+
+  min-width: 0;
+
+}
+
+
+
+.esteira-filtros input,
+
+.esteira-filtros select {
+
+  height: 42px;
+
+  border: 1px solid #d8e1ee;
+
+  border-radius: 10px;
+
+  background: #ffffff;
+
+  color: #23395d;
+
+  font: inherit;
+
+  font-size: 12px;
+
+  outline: none;
+
+}
+
+
+
+.esteira-filtros input {
+
+  padding: 0 12px;
+
+}
+
+
+
+.esteira-filtros input:first-child {
+
+  width: 260px;
+
+  min-width: 190px;
+
+}
+
+
+
+.esteira-filtros input[type="date"] {
+
+  width: 145px;
+
+}
+
+
+
+.esteira-filtros select {
+
+  width: 170px;
+
+  padding: 0 10px;
+
+}
+
+
+
+.esteira-filtros input:focus,
+
+.esteira-filtros select:focus {
+
+  border-color: #3568f5;
+
+  box-shadow: 0 0 0 3px rgba(53, 104, 245, 0.1);
+
+}
+
+
+
+.botao-principal,
+
+.botao-secundario {
+
+  min-height: 42px;
+
+  padding: 0 15px;
+
+  border-radius: 10px;
+
+  font-size: 12px;
+
+  font-weight: 700;
+
+  white-space: nowrap;
+
+  cursor: pointer;
+
+}
+
+
+
+.botao-principal {
+
+  border: 1px solid #2457f5;
+
+  background: #2457f5;
+
+  color: #ffffff;
+
+}
+
+
+
+.botao-principal:hover {
+
+  background: #1747d8;
+
+}
+
+
+
+.botao-secundario {
+
+  border: 1px solid #cfd9e8;
+
+  background: #ffffff;
+
+  color: #18375a;
+
+}
+
+
+
+.botao-secundario:hover {
+
+  background: #f5f8fd;
+
+}
+
+
+
+.botao-principal:disabled,
+
+.botao-secundario:disabled {
+
+  cursor: not-allowed;
+
+  opacity: 0.6;
+
+}
+
+
+
+/* MENSAGEM */
+
+
+
+.esteira-mensagem {
+
+  margin-bottom: 14px;
+
+  padding: 12px 14px;
+
+  border: 1px solid #f6c989;
+
+  border-radius: 10px;
+
+  background: #fff8ed;
+
+  color: #9a5300;
+
+  font-size: 13px;
+
+}
+
+
+
+/* TABELA */
+
+
+
+.esteira-tabela-card {
+
+  overflow: hidden;
+
+  border: 1px solid #dfe6f1;
+
+  border-radius: 16px;
+
+  background: #ffffff;
+
+}
+
+
+
+.esteira-tabela-wrapper {
+
+  width: 100%;
+
+  overflow-x: auto;
+
+}
+
+
+
+.esteira-tabela {
+
+  width: 100%;
+
+  min-width: 1250px;
+
+  border-collapse: collapse;
+
+}
+
+
+
+.esteira-tabela thead {
+
+  background: #f8fafc;
+
+}
+
+
+
+.esteira-tabela th {
+
+  padding: 14px 13px;
+
+  border-bottom: 1px solid #dfe6f1;
+
+  color: #7a89a2;
+
+  font-size: 10px;
+
+  font-weight: 800;
+
+  text-align: left;
+
+  text-transform: uppercase;
+
+  white-space: nowrap;
+
+}
+
+
+
+.esteira-tabela td {
+
+  padding: 13px;
+
+  border-bottom: 1px solid #e8edf4;
+
+  color: #243b5a;
+
+  font-size: 12px;
+
+  vertical-align: middle;
+
+}
+
+
+
+.esteira-tabela tbody tr {
+
+  transition: background 0.15s;
+
+}
+
+
+
+.esteira-tabela tbody tr:hover {
+
+  background: #f7faff;
+
+}
+
+
+
+.esteira-tabela td strong,
+
+.esteira-tabela td small {
+
+  display: block;
+
+}
+
+
+
+.esteira-tabela td small {
+
+  margin-top: 4px;
+
+  color: #8c9ab0;
+
+  font-size: 10px;
+
+}
+
+
+
+.valor-final {
+
+  color: #08a66c;
+
+  white-space: nowrap;
+
+}
+
+
+
+.esteira-acoes {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 6px;
+
+}
+
+
+
+.esteira-acoes button {
+
+  display: inline-flex;
+
+  width: 31px;
+
+  height: 31px;
+
+  align-items: center;
+
+  justify-content: center;
+
+  border: 1px solid #dbe4ef;
+
+  border-radius: 8px;
+
+  background: #ffffff;
+
+  color: #37516f;
+
+  cursor: pointer;
+
+}
+
+
+
+.esteira-acoes button:hover {
+
+  border-color: #aac0f7;
+
+  background: #eef4ff;
+
+  color: #2457f5;
+
+}
+
+
+
+/* STATUS */
+
+
+
+.esteira-status {
+
+  display: inline-flex;
+
+  min-height: 25px;
+
+  align-items: center;
+
+  justify-content: center;
+
+  padding: 4px 10px;
+
+  border-radius: 999px;
+
+  font-size: 10px;
+
+  font-weight: 700;
+
+  white-space: nowrap;
+
+}
+
+
+
+.status-pago {
+
+  background: #dcf8ea;
+
+  color: #07804f;
+
+}
+
+
+
+.status-cancelado {
+
+  background: #fee7e7;
+
+  color: #c53030;
+
+}
+
+
+
+.status-aguardando-boleto {
+
+  background: #fff3d7;
+
+  color: #c27803;
+
+}
+
+
+
+.status-solicitado,
+
+.status-em-andamento,
+
+.status-enviado-ao-banco {
+
+  background: #e7efff;
+
+  color: #2457f5;
+
+}
+
+
+
+.status-nota-promissoria,
+
+.status-ag.-liberacao-de-margem,
+
+.status-ag.-fazer-anuencia {
+
+  background: #f0ecff;
+
+  color: #7047d7;
+
+}
+
+
+
+/* ESTADO VAZIO */
+
+
+
+.esteira-vazio {
+
+  display: flex;
+
+  min-height: 300px;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: center;
+
+  gap: 7px;
+
+  padding: 40px;
+
+  color: #72819a;
+
+  text-align: center;
+
+}
+
+
+
+.esteira-vazio::before {
+
+  content: "▤";
+
+  display: flex;
+
+  width: 48px;
+
+  height: 48px;
+
+  align-items: center;
+
+  justify-content: center;
+
+  margin-bottom: 5px;
+
+  border-radius: 14px;
+
+  background: #edf3ff;
+
+  color: #2457f5;
+
+  font-size: 22px;
+
+}
+
+
+
+.esteira-vazio strong {
+
+  color: #152b4c;
+
+  font-size: 15px;
+
+}
+
+
+
+.esteira-vazio span {
+
+  font-size: 12px;
+
+}
+
+
+
+/* SOBREPOSIÇÃO */
+
+
+
+.esteira-overlay {
+
+  position: fixed;
+
+  inset: 0;
+
+  z-index: 500;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  padding: 24px;
+
+  background: rgba(9, 23, 43, 0.48);
+
+  backdrop-filter: blur(2px);
+
+}
+
+
+
+/* PAINEL LATERAL */
+
+
+
+.esteira-drawer {
+
+  position: fixed;
+
+  top: 0;
+
+  right: 0;
+
+  bottom: 0;
+
+  width: min(480px, 94vw);
+
+  overflow-y: auto;
+
+  padding: 25px;
+
+  background: #ffffff;
+
+  box-shadow: -16px 0 40px rgba(10, 31, 57, 0.16);
+
+}
+
+
+
+.esteira-drawer header,
+
+.nova-proposta-modal header {
+
+  display: flex;
+
+  align-items: flex-start;
+
+  justify-content: space-between;
+
+  gap: 15px;
+
+  padding-bottom: 18px;
+
+  border-bottom: 1px solid #e4eaf2;
+
+}
+
+
+
+.esteira-drawer header span,
+
+.nova-proposta-modal header span {
+
+  color: #2457f5;
+
+  font-size: 10px;
+
+  font-weight: 800;
+
+  letter-spacing: 1.2px;
+
+}
+
+
+
+.esteira-drawer header h2,
+
+.nova-proposta-modal header h2 {
+
+  margin: 5px 0 3px;
+
+  color: #102f4e;
+
+  font-size: 22px;
+
+}
+
+
+
+.esteira-drawer header p {
+
+  margin: 0;
+
+  color: #72819a;
+
+  font-size: 12px;
+
+}
+
+
+
+.esteira-drawer header button,
+
+.nova-proposta-modal header button {
+
+  display: inline-flex;
+
+  width: 36px;
+
+  height: 36px;
+
+  align-items: center;
+
+  justify-content: center;
+
+  border: 1px solid #dce4ee;
+
+  border-radius: 9px;
+
+  background: #ffffff;
+
+  color: #52657f;
+
+  font-size: 21px;
+
+  cursor: pointer;
+
+}
+
+
+
+.drawer-grid {
+
+  display: grid;
+
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  gap: 12px;
+
+  margin: 20px 0;
+
+}
+
+
+
+.drawer-grid div {
+
+  padding: 14px;
+
+  border: 1px solid #e1e7f0;
+
+  border-radius: 11px;
+
+  background: #f9fbfe;
+
+}
+
+
+
+.drawer-grid span {
+
+  display: block;
+
+  margin-bottom: 6px;
+
+  color: #7d8da6;
+
+  font-size: 10px;
+
+  text-transform: uppercase;
+
+}
+
+
+
+.drawer-grid strong {
+
+  color: #18375a;
+
+  font-size: 13px;
+
+}
+
+
+
+.esteira-drawer label,
+
+.nova-proposta-modal label {
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 7px;
+
+  color: #193555;
+
+  font-size: 11px;
+
+  font-weight: 700;
+
+  text-transform: uppercase;
+
+}
+
+
+
+.esteira-drawer textarea,
+
+.nova-proposta-modal input,
+
+.nova-proposta-modal select,
+
+.nova-proposta-modal textarea {
+
+  width: 100%;
+
+  border: 1px solid #d8e1ee;
+
+  border-radius: 10px;
+
+  background: #ffffff;
+
+  color: #243b5a;
+
+  font: inherit;
+
+  font-size: 13px;
+
+  outline: none;
+
+  text-transform: none;
+
+}
+
+
+
+.esteira-drawer textarea,
+
+.nova-proposta-modal textarea {
+
+  min-height: 100px;
+
+  padding: 12px;
+
+  resize: vertical;
+
+}
+
+
+
+/* MODAL */
+
+
+
+.nova-proposta-modal {
+
+  width: min(820px, 96vw);
+
+  max-height: 92vh;
+
+  overflow-y: auto;
+
+  padding: 24px;
+
+  border-radius: 18px;
+
+  background: #ffffff;
+
+  box-shadow: 0 24px 70px rgba(9, 30, 57, 0.24);
+
+}
+
+
+
+.nova-proposta-modal form {
+
+  margin-top: 20px;
+
+}
+
+
+
+.modal-form-grid {
+
+  display: grid;
+
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  gap: 16px;
+
+}
+
+
+
+.nova-proposta-modal input,
+
+.nova-proposta-modal select {
+
+  height: 44px;
+
+  padding: 0 12px;
+
+}
+
+
+
+.observacao-modal {
+
+  margin-top: 16px;
+
+}
+
+
+
+.valor-meta-modal {
+
+  display: flex;
+
+  min-height: 70px;
+
+  flex-direction: column;
+
+  justify-content: center;
+
+  padding: 12px 15px;
+
+  border: 1px solid #ffca98;
+
+  border-radius: 11px;
+
+  background: #fff8f1;
+
+}
+
+
+
+.valor-meta-modal span {
+
+  margin-bottom: 5px;
+
+  color: #a95b12;
+
+  font-size: 10px;
+
+  font-weight: 700;
+
+  text-transform: uppercase;
+
+}
+
+
+
+.valor-meta-modal strong {
+
+  color: #e85b00;
+
+  font-size: 20px;
+
+}
+
+
+
+.nova-proposta-modal footer {
+
+  display: flex;
+
+  justify-content: flex-end;
+
+  gap: 10px;
+
+  margin-top: 20px;
+
+  padding-top: 18px;
+
+  border-top: 1px solid #e5eaf1;
+
+}
+
+
+
+/* RESPONSIVO */
+
+
+
+@media (max-width: 1250px) {
+
+  .esteira-stats {
+
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+
+  }
+
+
+
+  .esteira-toolbar {
+
+    align-items: flex-start;
+
+    flex-direction: column;
+
+  }
+
+
+
+  .esteira-filtros {
+
+    width: 100%;
+
+    flex-wrap: wrap;
+
+    justify-content: flex-start;
+
+  }
+
+}
+
+
+
+@media (max-width: 760px) {
+
+  .esteira-stats {
+
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  }
+
+
+
+  .esteira-filtros input:first-child,
+
+  .esteira-filtros input[type="date"],
+
+  .esteira-filtros select {
+
+    width: 100%;
+
+  }
+
+
+
+  .modal-form-grid,
+
+  .drawer-grid {
+
+    grid-template-columns: 1fr;
+
+  }
+
+}
+
+.esteira-toolbar {
+
+  align-items: flex-end;
+
+  flex-wrap: wrap;
+
+}
+
+
+
+.esteira-toolbar-title {
+
+  flex: 1 1 300px;
+
+  min-width: 300px;
+
+}
+
+
+
+.esteira-toolbar-title h2 {
+
+  width: auto;
+
+  max-width: none;
+
+  white-space: nowrap;
+
+  overflow: visible;
+
+}
+
+
+
+.esteira-filtros {
+
+  flex: 2 1 680px;
+
+  flex-wrap: wrap;
+
+}
+
+
+
+@media (max-width: 1100px) {
+
+  .esteira-toolbar-title {
+
+    min-width: 100%;
+
+  }
+
+
+
+  .esteira-toolbar-title h2 {
+
+    white-space: normal;
+
+  }
+
+
+
+  .esteira-filtros {
+
+    width: 100%;
+
+  }
+
+}
+
+.esteira-toolbar {
+
+  align-items: flex-start;
+
+  flex-wrap: wrap;
+
+}
+
+
+
+.esteira-toolbar-title {
+
+  flex: 1 1 320px;
+
+  min-width: 320px;
+
+}
+
+
+
+.esteira-toolbar-title h2 {
+
+  width: 100%;
+
+  margin: 0;
+
+  white-space: normal;
+
+  overflow: visible;
+
+}
+
+
+
+.esteira-filtros {
+
+  flex: 2 1 700px;
+
+  flex-wrap: wrap;
+
+  justify-content: flex-end;
+
+}
+
+
+
+@media (max-width: 1200px) {
+
+  .esteira-toolbar-title {
+
+    flex-basis: 100%;
+
+    min-width: 100%;
+
+  }
+
+
+
+  .esteira-filtros {
+
+    width: 100%;
+
+    justify-content: flex-start;
+
+  }
+
+}
+
+/* NOVO LAYOUT — MODAL DE PROPOSTA */
+
+
+
+.nova-proposta-modal {
+
+  width: min(1180px, 96vw);
+
+  max-height: 94vh;
+
+  padding: 28px;
+
+}
+
+
+
+.nova-proposta-modal form {
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 18px;
+
+  margin-top: 20px;
+
+}
+
+
+
+.secao-modal {
+
+  padding: 20px;
+
+  border: 1px solid #dfe6f1;
+
+  border-radius: 14px;
+
+  background: #ffffff;
+
+}
+
+
+
+.secao-modal-titulo {
+
+  margin-bottom: 18px;
+
+}
+
+
+
+.secao-modal-titulo span {
+
+  display: block;
+
+  margin-bottom: 4px;
+
+  color: #17375e;
+
+  font-size: 14px;
+
+  font-weight: 800;
+
+  letter-spacing: 0;
+
+}
+
+
+
+.secao-modal-titulo p {
+
+  margin: 0;
+
+  color: #6f7f96;
+
+  font-size: 12px;
+
+}
+
+
+
+.secao-modal .modal-form-grid {
+
+  display: grid;
+
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  gap: 16px;
+
+}
+
+
+
+.cliente-pesquisa-modal {
+
+  max-width: 420px;
+
+}
+
+
+
+.cliente-nao-encontrado-modal {
+
+  padding: 12px 14px;
+
+  border: 1px solid #f0c98d;
+
+  border-radius: 10px;
+
+  background: #fff8ed;
+
+  color: #9a5300;
+
+  font-size: 12px;
+
+}
+
+
+
+.nova-proposta-modal footer {
+
+  position: sticky;
+
+  bottom: -28px;
+
+  z-index: 5;
+
+  margin: 0 -28px -28px;
+
+  padding: 18px 28px;
+
+  border-top: 1px solid #e5eaf1;
+
+  background: #ffffff;
+
+}
+
+
+
+@media (max-width: 900px) {
+
+  .nova-proposta-modal {
+
+    width: min(760px, 96vw);
+
+    padding: 20px;
+
+  }
+
+
+
+  .secao-modal .modal-form-grid {
+
+    grid-template-columns: 1fr;
+
+  }
+
+
+
+  .nova-proposta-modal footer {
+
+    bottom: -20px;
+
+    margin: 0 -20px -20px;
+
+    padding: 16px 20px;
+
+  }
+
+}
+
+/* Corrige a grade externa que envolve todo o formulário */
+
+.nova-proposta-modal form > .modal-form-grid {
+
+  display: contents;
+
+}
+
+.busca-cliente-topo {
+
+  display: grid;
+
+  grid-template-columns: minmax(280px, 1.2fr) 170px minmax(300px, 1fr);
+
+  align-items: end;
+
+  gap: 16px;
+
+}
+
+
+
+.cliente-pesquisa-modal {
+
+  max-width: none;
+
+}
+
+
+
+.botao-buscar-cliente {
+
+  height: 44px;
+
+  padding: 0 18px;
+
+  border: 1px solid #2457f5;
+
+  border-radius: 10px;
+
+  background: #ffffff;
+
+  color: #2457f5;
+
+  font-size: 12px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+
+}
+
+
+
+.botao-buscar-cliente:hover {
+
+  background: #f3f6ff;
+
+}
+
+
+
+.aviso-cliente-cadastrado {
+
+  display: flex;
+
+  min-height: 44px;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding: 10px 14px;
+
+  border: 1px solid #b9ccff;
+
+  border-radius: 10px;
+
+  background: #f7f9ff;
+
+  color: #294568;
+
+  font-size: 12px;
+
+  line-height: 1.4;
+
+}
+
+
+
+.aviso-cliente-cadastrado strong {
+
+  color: #2457f5;
+
+  font-size: 18px;
+
+}
+
+
+
+@media (max-width: 900px) {
+
+  .busca-cliente-topo {
+
+    grid-template-columns: 1fr;
+
+  }
+
+}
+
+.secao-documentos {
+
+  margin-top: 22px;
+
+  padding-top: 22px;
+
+  border-top: 1px solid #e5e7eb;
+
+}
+
+
+
+.documentos-grid {
+
+  display: grid;
+
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  gap: 16px;
+
+  margin-top: 16px;
+
+}
+
+
+
+.documento-upload {
+
+  min-height: 145px;
+
+  padding: 18px;
+
+  border: 1px dashed #cbd5e1;
+
+  border-radius: 14px;
+
+  background: #f8fafc;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: center;
+
+  gap: 6px;
+
+  text-align: center;
+
+  cursor: pointer;
+
+  transition:
+
+    border-color 0.2s ease,
+
+    background 0.2s ease,
+
+    transform 0.2s ease;
+
+}
+
+
+
+.documento-upload:hover {
+
+  border-color: #2563eb;
+
+  background: #eff6ff;
+
+  transform: translateY(-1px);
+
+}
+
+
+
+.documento-upload input {
+
+  display: none;
+
+}
+
+
+
+.documento-upload span {
+
+  font-size: 13px;
+
+  font-weight: 700;
+
+  color: #334155;
+
+  text-transform: uppercase;
+
+}
+
+
+
+.documento-upload strong {
+
+  font-size: 14px;
+
+  color: #2563eb;
+
+}
+
+
+
+.documento-upload small {
+
+  font-size: 12px;
+
+  color: #64748b;
+
+}
+
+
+
+@media (max-width: 720px) {
+
+  .documentos-grid {
+
+    grid-template-columns: 1fr;
+
+  }
+
+}
+
+
+
+/* ===== CONTRACHEQUE COM MÚLTIPLOS ARQUIVOS ===== */
+
+.documento-upload-multiplo{
+
+  cursor:default;
+
+}
+
+
+
+.documento-upload-seletor{
+
+  width:100%;
+
+  min-height:86px;
+
+  display:flex;
+
+  flex-direction:column;
+
+  align-items:center;
+
+  justify-content:center;
+
+  gap:5px;
+
+  cursor:pointer;
+
+}
+
+
+
+.documento-upload-seletor input{
+
+  display:none;
+
+}
+
+
+
+.contracheques-selecionados{
+
+  width:100%;
+
+  margin-top:12px;
+
+  display:flex;
+
+  flex-direction:column;
+
+  gap:7px;
+
+}
+
+
+
+.contracheque-item{
+
+  width:100%;
+
+  display:flex;
+
+  align-items:center;
+
+  justify-content:space-between;
+
+  gap:10px;
+
+  padding:8px 10px;
+
+  border:1px solid #d8e3f5;
+
+  border-radius:9px;
+
+  background:#fff;
+
+}
+
+
+
+.contracheque-item span{
+
+  min-width:0;
+
+  overflow:hidden;
+
+  text-overflow:ellipsis;
+
+  white-space:nowrap;
+
+  font-size:12px;
+
+  font-weight:700;
+
+  color:#17345f;
+
+}
+
+
+
+.contracheque-item button{
+
+  flex:0 0 auto;
+
+  width:28px;
+
+  height:28px;
+
+  border:1px solid #ffd0cc;
+
+  border-radius:7px;
+
+  background:#fff5f4;
+
+  color:#d92d20;
+
+  font-size:18px;
+
+  font-weight:800;
+
+  cursor:pointer;
+
+}
+
+
+
+
+
+/* ============================================================
+
+   NOVA PROPOSTA — WIZARD LIMPO E ISOLADO
+
+   Estrutura: cabeçalho + etapas + conteúdo rolável + rodapé.
+
+   ============================================================ */
+
+
+
+.esteira-profissional .nova-proposta-modal{
+
+  width:min(1380px,96vw)!important;
+
+  max-width:1380px!important;
+
+  height:auto!important;
+
+  min-height:0!important;
+
+  max-height:94vh!important;
+
+  padding:0!important;
+
+  display:flex!important;
+
+  flex-direction:column!important;
+
+  overflow:hidden!important;
+
+  border-radius:20px!important;
+
+  background:#fff!important;
+
+  box-shadow:0 24px 70px rgba(9,30,57,.24)!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal > header{
+
+  flex:0 0 auto!important;
+
+  width:100%!important;
+
+  box-sizing:border-box!important;
+
+  padding:20px 28px 18px!important;
+
+  border-bottom:1px solid #e4eaf2!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard{
+
+  flex:0 0 auto!important;
+
+  width:100%!important;
+
+  box-sizing:border-box!important;
+
+  display:grid!important;
+
+  grid-template-columns:repeat(5,minmax(0,1fr))!important;
+
+  gap:12px!important;
+
+  padding:12px 28px!important;
+
+  border-bottom:1px solid #e5edf7!important;
+
+  background:#fbfdff!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-step{
+
+  width:100%!important;
+
+  min-width:0!important;
+
+  min-height:48px!important;
+
+  display:flex!important;
+
+  align-items:center!important;
+
+  justify-content:flex-start!important;
+
+  gap:9px!important;
+
+  padding:8px 12px!important;
+
+  border:0!important;
+
+  border-radius:12px!important;
+
+  background:transparent!important;
+
+  color:#71819a!important;
+
+  font-size:13px!important;
+
+  font-weight:800!important;
+
+  cursor:pointer!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-step b{
+
+  width:30px!important;
+
+  height:30px!important;
+
+  flex:0 0 30px!important;
+
+  display:grid!important;
+
+  place-items:center!important;
+
+  border:1px solid #cbd9ec!important;
+
+  border-radius:50%!important;
+
+  background:#fff!important;
+
+  color:#5f7492!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-step.active{
+
+  background:#eaf2ff!important;
+
+  color:#155eef!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-step.active b{
+
+  border-color:#2468f2!important;
+
+  background:#2468f2!important;
+
+  color:#fff!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-step.done{
+
+  color:#168452!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-step.done b{
+
+  border-color:#a9e4c5!important;
+
+  background:#eafaf2!important;
+
+  color:#168452!important;
+
+}
+
+
+
+/* O form não ocupa artificialmente toda a altura da tela. */
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-form{
+
+  flex:0 1 auto!important;
+
+  width:100%!important;
+
+  min-height:0!important;
+
+  max-height:calc(94vh - 145px)!important;
+
+  margin:0!important;
+
+  padding:0!important;
+
+  display:flex!important;
+
+  flex-direction:column!important;
+
+  overflow:hidden!important;
+
+  gap:0!important;
+
+}
+
+
+
+/* Somente o miolo rola. */
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-scroll{
+
+  flex:0 1 auto!important;
+
+  width:100%!important;
+
+  min-height:0!important;
+
+  max-height:calc(94vh - 225px)!important;
+
+  box-sizing:border-box!important;
+
+  overflow-y:auto!important;
+
+  overflow-x:hidden!important;
+
+  padding:18px 28px 20px!important;
+
+  background:#fff!important;
+
+  scrollbar-gutter:stable!important;
+
+}
+
+
+
+/* Neutraliza a grade externa antiga. */
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-scroll > .modal-form-grid{
+
+  display:block!important;
+
+  width:100%!important;
+
+  min-width:0!important;
+
+  max-width:none!important;
+
+  margin:0!important;
+
+  padding:0!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .proposta-etapa-conteudo{
+
+  display:block!important;
+
+  width:100%!important;
+
+  min-width:0!important;
+
+  max-width:none!important;
+
+  height:auto!important;
+
+  min-height:0!important;
+
+  margin:0!important;
+
+  padding:0!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .secao-modal,
+
+.esteira-profissional .nova-proposta-modal .secao-documentos{
+
+  width:100%!important;
+
+  max-width:none!important;
+
+  min-height:0!important;
+
+  height:auto!important;
+
+  box-sizing:border-box!important;
+
+  margin:0!important;
+
+  padding:20px!important;
+
+  border:1px solid #dfe6f1!important;
+
+  border-radius:14px!important;
+
+  background:#fff!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .secao-documentos{
+
+  margin-top:0!important;
+
+  padding-top:20px!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .secao-modal > .modal-form-grid{
+
+  display:grid!important;
+
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+
+  gap:14px 18px!important;
+
+  width:100%!important;
+
+  max-width:none!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal input,
+
+.esteira-profissional .nova-proposta-modal select{
+
+  height:42px!important;
+
+  box-sizing:border-box!important;
+
+}
+
+
+
+/* CLIENTE */
+
+.esteira-profissional .nova-proposta-modal .proposta-cliente-layout{
+
+  display:grid!important;
+
+  grid-template-columns:minmax(0,2.15fr) minmax(300px,.85fr)!important;
+
+  gap:22px!important;
+
+  width:100%!important;
+
+  align-items:start!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .proposta-cliente-principal{
+
+  width:100%!important;
+
+  min-width:0!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .proposta-cliente-principal .busca-cliente-topo{
+
+  display:grid!important;
+
+  grid-template-columns:minmax(260px,1.35fr) 175px minmax(260px,.9fr)!important;
+
+  gap:12px!important;
+
+  width:100%!important;
+
+  margin:0 0 14px!important;
+
+  align-items:end!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .busca-cliente-topo > *{
+
+  width:100%!important;
+
+  min-width:0!important;
+
+  max-width:none!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard{
+
+  width:100%!important;
+
+  box-sizing:border-box!important;
+
+  margin:0 0 14px!important;
+
+  padding:12px 14px!important;
+
+  border:1px solid #d7e4f6!important;
+
+  border-radius:12px!important;
+
+  background:#f7fbff!important;
+
+  display:flex!important;
+
+  align-items:center!important;
+
+  justify-content:space-between!important;
+
+  gap:14px!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard > div{
+
+  display:flex!important;
+
+  flex-direction:column!important;
+
+  gap:3px!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard.found{
+
+  background:#effcf5!important;
+
+  border-color:#a9e4c5!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard.new{
+
+  background:#fff9ed!important;
+
+  border-color:#f5d89a!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .proposta-cliente-sidebar{
+
+  width:100%!important;
+
+  min-width:0!important;
+
+  display:flex!important;
+
+  flex-direction:column!important;
+
+  gap:14px!important;
+
+  position:sticky!important;
+
+  top:0!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .cliente-side-card{
+
+  width:100%!important;
+
+  box-sizing:border-box!important;
+
+  padding:16px!important;
+
+  border:1px solid #d8e5f6!important;
+
+  border-radius:14px!important;
+
+  background:#f7faff!important;
+
+  color:#17345f!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .cliente-side-identidade,
+
+.esteira-profissional .nova-proposta-modal .cliente-side-seguranca{
+
+  display:flex!important;
+
+  align-items:flex-start!important;
+
+  gap:12px!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .cliente-side-icon{
+
+  width:42px!important;
+
+  height:42px!important;
+
+  flex:0 0 42px!important;
+
+  display:grid!important;
+
+  place-items:center!important;
+
+  border-radius:50%!important;
+
+  background:#e5efff!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .cliente-side-card h4{
+
+  margin:0 0 10px!important;
+
+  padding-bottom:9px!important;
+
+  border-bottom:1px solid #dbe6f5!important;
+
+  color:#155eef!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .cliente-side-card ul{
+
+  list-style:none!important;
+
+  margin:0!important;
+
+  padding:0!important;
+
+  display:flex!important;
+
+  flex-direction:column!important;
+
+  gap:9px!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .cliente-side-card li{
+
+  position:relative!important;
+
+  padding-left:23px!important;
+
+  color:#35516f!important;
+
+  font-size:12px!important;
+
+  line-height:1.45!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .cliente-side-card li::before{
+
+  content:"✓"!important;
+
+  position:absolute!important;
+
+  left:0!important;
+
+  top:0!important;
+
+  width:16px!important;
+
+  height:16px!important;
+
+  display:grid!important;
+
+  place-items:center!important;
+
+  border-radius:50%!important;
+
+  background:#dff0ff!important;
+
+  color:#1769e8!important;
+
+  font-size:9px!important;
+
+  font-weight:900!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .cliente-side-seguranca{
+
+  background:#effcf5!important;
+
+  border-color:#bdebd1!important;
+
+}
+
+
+
+/* REVISÃO */
+
+.esteira-profissional .nova-proposta-modal .revisao-proposta{
+
+  width:100%!important;
+
+  display:grid!important;
+
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+
+  gap:14px!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .revisao-cabecalho{
+
+  grid-column:1/-1!important;
+
+  display:flex!important;
+
+  justify-content:space-between!important;
+
+  align-items:center!important;
+
+  padding:16px!important;
+
+  border:1px solid #bce8cf!important;
+
+  border-radius:14px!important;
+
+  background:#f1fcf6!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .revisao-proposta section{
+
+  padding:16px!important;
+
+  border:1px solid #dce6f3!important;
+
+  border-radius:14px!important;
+
+  background:#fff!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .revisao-proposta section header{
+
+  display:flex!important;
+
+  align-items:center!important;
+
+  justify-content:space-between!important;
+
+  margin-bottom:10px!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .revisao-proposta section header button{
+
+  width:auto!important;
+
+  height:auto!important;
+
+  padding:0!important;
+
+  border:0!important;
+
+  background:transparent!important;
+
+  color:#1464ea!important;
+
+  font-size:12px!important;
+
+  font-weight:800!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .revisao-grid{
+
+  display:grid!important;
+
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+
+  gap:9px!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .revisao-grid div{
+
+  padding:9px!important;
+
+  border-radius:9px!important;
+
+  background:#f7faff!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .revisao-grid span{
+
+  display:block!important;
+
+  margin-bottom:3px!important;
+
+  color:#7a899f!important;
+
+  font-size:11px!important;
+
+}
+
+
+
+/* RODAPÉ: fica no fluxo e nunca cobre os campos. */
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-footer{
+
+  flex:0 0 auto!important;
+
+  width:100%!important;
+
+  min-height:60px!important;
+
+  height:auto!important;
+
+  box-sizing:border-box!important;
+
+  display:flex!important;
+
+  align-items:center!important;
+
+  justify-content:space-between!important;
+
+  gap:12px!important;
+
+  margin:0!important;
+
+  padding:10px 28px!important;
+
+  position:static!important;
+
+  inset:auto!important;
+
+  border-top:1px solid #e4ebf5!important;
+
+  background:#fff!important;
+
+  z-index:10!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-footer-right{
+
+  display:flex!important;
+
+  align-items:center!important;
+
+  gap:10px!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-footer-right > span{
+
+  color:#7889a1!important;
+
+  font-size:11px!important;
+
+  font-weight:700!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-footer .botao-principal,
+
+.esteira-profissional .nova-proposta-modal .proposta-wizard-footer .botao-secundario{
+
+  min-height:40px!important;
+
+  padding:0 16px!important;
+
+}
+
+
+
+/* CEP + obrigatórios */
+
+.cep-feedback{
+
+  display:block;
+
+  margin-top:6px;
+
+  color:#9a6700;
+
+  font-size:11px;
+
+  line-height:1.35;
+
+  font-weight:700;
+
+}
+
+.cep-feedback.sucesso{color:#168653}
+
+.campo-obrigatorio{
+
+  color:#e53935!important;
+
+  font-weight:900!important;
+
+  margin-left:3px!important;
+
+}
+
+
+
+@media(max-width:1050px){
+
+  .esteira-profissional .nova-proposta-modal .proposta-cliente-layout{
+
+    grid-template-columns:1fr!important;
+
+  }
+
+
+
+  .esteira-profissional .nova-proposta-modal .proposta-cliente-sidebar{
+
+    position:static!important;
+
+    display:grid!important;
+
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+
+  }
+
+
+
+  .esteira-profissional .nova-proposta-modal .cliente-side-seguranca{
+
+    grid-column:1/-1!important;
+
+  }
+
+}
+
+
+
+@media(max-width:760px){
+
+  .esteira-profissional .nova-proposta-modal{
+
+    width:98vw!important;
+
+    max-height:98vh!important;
+
+  }
+
+
+
+  .esteira-profissional .nova-proposta-modal .proposta-wizard{
+
+    grid-template-columns:repeat(5,auto)!important;
+
+    overflow-x:auto!important;
+
+    padding:10px 14px!important;
+
+  }
+
+
+
+  .esteira-profissional .nova-proposta-modal .proposta-wizard-step span{
+
+    display:none!important;
+
+  }
+
+
+
+  .esteira-profissional .nova-proposta-modal .proposta-wizard-scroll{
+
+    padding:14px!important;
+
+  }
+
+
+
+  .esteira-profissional .nova-proposta-modal .secao-modal > .modal-form-grid,
+
+  .esteira-profissional .nova-proposta-modal .proposta-cliente-principal .busca-cliente-topo,
+
+  .esteira-profissional .nova-proposta-modal .proposta-cliente-sidebar,
+
+  .esteira-profissional .nova-proposta-modal .revisao-proposta,
+
+  .esteira-profissional .nova-proposta-modal .revisao-grid{
+
+    grid-template-columns:1fr!important;
+
+  }
+
+
+
+  .esteira-profissional .nova-proposta-modal .revisao-cabecalho,
+
+  .esteira-profissional .nova-proposta-modal .cliente-side-seguranca{
+
+    grid-column:auto!important;
+
+  }
+
+
+
+  .esteira-profissional .nova-proposta-modal .proposta-wizard-footer{
+
+    padding:9px 14px!important;
+
+  }
+
+
+
+  .esteira-profissional .nova-proposta-modal .proposta-wizard-footer-right > span{
+
+    display:none!important;
+
+  }
+
+}
+
+
+
+/* ============================================================
+
+   NOVA PROPOSTA — AJUSTE VISUAL DO CADASTRO DE CLIENTE
+
+   ============================================================ */
+
+
+
+/* Card "Busque o cliente pelo CPF" */
+
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard{
+
+  display:grid!important;
+
+  grid-template-columns:minmax(0,1fr) auto!important;
+
+  align-items:center!important;
+
+  gap:18px!important;
+
+  min-height:58px!important;
+
+  padding:12px 14px!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard > div{
+
+  min-width:0!important;
+
+  display:flex!important;
+
+  flex-direction:column!important;
+
+  align-items:flex-start!important;
+
+  gap:3px!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard > div strong{
+
+  display:block!important;
+
+  margin:0!important;
+
+  color:#173a70!important;
+
+  font-size:14px!important;
+
+  line-height:1.25!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard > div span{
+
+  display:block!important;
+
+  margin:0!important;
+
+  color:#637792!important;
+
+  font-size:11px!important;
+
+  line-height:1.4!important;
+
+}
+
+
+
+/* Botão "+ Cadastrar cliente agora" */
+
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard > button{
+
+  appearance:none!important;
+
+  width:auto!important;
+
+  min-width:190px!important;
+
+  height:40px!important;
+
+  min-height:40px!important;
+
+  display:inline-flex!important;
+
+  align-items:center!important;
+
+  justify-content:center!important;
+
+  gap:7px!important;
+
+  margin:0!important;
+
+  padding:0 16px!important;
+
+  border:1px solid #2468f2!important;
+
+  border-radius:10px!important;
+
+  background:#2468f2!important;
+
+  color:#fff!important;
+
+  font-family:inherit!important;
+
+  font-size:12px!important;
+
+  font-weight:800!important;
+
+  line-height:1!important;
+
+  text-decoration:none!important;
+
+  white-space:nowrap!important;
+
+  cursor:pointer!important;
+
+  box-shadow:0 4px 10px rgba(36,104,242,.14)!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard > button::before{
+
+  content:"+"!important;
+
+  display:inline-block!important;
+
+  color:#fff!important;
+
+  font-size:17px!important;
+
+  font-weight:500!important;
+
+  line-height:1!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .cliente-status-wizard > button:hover{
+
+  border-color:#174fd2!important;
+
+  background:#174fd2!important;
+
+}
+
+
+
+/* Card lateral "Novo cliente" */
+
+.esteira-profissional .nova-proposta-modal .cliente-side-identidade{
+
+  display:grid!important;
+
+  grid-template-columns:42px minmax(0,1fr)!important;
+
+  align-items:start!important;
+
+  column-gap:12px!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .cliente-side-identidade > div:last-child{
+
+  min-width:0!important;
+
+  display:flex!important;
+
+  flex-direction:column!important;
+
+  align-items:flex-start!important;
+
+  gap:4px!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .cliente-side-identidade strong{
+
+  display:block!important;
+
+  width:100%!important;
+
+  margin:0!important;
+
+  color:#17345f!important;
+
+  font-size:14px!important;
+
+  font-weight:800!important;
+
+  line-height:1.25!important;
+
+}
+
+
+
+.esteira-profissional .nova-proposta-modal .cliente-side-identidade span{
+
+  display:block!important;
+
+  width:100%!important;
+
+  margin:0!important;
+
+  color:#637792!important;
+
+  font-size:11px!important;
+
+  line-height:1.5!important;
+
+  white-space:normal!important;
+
+}
+
+
+
+@media(max-width:760px){
+
+  .esteira-profissional .nova-proposta-modal .cliente-status-wizard{
+
+    grid-template-columns:1fr!important;
+
+  }
+
+
+
+  .esteira-profissional .nova-proposta-modal .cliente-status-wizard > button{
+
+    width:100%!important;
+
+    min-width:0!important;
+
+  }
+
+}
+
+
+
+/* ============================================================
+
+   DOCUMENTOS — ESTADO VISUAL APÓS ANEXAR
+
+   ============================================================ */
+
+.documento-upload-vazio{
+
+  width:100%;
+
+  min-height:108px;
+
+  display:flex;
+
+  flex-direction:column;
+
+  align-items:center;
+
+  justify-content:center;
+
+  gap:6px;
+
+  cursor:pointer;
+
+  text-align:center;
+
+}
+
+
+
+.documento-upload-vazio input,
+
+.documento-trocar input{
+
+  display:none!important;
+
+}
+
+
+
+.documento-anexado,
+
+.documento-anexado-multiplo{
+
+  border:1px solid #9fdfbd!important;
+
+  background:#f0fcf5!important;
+
+  cursor:default!important;
+
+}
+
+
+
+.documento-anexado:hover,
+
+.documento-anexado-multiplo:hover{
+
+  border-color:#78cf9f!important;
+
+  background:#ecfaf2!important;
+
+  transform:none!important;
+
+}
+
+
+
+.documento-check{
+
+  width:32px;
+
+  height:32px;
+
+  flex:0 0 32px;
+
+  display:grid;
+
+  place-items:center;
+
+  border-radius:50%;
+
+  background:#18a765;
+
+  color:#fff;
+
+  font-size:18px;
+
+  font-weight:900;
+
+}
+
+
+
+.documento-anexado > span,
+
+.documento-anexado-multiplo > span{
+
+  color:#168653!important;
+
+  font-size:12px!important;
+
+  font-weight:900!important;
+
+}
+
+
+
+.documento-nome-arquivo{
+
+  display:block!important;
+
+  max-width:90%!important;
+
+  overflow:hidden!important;
+
+  text-overflow:ellipsis!important;
+
+  white-space:nowrap!important;
+
+  color:#315c48!important;
+
+  font-size:11px!important;
+
+  font-weight:700!important;
+
+  text-transform:none!important;
+
+}
+
+
+
+.documento-acoes-anexo{
+
+  display:flex;
+
+  align-items:center;
+
+  justify-content:center;
+
+  gap:8px;
+
+  margin-top:5px;
+
+}
+
+
+
+.documento-trocar,
+
+.documento-remover{
+
+  width:auto!important;
+
+  min-height:32px!important;
+
+  height:32px!important;
+
+  display:inline-flex!important;
+
+  align-items:center!important;
+
+  justify-content:center!important;
+
+  padding:0 11px!important;
+
+  border-radius:8px!important;
+
+  font-family:inherit!important;
+
+  font-size:10px!important;
+
+  font-weight:800!important;
+
+  text-transform:none!important;
+
+  cursor:pointer!important;
+
+}
+
+
+
+.documento-trocar{
+
+  border:1px solid #a8c9ff!important;
+
+  background:#fff!important;
+
+  color:#155eef!important;
+
+}
+
+
+
+.documento-remover{
+
+  border:1px solid #f2b8b5!important;
+
+  background:#fff!important;
+
+  color:#d92d20!important;
+
+}
+
+
+
+.documento-anexado-multiplo .documento-upload-seletor{
+
+  min-height:48px!important;
+
+}
+
+
+
+.documento-anexado-multiplo .documento-upload-seletor strong{
+
+  color:#168653!important;
+
+}
+
+
+
+.documento-anexado-multiplo .contracheques-selecionados{
+
+  margin-top:8px!important;
+
+}
+
+
+
+.documento-anexado-multiplo .contracheque-item{
+
+  border-color:#b9e6cc!important;
+
+  background:#fff!important;
+
+}
+
+/* =========================================================
+
+   ELEVA | COMPRA DE DÍVIDA | AJUSTE DA TABELA PARA CABER MELHOR
+
+   ========================================================= */
+
+
+
+.esteira-profissional .esteira-tabela-card {
+
+  overflow: visible !important;
+
+}
+
+
+
+.esteira-profissional .esteira-tabela-wrapper {
+
+  width: 100%;
+
+  overflow-x: auto;
+
+}
+
+
+
+.esteira-profissional .esteira-tabela {
+
+  width: 100%;
+
+  min-width: 1080px !important;
+
+  table-layout: auto;
+
+}
+
+
+
+.esteira-profissional .esteira-tabela th {
+
+  padding: 10px 8px !important;
+
+  font-size: 9px !important;
+
+  white-space: nowrap;
+
+}
+
+
+
+.esteira-profissional .esteira-tabela td {
+
+  padding: 10px 8px !important;
+
+  font-size: 11px !important;
+
+  line-height: 1.25;
+
+  vertical-align: middle;
+
+}
+
+
+
+.esteira-profissional .esteira-tabela td small {
+
+  font-size: 9px !important;
+
+  line-height: 1.2;
+
+}
+
+
+
+.esteira-profissional .esteira-tabela td strong {
+
+  line-height: 1.2;
+
+}
+
+
+
+.esteira-profissional .esteira-tabela th:nth-child(1),
+
+.esteira-profissional .esteira-tabela td:nth-child(1) {
+
+  width: 90px;
+
+}
+
+
+
+.esteira-profissional .esteira-tabela th:nth-child(2),
+
+.esteira-profissional .esteira-tabela td:nth-child(2) {
+
+  width: 120px;
+
+}
+
+
+
+.esteira-profissional .esteira-tabela th:nth-child(3),
+
+.esteira-profissional .esteira-tabela td:nth-child(3) {
+
+  width: 180px;
+
+}
+
+
+
+.esteira-profissional .esteira-tabela th:nth-child(4),
+
+.esteira-profissional .esteira-tabela td:nth-child(4) {
+
+  width: 110px;
+
+}
+
+
+
+.esteira-profissional .esteira-tabela th:nth-child(5),
+
+.esteira-profissional .esteira-tabela td:nth-child(5) {
+
+  width: 170px;
+
+}
+
+
+
+.esteira-profissional .esteira-tabela th:nth-child(6),
+
+.esteira-profissional .esteira-tabela td:nth-child(6) {
+
+  width: 80px;
+
+}
+
+
+
+.esteira-profissional .esteira-tabela th:nth-child(7),
+
+.esteira-profissional .esteira-tabela td:nth-child(7) {
+
+  width: 110px;
+
+}
+
+
+
+.esteira-profissional .esteira-tabela th:nth-child(8),
+
+.esteira-profissional .esteira-tabela td:nth-child(8) {
+
+  width: 120px;
+
+}
+
+
+
+.esteira-profissional .esteira-tabela th:nth-child(9),
+
+.esteira-profissional .esteira-tabela td:nth-child(9) {
+
+  width: 90px;
+
+}
+
+
+
+.esteira-profissional .esteira-tabela th:nth-child(10),
+
+.esteira-profissional .esteira-tabela td:nth-child(10) {
+
+  width: 120px;
+
+}
+
+
+
+.esteira-profissional .esteira-tabela th:nth-child(11),
+
+.esteira-profissional .esteira-tabela td:nth-child(11) {
+
+  width: 130px;
+
+}
+
+
+
+.esteira-profissional .esteira-tabela th:nth-child(12),
+
+.esteira-profissional .esteira-tabela td:nth-child(12) {
+
+  width: 110px;
+
+}
+
+
+
+
+/* ============================================================
+   ELEVA | COMPRA DE DÍVIDA | NOVO LAYOUT EM 5 BLOCOS
+   Layout pensado para desktop sem régua horizontal
+   ============================================================ */
+
+/* O contêiner antigo da tabela não força mais largura mínima. */
+.esteira-profissional .esteira-tabela-card {
+  width: 100%;
+  overflow: visible !important;
+  border: 0;
+  background: transparent;
+}
+
+/* Esconde apenas a tabela antiga quando o novo layout estiver em uso. */
+.esteira-profissional .esteira-tabela-wrapper.layout-antigo-oculto {
+  display: none !important;
+}
+
+/* Novo cabeçalho das colunas agrupadas. */
+.esteira-profissional .propostas-grid-cabecalho {
+  display: grid;
+  grid-template-columns:
+    minmax(210px, 1.35fr)
+    minmax(245px, 1.45fr)
+    minmax(205px, 1.15fr)
+    minmax(175px, 0.95fr)
+    minmax(235px, 1.25fr);
+  width: 100%;
+  align-items: center;
+  gap: 0;
+  padding: 0 14px 9px;
+  color: #6c7d96;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.25px;
+  text-transform: uppercase;
+}
+
+.esteira-profissional .propostas-grid-cabecalho > div {
+  min-width: 0;
+  padding: 0 12px;
+}
+
+/* Lista. */
+.esteira-profissional .propostas-grid-lista {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Cada proposta vira uma linha-card. */
+.esteira-profissional .proposta-card-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(210px, 1.35fr)
+    minmax(245px, 1.45fr)
+    minmax(205px, 1.15fr)
+    minmax(175px, 0.95fr)
+    minmax(235px, 1.25fr);
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #dfe6f1;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 5px 16px rgba(16, 47, 78, 0.035);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.esteira-profissional .proposta-card-grid:hover {
+  border-color: #c8d7ed;
+  box-shadow: 0 8px 24px rgba(16, 47, 78, 0.07);
+  transform: translateY(-1px);
+}
+
+.esteira-profissional .proposta-card-coluna {
+  min-width: 0;
+  padding: 14px 14px;
+  border-right: 1px solid #e8edf4;
+}
+
+.esteira-profissional .proposta-card-coluna:last-child {
+  border-right: 0;
+}
+
+/* PROPOSTA / CLIENTE */
+.esteira-profissional .proposta-numero {
+  margin-bottom: 5px;
+  color: #155eef;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.esteira-profissional .proposta-cliente-nome {
+  color: #102f4e;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.22;
+  overflow-wrap: anywhere;
+}
+
+.esteira-profissional .proposta-cliente-cpf {
+  margin-top: 4px;
+  color: #8695aa;
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.esteira-profissional .proposta-consultora {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  color: #405979;
   font-size: 11px;
   font-weight: 600;
 }
 
-.esteira-stats article strong {
+/* OPERAÇÃO */
+.esteira-profissional .proposta-operacao-layout {
+  display: grid;
+  grid-template-columns: minmax(80px, 0.75fr) minmax(0, 1.25fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.esteira-profissional .proposta-operacao-tipo {
   color: #102f4e;
-  font-size: 23px;
-  line-height: 1;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.25;
 }
 
-.esteira-stats article.destaque {
-  border-color: #b9ccff;
-  background: #f7f9ff;
-}
-
-.esteira-stats article.destaque strong {
-  color: #2457f5;
-}
-
-/* CABEÇALHO E FILTROS */
-
-.esteira-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 22px;
-  margin-bottom: 18px;
-  padding: 20px;
-  border: 1px solid #dfe6f1;
-  border-radius: 16px;
-  background: #ffffff;
-}
-
-.esteira-toolbar-title {
-  flex-shrink: 0;
-}
-
-.esteira-toolbar-title span {
-  display: block;
-  margin-bottom: 6px;
-  color: #2457f5;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 1.3px;
-}
-
-.esteira-toolbar-title h2 {
-  margin: 0;
-  color: #102f4e;
-  font-size: 21px;
-}
-
-.esteira-filtros {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
+.esteira-profissional .proposta-operacao-meta {
   min-width: 0;
 }
 
-.esteira-filtros input,
-.esteira-filtros select {
-  height: 42px;
-  border: 1px solid #d8e1ee;
-  border-radius: 10px;
-  background: #ffffff;
-  color: #23395d;
-  font: inherit;
-  font-size: 12px;
-  outline: none;
+.esteira-profissional .proposta-operacao-meta div {
+  margin-bottom: 2px;
+  color: #708199;
+  font-size: 10px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
-.esteira-filtros input {
-  padding: 0 12px;
+.esteira-profissional .proposta-operacao-meta strong {
+  color: #19385d;
+  font-weight: 800;
 }
 
-.esteira-filtros input:first-child {
-  width: 260px;
-  min-width: 190px;
+/* VALORES */
+.esteira-profissional .proposta-valores-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px;
+  gap: 10px;
+  align-items: center;
 }
 
-.esteira-filtros input[type="date"] {
-  width: 145px;
+.esteira-profissional .proposta-valor-label {
+  display: block;
+  margin-bottom: 2px;
+  color: #7a899f;
+  font-size: 10px;
 }
 
-.esteira-filtros select {
-  width: 170px;
-  padding: 0 10px;
-}
-
-.esteira-filtros input:focus,
-.esteira-filtros select:focus {
-  border-color: #3568f5;
-  box-shadow: 0 0 0 3px rgba(53, 104, 245, 0.1);
-}
-
-.botao-principal,
-.botao-secundario {
-  min-height: 42px;
-  padding: 0 15px;
-  border-radius: 10px;
-  font-size: 12px;
-  font-weight: 700;
+.esteira-profissional .proposta-valor {
+  display: block;
+  margin-bottom: 7px;
+  color: #132f52;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.2;
   white-space: nowrap;
-  cursor: pointer;
 }
 
-.botao-principal {
-  border: 1px solid #2457f5;
-  background: #2457f5;
-  color: #ffffff;
+.esteira-profissional .proposta-valor.proposta-valor-final {
+  color: #08a66c;
 }
 
-.botao-principal:hover {
-  background: #1747d8;
+.esteira-profissional .proposta-producao {
+  min-width: 0;
+  padding-left: 10px;
+  border-left: 1px solid #e8edf4;
+  text-align: center;
 }
 
-.botao-secundario {
-  border: 1px solid #cfd9e8;
-  background: #ffffff;
-  color: #18375a;
+.esteira-profissional .proposta-producao-icone {
+  margin-bottom: 4px;
+  color: #ff6a00;
+  font-size: 18px;
+  line-height: 1;
 }
 
-.botao-secundario:hover {
-  background: #f5f8fd;
+.esteira-profissional .proposta-producao span {
+  display: block;
+  color: #78899f;
+  font-size: 10px;
 }
 
-.botao-principal:disabled,
-.botao-secundario:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-/* MENSAGEM */
-
-.esteira-mensagem {
-  margin-bottom: 14px;
-  padding: 12px 14px;
-  border: 1px solid #f6c989;
-  border-radius: 10px;
-  background: #fff8ed;
-  color: #9a5300;
+.esteira-profissional .proposta-producao strong {
+  color: #102f4e;
   font-size: 13px;
 }
 
-/* TABELA */
-
-.esteira-tabela-card {
-  overflow: hidden;
-  border: 1px solid #dfe6f1;
-  border-radius: 16px;
-  background: #ffffff;
+/* COMISSÕES */
+.esteira-profissional .proposta-comissoes-layout {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
 }
 
-.esteira-tabela-wrapper {
-  width: 100%;
-  overflow-x: auto;
+.esteira-profissional .proposta-comissao-icone {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 50%;
+  background: #edf3ff;
+  color: #155eef;
+  font-size: 18px;
+  font-weight: 900;
 }
 
-.esteira-tabela {
-  width: 100%;
-  min-width: 1250px;
-  border-collapse: collapse;
-}
-
-.esteira-tabela thead {
-  background: #f8fafc;
-}
-
-.esteira-tabela th {
-  padding: 14px 13px;
-  border-bottom: 1px solid #dfe6f1;
-  color: #7a89a2;
-  font-size: 10px;
-  font-weight: 800;
-  text-align: left;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.esteira-tabela td {
-  padding: 13px;
-  border-bottom: 1px solid #e8edf4;
-  color: #243b5a;
-  font-size: 12px;
-  vertical-align: middle;
-}
-
-.esteira-tabela tbody tr {
-  transition: background 0.15s;
-}
-
-.esteira-tabela tbody tr:hover {
-  background: #f7faff;
-}
-
-.esteira-tabela td strong,
-.esteira-tabela td small {
+.esteira-profissional .proposta-comissoes-layout span {
   display: block;
-}
-
-.esteira-tabela td small {
-  margin-top: 4px;
-  color: #8c9ab0;
+  color: #7a899f;
   font-size: 10px;
 }
 
-.valor-final {
-  color: #08a66c;
+.esteira-profissional .proposta-comissoes-layout strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #16385e;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.esteira-profissional .proposta-comissoes-layout strong.comissao-empresa {
+  color: #155eef;
+}
+
+/* DATAS / STATUS */
+.esteira-profissional .proposta-data-status-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.esteira-profissional .proposta-datas span {
+  display: block;
+  color: #7a899f;
+  font-size: 10px;
+}
+
+.esteira-profissional .proposta-datas strong {
+  display: block;
+  margin-bottom: 7px;
+  color: #15365d;
+  font-size: 12px;
+  line-height: 1.2;
   white-space: nowrap;
 }
 
-.esteira-acoes {
+.esteira-profissional .proposta-status-acoes {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.esteira-profissional .proposta-status-pill {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: #edf3ff;
+  color: #155eef;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.esteira-profissional .proposta-status-pill::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.esteira-profissional .proposta-status-pill.status-pago {
+  background: #e7f8ef;
+  color: #07804f;
+}
+
+.esteira-profissional .proposta-status-pill.status-cancelado {
+  background: #fee7e7;
+  color: #c53030;
+}
+
+.esteira-profissional .proposta-status-pill.status-aguardando-boleto {
+  background: #fff3d7;
+  color: #b76d00;
+}
+
+.esteira-profissional .proposta-status-pill.status-em-andamento,
+.esteira-profissional .proposta-status-pill.status-solicitado,
+.esteira-profissional .proposta-status-pill.status-enviado-ao-banco {
+  background: #edf3ff;
+  color: #155eef;
+}
+
+.esteira-profissional .proposta-status-pill.status-nota-promissoria,
+.esteira-profissional .proposta-status-pill.status-ag-liberacao-de-margem,
+.esteira-profissional .proposta-status-pill.status-ag-fazer-anuencia {
+  background: #f0ecff;
+  color: #7047d7;
+}
+
+.esteira-profissional .proposta-menu-acoes {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #284b70;
+  font-size: 19px;
+  cursor: pointer;
+}
+
+.esteira-profissional .proposta-menu-acoes:hover {
+  border-color: #d7e4f6;
+  background: #f4f8fe;
+  color: #155eef;
+}
+
+/* Toolbar: mantém o título e os filtros bem organizados. */
+.esteira-profissional .esteira-toolbar {
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.esteira-profissional .esteira-toolbar-title {
+  flex: 0 1 420px;
+  min-width: 280px;
+}
+
+.esteira-profissional .esteira-filtros {
+  flex: 1 1 760px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Desktop intermediário: reduz espaçamento sem criar scroll horizontal. */
+@media (max-width: 1360px) {
+  .esteira-profissional .propostas-grid-cabecalho,
+  .esteira-profissional .proposta-card-grid {
+    grid-template-columns:
+      minmax(180px, 1.25fr)
+      minmax(210px, 1.35fr)
+      minmax(180px, 1.05fr)
+      minmax(155px, 0.9fr)
+      minmax(205px, 1.15fr);
+  }
+
+  .esteira-profissional .proposta-card-coluna {
+    padding: 12px 10px;
+  }
+
+  .esteira-profissional .proposta-cliente-nome {
+    font-size: 12px;
+  }
+
+  .esteira-profissional .proposta-operacao-meta div,
+  .esteira-profissional .proposta-valor-label,
+  .esteira-profissional .proposta-producao span,
+  .esteira-profissional .proposta-comissoes-layout span,
+  .esteira-profissional .proposta-datas span {
+    font-size: 9px;
+  }
+}
+
+/* Tablet: vira 2 colunas sem barra horizontal. */
+@media (max-width: 1050px) {
+  .esteira-profissional .propostas-grid-cabecalho {
+    display: none;
+  }
+
+  .esteira-profissional .proposta-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .esteira-profissional .proposta-card-coluna {
+    border-right: 1px solid #e8edf4;
+    border-bottom: 1px solid #e8edf4;
+  }
+
+  .esteira-profissional .proposta-card-coluna:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .esteira-profissional .proposta-card-coluna:last-child {
+    grid-column: 1 / -1;
+    border-bottom: 0;
+  }
+
+  .esteira-profissional .esteira-toolbar-title {
+    flex-basis: 100%;
+    min-width: 100%;
+  }
+
+  .esteira-profissional .esteira-filtros {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+/* Celular: uma coluna por bloco. */
+@media (max-width: 700px) {
+  .esteira-profissional .proposta-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .esteira-profissional .proposta-card-coluna,
+  .esteira-profissional .proposta-card-coluna:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .esteira-profissional .proposta-operacao-layout,
+  .esteira-profissional .proposta-valores-layout,
+  .esteira-profissional .proposta-comissoes-layout,
+  .esteira-profissional .proposta-data-status-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .esteira-profissional .proposta-producao {
+    padding-top: 9px;
+    padding-left: 0;
+    border-top: 1px solid #e8edf4;
+    border-left: 0;
+    text-align: left;
+  }
+
+  .esteira-profissional .proposta-comissao-icone {
+    display: none;
+  }
+
+  .esteira-profissional .proposta-status-acoes {
+    justify-content: flex-start;
+  }
+}
+
+
+/* Ações da proposta no novo card */
+.esteira-profissional .proposta-card-acoes {
+  grid-column: 1 / -1;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid #edf1f6;
 }
 
-.esteira-acoes button {
+.esteira-profissional .proposta-card-acoes button {
   display: inline-flex;
-  width: 31px;
-  height: 31px;
+  width: 29px;
+  height: 29px;
   align-items: center;
   justify-content: center;
   border: 1px solid #dbe4ef;
   border-radius: 8px;
   background: #ffffff;
   color: #37516f;
+  font-size: 13px;
   cursor: pointer;
 }
 
-.esteira-acoes button:hover {
+.esteira-profissional .proposta-card-acoes button:hover {
   border-color: #aac0f7;
   background: #eef4ff;
   color: #2457f5;
 }
 
-/* STATUS */
-
-.esteira-status {
-  display: inline-flex;
-  min-height: 25px;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-  white-space: nowrap;
+.esteira-profissional .proposta-card-acoes button.acao-perigo {
+  border-color: #f0b4ae;
+  background: #fff5f4;
+  color: #b42318;
 }
 
-.status-pago {
-  background: #dcf8ea;
-  color: #07804f;
+.esteira-profissional .proposta-card-acoes button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
-.status-cancelado {
-  background: #fee7e7;
-  color: #c53030;
-}
-
-.status-aguardando-boleto {
-  background: #fff3d7;
-  color: #c27803;
-}
-
-.status-solicitado,
-.status-em-andamento,
-.status-enviado-ao-banco {
-  background: #e7efff;
-  color: #2457f5;
-}
-
-.status-nota-promissoria,
-.status-ag.-liberacao-de-margem,
-.status-ag.-fazer-anuencia {
-  background: #f0ecff;
-  color: #7047d7;
-}
-
-/* ESTADO VAZIO */
-
-.esteira-vazio {
-  display: flex;
-  min-height: 300px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  padding: 40px;
-  color: #72819a;
-  text-align: center;
-}
-
-.esteira-vazio::before {
-  content: "▤";
-  display: flex;
-  width: 48px;
-  height: 48px;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 5px;
-  border-radius: 14px;
-  background: #edf3ff;
-  color: #2457f5;
-  font-size: 22px;
-}
-
-.esteira-vazio strong {
-  color: #152b4c;
-  font-size: 15px;
-}
-
-.esteira-vazio span {
-  font-size: 12px;
-}
-
-/* SOBREPOSIÇÃO */
-
-.esteira-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 500;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(9, 23, 43, 0.48);
-  backdrop-filter: blur(2px);
-}
-
-/* PAINEL LATERAL */
-
-.esteira-drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(480px, 94vw);
-  overflow-y: auto;
-  padding: 25px;
-  background: #ffffff;
-  box-shadow: -16px 0 40px rgba(10, 31, 57, 0.16);
-}
-
-.esteira-drawer header,
-.nova-proposta-modal header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 15px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid #e4eaf2;
-}
-
-.esteira-drawer header span,
-.nova-proposta-modal header span {
-  color: #2457f5;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 1.2px;
-}
-
-.esteira-drawer header h2,
-.nova-proposta-modal header h2 {
-  margin: 5px 0 3px;
-  color: #102f4e;
-  font-size: 22px;
-}
-
-.esteira-drawer header p {
-  margin: 0;
-  color: #72819a;
-  font-size: 12px;
-}
-
-.esteira-drawer header button,
-.nova-proposta-modal header button {
-  display: inline-flex;
-  width: 36px;
-  height: 36px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #dce4ee;
-  border-radius: 9px;
-  background: #ffffff;
-  color: #52657f;
-  font-size: 21px;
-  cursor: pointer;
-}
-
-.drawer-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin: 20px 0;
-}
-
-.drawer-grid div {
-  padding: 14px;
-  border: 1px solid #e1e7f0;
-  border-radius: 11px;
-  background: #f9fbfe;
-}
-
-.drawer-grid span {
-  display: block;
-  margin-bottom: 6px;
-  color: #7d8da6;
-  font-size: 10px;
-  text-transform: uppercase;
-}
-
-.drawer-grid strong {
-  color: #18375a;
-  font-size: 13px;
-}
-
-.esteira-drawer label,
-.nova-proposta-modal label {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  color: #193555;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.esteira-drawer textarea,
-.nova-proposta-modal input,
-.nova-proposta-modal select,
-.nova-proposta-modal textarea {
-  width: 100%;
-  border: 1px solid #d8e1ee;
-  border-radius: 10px;
-  background: #ffffff;
-  color: #243b5a;
-  font: inherit;
-  font-size: 13px;
-  outline: none;
-  text-transform: none;
-}
-
-.esteira-drawer textarea,
-.nova-proposta-modal textarea {
-  min-height: 100px;
-  padding: 12px;
-  resize: vertical;
-}
-
-/* MODAL */
-
-.nova-proposta-modal {
-  width: min(820px, 96vw);
-  max-height: 92vh;
-  overflow-y: auto;
-  padding: 24px;
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 24px 70px rgba(9, 30, 57, 0.24);
-}
-
-.nova-proposta-modal form {
-  margin-top: 20px;
-}
-
-.modal-form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.nova-proposta-modal input,
-.nova-proposta-modal select {
-  height: 44px;
-  padding: 0 12px;
-}
-
-.observacao-modal {
-  margin-top: 16px;
-}
-
-.valor-meta-modal {
-  display: flex;
-  min-height: 70px;
-  flex-direction: column;
-  justify-content: center;
-  padding: 12px 15px;
-  border: 1px solid #ffca98;
-  border-radius: 11px;
-  background: #fff8f1;
-}
-
-.valor-meta-modal span {
-  margin-bottom: 5px;
-  color: #a95b12;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.valor-meta-modal strong {
-  color: #e85b00;
-  font-size: 20px;
-}
-
-.nova-proposta-modal footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 20px;
-  padding-top: 18px;
-  border-top: 1px solid #e5eaf1;
-}
-
-/* RESPONSIVO */
-
-@media (max-width: 1250px) {
-  .esteira-stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .esteira-toolbar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .esteira-filtros {
-    width: 100%;
-    flex-wrap: wrap;
-    justify-content: flex-start;
+@media (min-width: 1051px) {
+  .esteira-profissional .proposta-card-acoes {
+    margin-top: 5px;
   }
 }
-
-@media (max-width: 760px) {
-  .esteira-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .esteira-filtros input:first-child,
-  .esteira-filtros input[type="date"],
-  .esteira-filtros select {
-    width: 100%;
-  }
-
-  .modal-form-grid,
-  .drawer-grid {
-    grid-template-columns: 1fr;
-  }
-}
-.esteira-toolbar {
-  align-items: flex-end;
-  flex-wrap: wrap;
-}
-
-.esteira-toolbar-title {
-  flex: 1 1 300px;
-  min-width: 300px;
-}
-
-.esteira-toolbar-title h2 {
-  width: auto;
-  max-width: none;
-  white-space: nowrap;
-  overflow: visible;
-}
-
-.esteira-filtros {
-  flex: 2 1 680px;
-  flex-wrap: wrap;
-}
-
-@media (max-width: 1100px) {
-  .esteira-toolbar-title {
-    min-width: 100%;
-  }
-
-  .esteira-toolbar-title h2 {
-    white-space: normal;
-  }
-
-  .esteira-filtros {
-    width: 100%;
-  }
-}
-.esteira-toolbar {
-  align-items: flex-start;
-  flex-wrap: wrap;
-}
-
-.esteira-toolbar-title {
-  flex: 1 1 320px;
-  min-width: 320px;
-}
-
-.esteira-toolbar-title h2 {
-  width: 100%;
-  margin: 0;
-  white-space: normal;
-  overflow: visible;
-}
-
-.esteira-filtros {
-  flex: 2 1 700px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-@media (max-width: 1200px) {
-  .esteira-toolbar-title {
-    flex-basis: 100%;
-    min-width: 100%;
-  }
-
-  .esteira-filtros {
-    width: 100%;
-    justify-content: flex-start;
-  }
-}
-/* NOVO LAYOUT — MODAL DE PROPOSTA */
-
-.nova-proposta-modal {
-  width: min(1180px, 96vw);
-  max-height: 94vh;
-  padding: 28px;
-}
-
-.nova-proposta-modal form {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  margin-top: 20px;
-}
-
-.secao-modal {
-  padding: 20px;
-  border: 1px solid #dfe6f1;
-  border-radius: 14px;
-  background: #ffffff;
-}
-
-.secao-modal-titulo {
-  margin-bottom: 18px;
-}
-
-.secao-modal-titulo span {
-  display: block;
-  margin-bottom: 4px;
-  color: #17375e;
-  font-size: 14px;
-  font-weight: 800;
-  letter-spacing: 0;
-}
-
-.secao-modal-titulo p {
-  margin: 0;
-  color: #6f7f96;
-  font-size: 12px;
-}
-
-.secao-modal .modal-form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.cliente-pesquisa-modal {
-  max-width: 420px;
-}
-
-.cliente-nao-encontrado-modal {
-  padding: 12px 14px;
-  border: 1px solid #f0c98d;
-  border-radius: 10px;
-  background: #fff8ed;
-  color: #9a5300;
-  font-size: 12px;
-}
-
-.nova-proposta-modal footer {
-  position: sticky;
-  bottom: -28px;
-  z-index: 5;
-  margin: 0 -28px -28px;
-  padding: 18px 28px;
-  border-top: 1px solid #e5eaf1;
-  background: #ffffff;
-}
-
-@media (max-width: 900px) {
-  .nova-proposta-modal {
-    width: min(760px, 96vw);
-    padding: 20px;
-  }
-
-  .secao-modal .modal-form-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .nova-proposta-modal footer {
-    bottom: -20px;
-    margin: 0 -20px -20px;
-    padding: 16px 20px;
-  }
-}
-/* Corrige a grade externa que envolve todo o formulário */
-.nova-proposta-modal form > .modal-form-grid {
-  display: contents;
-}
-.busca-cliente-topo {
-  display: grid;
-  grid-template-columns: minmax(280px, 1.2fr) 170px minmax(300px, 1fr);
-  align-items: end;
-  gap: 16px;
-}
-
-.cliente-pesquisa-modal {
-  max-width: none;
-}
-
-.botao-buscar-cliente {
-  height: 44px;
-  padding: 0 18px;
-  border: 1px solid #2457f5;
-  border-radius: 10px;
-  background: #ffffff;
-  color: #2457f5;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.botao-buscar-cliente:hover {
-  background: #f3f6ff;
-}
-
-.aviso-cliente-cadastrado {
-  display: flex;
-  min-height: 44px;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border: 1px solid #b9ccff;
-  border-radius: 10px;
-  background: #f7f9ff;
-  color: #294568;
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.aviso-cliente-cadastrado strong {
-  color: #2457f5;
-  font-size: 18px;
-}
-
-@media (max-width: 900px) {
-  .busca-cliente-topo {
-    grid-template-columns: 1fr;
-  }
-}
-.secao-documentos {
-  margin-top: 22px;
-  padding-top: 22px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.documentos-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.documento-upload {
-  min-height: 145px;
-  padding: 18px;
-  border: 1px dashed #cbd5e1;
-  border-radius: 14px;
-  background: #f8fafc;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  text-align: center;
-  cursor: pointer;
-  transition:
-    border-color 0.2s ease,
-    background 0.2s ease,
-    transform 0.2s ease;
-}
-
-.documento-upload:hover {
-  border-color: #2563eb;
-  background: #eff6ff;
-  transform: translateY(-1px);
-}
-
-.documento-upload input {
-  display: none;
-}
-
-.documento-upload span {
-  font-size: 13px;
-  font-weight: 700;
-  color: #334155;
-  text-transform: uppercase;
-}
-
-.documento-upload strong {
-  font-size: 14px;
-  color: #2563eb;
-}
-
-.documento-upload small {
-  font-size: 12px;
-  color: #64748b;
-}
-
-@media (max-width: 720px) {
-  .documentos-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ===== CONTRACHEQUE COM MÚLTIPLOS ARQUIVOS ===== */
-.documento-upload-multiplo{
-  cursor:default;
-}
-
-.documento-upload-seletor{
-  width:100%;
-  min-height:86px;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  gap:5px;
-  cursor:pointer;
-}
-
-.documento-upload-seletor input{
-  display:none;
-}
-
-.contracheques-selecionados{
-  width:100%;
-  margin-top:12px;
-  display:flex;
-  flex-direction:column;
-  gap:7px;
-}
-
-.contracheque-item{
-  width:100%;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  padding:8px 10px;
-  border:1px solid #d8e3f5;
-  border-radius:9px;
-  background:#fff;
-}
-
-.contracheque-item span{
-  min-width:0;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-  font-size:12px;
-  font-weight:700;
-  color:#17345f;
-}
-
-.contracheque-item button{
-  flex:0 0 auto;
-  width:28px;
-  height:28px;
-  border:1px solid #ffd0cc;
-  border-radius:7px;
-  background:#fff5f4;
-  color:#d92d20;
-  font-size:18px;
-  font-weight:800;
-  cursor:pointer;
-}
-
-
-/* ============================================================
-   NOVA PROPOSTA — WIZARD LIMPO E ISOLADO
-   Estrutura: cabeçalho + etapas + conteúdo rolável + rodapé.
-   ============================================================ */
-
-.esteira-profissional .nova-proposta-modal{
-  width:min(1380px,96vw)!important;
-  max-width:1380px!important;
-  height:auto!important;
-  min-height:0!important;
-  max-height:94vh!important;
-  padding:0!important;
-  display:flex!important;
-  flex-direction:column!important;
-  overflow:hidden!important;
-  border-radius:20px!important;
-  background:#fff!important;
-  box-shadow:0 24px 70px rgba(9,30,57,.24)!important;
-}
-
-.esteira-profissional .nova-proposta-modal > header{
-  flex:0 0 auto!important;
-  width:100%!important;
-  box-sizing:border-box!important;
-  padding:20px 28px 18px!important;
-  border-bottom:1px solid #e4eaf2!important;
-}
-
-.esteira-profissional .nova-proposta-modal .proposta-wizard{
-  flex:0 0 auto!important;
-  width:100%!important;
-  box-sizing:border-box!important;
-  display:grid!important;
-  grid-template-columns:repeat(5,minmax(0,1fr))!important;
-  gap:12px!important;
-  padding:12px 28px!important;
-  border-bottom:1px solid #e5edf7!important;
-  background:#fbfdff!important;
-}
-
-.esteira-profissional .nova-proposta-modal .proposta-wizard-step{
-  width:100%!important;
-  min-width:0!important;
-  min-height:48px!important;
-  display:flex!important;
-  align-items:center!important;
-  justify-content:flex-start!important;
-  gap:9px!important;
-  padding:8px 12px!important;
-  border:0!important;
-  border-radius:12px!important;
-  background:transparent!important;
-  color:#71819a!important;
-  font-size:13px!important;
-  font-weight:800!important;
-  cursor:pointer!important;
-}
-
-.esteira-profissional .nova-proposta-modal .proposta-wizard-step b{
-  width:30px!important;
-  height:30px!important;
-  flex:0 0 30px!important;
-  display:grid!important;
-  place-items:center!important;
-  border:1px solid #cbd9ec!important;
-  border-radius:50%!important;
-  background:#fff!important;
-  color:#5f7492!important;
-}
-
-.esteira-profissional .nova-proposta-modal .proposta-wizard-step.active{
-  background:#eaf2ff!important;
-  color:#155eef!important;
-}
-
-.esteira-profissional .nova-proposta-modal .proposta-wizard-step.active b{
-  border-color:#2468f2!important;
-  background:#2468f2!important;
-  color:#fff!important;
-}
-
-.esteira-profissional .nova-proposta-modal .proposta-wizard-step.done{
-  color:#168452!important;
-}
-
-.esteira-profissional .nova-proposta-modal .proposta-wizard-step.done b{
-  border-color:#a9e4c5!important;
-  background:#eafaf2!important;
-  color:#168452!important;
-}
-
-/* O form não ocupa artificialmente toda a altura da tela. */
-.esteira-profissional .nova-proposta-modal .proposta-wizard-form{
-  flex:0 1 auto!important;
-  width:100%!important;
-  min-height:0!important;
-  max-height:calc(94vh - 145px)!important;
-  margin:0!important;
-  padding:0!important;
-  display:flex!important;
-  flex-direction:column!important;
-  overflow:hidden!important;
-  gap:0!important;
-}
-
-/* Somente o miolo rola. */
-.esteira-profissional .nova-proposta-modal .proposta-wizard-scroll{
-  flex:0 1 auto!important;
-  width:100%!important;
-  min-height:0!important;
-  max-height:calc(94vh - 225px)!important;
-  box-sizing:border-box!important;
-  overflow-y:auto!important;
-  overflow-x:hidden!important;
-  padding:18px 28px 20px!important;
-  background:#fff!important;
-  scrollbar-gutter:stable!important;
-}
-
-/* Neutraliza a grade externa antiga. */
-.esteira-profissional .nova-proposta-modal .proposta-wizard-scroll > .modal-form-grid{
-  display:block!important;
-  width:100%!important;
-  min-width:0!important;
-  max-width:none!important;
-  margin:0!important;
-  padding:0!important;
-}
-
-.esteira-profissional .nova-proposta-modal .proposta-etapa-conteudo{
-  display:block!important;
-  width:100%!important;
-  min-width:0!important;
-  max-width:none!important;
-  height:auto!important;
-  min-height:0!important;
-  margin:0!important;
-  padding:0!important;
-}
-
-.esteira-profissional .nova-proposta-modal .secao-modal,
-.esteira-profissional .nova-proposta-modal .secao-documentos{
-  width:100%!important;
-  max-width:none!important;
-  min-height:0!important;
-  height:auto!important;
-  box-sizing:border-box!important;
-  margin:0!important;
-  padding:20px!important;
-  border:1px solid #dfe6f1!important;
-  border-radius:14px!important;
-  background:#fff!important;
-}
-
-.esteira-profissional .nova-proposta-modal .secao-documentos{
-  margin-top:0!important;
-  padding-top:20px!important;
-}
-
-.esteira-profissional .nova-proposta-modal .secao-modal > .modal-form-grid{
-  display:grid!important;
-  grid-template-columns:repeat(2,minmax(0,1fr))!important;
-  gap:14px 18px!important;
-  width:100%!important;
-  max-width:none!important;
-}
-
-.esteira-profissional .nova-proposta-modal input,
-.esteira-profissional .nova-proposta-modal select{
-  height:42px!important;
-  box-sizing:border-box!important;
-}
-
-/* CLIENTE */
-.esteira-profissional .nova-proposta-modal .proposta-cliente-layout{
-  display:grid!important;
-  grid-template-columns:minmax(0,2.15fr) minmax(300px,.85fr)!important;
-  gap:22px!important;
-  width:100%!important;
-  align-items:start!important;
-}
-
-.esteira-profissional .nova-proposta-modal .proposta-cliente-principal{
-  width:100%!important;
-  min-width:0!important;
-}
-
-.esteira-profissional .nova-proposta-modal .proposta-cliente-principal .busca-cliente-topo{
-  display:grid!important;
-  grid-template-columns:minmax(260px,1.35fr) 175px minmax(260px,.9fr)!important;
-  gap:12px!important;
-  width:100%!important;
-  margin:0 0 14px!important;
-  align-items:end!important;
-}
-
-.esteira-profissional .nova-proposta-modal .busca-cliente-topo > *{
-  width:100%!important;
-  min-width:0!important;
-  max-width:none!important;
-}
-
-.esteira-profissional .nova-proposta-modal .cliente-status-wizard{
-  width:100%!important;
-  box-sizing:border-box!important;
-  margin:0 0 14px!important;
-  padding:12px 14px!important;
-  border:1px solid #d7e4f6!important;
-  border-radius:12px!important;
-  background:#f7fbff!important;
-  display:flex!important;
-  align-items:center!important;
-  justify-content:space-between!important;
-  gap:14px!important;
-}
-
-.esteira-profissional .nova-proposta-modal .cliente-status-wizard > div{
-  display:flex!important;
-  flex-direction:column!important;
-  gap:3px!important;
-}
-
-.esteira-profissional .nova-proposta-modal .cliente-status-wizard.found{
-  background:#effcf5!important;
-  border-color:#a9e4c5!important;
-}
-
-.esteira-profissional .nova-proposta-modal .cliente-status-wizard.new{
-  background:#fff9ed!important;
-  border-color:#f5d89a!important;
-}
-
-.esteira-profissional .nova-proposta-modal .proposta-cliente-sidebar{
-  width:100%!important;
-  min-width:0!important;
-  display:flex!important;
-  flex-direction:column!important;
-  gap:14px!important;
-  position:sticky!important;
-  top:0!important;
-}
-
-.esteira-profissional .nova-proposta-modal .cliente-side-card{
-  width:100%!important;
-  box-sizing:border-box!important;
-  padding:16px!important;
-  border:1px solid #d8e5f6!important;
-  border-radius:14px!important;
-  background:#f7faff!important;
-  color:#17345f!important;
-}
-
-.esteira-profissional .nova-proposta-modal .cliente-side-identidade,
-.esteira-profissional .nova-proposta-modal .cliente-side-seguranca{
-  display:flex!important;
-  align-items:flex-start!important;
-  gap:12px!important;
-}
-
-.esteira-profissional .nova-proposta-modal .cliente-side-icon{
-  width:42px!important;
-  height:42px!important;
-  flex:0 0 42px!important;
-  display:grid!important;
-  place-items:center!important;
-  border-radius:50%!important;
-  background:#e5efff!important;
-}
-
-.esteira-profissional .nova-proposta-modal .cliente-side-card h4{
-  margin:0 0 10px!important;
-  padding-bottom:9px!important;
-  border-bottom:1px solid #dbe6f5!important;
-  color:#155eef!important;
-}
-
-.esteira-profissional .nova-proposta-modal .cliente-side-card ul{
-  list-style:none!important;
-  margin:0!important;
-  padding:0!important;
-  display:flex!important;
-  flex-direction:column!important;
-  gap:9px!important;
-}
-
-.esteira-profissional .nova-proposta-modal .cliente-side-card li{
-  position:relative!important;
-  padding-left:23px!important;
-  color:#35516f!important;
-  font-size:12px!important;
-  line-height:1.45!important;
-}
-
-.esteira-profissional .nova-proposta-modal .cliente-side-card li::before{
-  content:"✓"!important;
-  position:absolute!important;
-  left:0!important;
-  top:0!important;
-  width:16px!important;
-  height:16px!important;
-  display:grid!important;
-  place-items:center!important;
-  border-radius:50%!important;
-  background:#dff0ff!important;
-  color:#1769e8!important;
-  font-size:9px!important;
-  font-weight:900!important;
-}
-
-.esteira-profissional .nova-proposta-modal .cliente-side-seguranca{
-  background:#effcf5!important;
-  border-color:#bdebd1!important;
-}
-
-/* REVISÃO */
-.esteira-profissional .nova-proposta-modal .revisao-proposta{
-  width:100%!important;
-  display:grid!important;
-  grid-template-columns:repeat(2,minmax(0,1fr))!important;
-  gap:14px!important;
-}
-
-.esteira-profissional .nova-proposta-modal .revisao-cabecalho{
-  grid-column:1/-1!important;
-  display:flex!important;
-  justify-content:space-between!important;
-  align-items:center!important;
-  padding:16px!important;
-  border:1px solid #bce8cf!important;
-  border-radius:14px!important;
-  background:#f1fcf6!important;
-}
-
-.esteira-profissional .nova-proposta-modal .revisao-proposta section{
-  padding:16px!important;
-  border:1px solid #dce6f3!important;
-  border-radius:14px!important;
-  background:#fff!important;
-}
-
-.esteira-profissional .nova-proposta-modal .revisao-proposta section header{
-  display:flex!important;
-  align-items:center!important;
-  justify-content:space-between!important;
-  margin-bottom:10px!important;
-}
-
-.esteira-profissional .nova-proposta-modal .revisao-proposta section header button{
-  width:auto!important;
-  height:auto!important;
-  padding:0!important;
-  border:0!important;
-  background:transparent!important;
-  color:#1464ea!important;
-  font-size:12px!important;
-  font-weight:800!important;
-}
-
-.esteira-profissional .nova-proposta-modal .revisao-grid{
-  display:grid!important;
-  grid-template-columns:repeat(2,minmax(0,1fr))!important;
-  gap:9px!important;
-}
-
-.esteira-profissional .nova-proposta-modal .revisao-grid div{
-  padding:9px!important;
-  border-radius:9px!important;
-  background:#f7faff!important;
-}
-
-.esteira-profissional .nova-proposta-modal .revisao-grid span{
-  display:block!important;
-  margin-bottom:3px!important;
-  color:#7a899f!important;
-  font-size:11px!important;
-}
-
-/* RODAPÉ: fica no fluxo e nunca cobre os campos. */
-.esteira-profissional .nova-proposta-modal .proposta-wizard-footer{
-  flex:0 0 auto!important;
-  width:100%!important;
-  min-height:60px!important;
-  height:auto!important;
-  box-sizing:border-box!important;
-  display:flex!important;
-  align-items:center!important;
-  justify-content:space-between!important;
-  gap:12px!important;
-  margin:0!important;
-  padding:10px 28px!important;
-  position:static!important;
-  inset:auto!important;
-  border-top:1px solid #e4ebf5!important;
-  background:#fff!important;
-  z-index:10!important;
-}
-
-.esteira-profissional .nova-proposta-modal .proposta-wizard-footer-right{
-  display:flex!important;
-  align-items:center!important;
-  gap:10px!important;
-}
-
-.esteira-profissional .nova-proposta-modal .proposta-wizard-footer-right > span{
-  color:#7889a1!important;
-  font-size:11px!important;
-  font-weight:700!important;
-}
-
-.esteira-profissional .nova-proposta-modal .proposta-wizard-footer .botao-principal,
-.esteira-profissional .nova-proposta-modal .proposta-wizard-footer .botao-secundario{
-  min-height:40px!important;
-  padding:0 16px!important;
-}
-
-/* CEP + obrigatórios */
-.cep-feedback{
-  display:block;
-  margin-top:6px;
-  color:#9a6700;
-  font-size:11px;
-  line-height:1.35;
-  font-weight:700;
-}
-.cep-feedback.sucesso{color:#168653}
-.campo-obrigatorio{
-  color:#e53935!important;
-  font-weight:900!important;
-  margin-left:3px!important;
-}
-
-@media(max-width:1050px){
-  .esteira-profissional .nova-proposta-modal .proposta-cliente-layout{
-    grid-template-columns:1fr!important;
-  }
-
-  .esteira-profissional .nova-proposta-modal .proposta-cliente-sidebar{
-    position:static!important;
-    display:grid!important;
-    grid-template-columns:repeat(2,minmax(0,1fr))!important;
-  }
-
-  .esteira-profissional .nova-proposta-modal .cliente-side-seguranca{
-    grid-column:1/-1!important;
-  }
-}
-
-@media(max-width:760px){
-  .esteira-profissional .nova-proposta-modal{
-    width:98vw!important;
-    max-height:98vh!important;
-  }
-
-  .esteira-profissional .nova-proposta-modal .proposta-wizard{
-    grid-template-columns:repeat(5,auto)!important;
-    overflow-x:auto!important;
-    padding:10px 14px!important;
-  }
-
-  .esteira-profissional .nova-proposta-modal .proposta-wizard-step span{
-    display:none!important;
-  }
-
-  .esteira-profissional .nova-proposta-modal .proposta-wizard-scroll{
-    padding:14px!important;
-  }
-
-  .esteira-profissional .nova-proposta-modal .secao-modal > .modal-form-grid,
-  .esteira-profissional .nova-proposta-modal .proposta-cliente-principal .busca-cliente-topo,
-  .esteira-profissional .nova-proposta-modal .proposta-cliente-sidebar,
-  .esteira-profissional .nova-proposta-modal .revisao-proposta,
-  .esteira-profissional .nova-proposta-modal .revisao-grid{
-    grid-template-columns:1fr!important;
-  }
-
-  .esteira-profissional .nova-proposta-modal .revisao-cabecalho,
-  .esteira-profissional .nova-proposta-modal .cliente-side-seguranca{
-    grid-column:auto!important;
-  }
-
-  .esteira-profissional .nova-proposta-modal .proposta-wizard-footer{
-    padding:9px 14px!important;
-  }
-
-  .esteira-profissional .nova-proposta-modal .proposta-wizard-footer-right > span{
-    display:none!important;
-  }
-}
-
-/* ============================================================
-   NOVA PROPOSTA — AJUSTE VISUAL DO CADASTRO DE CLIENTE
-   ============================================================ */
-
-/* Card "Busque o cliente pelo CPF" */
-.esteira-profissional .nova-proposta-modal .cliente-status-wizard{
-  display:grid!important;
-  grid-template-columns:minmax(0,1fr) auto!important;
-  align-items:center!important;
-  gap:18px!important;
-  min-height:58px!important;
-  padding:12px 14px!important;
-}
-
-.esteira-profissional .nova-proposta-modal .cliente-status-wizard > div{
-  min-width:0!important;
-  display:flex!important;
-  flex-direction:column!important;
-  align-items:flex-start!important;
-  gap:3px!important;
-}
-
-.esteira-profissional .nova-proposta-modal .cliente-status-wizard > div strong{
-  display:block!important;
-  margin:0!important;
-  color:#173a70!important;
-  font-size:14px!important;
-  line-height:1.25!important;
-}
-
-.esteira-profissional .nova-proposta-modal .cliente-status-wizard > div span{
-  display:block!important;
-  margin:0!important;
-  color:#637792!important;
-  font-size:11px!important;
-  line-height:1.4!important;
-}
-
-/* Botão "+ Cadastrar cliente agora" */
-.esteira-profissional .nova-proposta-modal .cliente-status-wizard > button{
-  appearance:none!important;
-  width:auto!important;
-  min-width:190px!important;
-  height:40px!important;
-  min-height:40px!important;
-  display:inline-flex!important;
-  align-items:center!important;
-  justify-content:center!important;
-  gap:7px!important;
-  margin:0!important;
-  padding:0 16px!important;
-  border:1px solid #2468f2!important;
-  border-radius:10px!important;
-  background:#2468f2!important;
-  color:#fff!important;
-  font-family:inherit!important;
-  font-size:12px!important;
-  font-weight:800!important;
-  line-height:1!important;
-  text-decoration:none!important;
-  white-space:nowrap!important;
-  cursor:pointer!important;
-  box-shadow:0 4px 10px rgba(36,104,242,.14)!important;
-}
-
-.esteira-profissional .nova-proposta-modal .cliente-status-wizard > button::before{
-  content:"+"!important;
-  display:inline-block!important;
-  color:#fff!important;
-  font-size:17px!important;
-  font-weight:500!important;
-  line-height:1!important;
-}
-
-.esteira-profissional .nova-proposta-modal .cliente-status-wizard > button:hover{
-  border-color:#174fd2!important;
-  background:#174fd2!important;
-}
-
-/* Card lateral "Novo cliente" */
-.esteira-profissional .nova-proposta-modal .cliente-side-identidade{
-  display:grid!important;
-  grid-template-columns:42px minmax(0,1fr)!important;
-  align-items:start!important;
-  column-gap:12px!important;
-}
-
-.esteira-profissional .nova-proposta-modal .cliente-side-identidade > div:last-child{
-  min-width:0!important;
-  display:flex!important;
-  flex-direction:column!important;
-  align-items:flex-start!important;
-  gap:4px!important;
-}
-
-.esteira-profissional .nova-proposta-modal .cliente-side-identidade strong{
-  display:block!important;
-  width:100%!important;
-  margin:0!important;
-  color:#17345f!important;
-  font-size:14px!important;
-  font-weight:800!important;
-  line-height:1.25!important;
-}
-
-.esteira-profissional .nova-proposta-modal .cliente-side-identidade span{
-  display:block!important;
-  width:100%!important;
-  margin:0!important;
-  color:#637792!important;
-  font-size:11px!important;
-  line-height:1.5!important;
-  white-space:normal!important;
-}
-
-@media(max-width:760px){
-  .esteira-profissional .nova-proposta-modal .cliente-status-wizard{
-    grid-template-columns:1fr!important;
-  }
-
-  .esteira-profissional .nova-proposta-modal .cliente-status-wizard > button{
-    width:100%!important;
-    min-width:0!important;
-  }
-}
-
-/* ============================================================
-   DOCUMENTOS — ESTADO VISUAL APÓS ANEXAR
-   ============================================================ */
-.documento-upload-vazio{
-  width:100%;
-  min-height:108px;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  gap:6px;
-  cursor:pointer;
-  text-align:center;
-}
-
-.documento-upload-vazio input,
-.documento-trocar input{
-  display:none!important;
-}
-
-.documento-anexado,
-.documento-anexado-multiplo{
-  border:1px solid #9fdfbd!important;
-  background:#f0fcf5!important;
-  cursor:default!important;
-}
-
-.documento-anexado:hover,
-.documento-anexado-multiplo:hover{
-  border-color:#78cf9f!important;
-  background:#ecfaf2!important;
-  transform:none!important;
-}
-
-.documento-check{
-  width:32px;
-  height:32px;
-  flex:0 0 32px;
-  display:grid;
-  place-items:center;
-  border-radius:50%;
-  background:#18a765;
-  color:#fff;
-  font-size:18px;
-  font-weight:900;
-}
-
-.documento-anexado > span,
-.documento-anexado-multiplo > span{
-  color:#168653!important;
-  font-size:12px!important;
-  font-weight:900!important;
-}
-
-.documento-nome-arquivo{
-  display:block!important;
-  max-width:90%!important;
-  overflow:hidden!important;
-  text-overflow:ellipsis!important;
-  white-space:nowrap!important;
-  color:#315c48!important;
-  font-size:11px!important;
-  font-weight:700!important;
-  text-transform:none!important;
+/* STATUS — CORES PERSONALIZADAS */
+
+/* AGUARDANDO LIBERAÇÃO DE MARGEM = AMARELO */
+.esteira-profissional .proposta-status-pill.status-ag-liberacao-margem {
+  background: #fff3cd !important;
+  color: #b76e00 !important;
+  border: 1px solid #f4cf73 !important;
+}
+
+/* CANCELADA = VERMELHO */
+.esteira-profissional .proposta-status-pill.status-cancelada {
+  background: #fee2e2 !important;
+  color: #b42318 !important;
+  border: 1px solid #f5b5b0 !important;
+}
+/* AG. LIBERAÇÃO MARGEM = AMARELO */
+.esteira-profissional
+  .proposta-status-pill.status-ag\.-liberacao-margem {
+  background: #fff3cd !important;
+  color: #b76e00 !important;
+  border: 1px solid #f4cf73 !important;
 }
-
-.documento-acoes-anexo{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:8px;
-  margin-top:5px;
-}
-
-.documento-trocar,
-.documento-remover{
-  width:auto!important;
-  min-height:32px!important;
-  height:32px!important;
-  display:inline-flex!important;
-  align-items:center!important;
-  justify-content:center!important;
-  padding:0 11px!important;
-  border-radius:8px!important;
-  font-family:inherit!important;
-  font-size:10px!important;
-  font-weight:800!important;
-  text-transform:none!important;
-  cursor:pointer!important;
-}
-
-.documento-trocar{
-  border:1px solid #a8c9ff!important;
-  background:#fff!important;
-  color:#155eef!important;
-}
-
-.documento-remover{
-  border:1px solid #f2b8b5!important;
-  background:#fff!important;
-  color:#d92d20!important;
-}
-
-.documento-anexado-multiplo .documento-upload-seletor{
-  min-height:48px!important;
-}
-
-.documento-anexado-multiplo .documento-upload-seletor strong{
-  color:#168653!important;
-}
-
-.documento-anexado-multiplo .contracheques-selecionados{
-  margin-top:8px!important;
-}
-
-.documento-anexado-multiplo .contracheque-item{
-  border-color:#b9e6cc!important;
-  background:#fff!important;
-}
-
